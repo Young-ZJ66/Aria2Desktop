@@ -1,0 +1,131 @@
+<template>
+  <div class="app-footer">
+    <div class="footer-left">
+      <div class="global-stats">
+        <span class="stat-item">
+          <el-icon><Download /></el-icon>
+          {{ formatSpeed(globalStat.downloadSpeed) }}/s
+        </span>
+        <span class="stat-item">
+          <el-icon><Upload /></el-icon>
+          {{ formatSpeed(globalStat.uploadSpeed) }}/s
+        </span>
+        <span class="stat-item">
+          活动: {{ globalStat.numActive }}
+        </span>
+        <span class="stat-item">
+          等待: {{ globalStat.numWaiting }}
+        </span>
+        <span class="stat-item">
+          已停止: {{ globalStat.numStopped }}
+        </span>
+      </div>
+    </div>
+    
+    <div class="footer-right">
+      <div class="connection-status">
+        <el-icon 
+          :class="connectionStatusClass"
+        >
+          <component :is="connectionIcon" />
+        </el-icon>
+        <span>{{ connectionStatusText }}</span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useAria2Store } from '@/stores/aria2Store'
+import { 
+  Download, 
+  Upload, 
+  Connection,
+  WarningFilled,
+  CircleCheckFilled
+} from '@element-plus/icons-vue'
+
+const aria2Store = useAria2Store()
+
+const globalStat = computed(() => aria2Store.globalStat)
+const isConnected = computed(() => aria2Store.isConnected)
+const isConnecting = computed(() => aria2Store.isConnecting)
+
+const connectionStatusText = computed(() => {
+  if (isConnecting.value) return '连接中...'
+  return isConnected.value ? '已连接' : '未连接'
+})
+
+const connectionStatusClass = computed(() => {
+  if (isConnecting.value) return 'status-connecting'
+  return isConnected.value ? 'status-connected' : 'status-disconnected'
+})
+
+const connectionIcon = computed(() => {
+  if (isConnecting.value) return Connection
+  return isConnected.value ? CircleCheckFilled : WarningFilled
+})
+
+function formatSpeed(speed: string): string {
+  const bytes = parseInt(speed)
+  if (bytes === 0) return '0 B'
+  
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+</script>
+
+<style scoped>
+.app-footer {
+  height: 40px;
+  background: #f8f9fa;
+  border-top: 1px solid #e4e7ed;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  font-size: 12px;
+}
+
+.footer-left {
+  flex: 1;
+}
+
+.global-stats {
+  display: flex;
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #606266;
+}
+
+.footer-right {
+  flex: 0 0 auto;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-connected {
+  color: #67c23a;
+}
+
+.status-connecting {
+  color: #e6a23c;
+}
+
+.status-disconnected {
+  color: #f56c6c;
+}
+</style>

@@ -1,0 +1,70 @@
+{
+  "name": "aria2-desktop",
+  "version": "1.0.0",
+  "description": "A modern Windows desktop client for Aria2, porting all AriaNg features",
+  "main": "dist/electron/main.js",
+  "author": "Your Name",
+  "license": "MIT",
+  "homepage": "./",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:vue\" \"npm run dev:electron\"",
+    "dev:vue": "vite",
+    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .",
+    "build": "npm run build:vue && npm run build:electron",
+    "build:vue": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.1.0",
+    "axios": "^1.6.0",
+    "dayjs": "^1.11.10",
+    "echarts": "^5.4.3",
+    "electron-store": "^8.1.0",
+    "element-plus": "^2.4.2",
+    "file-saver": "^2.0.5",
+    "pinia": "^2.1.7",
+    "vue": "^3.3.8",
+    "vue-echarts": "^6.6.1",
+    "vue-router": "^4.2.5",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^20.8.10",
+    "@types/ws": "^8.5.8",
+    "@vitejs/plugin-vue": "^4.4.1",
+    "@vue/eslint-config-typescript": "^12.0.0",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^27.1.0",
+    "electron-builder": "^24.6.4",
+    "eslint": "^8.52.0",
+    "eslint-plugin-vue": "^9.17.0",
+    "typescript": "^5.2.2",
+    "vite": "^4.5.0",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.aria2desktop.app",
+    "productName": "Aria2 Desktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
