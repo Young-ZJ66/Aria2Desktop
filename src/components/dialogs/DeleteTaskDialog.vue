@@ -22,48 +22,26 @@
       <div v-if="showFileDeleteOption" class="file-delete-option">
         <el-divider />
         <div class="option-section">
-          <h4>文件处理</h4>
-          <el-radio-group v-model="deleteOption" class="delete-options">
-            <el-radio value="task-only" class="option-item">
-              <div class="option-content">
-                <div class="option-title">仅删除任务记录</div>
-                <div class="option-description">保留已下载的文件</div>
-              </div>
-            </el-radio>
-            <el-radio value="task-and-files" class="option-item">
-              <div class="option-content">
-                <div class="option-title">删除任务和文件</div>
-                <div class="option-description">同时删除已下载的文件（不可恢复）</div>
-              </div>
-            </el-radio>
-          </el-radio-group>
-        </div>
-
-        <!-- 文件列表预览 -->
-        <div v-if="deleteOption === 'task-and-files' && fileList.length > 0" class="file-preview">
-          <h5>将要删除的文件：</h5>
-          <div class="file-list">
-            <div v-for="(file, index) in fileList.slice(0, 5)" :key="index" class="file-item">
-              <el-icon><Document /></el-icon>
-              <span class="file-path">{{ file }}</span>
-            </div>
-            <div v-if="fileList.length > 5" class="more-files">
-              还有 {{ fileList.length - 5 }} 个文件...
-            </div>
+          <div style="margin-top: 16px;">
+            <el-checkbox v-model="deleteFiles" :disabled="fileList.length === 0">
+              同时删除文件
+            </el-checkbox>
           </div>
         </div>
+
+
       </div>
     </div>
 
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="handleClose">取消</el-button>
-        <el-button 
-          type="danger" 
+        <el-button
+          type="danger"
           @click="handleConfirm"
           :loading="deleting"
         >
-          {{ deleteOption === 'task-and-files' ? '删除任务和文件' : '删除任务' }}
+          {{ deleteFiles ? '删除任务和文件' : '删除任务' }}
         </el-button>
       </div>
     </template>
@@ -72,7 +50,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { WarningFilled, Document } from '@element-plus/icons-vue'
+import { WarningFilled } from '@element-plus/icons-vue'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
 import type { Aria2Task } from '@/types/aria2'
 
@@ -97,7 +75,7 @@ const visible = computed({
 })
 
 const deleting = ref(false)
-const deleteOption = ref<'task-only' | 'task-and-files'>('task-only')
+const deleteFiles = ref(false)
 
 const taskCount = computed(() => props.tasks.length)
 
@@ -129,8 +107,9 @@ const fileList = computed(() => {
       files.push(...taskFiles)
       console.log(`  Completed task ${task.gid} files:`, taskFiles)
     } else {
-      // 其他任务使用原有逻辑
+      // 其他任务使用原有逻辑，但也包含.aria2文件
       if (task.files && task.files.length > 0) {
+        const taskFiles: string[] = []
         task.files.forEach((file, fileIndex) => {
           console.log(`  File ${fileIndex}:`, {
             path: file.path,
@@ -140,9 +119,17 @@ const fileList = computed(() => {
           })
 
           if (file.path && file.path.trim()) {
-            files.push(file.path)
+            taskFiles.push(file.path)
           }
         })
+
+        // 添加对应的.aria2文件
+        const aria2Files = taskFiles
+          .filter(path => !path.endsWith('.aria2')) // 避免重复添加
+          .map(path => path + '.aria2')
+
+        files.push(...taskFiles, ...aria2Files)
+        console.log(`  Task ${task.gid} files (including .aria2):`, [...taskFiles, ...aria2Files])
       } else {
         console.log(`  Task ${task.gid} has no files or empty files array`)
       }
@@ -156,7 +143,7 @@ const fileList = computed(() => {
 // 重置选项当对话框打开时
 watch(visible, (newVisible) => {
   if (newVisible) {
-    deleteOption.value = 'task-only'
+    deleteFiles.value = false
     deleting.value = false
   }
 })
@@ -170,8 +157,7 @@ function handleClose() {
 async function handleConfirm() {
   try {
     deleting.value = true
-    const deleteFiles = deleteOption.value === 'task-and-files'
-    emit('confirm', deleteFiles)
+    emit('confirm', deleteFiles.value)
   } finally {
     deleting.value = false
   }
@@ -254,45 +240,6 @@ async function handleConfirm() {
 .option-description {
   font-size: 12px;
   color: #909399;
-}
-
-.file-preview {
-  margin-top: 20px;
-  padding: 15px;
-  background-color: #fafafa;
-  border-radius: 8px;
-}
-
-.file-preview h5 {
-  margin: 0 0 10px 0;
-  color: #303133;
-  font-size: 14px;
-}
-
-.file-list {
-  max-height: 150px;
-  overflow-y: auto;
-}
-
-.file-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 0;
-  font-size: 12px;
-  color: #606266;
-}
-
-.file-path {
-  word-break: break-all;
-  flex: 1;
-}
-
-.more-files {
-  padding: 5px 0;
-  font-size: 12px;
-  color: #909399;
-  font-style: italic;
 }
 
 .dialog-footer {

@@ -12,16 +12,6 @@
     </div>
     
     <div class="header-right">
-      <div class="search-box">
-        <el-input
-          v-model="searchText"
-          placeholder="搜索任务..."
-          :prefix-icon="Search"
-          clearable
-          @input="handleSearch"
-        />
-      </div>
-
       <el-button
         :icon="Connection"
         :type="isConnected ? 'success' : 'danger'"
@@ -40,14 +30,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAria2Store } from '@/stores/aria2Store'
 import {
-  Search,
   Connection
 } from '@element-plus/icons-vue'
 import ConnectionDialog from '@/components/dialogs/ConnectionDialog.vue'
 
 const aria2Store = useAria2Store()
 const appVersion = ref('1.0.0')
-const searchText = ref('')
 const showConnectionDialog = ref(false)
 
 // 计算属性
@@ -57,11 +45,7 @@ const connectionStatus = computed(() => {
   return aria2Store.isConnected ? '已连接' : '未连接'
 })
 
-// 方法
-function handleSearch(value: string) {
-  // TODO: 实现全局搜索功能
-  console.log('Global search:', value)
-}
+
 
 onMounted(async () => {
   // 获取应用版本
@@ -121,9 +105,5 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 16px;
-}
-
-.search-box {
-  width: 200px;
 }
 </style>

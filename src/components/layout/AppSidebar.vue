@@ -14,9 +14,9 @@
         <span>下载任务 ({{ activeAndWaitingCount }})</span>
       </el-menu-item>
       
-      <el-menu-item index="/stopped">
+      <el-menu-item index="/completed">
         <el-icon><Check /></el-icon>
-        <span>已完成 ({{ stoppedTasks.length }})</span>
+        <span>下载完成 ({{ stoppedTasks.length }})</span>
       </el-menu-item>
     </el-menu>
     

@@ -14,10 +14,14 @@ const router = createRouter({
       props: { taskType: 'active-and-waiting' }
     },
     {
-      path: '/stopped',
-      name: 'stopped',
+      path: '/completed',
+      name: 'completed',
       component: () => import('@/views/TaskList.vue'),
       props: { taskType: 'stopped' }
+    },
+    {
+      path: '/stopped',
+      redirect: '/completed'
     },
     {
       path: '/new',

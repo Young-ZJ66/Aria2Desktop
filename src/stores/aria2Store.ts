@@ -265,10 +265,15 @@ export const useAria2Store = defineStore('aria2', () => {
         }
       })
 
-      // 合并 Aria2 任务和持久化任务
-      const mergedStoppedTasks = taskPersistenceService.mergeWithAria2Tasks(stopped)
+      // 分离错误任务和其他已停止任务
+      const errorTasks = stopped.filter(task => task.status === 'error')
+      const actuallyStoppedTasks = stopped.filter(task => task.status !== 'error')
 
-      activeTasks.value = active
+      // 合并 Aria2 任务和持久化任务（不包括错误任务）
+      const mergedStoppedTasks = taskPersistenceService.mergeWithAria2Tasks(actuallyStoppedTasks)
+
+      // 将错误任务合并到活跃任务中，这样它们会显示在下载任务列表中
+      activeTasks.value = [...active, ...errorTasks]
       waitingTasks.value = waiting
       stoppedTasks.value = mergedStoppedTasks
     } catch (error) {
@@ -360,6 +365,117 @@ export const useAria2Store = defineStore('aria2', () => {
     }
   }
 
+  // 重试错误任务
+  async function retryErrorTask(gid: string) {
+    if (!service.value) throw new Error('Not connected')
+
+    console.log('🔄 NEW RETRY LOGIC - Retrying error task:', gid)
+
+    try {
+      // 获取任务详细信息
+      const taskInfo = await service.value.tellStatus(gid)
+      console.log('Task info for retry:', taskInfo)
+      console.log('Task status:', taskInfo.status)
+
+      // 对于错误状态的任务，我们需要重新添加任务
+      // 因为 Aria2 不允许直接 unpause 错误状态的任务
+
+      // 获取下载链接
+      let uris: string[] = []
+      if (taskInfo.files && taskInfo.files.length > 0) {
+        // 从文件信息中获取 URI
+        taskInfo.files.forEach(file => {
+          if (file.uris && file.uris.length > 0) {
+            file.uris.forEach(uri => {
+              if (uri.uri) {
+                uris.push(uri.uri)
+              }
+            })
+          }
+        })
+      }
+
+      console.log('Extracted URIs:', uris)
+
+      if (uris.length === 0) {
+        throw new Error('无法获取任务的下载链接，可能是种子文件或其他类型的任务')
+      }
+
+      // 获取下载目录
+      const downloadDir = taskInfo.dir
+
+      // 删除错误任务 - 尝试多种方法确保删除成功
+      let removeSuccess = false
+
+      // 方法1: 尝试强制删除
+      try {
+        await service.value.forceRemove(gid)
+        console.log('Removed error task with forceRemove:', gid)
+        removeSuccess = true
+      } catch (removeError) {
+        console.warn('forceRemove failed:', removeError)
+      }
+
+      // 方法2: 如果强制删除失败，尝试从下载结果中删除
+      if (!removeSuccess) {
+        try {
+          await service.value.removeDownloadResult(gid)
+          console.log('Removed error task from download results:', gid)
+          removeSuccess = true
+        } catch (resultError) {
+          console.warn('removeDownloadResult failed:', resultError)
+        }
+      }
+
+      // 方法3: 如果都失败了，尝试普通删除
+      if (!removeSuccess) {
+        try {
+          await service.value.remove(gid)
+          console.log('Removed error task with remove:', gid)
+          removeSuccess = true
+        } catch (normalRemoveError) {
+          console.warn('Normal remove failed:', normalRemoveError)
+        }
+      }
+
+      if (!removeSuccess) {
+        console.warn('All removal methods failed for task:', gid, '- continuing anyway')
+      }
+
+      // 立即从本地状态中移除错误任务
+      activeTasks.value = activeTasks.value.filter(task => task.gid !== gid)
+      waitingTasks.value = waitingTasks.value.filter(task => task.gid !== gid)
+      stoppedTasks.value = stoppedTasks.value.filter(task => task.gid !== gid)
+
+      // 清理持久化记录和时间记录
+      taskPersistenceService.removePersistedTask(gid)
+      taskTimeService.removeTaskTime(gid)
+
+      console.log('Removed error task from local state:', gid)
+
+      // 等待一下确保删除操作完成
+      await new Promise(resolve => setTimeout(resolve, 200))
+
+      // 重新添加任务
+      const newGid = await service.value.addUri(uris, {
+        dir: downloadDir
+      })
+
+      console.log('Retried task with new GID:', newGid)
+
+      // 等待一下确保添加操作完成
+      await new Promise(resolve => setTimeout(resolve, 300))
+
+      // 刷新任务列表以确保界面更新
+      await loadAllTasks()
+
+      return newGid
+    } catch (error) {
+      console.error('Retry operation failed:', error)
+      throw error
+    }
+  }
+
   // 验证任务是否存在
   async function verifyTaskExists(gid: string): Promise<boolean> {
     if (!service.value) return false
@@ -408,7 +524,14 @@ export const useAria2Store = defineStore('aria2', () => {
             taskFiles = task.files
               .map(file => file.path)
               .filter(path => path && path.trim() && path !== '')
-            console.log('Task files to delete:', taskFiles)
+
+            // 添加对应的.aria2文件
+            const aria2Files = taskFiles
+              .filter(path => !path.endsWith('.aria2')) // 避免重复添加
+              .map(path => path + '.aria2')
+
+            taskFiles = [...taskFiles, ...aria2Files]
+            console.log('Task files to delete (including .aria2 files):', taskFiles)
             console.log('Number of files to delete:', taskFiles.length)
           } else {
             console.log('No files found for task:', gid)
@@ -425,12 +548,48 @@ export const useAria2Store = defineStore('aria2', () => {
     // 删除任务（只有当任务存在时才删除）
     if (taskExists) {
       try {
-        if (force) {
+        // 获取任务状态以决定使用哪种删除方法
+        let taskStatus = 'unknown'
+        try {
+          const taskInfo = await service.value.tellStatus(gid, ['status'])
+          taskStatus = taskInfo.status
+        } catch (statusError) {
+          console.log('Failed to get task status, will use forceRemove:', statusError)
+        }
+
+        // 对于错误状态的任务，需要特殊处理
+        if (taskStatus === 'error') {
+          // 错误任务通常在 stopped 列表中，需要使用 removeDownloadResult
+          try {
+            await service.value.removeDownloadResult(gid)
+            console.log('Removed error task from download results:', gid)
+          } catch (resultError) {
+            console.warn('Failed to remove error task from download results:', resultError)
+            // 如果 removeDownloadResult 失败，尝试 forceRemove
+            try {
+              await service.value.forceRemove(gid)
+              console.log('Force removed error task:', gid)
+            } catch (forceError) {
+              console.warn('Failed to force remove error task:', forceError)
+            }
+          }
+        } else if (force || taskStatus === 'active' || taskStatus === 'waiting' || taskStatus === 'paused' || taskStatus === 'unknown') {
+          // 对于其他状态的任务，使用forceRemove直接删除，避免进入已完成列表
           await service.value.forceRemove(gid)
+          console.log('Force removed task from Aria2:', gid)
         } else {
           await service.value.remove(gid)
+          console.log('Removed task from Aria2:', gid)
         }
-        console.log('Task removed from Aria2:', gid)
+
+        // 对于可能已经进入下载结果的任务，尝试从下载结果中删除
+        try {
+          await service.value.removeDownloadResult(gid)
+          console.log('Task download result removed from Aria2:', gid)
+        } catch (resultError) {
+          // 如果任务还没有进入下载结果，这个错误是正常的
+          console.log('Failed to remove download result (may not exist yet):', resultError)
+        }
       } catch (error) {
         console.warn('Failed to remove task from Aria2:', error)
 
@@ -438,13 +597,23 @@ export const useAria2Store = defineStore('aria2', () => {
         if (error.message && error.message.includes('not found')) {
           console.log('Task not found in Aria2, continuing with cleanup')
         } else {
-          // 其他错误，重新抛出
-          throw error
+          // 对于错误状态的任务，删除失败是常见的，不抛出错误
+          console.warn('Task removal failed, but continuing with cleanup')
+        }
+
+        // 无论删除是否成功，都要尝试从下载结果中删除
+        try {
+          await service.value.removeDownloadResult(gid)
+          console.log('Removed task from download results after main removal failed:', gid)
+        } catch (resultError) {
+          console.warn('Failed to remove from download results:', resultError)
         }
       }
     } else {
       console.log('Task does not exist in Aria2, skipping removal')
     }
+
+    console.log('About to check deleteFiles flag:', deleteFiles)
 
     // 删除文件
     if (deleteFiles) {
@@ -487,6 +656,15 @@ export const useAria2Store = defineStore('aria2', () => {
       }
     }
 
+    console.log('File deletion section completed, proceeding to local state cleanup')
+
+    // 立即从本地状态中移除任务
+    activeTasks.value = activeTasks.value.filter(task => task.gid !== gid)
+    waitingTasks.value = waitingTasks.value.filter(task => task.gid !== gid)
+    stoppedTasks.value = stoppedTasks.value.filter(task => task.gid !== gid)
+
+    console.log('Removed task from local state:', gid)
+
     // 清理持久化记录和时间记录
     taskPersistenceService.removePersistedTask(gid)
     taskTimeService.removeTaskTime(gid)
@@ -511,11 +689,25 @@ export const useAria2Store = defineStore('aria2', () => {
   // 批量操作
   async function pauseSelectedTasks() {
     if (!service.value || selectedTaskGids.value.size === 0) return
-    
-    const promises = Array.from(selectedTaskGids.value).map(gid => 
-      service.value!.pause(gid).catch(console.error)
-    )
-    
+
+    const promises = Array.from(selectedTaskGids.value).map(async gid => {
+      try {
+        // 对于所有任务，直接使用forcePause
+        // forcePause可以暂停任何状态的任务，包括等待中的任务
+        await service.value!.forcePause(gid)
+        console.log(`Force paused task: ${gid}`)
+      } catch (error) {
+        console.error(`Failed to force pause task ${gid}:`, error)
+        // 如果forcePause失败，尝试普通暂停
+        try {
+          await service.value!.pause(gid)
+          console.log(`Paused task: ${gid}`)
+        } catch (pauseError) {
+          console.error(`Failed to pause task ${gid}:`, pauseError)
+        }
+      }
+    })
+
     await Promise.all(promises)
     await loadAllTasks()
   }
@@ -685,6 +877,7 @@ export const useAria2Store = defineStore('aria2', () => {
     addTorrent,
     pauseTask,
     unpauseTask,
+    retryErrorTask,
     removeTask,
     pauseAllTasks,
     unpauseAllTasks,

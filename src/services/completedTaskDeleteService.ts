@@ -74,15 +74,22 @@ class CompletedTaskDeleteService {
         }
       })
     }
-    
+
+    // 添加对应的.aria2文件
+    const aria2Files = filePaths
+      .filter(path => !path.endsWith('.aria2')) // 避免重复添加
+      .map(path => path + '.aria2')
+
+    const allFiles = [...filePaths, ...aria2Files]
+
     // 如果没有找到文件，尝试从下载目录推断
     if (filePaths.length === 0 && task.dir) {
       console.log(`No files found in task.files, checking download directory: ${task.dir}`)
       // 这里可以添加从下载目录推断文件的逻辑
     }
-    
-    console.log(`Final file paths for task ${task.gid}:`, filePaths)
-    return filePaths
+
+    console.log(`Final file paths for task ${task.gid} (including .aria2 files):`, allFiles)
+    return allFiles
   }
   
   /**

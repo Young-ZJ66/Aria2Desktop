@@ -25,7 +25,6 @@
           新建下载
         </el-button>
 
-
         <!-- 操作按钮 -->
         <el-divider direction="vertical" class="action-divider" />
         <div class="batch-actions">
@@ -82,6 +81,18 @@
         </div>
       </div>
 
+      <div class="action-right">
+        <div class="search-box">
+          <el-input
+            v-model="searchText"
+            placeholder="搜索任务..."
+            :prefix-icon="Search"
+            clearable
+            @input="handleSearch"
+            style="width: 200px;"
+          />
+        </div>
+      </div>
     </div>
 
     <div class="task-list-content">
@@ -163,13 +174,24 @@
           </template>
         </el-table-column>
         
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right" align="center" header-align="center">
           <template #default="{ row }">
             <div class="action-buttons">
               <button
                 v-if="row.status === 'paused'"
                 @click.stop="unpauseTask(row.gid)"
                 title="开始下载"
+                class="task-action-btn"
+                :disabled="operatingTasks.has(row.gid)"
+              >
+                <div v-if="operatingTasks.has(row.gid)" class="loading-spinner"></div>
+                <CustomIcon v-else name="start" size="medium" />
+              </button>
+
+              <button
+                v-else-if="row.status === 'error'"
+                @click.stop="retryTask(row.gid)"
+                title="重试下载"
                 class="task-action-btn"
                 :disabled="operatingTasks.has(row.gid)"
               >
@@ -186,6 +208,16 @@
               >
                 <div v-if="operatingTasks.has(row.gid)" class="loading-spinner"></div>
                 <CustomIcon v-else name="pause" size="medium" />
+              </button>
+
+              <!-- 打开位置按钮 - 仅在已完成任务页面显示 -->
+              <button
+                v-if="taskType === 'stopped'"
+                @click.stop="openTaskLocation(row)"
+                title="打开位置"
+                class="task-action-btn"
+              >
+                <CustomIcon name="open" size="medium" />
               </button>
 
               <button
@@ -220,7 +252,7 @@
         <p>确定要删除这个任务吗？</p>
         <div style="margin-top: 16px;">
           <el-checkbox v-model="deleteFiles">
-            同时删除已下载的文件
+            同时删除文件
           </el-checkbox>
         </div>
       </div>
@@ -246,7 +278,7 @@
 import { computed, ref, h, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { VideoPlay, VideoPause, Clock, Plus, Select, Delete } from '@element-plus/icons-vue'
+import { VideoPlay, VideoPause, Clock, Plus, Select, Delete, Search } from '@element-plus/icons-vue'
 import { useAria2Store } from '@/stores/aria2Store'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { taskTimeService } from '@/services/taskTimeService'
@@ -301,12 +333,13 @@ const {
 
 // 状态
 const loading = ref(false)
+const searchText = ref('')
 
 const title = computed(() => {
   switch (props.taskType) {
     case 'active': return '正在下载'
     case 'waiting': return '等待中'
-    case 'stopped': return '已完成/已停止'
+    case 'stopped': return '下载完成'
     case 'active-and-waiting': return '下载任务'
     default: return '任务列表'
   }
@@ -333,15 +366,15 @@ const allTasks = computed(() => {
       return []
   }
 
-  // 按状态和添加时间排序：active > waiting > paused，然后按添加时间倒序
+  // 按状态和添加时间排序：error > active > waiting > paused，然后按添加时间倒序
   return tasks.sort((a, b) => {
     // 状态优先级
-    const statusPriority = { 'active': 3, 'waiting': 2, 'paused': 1 }
+    const statusPriority = { 'error': 4, 'active': 3, 'waiting': 2, 'paused': 1 }
     const aPriority = statusPriority[a.status] || 0
     const bPriority = statusPriority[b.status] || 0
 
     if (aPriority !== bPriority) {
-      return bPriority - aPriority // 降序，active 在前
+      return bPriority - aPriority // 降序，error 在最前面
     }
 
     // 状态相同时，按添加时间排序（最新的在前）
@@ -349,9 +382,42 @@ const allTasks = computed(() => {
   })
 })
 
-// 排序后的任务
+// 排序和过滤后的任务
 const filteredTasks = computed(() => {
-  const tasks = [...allTasks.value]
+  let tasks = [...allTasks.value]
+
+  // 搜索过滤
+  if (searchText.value.trim()) {
+    const searchTerm = searchText.value.toLowerCase().trim()
+    tasks = tasks.filter(task => {
+      // 搜索任务名称
+      const taskName = getTaskName(task).toLowerCase()
+      if (taskName.includes(searchTerm)) return true
+
+      // 搜索文件路径
+      if (task.files && task.files.length > 0) {
+        const hasMatchingFile = task.files.some(file =>
+          file.path && file.path.toLowerCase().includes(searchTerm)
+        )
+        if (hasMatchingFile) return true
+      }
+
+      // 搜索下载链接
+      if (task.files && task.files.length > 0) {
+        const hasMatchingUri = task.files.some(file =>
+          file.uris && file.uris.some(uri =>
+            uri.uri && uri.uri.toLowerCase().includes(searchTerm)
+          )
+        )
+        if (hasMatchingUri) return true
+      }
+
+      // 搜索GID
+      if (task.gid.toLowerCase().includes(searchTerm)) return true
+
+      return false
+    })
+  }
 
   // 根据任务类型设置不同的排序规则
   if (props.taskType === 'stopped') {
@@ -373,15 +439,15 @@ const filteredTasks = computed(() => {
       return parseInt(b.gid, 16) - parseInt(a.gid, 16)
     })
   } else {
-    // 下载任务：下载中的任务排在最上方
+    // 下载任务：错误任务排在最前面，然后是下载中的任务
     return tasks.sort((a, b) => {
-      // 状态优先级：active > waiting > paused
-      const statusPriority = { 'active': 3, 'waiting': 2, 'paused': 1 }
+      // 状态优先级：error > active > waiting > paused
+      const statusPriority = { 'error': 4, 'active': 3, 'waiting': 2, 'paused': 1 }
       const aPriority = statusPriority[a.status] || 0
       const bPriority = statusPriority[b.status] || 0
 
       if (aPriority !== bPriority) {
-        return bPriority - aPriority // 降序，active 在前
+        return bPriority - aPriority // 降序，error 在最前面
       }
 
       // 状态相同时，按添加时间排序（最新的在前）
@@ -617,6 +683,46 @@ async function unpauseTask(gid: string) {
   }
 }
 
+async function retryTask(gid: string) {
+  // 检查是否正在操作
+  if (operatingTasks.value.has(gid)) {
+    console.log('Task is already being operated:', gid)
+    return
+  }
+
+  // 添加操作锁
+  operatingTasks.value.add(gid)
+
+  try {
+    console.log('Retrying task:', gid)
+
+    // 立即更新本地显示状态（乐观更新）
+    const task = filteredTasks.value.find(t => t.gid === gid)
+    if (task) {
+      task.status = 'active'
+    }
+
+    // 执行重试操作
+    const newGid = await aria2Store.retryErrorTask(gid)
+    ElMessage.success('任务重试成功')
+
+    console.log('Task retried with new GID:', newGid)
+
+    // 立即刷新任务列表（retryErrorTask 内部已经刷新了，但为了确保界面同步再刷新一次）
+    await aria2Store.loadAllTasks()
+
+  } catch (error) {
+    console.error('重试任务失败:', error)
+    ElMessage.error(`重试任务失败: ${error.message || error}`)
+
+    // 如果操作失败，恢复原始状态
+    await aria2Store.loadAllTasks()
+  } finally {
+    // 移除操作锁
+    operatingTasks.value.delete(gid)
+  }
+}
+
 async function removeTask(gid: string) {
   try {
     const task = filteredTasks.value.find(t => t.gid === gid)
@@ -692,6 +798,71 @@ function viewTaskDetail(gid: string) {
   router.push(`/task/${gid}`)
 }
 
+// 打开任务位置
+async function openTaskLocation(task: any) {
+  if (!window.electronAPI) {
+    ElMessage.warning('此功能仅在桌面版中可用')
+    return
+  }
+
+  if (!task.dir) {
+    ElMessage.warning('没有找到文件目录信息')
+    return
+  }
+
+  try {
+    let result
+
+    // 优先使用 Windows Explorer 方法（如果可用）
+    if (window.electronAPI.openInExplorer) {
+      console.log('Using Windows Explorer method for task:', task.gid)
+
+      // 如果有具体的文件，打开文件位置
+      if (task.files && task.files.length > 0) {
+        const firstFile = task.files[0]
+        if (firstFile.path) {
+          result = await window.electronAPI.openInExplorer(firstFile.path)
+          if (result?.success) {
+            ElMessage.success('已打开文件位置')
+            return
+          }
+        }
+      }
+
+      // 否则打开目录
+      result = await window.electronAPI.openInExplorer(task.dir)
+      if (result?.success) {
+        ElMessage.success('已打开目录')
+        return
+      }
+    }
+
+    // 备用方法：使用 showItemInFolder
+    console.log('Fallback to showItemInFolder method for task:', task.gid)
+    if (task.files && task.files.length > 0) {
+      const firstFile = task.files[0]
+      if (firstFile.path) {
+        result = await window.electronAPI.showItemInFolder(firstFile.path)
+        if (result?.success) {
+          ElMessage.success('已打开文件位置')
+          return
+        }
+      }
+    }
+
+    // 最后尝试 openPath
+    result = await window.electronAPI.openPath(task.dir)
+    if (result?.success) {
+      ElMessage.success('已打开目录')
+    } else {
+      ElMessage.error(`打开目录失败: ${result?.error || '未知错误'}`)
+    }
+  } catch (error) {
+    console.error('Failed to open task location:', error)
+    ElMessage.error('打开位置失败')
+  }
+}
+
 // 删除对话框处理函数
 function handleDeleteDialogClose() {
   showDeleteDialog.value = false
@@ -732,20 +903,29 @@ async function confirmDelete() {
 // 操作方法
 async function batchStart() {
   try {
-    const pausedTasks = selectedTasks.value.filter(task =>
-      task.status === 'paused' || task.status === 'waiting'
+    const startableTasks = selectedTasks.value.filter(task =>
+      task.status === 'paused' || task.status === 'waiting' || task.status === 'error'
     )
 
-    if (pausedTasks.length === 0) {
+    if (startableTasks.length === 0) {
       ElMessage.warning('没有可以开始的任务')
       return
     }
 
-    for (const task of pausedTasks) {
-      await aria2Store.unpauseTask(task.gid)
+    for (const task of startableTasks) {
+      if (task.status === 'error') {
+        // 对错误任务使用重试方法
+        await aria2Store.retryErrorTask(task.gid)
+      } else {
+        // 对其他任务使用普通的开始方法
+        await aria2Store.unpauseTask(task.gid)
+      }
     }
 
-    ElMessage.success(`已开始 ${pausedTasks.length} 个任务`)
+    // 批量操作完成后刷新任务列表
+    await aria2Store.loadAllTasks()
+
+    ElMessage.success(`已开始 ${startableTasks.length} 个任务`)
     clearSelection()
   } catch (error) {
     console.error('开始任务失败:', error)
@@ -755,18 +935,22 @@ async function batchStart() {
 
 async function batchPause() {
   try {
-    const activeTasks = selectedTasks.value.filter(task => task.status === 'active')
+    // 包括所有可以暂停的任务：下载中、等待中的任务
+    const pausableTasks = selectedTasks.value.filter(task =>
+      task.status === 'active' || task.status === 'waiting'
+    )
 
-    if (activeTasks.length === 0) {
+    if (pausableTasks.length === 0) {
       ElMessage.warning('没有可以暂停的任务')
       return
     }
 
-    for (const task of activeTasks) {
-      await aria2Store.pauseTask(task.gid)
+    for (const task of pausableTasks) {
+      // 使用 force = true 来确保等待中的任务也能被暂停
+      await aria2Store.pauseTask(task.gid, true)
     }
 
-    ElMessage.success(`已暂停 ${activeTasks.length} 个任务`)
+    ElMessage.success(`已暂停 ${pausableTasks.length} 个任务`)
     clearSelection()
   } catch (error) {
     console.error('暂停任务失败:', error)
@@ -906,6 +1090,12 @@ function selectAllTasks() {
   ElMessage.success(`已选择 ${filteredTasks.value.length} 个任务`)
 }
 
+// 搜索处理函数
+function handleSearch(value: string) {
+  // 搜索功能通过 computed 属性 filteredTasks 自动处理
+  console.log('Search term:', value)
+}
+
 // 监听任务数据变化，更新选中任务的数据
 watch(
   () => filteredTasks.value,
@@ -983,6 +1173,7 @@ watch(
 .task-actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   margin: 16px 0;
   padding: 16px;
   background: #ffffff;
@@ -994,6 +1185,18 @@ watch(
 .action-left {
   display: flex;
   gap: 12px;
+  flex: 1;
+}
+
+.action-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
 }
 
 

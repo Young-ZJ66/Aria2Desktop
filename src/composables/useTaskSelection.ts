@@ -15,8 +15,8 @@ export function useTaskSelection() {
   })
   
   const canBatchStart = computed(() => {
-    return selectedTasks.value.some(task => 
-      task.status === 'paused' || task.status === 'waiting'
+    return selectedTasks.value.some(task =>
+      task.status === 'paused' || task.status === 'waiting' || task.status === 'error'
     )
   })
   

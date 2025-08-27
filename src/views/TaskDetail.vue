@@ -5,19 +5,7 @@
       <el-button @click="$router.go(-1)">返回</el-button>
     </div>
     
-    <!-- 操作栏 - 移到外面避免闪烁 -->
-    <div v-if="task" class="action-bar">
-      <el-space>
-        <el-button @click="copyGid" v-if="task">
-          <el-icon><CopyDocument /></el-icon>
-          复制 GID
-        </el-button>
-        <el-button @click="openFileLocation" v-if="task?.dir && isElectron">
-          <el-icon><FolderOpened /></el-icon>
-          打开目录
-        </el-button>
-      </el-space>
-    </div>
+
 
     <div v-if="task" class="task-detail-content">
 
@@ -25,42 +13,81 @@
       <el-tabs v-model="activeTab" class="detail-tabs">
         <!-- 基本信息标签页 -->
         <el-tab-pane label="基本信息" name="basic">
+          <!-- 整合的任务信息卡片 -->
           <el-card class="info-card">
-            <template #header>
-              <span>任务信息</span>
-            </template>
+            <!-- 任务信息 -->
+            <div class="info-section">
+              <el-descriptions :column="2" border class="task-descriptions">
+                <el-descriptions-item label="GID">
+                  <div class="field-with-action">
+                    <span>{{ task.gid }}</span>
+                    <el-button size="small" text @click="copyGid" title="复制 GID">
+                      <el-icon><CopyDocument /></el-icon>
+                    </el-button>
+                  </div>
+                </el-descriptions-item>
+                <el-descriptions-item label="状态">
+                  <el-tag :type="getStatusType(task.status)">
+                    {{ getStatusText(task.status) }}
+                  </el-tag>
+                </el-descriptions-item>
 
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="GID">
-            <el-text copyable>{{ task.gid }}</el-text>
-          </el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <el-tag :type="getStatusType(task.status)">
-              {{ getStatusText(task.status) }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="总大小">{{ formatSize(task.totalLength) }}</el-descriptions-item>
-          <el-descriptions-item label="已完成">{{ formatSize(task.completedLength) }}</el-descriptions-item>
-          <el-descriptions-item label="下载进度">
-            <el-progress
-              :percentage="getProgress(task)"
-              :status="task.status === 'complete' ? 'success' : undefined"
-              style="width: 200px"
-            />
-          </el-descriptions-item>
-          <el-descriptions-item label="剩余时间">{{ formatRemainingTime(task) }}</el-descriptions-item>
-          <el-descriptions-item label="下载速度">{{ formatSpeed(task.downloadSpeed) }}</el-descriptions-item>
-          <el-descriptions-item label="上传速度">{{ formatSpeed(task.uploadSpeed) }}</el-descriptions-item>
-          <el-descriptions-item label="连接数">{{ task.connections || 0 }}</el-descriptions-item>
-          <el-descriptions-item label="分片数">{{ task.numPieces || 0 }}</el-descriptions-item>
-          <el-descriptions-item label="分片长度">{{ formatSize(task.pieceLength || '0') }}</el-descriptions-item>
-          <el-descriptions-item label="保存目录">
-            <el-text copyable>{{ task.dir || '未设置' }}</el-text>
-          </el-descriptions-item>
-          <el-descriptions-item label="错误信息" v-if="task.errorCode && task.errorCode !== '0'">
-            <el-text type="danger">{{ task.errorMessage || task.errorCode }}</el-text>
-          </el-descriptions-item>
-        </el-descriptions>
+                <!-- 文件名 -->
+                <el-descriptions-item label="文件名" v-if="task.files?.length">
+                  <span>{{ getFileName(task.files[0].path) }}</span>
+                </el-descriptions-item>
+
+                <el-descriptions-item label="文件大小">{{ formatSize(task.totalLength) }}</el-descriptions-item>
+                <el-descriptions-item label="已下载">{{ formatSize(task.completedLength) }}</el-descriptions-item>
+                <el-descriptions-item label="下载进度">
+                  <el-progress
+                    :percentage="getProgress(task)"
+                    :status="task.status === 'complete' ? 'success' : undefined"
+                    style="width: 200px"
+                  />
+                </el-descriptions-item>
+                <el-descriptions-item label="剩余时间">{{ formatRemainingTime(task) }}</el-descriptions-item>
+                <el-descriptions-item label="下载速度">{{ formatSpeed(task.downloadSpeed) }}</el-descriptions-item>
+                <el-descriptions-item label="分片数">{{ task.numPieces || 0 }}</el-descriptions-item>
+                <el-descriptions-item label="分片长度">{{ formatSize(task.pieceLength || '0') }}</el-descriptions-item>
+
+                <!-- 完整路径 -->
+                <el-descriptions-item label="文件路径" :span="2" v-if="task.files?.length">
+                  <div class="path-with-action">
+                    <span>{{ task.files[0].path }}</span>
+                    <el-button size="small" text @click="openFileInFolder(task.files[0].path)" v-if="isElectron" title="打开位置" style="margin-left: 8px;">
+                      <el-icon><FolderOpened /></el-icon>
+                    </el-button>
+                  </div>
+                </el-descriptions-item>
+
+                <!-- 下载链接 -->
+                <el-descriptions-item label="下载链接" :span="2" v-if="taskUris.length">
+                  <div class="field-with-action">
+                    <div class="uri-content-full">
+                      <span class="uri-text-full">{{ taskUris[0].uri }}</span>
+                    </div>
+                    <el-button size="small" text @click="copyUri(taskUris[0].uri)" title="复制链接">
+                      <el-icon><CopyDocument /></el-icon>
+                    </el-button>
+                  </div>
+                </el-descriptions-item>
+
+                <el-descriptions-item label="错误信息" v-if="task.errorCode && task.errorCode !== '0'" :span="2">
+                  <el-text type="danger">{{ task.errorMessage || task.errorCode }}</el-text>
+                </el-descriptions-item>
+              </el-descriptions>
+
+              <!-- 文件操作按钮 -->
+              <div v-if="task.files?.length && task.status === 'complete'" class="file-actions">
+                <el-space>
+                  <el-button size="small" @click="openFile(task.files[0].path)" v-if="isElectron">
+                    <el-icon><Document /></el-icon>
+                    打开文件
+                  </el-button>
+                </el-space>
+              </div>
+            </div>
           </el-card>
 
           <!-- BitTorrent 信息 -->
@@ -95,153 +122,12 @@
           </el-card>
         </el-tab-pane>
 
-        <!-- 文件列表标签页 -->
-        <el-tab-pane name="files">
-          <template #label>
-            <span>文件列表 ({{ task.files?.length || 0 }})</span>
-          </template>
 
-          <el-card class="info-card">
-
-        <el-table :data="task.files" style="width: 100%" v-if="task.files?.length">
-          <el-table-column type="index" label="序号" width="60" />
-          <el-table-column label="文件名" min-width="300">
-            <template #default="{ row }">
-              <div class="file-info">
-                <el-icon class="file-icon">
-                  <Document v-if="!isDirectory(row.path)" />
-                  <Folder v-else />
-                </el-icon>
-                <div class="file-details">
-                  <div class="file-name">{{ getFileName(row.path) }}</div>
-                  <div class="file-path">{{ row.path }}</div>
-                </div>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="大小" width="120" sortable>
-            <template #default="{ row }">
-              {{ formatSize(row.length) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="已完成" width="120">
-            <template #default="{ row }">
-              {{ formatSize(row.completedLength) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="进度" width="150">
-            <template #default="{ row }">
-              <el-progress
-                :percentage="getFileProgress(row)"
-                :status="getFileProgress(row) === 100 ? 'success' : undefined"
-                size="small"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="选中" width="80">
-            <template #default="{ row }">
-              <el-tag :type="row.selected === 'true' ? 'success' : 'info'" size="small">
-                {{ row.selected === 'true' ? '是' : '否' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="URI 数量" width="100">
-            <template #default="{ row }">
-              {{ row.uris?.length || 0 }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="160">
-            <template #default="{ row }">
-              <el-button-group size="small">
-                <el-button @click="showFileUris(row)" v-if="row.uris?.length" title="查看链接">
-                  <el-icon><Link /></el-icon>
-                </el-button>
-                <el-button @click="copyFilePath(row.path)" title="复制路径">
-                  <el-icon><CopyDocument /></el-icon>
-                </el-button>
-                <el-button @click="openFileInFolder(row.path)" v-if="isElectron" title="打开位置">
-                  <el-icon><FolderOpened /></el-icon>
-                </el-button>
-                <el-button @click="openFile(row.path)" v-if="isElectron && task.status === 'complete'" title="打开文件">
-                  <el-icon><Document /></el-icon>
-                </el-button>
-              </el-button-group>
-            </template>
-          </el-table-column>
-        </el-table>
-
-            <el-empty v-else description="没有文件信息" />
-          </el-card>
-        </el-tab-pane>
-
-        <!-- 下载链接标签页 -->
-        <el-tab-pane name="uris">
-          <template #label>
-            <span>下载链接 ({{ taskUris.length }})</span>
-          </template>
-
-          <el-card class="info-card">
-            <template #header>
-              <div class="card-header">
-                <span>下载链接信息</span>
-                <el-tag v-if="task.status === 'complete'" type="success" size="small">
-                  任务已完成
-                </el-tag>
-              </div>
-            </template>
-
-            <el-table :data="taskUris" style="width: 100%" v-if="taskUris.length">
-              <el-table-column type="index" label="序号" width="60" />
-              <el-table-column label="下载链接" min-width="400">
-                <template #default="{ row }">
-                  <div class="uri-info">
-                    <el-text copyable>{{ row.uri }}</el-text>
-                    <div v-if="row.fileName" class="uri-file">
-                      文件: {{ row.fileName }}
-                    </div>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column label="状态" width="100">
-                <template #default="{ row }">
-                  <el-tag :type="getUriStatusType(row.status)" size="small">
-                    {{ getUriStatusText(row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="来源" width="120">
-                <template #default="{ row }">
-                  <el-tag v-if="row.fileIndex !== undefined" type="info" size="small">
-                    文件 {{ row.fileIndex + 1 }}
-                  </el-tag>
-                  <el-tag v-else type="primary" size="small">
-                    任务
-                  </el-tag>
-                </template>
-              </el-table-column>
-            </el-table>
-
-            <div v-else class="no-uris-info">
-              <el-empty description="没有下载链接信息">
-                <template #description>
-                  <div>
-                    <p v-if="task.status === 'complete'">
-                      任务已完成，链接信息可能已被清理
-                    </p>
-                    <p v-else>
-                      暂无下载链接信息
-                    </p>
-                  </div>
-                </template>
-              </el-empty>
-            </div>
-          </el-card>
-        </el-tab-pane>
 
         <!-- 服务器信息标签页 -->
         <el-tab-pane name="servers">
           <template #label>
-            <span>服务器信息 ({{ taskServers.length }})</span>
+            <span>服务器信息</span>
           </template>
 
           <el-card class="info-card">
@@ -663,6 +549,24 @@ function copyFilePath(path: string) {
   ElMessage.success('文件路径已复制到剪贴板')
 }
 
+function copyUri(uri: string) {
+  navigator.clipboard.writeText(uri)
+  ElMessage.success('下载链接已复制到剪贴板')
+}
+
+function formatUri(uri: string): string {
+  if (!uri) return ''
+
+  // 如果URI太长，进行截断显示
+  if (uri.length > 80) {
+    const start = uri.substring(0, 40)
+    const end = uri.substring(uri.length - 30)
+    return `${start}...${end}`
+  }
+
+  return uri
+}
+
 async function openFileInFolder(filePath: string) {
   if (!window.electronAPI) {
     ElMessage.warning('此功能仅在桌面版中可用')
@@ -982,19 +886,19 @@ function getPiecesStatus(): boolean[] {
 
 .pieces-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(8px, 1fr));
-  gap: 1px;
+  grid-template-columns: repeat(auto-fill, minmax(12px, 1fr));
+  gap: 2px;
   max-width: 100%;
   margin-bottom: 16px;
   background-color: #f0f0f0;
-  padding: 8px;
-  border-radius: 4px;
+  padding: 12px;
+  border-radius: 6px;
 }
 
 .piece-block {
-  width: 8px;
-  height: 8px;
-  border-radius: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -1053,6 +957,266 @@ function getPiecesStatus(): boolean[] {
 
 .no-uris-info {
   padding: 20px 0;
+}
+
+/* 整合卡片样式 */
+.info-section {
+  margin-bottom: 32px;
+}
+
+.info-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  border-bottom: 2px solid #409eff;
+  padding-bottom: 8px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-header .section-title {
+  margin-bottom: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* 文件信息样式 */
+.single-file-info {
+  padding: 0;
+}
+
+.file-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #ebeef5;
+}
+
+/* 任务描述表格样式 */
+.task-descriptions :deep(.el-descriptions__label) {
+  min-width: 120px !important;
+  width: 120px !important;
+  white-space: nowrap !important;
+  text-align: left !important;
+  padding-right: 16px !important;
+}
+
+.task-descriptions :deep(.el-descriptions__content) {
+  min-width: 0;
+  flex: 1;
+}
+
+/* 字段与操作按钮的内联样式 */
+.field-with-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+/* 路径与操作按钮的内联样式 */
+.path-with-action {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  width: 100%;
+}
+
+.path-with-action span {
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.path-with-action .el-button {
+  flex-shrink: 0;
+  padding: 4px;
+  min-width: auto;
+  height: auto;
+}
+
+.path-with-action .el-button .el-icon {
+  margin: 0;
+  font-size: 14px;
+}
+
+.field-with-action .el-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-with-action .el-button {
+  flex-shrink: 0;
+  padding: 4px;
+  min-width: auto;
+  height: auto;
+}
+
+.field-with-action .el-button .el-icon {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* 下载链接特殊样式 */
+.field-with-action .uri-content {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+  flex: 1;
+  min-width: 0;
+}
+
+.field-with-action .uri-text {
+  flex: 1;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  color: #606266;
+  word-break: break-all;
+  line-height: 1.4;
+  min-width: 0;
+}
+
+/* 完整URL显示样式 */
+.field-with-action .uri-content-full {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+  flex: 1;
+  min-width: 0;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.field-with-action .uri-text-full {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 11px;
+  color: #606266;
+  word-break: break-all;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  width: 100%;
+}
+
+.uri-item {
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  transition: all 0.2s ease;
+}
+
+.uri-item:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+}
+
+.uri-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.uri-label {
+  font-weight: 500;
+  color: #303133;
+  font-size: 14px;
+}
+
+.uri-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.uri-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #ffffff;
+  border-radius: 4px;
+  border: 1px solid #dcdfe6;
+}
+
+.uri-text {
+  flex: 1;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  color: #606266;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.uri-file {
+  font-size: 12px;
+  color: #909399;
+  padding-left: 12px;
+}
+
+/* 旧的样式保持兼容 */
+.uri-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+/* 优化文件信息显示 */
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-icon {
+  font-size: 16px;
+  color: #409eff;
+  flex-shrink: 0;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .uri-info {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .file-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .file-actions .el-space {
+    width: 100%;
+  }
 }
 
 
