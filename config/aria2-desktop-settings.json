@@ -1,0 +1,35 @@
+{
+	"settings": {
+		"language": "zh-CN",
+		"theme": "dark",
+		"refreshInterval": 1000,
+		"autoConnect": true,
+		"minimizeToTray": true,
+		"aria2": {
+			"host": "localhost",
+			"port": 6800,
+			"protocol": "http",
+			"secret": "",
+			"path": "/jsonrpc"
+		},
+		"ui": {
+			"showStatusBar": true,
+			"showToolbar": true,
+			"taskListColumns": [
+				"name",
+				"size",
+				"progress",
+				"status",
+				"speed"
+			],
+			"defaultView": "downloading"
+		},
+		"download": {
+			"defaultDir": "",
+			"maxConcurrentDownloads": 5,
+			"maxConnectionPerServer": 5,
+			"minSplitSize": "10M",
+			"autoStart": true
+		}
+	}
+}

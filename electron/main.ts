@@ -5,8 +5,41 @@ import * as fs from 'fs'
 // import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
 
-// 初始化配置存储
-const store = new Store()
+// 获取应用所在目录
+const getAppDirectory = () => {
+  if (app.isPackaged) {
+    // 生产环境：使用可执行文件所在目录
+    return path.dirname(process.execPath)
+  } else {
+    // 开发环境：使用项目根目录
+    return process.cwd()
+  }
+}
+
+// 获取配置文件目录
+const getConfigDirectory = () => {
+  const appDir = getAppDirectory()
+  const configDir = path.join(appDir, 'config')
+
+  // 确保配置目录存在
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true })
+  }
+
+  return configDir
+}
+
+// 初始化配置存储，设置存储路径为应用所在目录的 config 文件夹
+const appDir = getAppDirectory()
+const configDir = getConfigDirectory()
+const store = new Store({
+  cwd: configDir,
+  name: 'aria2-desktop-settings'  // 这将创建 aria2-desktop-settings.json 文件
+})
+
+console.log('App directory:', appDir)
+console.log('Config directory:', configDir)
+console.log('Config file path:', store.path)
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -128,6 +161,8 @@ app.on('window-all-closed', () => {
 ipcMain.handle('get-app-version', () => {
   return app.getVersion()
 })
+
+
 
 ipcMain.handle('get-store-value', (_, key: string) => {
   return store.get(key)

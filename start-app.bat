@@ -7,7 +7,7 @@ start "Vite Server" cmd /k "npx vite --port 5173"
 
 echo.
 echo Step 2: Waiting for Vite server to start...
-timeout /t 5 /nobreak > nul
+timeout /t 1 /nobreak > nul
 
 echo.
 echo Step 3: Starting Electron application...

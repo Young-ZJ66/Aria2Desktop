@@ -31,12 +31,12 @@ const router = createRouter({
     {
       path: '/settings',
       name: 'settings',
-      redirect: '/settings/ariang'
+      redirect: '/settings/general'
     },
     {
-      path: '/settings/ariang',
-      name: 'ariang-settings',
-      component: () => import('@/views/settings/AriaNgSettings.vue')
+      path: '/settings/general',
+      name: 'general-settings',
+      component: () => import('@/views/settings/GeneralSettings.vue')
     },
     {
       path: '/settings/aria2/basic',

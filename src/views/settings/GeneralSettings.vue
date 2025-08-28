@@ -1,7 +1,7 @@
 <template>
-  <div class="ariang-settings">
+  <div class="general-settings">
     <div class="settings-header">
-      <h2>AriaNg 设置</h2>
+      <h2>常规设置</h2>
       <p class="settings-description">配置应用程序的基本行为和外观</p>
     </div>
 
@@ -115,6 +115,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
+
 import { useSettingsStore } from '@/stores/settingsStore'
 
 const settingsStore = useSettingsStore()
@@ -123,6 +124,7 @@ const saving = ref(false)
 const importing = ref(false)
 const showImportDialog = ref(false)
 const importText = ref('')
+
 
 // 表单数据
 const form = reactive({
@@ -134,6 +136,7 @@ const form = reactive({
   ui: {
     showStatusBar: true,
     showToolbar: true,
+    taskListColumns: ['name', 'size', 'progress', 'status', 'speed'],
     defaultView: 'downloading' as 'downloading' | 'waiting' | 'stopped'
   }
 })
@@ -157,11 +160,26 @@ onMounted(async () => {
 async function saveSettings() {
   saving.value = true
   try {
-    await settingsStore.updateAriaNgSettings(form)
-    await settingsStore.updateUIConfig(form.ui)
+    // 创建纯 JavaScript 对象，避免 Vue 响应式对象的序列化问题
+    const allSettings = {
+      language: form.language,
+      theme: form.theme,
+      refreshInterval: form.refreshInterval,
+      autoConnect: form.autoConnect,
+      minimizeToTray: form.minimizeToTray,
+      ui: {
+        showStatusBar: form.ui.showStatusBar,
+        showToolbar: form.ui.showToolbar,
+        taskListColumns: [...form.ui.taskListColumns],
+        defaultView: form.ui.defaultView
+      }
+    }
+
+    await settingsStore.updateSettings(allSettings)
     ElMessage.success('设置已保存')
   } catch (error) {
-    ElMessage.error('保存设置失败')
+    console.error('Save settings error:', error)
+    ElMessage.error('保存设置失败：' + (error instanceof Error ? error.message : '未知错误'))
   } finally {
     saving.value = false
   }
@@ -238,7 +256,7 @@ function handleLanguageChange() {
 </script>
 
 <style scoped>
-.ariang-settings {
+.general-settings {
   padding: 20px;
 }
 

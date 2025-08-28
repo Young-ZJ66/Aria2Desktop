@@ -4,7 +4,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 const electronAPI = {
   // 应用信息
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
-  
+
   // 数据存储
   getStoreValue: (key: string) => ipcRenderer.invoke('get-store-value', key),
   setStoreValue: (key: string, value: any) => ipcRenderer.invoke('set-store-value', key, value),

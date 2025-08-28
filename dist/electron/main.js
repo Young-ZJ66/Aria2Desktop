@@ -42,8 +42,37 @@ const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 // import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 const electron_store_1 = __importDefault(require("electron-store"));
-// 初始化配置存储
-const store = new electron_store_1.default();
+// 获取应用所在目录
+const getAppDirectory = () => {
+    if (electron_1.app.isPackaged) {
+        // 生产环境：使用可执行文件所在目录
+        return path.dirname(process.execPath);
+    }
+    else {
+        // 开发环境：使用项目根目录
+        return process.cwd();
+    }
+};
+// 获取配置文件目录
+const getConfigDirectory = () => {
+    const appDir = getAppDirectory();
+    const configDir = path.join(appDir, 'config');
+    // 确保配置目录存在
+    if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true });
+    }
+    return configDir;
+};
+// 初始化配置存储，设置存储路径为应用所在目录的 config 文件夹
+const appDir = getAppDirectory();
+const configDir = getConfigDirectory();
+const store = new electron_store_1.default({
+    cwd: configDir,
+    name: 'aria2-desktop-settings' // 这将创建 aria2-desktop-settings.json 文件
+});
+console.log('App directory:', appDir);
+console.log('Config directory:', configDir);
+console.log('Config file path:', store.path);
 let mainWindow = null;
 let tray = null;
 function createWindow() {

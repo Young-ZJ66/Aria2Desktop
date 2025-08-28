@@ -31,9 +31,9 @@
       router
       class="sidebar-menu"
     >
-      <el-menu-item index="/settings/ariang">
+      <el-menu-item index="/settings/general">
         <el-icon><Setting /></el-icon>
-        <span>AriaNg 设置</span>
+        <span>常规设置</span>
       </el-menu-item>
       
       <el-sub-menu index="/settings/aria2">
@@ -65,9 +65,9 @@ import { computed } from 'vue'
 import { useAria2Store } from '@/stores/aria2Store'
 import {
   Download,
-  Clock,
   Check,
   Setting,
+  Tools,
   Monitor
 } from '@element-plus/icons-vue'
 

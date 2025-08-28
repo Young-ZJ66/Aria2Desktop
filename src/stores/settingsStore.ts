@@ -59,16 +59,16 @@ export const useSettingsStore = defineStore('settings', () => {
     await updateSettings({ [key]: value } as Partial<AppSettings>)
   }
 
-  // AriaNg 设置相关
-  async function updateAriaNgSettings(ariangSettings: Partial<AppSettings>) {
+  // 常规设置相关
+  async function updateGeneralSettings(generalSettings: Partial<AppSettings>) {
     const newSettings = {
-      language: ariangSettings.language ?? settings.value.language,
-      theme: ariangSettings.theme ?? settings.value.theme,
-      refreshInterval: ariangSettings.refreshInterval ?? settings.value.refreshInterval,
-      autoConnect: ariangSettings.autoConnect ?? settings.value.autoConnect,
-      minimizeToTray: ariangSettings.minimizeToTray ?? settings.value.minimizeToTray
+      language: generalSettings.language ?? settings.value.language,
+      theme: generalSettings.theme ?? settings.value.theme,
+      refreshInterval: generalSettings.refreshInterval ?? settings.value.refreshInterval,
+      autoConnect: generalSettings.autoConnect ?? settings.value.autoConnect,
+      minimizeToTray: generalSettings.minimizeToTray ?? settings.value.minimizeToTray
     }
-    
+
     await updateSettings(newSettings)
   }
 
@@ -162,7 +162,7 @@ export const useSettingsStore = defineStore('settings', () => {
     initialize,
     updateSettings,
     updateSetting,
-    updateAriaNgSettings,
+    updateGeneralSettings,
     updateAria2Config,
     updateUIConfig,
     updateDownloadConfig,

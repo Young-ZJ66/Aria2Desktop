@@ -1,6 +1,6 @@
 // 设置管理服务
 export interface AppSettings {
-  // AriaNg 设置
+  // 常规设置
   language: string
   theme: 'light' | 'dark' | 'auto'
   refreshInterval: number
@@ -93,18 +93,25 @@ class SettingsService {
       console.error('Failed to load settings:', error)
       this.settings = { ...defaultSettings }
     }
-    
+
     this.notifyListeners()
+  }
+
+  // 创建纯 JavaScript 对象，移除 Vue 响应式属性
+  private toPlainObject(obj: any): any {
+    return JSON.parse(JSON.stringify(obj))
   }
 
   // 保存设置
   async saveSettings(newSettings: Partial<AppSettings>): Promise<void> {
     this.settings = { ...this.settings, ...newSettings }
-    
+
     try {
       if (window.electronAPI) {
         // Electron 环境：保存到 electron-store
-        await window.electronAPI.setStoreValue('settings', this.settings)
+        // 确保传递的是纯 JavaScript 对象
+        const plainSettings = this.toPlainObject(this.settings)
+        await window.electronAPI.setStoreValue('settings', plainSettings)
       } else {
         // 浏览器环境：保存到 localStorage
         localStorage.setItem('aria2-desktop-settings', JSON.stringify(this.settings))
@@ -113,7 +120,7 @@ class SettingsService {
       console.error('Failed to save settings:', error)
       throw error
     }
-    
+
     this.notifyListeners()
   }
 
