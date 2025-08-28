@@ -356,7 +356,7 @@ async function selectDirectory() {
 
 .settings-description {
   margin: 0;
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -366,22 +366,86 @@ async function selectDirectory() {
 
 .group-title {
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
 }
 
 .form-tip {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-top: 4px;
   line-height: 1.4;
 }
 
 :deep(.el-card__header) {
   padding: 12px 20px;
-  background-color: #fafafa;
+  background-color: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-light);
 }
 
 :deep(.el-card__body) {
   padding: 20px;
+  background-color: var(--bg-secondary);
+}
+
+/* 输入框深色主题样式 */
+[data-theme="dark"] :deep(.el-input .el-input__wrapper) {
+  background-color: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-base) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] :deep(.el-input .el-input__wrapper:hover) {
+  border-color: var(--border-dark) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] :deep(.el-input .el-input__wrapper.is-focus) {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2) !important;
+}
+
+[data-theme="dark"] :deep(.el-input .el-input__inner) {
+  color: var(--text-light) !important;
+  background-color: transparent !important;
+}
+
+/* 输入框附加按钮深色主题样式 */
+[data-theme="dark"] :deep(.el-input-group__append) {
+  background-color: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-base) !important;
+  border-left: none !important;
+}
+
+[data-theme="dark"] :deep(.el-input-group__append .el-button) {
+  background-color: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-base) !important;
+  border-left: none !important;
+  color: var(--text-secondary) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] :deep(.el-input-group__append .el-button:hover) {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-dark) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+/* 下拉选择框边框颜色修复 */
+[data-theme="dark"] :deep(.el-select .el-select__wrapper) {
+  background-color: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-base) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] :deep(.el-select .el-select__wrapper:hover) {
+  border-color: var(--border-dark) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] :deep(.el-select .el-select__wrapper.is-focus),
+[data-theme="dark"] :deep(.el-select .el-select__wrapper.is-focused) {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2) !important;
 }
 </style>

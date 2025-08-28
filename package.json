@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:vue\" \"npm run dev:electron\"",
     "dev:vue": "vite",
-    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .",
+    "dev:electron": "cross-env NODE_ENV=development electron .",
     "build": "npm run build:vue && npm run build:electron",
     "build:vue": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",

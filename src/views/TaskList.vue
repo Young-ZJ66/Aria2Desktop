@@ -1132,7 +1132,7 @@ watch(
 }
 
 .task-stats {
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -1176,10 +1176,12 @@ watch(
   justify-content: space-between;
   margin: 16px 0;
   padding: 16px;
-  background: #ffffff;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-light);
   gap: 16px;
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .action-left {
@@ -1228,7 +1230,7 @@ watch(
 
 .selected-count {
   font-size: 14px;
-  color: #409eff;
+  color: var(--color-primary);
   font-weight: 500;
   margin-left: 16px;
 }
@@ -1247,7 +1249,7 @@ watch(
 
 .file-path {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1271,7 +1273,7 @@ watch(
 }
 
 .task-action-btn:hover {
-  background: rgba(64, 158, 255, 0.1);
+  background: var(--bg-tertiary);
 }
 
 .task-action-btn:hover .custom-icon {
@@ -1280,7 +1282,7 @@ watch(
 
 .task-action-btn:focus {
   outline: none;
-  background: rgba(64, 158, 255, 0.1);
+  background: var(--bg-tertiary);
 }
 
 .task-action-btn:focus .custom-icon {

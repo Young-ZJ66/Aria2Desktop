@@ -51,29 +51,37 @@
           
           <el-row :gutter="16">
             <el-col :span="6">
-              <el-statistic
-                title="总任务数"
-                :value="stats.total"
-                suffix="个"
-              />
+              <div class="statistic-wrapper">
+                <el-statistic
+                  title="总任务数"
+                  :value="stats.total"
+                  suffix="个"
+                />
+              </div>
             </el-col>
             <el-col :span="6">
-              <el-statistic
-                title="总下载量"
-                :value="formatSize(stats.totalSize)"
-              />
+              <div class="statistic-wrapper">
+                <el-statistic
+                  title="总下载量"
+                  :value="formatSize(stats.totalSize)"
+                />
+              </div>
             </el-col>
             <el-col :span="6">
-              <el-statistic
-                title="已完成"
-                :value="formatSize(stats.completedSize)"
-              />
+              <div class="statistic-wrapper">
+                <el-statistic
+                  title="已完成"
+                  :value="formatSize(stats.completedSize)"
+                />
+              </div>
             </el-col>
             <el-col :span="6">
-              <el-statistic
-                title="当前速度"
-                :value="formatSpeed(stats.totalSpeed)"
-              />
+              <div class="statistic-wrapper">
+                <el-statistic
+                  title="当前速度"
+                  :value="formatSpeed(stats.totalSpeed)"
+                />
+              </div>
             </el-col>
           </el-row>
           
@@ -417,6 +425,10 @@ function destroyCharts() {
   text-align: center;
 }
 
+.statistic-wrapper {
+  text-align: center;
+}
+
 .status-count {
   font-size: 24px;
   font-weight: bold;
@@ -433,5 +445,17 @@ function destroyCharts() {
 .status-label {
   font-size: 12px;
   color: #909399;
+}
+
+/* 深色主题适配 */
+[data-theme="dark"] .status-count.active { color: var(--color-primary); }
+[data-theme="dark"] .status-count.waiting { color: var(--color-warning); }
+[data-theme="dark"] .status-count.paused { color: var(--text-secondary); }
+[data-theme="dark"] .status-count.complete { color: var(--color-success); }
+[data-theme="dark"] .status-count.error { color: var(--color-danger); }
+[data-theme="dark"] .status-count.progress { color: var(--text-primary); }
+
+[data-theme="dark"] .status-label {
+  color: var(--text-secondary);
 }
 </style>

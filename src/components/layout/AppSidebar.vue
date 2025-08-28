@@ -86,37 +86,51 @@ const activeAndWaitingCount = computed(() =>
 <style scoped>
 .app-sidebar {
   width: 250px;
-  background: #ffffff;
-  border-right: 1px solid #e4e7ed;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-light);
   height: 100%;
   overflow-y: auto;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .sidebar-header {
   padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .sidebar-header h3 {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: #606266;
+  color: var(--text-regular);
 }
 
 .sidebar-menu {
   border: none;
+  background-color: var(--bg-primary);
 }
 
 .sidebar-divider {
   height: 1px;
-  background: #f0f0f0;
+  background: var(--border-light);
   margin: 8px 0;
 }
 
 :deep(.el-menu-item) {
   height: 40px;
   line-height: 40px;
+  color: var(--text-regular);
+  background-color: var(--bg-primary);
+}
+
+:deep(.el-menu-item:hover) {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+:deep(.el-menu-item.is-active) {
+  background-color: var(--color-primary);
+  color: #ffffff;
 }
 
 :deep(.el-sub-menu .el-menu-item) {

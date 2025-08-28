@@ -14,6 +14,3 @@ echo Step 3: Starting Electron application...
 set NODE_ENV=development
 npx electron dist/electron/main.js
 
-echo.
-echo Application closed.
-pause

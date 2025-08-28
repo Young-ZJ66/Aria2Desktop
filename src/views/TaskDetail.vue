@@ -788,6 +788,7 @@ function getPiecesStatus(): boolean[] {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .loading {
@@ -815,7 +816,7 @@ function getPiecesStatus(): boolean[] {
 
 .file-icon {
   font-size: 18px;
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .file-details {
@@ -825,13 +826,13 @@ function getPiecesStatus(): boolean[] {
 
 .file-name {
   font-weight: 500;
-  color: #303133;
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .file-path {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
   word-break: break-all;
 }
 
@@ -839,19 +840,72 @@ function getPiecesStatus(): boolean[] {
   font-weight: 500;
 }
 
+/* 深色主题下的描述列表边框颜色 */
+[data-theme="dark"] :deep(.el-descriptions__cell) {
+  border-color: var(--border-dark) !important;
+}
+
+[data-theme="dark"] :deep(.el-descriptions__table) {
+  border-color: var(--border-dark) !important;
+}
+
+[data-theme="dark"] :deep(.el-descriptions__label) {
+  border-color: var(--border-base) !important;
+  background-color: var(--bg-tertiary) !important;
+}
+
+[data-theme="dark"] :deep(.el-descriptions__content) {
+  border-color: var(--border-base) !important;
+  background-color: #353a44 !important;
+}
+
+/* 确保描述列表背景色一致 */
+[data-theme="dark"] :deep(.el-descriptions__table) {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] :deep(.el-descriptions__cell) {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-base) !important;
+}
+
+/* 浅色主题下的描述列表样式 */
+:deep(.el-descriptions__label) {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-regular) !important;
+  border-color: var(--border-base) !important;
+}
+
+:deep(.el-descriptions__content) {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-base) !important;
+}
+
+:deep(.el-descriptions__table) {
+  background-color: var(--bg-primary) !important;
+}
+
+:deep(.el-descriptions__cell) {
+  border-color: var(--border-base) !important;
+}
+
 :deep(.el-card__header) {
   padding: 16px 20px;
-  background-color: #fafafa;
+  background-color: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-light);
 }
 
 :deep(.el-card__body) {
   padding: 20px;
+  background-color: var(--bg-secondary);
 }
 
 .action-bar {
   margin-bottom: 20px;
   padding: 16px;
-  background-color: #fafafa;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
 }
 
@@ -890,7 +944,7 @@ function getPiecesStatus(): boolean[] {
   gap: 2px;
   max-width: 100%;
   margin-bottom: 16px;
-  background-color: #f0f0f0;
+  background-color: var(--bg-tertiary);
   padding: 12px;
   border-radius: 6px;
 }
@@ -904,11 +958,21 @@ function getPiecesStatus(): boolean[] {
 }
 
 .piece-block.completed {
-  background-color: #67c23a;
+  background-color: var(--color-success);
 }
 
 .piece-block.pending {
-  background-color: #e4e7ed;
+  background-color: var(--border-base);
+}
+
+/* 浅色主题下的区块颜色优化 */
+.piece-block.pending {
+  background-color: #c0c4cc;
+}
+
+/* 深色主题下的区块颜色 */
+[data-theme="dark"] .piece-block.pending {
+  background-color: var(--border-dark);
 }
 
 .piece-block:hover {
@@ -937,11 +1001,11 @@ function getPiecesStatus(): boolean[] {
 }
 
 .legend-color.completed {
-  background-color: #67c23a;
+  background-color: var(--color-success);
 }
 
 .legend-color.pending {
-  background-color: #e4e7ed;
+  background-color: var(--border-light);
 }
 
 .uri-info {
@@ -952,7 +1016,7 @@ function getPiecesStatus(): boolean[] {
 
 .uri-file {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .no-uris-info {
@@ -972,8 +1036,8 @@ function getPiecesStatus(): boolean[] {
   margin: 0 0 16px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
-  border-bottom: 2px solid #409eff;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--color-primary);
   padding-bottom: 8px;
 }
 
@@ -1000,7 +1064,7 @@ function getPiecesStatus(): boolean[] {
   justify-content: flex-start;
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--border-light);
 }
 
 /* 任务描述表格样式 */
@@ -1075,9 +1139,9 @@ function getPiecesStatus(): boolean[] {
   flex-wrap: wrap;
   gap: 8px;
   padding: 8px 12px;
-  background-color: #f8f9fa;
+  background-color: var(--bg-tertiary);
   border-radius: 4px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-light);
   flex: 1;
   min-width: 0;
 }
@@ -1086,7 +1150,7 @@ function getPiecesStatus(): boolean[] {
   flex: 1;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 12px;
-  color: #606266;
+  color: var(--text-regular);
   word-break: break-all;
   line-height: 1.4;
   min-width: 0;
@@ -1097,9 +1161,9 @@ function getPiecesStatus(): boolean[] {
   display: flex;
   align-items: flex-start;
   padding: 12px;
-  background-color: #f8f9fa;
+  background-color: var(--bg-tertiary);
   border-radius: 4px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-light);
   flex: 1;
   min-width: 0;
   max-height: 120px;
@@ -1109,7 +1173,7 @@ function getPiecesStatus(): boolean[] {
 .field-with-action .uri-text-full {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 11px;
-  color: #606266;
+  color: var(--text-regular);
   word-break: break-all;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -1118,15 +1182,15 @@ function getPiecesStatus(): boolean[] {
 
 .uri-item {
   padding: 16px;
-  background-color: #f8f9fa;
+  background-color: var(--bg-tertiary);
   border-radius: 8px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-light);
   transition: all 0.2s ease;
 }
 
 .uri-item:hover {
-  border-color: #409eff;
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-light);
 }
 
 .uri-header {
@@ -1138,7 +1202,7 @@ function getPiecesStatus(): boolean[] {
 
 .uri-label {
   font-weight: 500;
-  color: #303133;
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -1153,23 +1217,23 @@ function getPiecesStatus(): boolean[] {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background-color: #ffffff;
+  background-color: var(--bg-primary);
   border-radius: 4px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--border-base);
 }
 
 .uri-text {
   flex: 1;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 12px;
-  color: #606266;
+  color: var(--text-regular);
   word-break: break-all;
   line-height: 1.4;
 }
 
 .uri-file {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
   padding-left: 12px;
 }
 
@@ -1198,7 +1262,7 @@ function getPiecesStatus(): boolean[] {
 
 .file-icon {
   font-size: 16px;
-  color: #409eff;
+  color: var(--color-primary);
   flex-shrink: 0;
 }
 

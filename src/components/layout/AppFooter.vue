@@ -82,13 +82,15 @@ function formatSpeed(speed: string): string {
 <style scoped>
 .app-footer {
   height: 40px;
-  background: #f8f9fa;
-  border-top: 1px solid #e4e7ed;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
   font-size: 12px;
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .footer-left {
@@ -104,7 +106,7 @@ function formatSpeed(speed: string): string {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #606266;
+  color: var(--text-regular);
 }
 
 .footer-right {
@@ -115,17 +117,18 @@ function formatSpeed(speed: string): string {
   display: flex;
   align-items: center;
   gap: 4px;
+  color: var(--text-regular);
 }
 
 .status-connected {
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .status-connecting {
-  color: #e6a23c;
+  color: var(--color-warning);
 }
 
 .status-disconnected {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 </style>

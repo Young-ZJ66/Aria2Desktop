@@ -75,6 +75,7 @@ console.log('Config directory:', configDir);
 console.log('Config file path:', store.path);
 let mainWindow = null;
 let tray = null;
+let hasShownTrayNotification = false;
 function createWindow() {
     console.log('Creating main window...');
     // 创建主窗口
@@ -121,26 +122,64 @@ function createWindow() {
     }
     // 窗口关闭时的处理
     mainWindow.on('close', (event) => {
-        if (process.env.NODE_ENV === 'development') {
-            // 开发模式下直接退出
-            electron_1.app.quit();
-        }
-        else if (!electron_1.app.isQuiting) {
-            // 生产模式下最小化到托盘
-            event.preventDefault();
-            mainWindow?.hide();
+        if (!electron_1.app.isQuiting) {
+            // 检查是否启用了最小化到托盘功能
+            const settings = store.get('settings', {});
+            const minimizeToTray = settings.minimizeToTray !== false; // 默认启用
+            console.log('Window close event:', {
+                settings,
+                minimizeToTray,
+                hasTray: !!tray,
+                isQuiting: electron_1.app.isQuiting,
+                nodeEnv: process.env.NODE_ENV
+            });
+            if (minimizeToTray) {
+                // 最小化到托盘（即使托盘还未创建，也先隐藏窗口）
+                event.preventDefault();
+                mainWindow?.hide();
+                // 如果托盘还未创建，现在创建它
+                if (!tray) {
+                    createTray();
+                }
+                // 显示系统通知（首次最小化到托盘时）
+                if (!hasShownTrayNotification && process.platform !== 'darwin') {
+                    const { Notification } = require('electron');
+                    if (Notification.isSupported()) {
+                        new Notification({
+                            title: 'Aria2 Desktop',
+                            body: '应用已最小化到系统托盘，双击托盘图标可重新打开',
+                            silent: true
+                        }).show();
+                        hasShownTrayNotification = true;
+                    }
+                }
+            }
+            else {
+                // 直接退出
+                electron_1.app.quit();
+            }
         }
     });
 }
 function createTray() {
-    tray = new electron_1.Tray((0, path_1.join)(__dirname, '../../build/icon.png'));
+    // 使用 ico 文件作为托盘图标
+    const iconPath = (0, path_1.join)(__dirname, '../../build/Aria2.ico');
+    tray = new electron_1.Tray(iconPath);
     const contextMenu = electron_1.Menu.buildFromTemplate([
         {
             label: '显示主窗口',
             click: () => {
                 mainWindow?.show();
+                mainWindow?.focus();
             }
         },
+        {
+            label: '隐藏窗口',
+            click: () => {
+                mainWindow?.hide();
+            }
+        },
+        { type: 'separator' },
         {
             label: '退出',
             click: () => {
@@ -151,8 +190,15 @@ function createTray() {
     ]);
     tray.setToolTip('Aria2 Desktop');
     tray.setContextMenu(contextMenu);
+    // 双击托盘图标显示/隐藏窗口
     tray.on('double-click', () => {
-        mainWindow?.show();
+        if (mainWindow?.isVisible()) {
+            mainWindow.hide();
+        }
+        else {
+            mainWindow?.show();
+            mainWindow?.focus();
+        }
     });
 }
 // 应用准备就绪
@@ -165,21 +211,45 @@ electron_1.app.whenReady().then(() => {
     //   optimizer.watchWindowShortcuts(window)
     // })
     createWindow();
-    // createTray() // 暂时禁用托盘功能
+    // 根据设置决定是否创建托盘
+    const settings = store.get('settings', {});
+    const minimizeToTray = settings.minimizeToTray !== false; // 默认启用
+    if (minimizeToTray) {
+        createTray();
+    }
     electron_1.app.on('activate', function () {
         if (electron_1.BrowserWindow.getAllWindows().length === 0)
             createWindow();
     });
 });
-// 所有窗口关闭时退出应用 (macOS除外)
+// 所有窗口关闭时的处理
 electron_1.app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        electron_1.app.quit();
+    // 检查是否启用了托盘功能
+    const settings = store.get('settings', {});
+    const minimizeToTray = settings.minimizeToTray !== false; // 默认启用
+    console.log('All windows closed:', { minimizeToTray, hasTray: !!tray, platform: process.platform });
+    // 如果启用了托盘功能，不退出应用（让应用在后台运行）
+    // 如果是 macOS 或者启用了托盘，不退出应用
+    if (process.platform === 'darwin' || minimizeToTray) {
+        // 不退出应用，让它在后台运行
+        return;
     }
+    // 其他情况下退出应用
+    electron_1.app.quit();
 });
 // IPC通信处理
 electron_1.ipcMain.handle('get-app-version', () => {
     return electron_1.app.getVersion();
+});
+// 托盘控制
+electron_1.ipcMain.handle('set-tray-enabled', (_, enabled) => {
+    if (enabled && !tray) {
+        createTray();
+    }
+    else if (!enabled && tray) {
+        tray.destroy();
+        tray = null;
+    }
 });
 electron_1.ipcMain.handle('get-store-value', (_, key) => {
     return store.get(key);

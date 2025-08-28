@@ -30,6 +30,9 @@ declare global {
       minimize: () => void
       maximize: () => void
       close: () => void
+
+      // 托盘控制
+      setTrayEnabled: (enabled: boolean) => Promise<void>
     }
   }
 }

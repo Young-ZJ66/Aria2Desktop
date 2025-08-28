@@ -133,11 +133,26 @@ export const useSettingsStore = defineStore('settings', () => {
   // 应用主题
   function applyTheme() {
     const theme = settings.value.theme
-    const isDark = theme === 'dark' || 
+    const isDark = theme === 'dark' ||
       (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    
+
     document.documentElement.classList.toggle('dark', isDark)
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+
+    // 如果是自动模式，监听系统主题变化
+    if (theme === 'auto') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      const handleChange = () => {
+        if (settings.value.theme === 'auto') {
+          applyTheme()
+        }
+      }
+
+      // 移除之前的监听器（如果存在）
+      mediaQuery.removeEventListener('change', handleChange)
+      // 添加新的监听器
+      mediaQuery.addEventListener('change', handleChange)
+    }
   }
 
   // 获取特定设置值

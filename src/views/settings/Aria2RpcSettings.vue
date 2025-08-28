@@ -348,7 +348,7 @@ function resetForm() {
 
 .settings-description {
   margin: 0;
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -364,12 +364,12 @@ function resetForm() {
 
 .group-title {
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
 }
 
 .form-tip {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-top: 4px;
   line-height: 1.4;
 }
@@ -391,10 +391,12 @@ function resetForm() {
 
 :deep(.el-card__header) {
   padding: 12px 20px;
-  background-color: #fafafa;
+  background-color: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-light);
 }
 
 :deep(.el-card__body) {
   padding: 20px;
+  background-color: var(--bg-secondary);
 }
 </style>

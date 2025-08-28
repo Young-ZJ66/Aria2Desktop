@@ -66,7 +66,9 @@ onUnmounted(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #f5f5f5;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .main-container {
@@ -79,5 +81,6 @@ onUnmounted(() => {
   flex: 1;
   overflow: auto;
   padding: 16px;
+  background-color: var(--bg-secondary);
 }
 </style>

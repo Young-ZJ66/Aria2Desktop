@@ -123,6 +123,7 @@ function formatSpeed(speed: string): string {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .status-item {
@@ -138,6 +139,19 @@ function formatSpeed(speed: string): string {
 
 .label {
   font-weight: 500;
-  color: #606266;
+  color: var(--text-secondary);
+}
+
+/* 深色主题适配 */
+[data-theme="dark"] .status-header h2 {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .label {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .status-item {
+  color: var(--text-primary);
 }
 </style>

@@ -29,7 +29,7 @@
       </el-form-item>
 
       <el-form-item label="自动刷新间隔">
-        <el-select v-model="form.refreshInterval" style="width: 100%">
+        <el-select v-model="form.refreshInterval" style="width: 100%" @change="handleRefreshIntervalChange">
           <el-option label="1秒" :value="1000" />
           <el-option label="2秒" :value="2000" />
           <el-option label="5秒" :value="5000" />
@@ -39,41 +39,22 @@
       </el-form-item>
 
       <el-form-item label="启动时自动连接">
-        <el-switch v-model="form.autoConnect" />
+        <el-switch v-model="form.autoConnect" @change="handleAutoConnectChange" />
         <div class="form-tip">应用启动时自动连接到上次使用的 Aria2 服务器</div>
       </el-form-item>
 
       <el-form-item label="最小化到系统托盘">
-        <el-switch v-model="form.minimizeToTray" />
+        <el-switch v-model="form.minimizeToTray" @change="handleTraySettingChange" />
         <div class="form-tip">关闭窗口时最小化到系统托盘而不是退出程序</div>
       </el-form-item>
 
       <el-divider />
 
-      <el-form-item label="界面设置">
-        <el-space direction="vertical" style="width: 100%">
-          <el-checkbox v-model="form.ui.showStatusBar">显示状态栏</el-checkbox>
-          <el-checkbox v-model="form.ui.showToolbar">显示工具栏</el-checkbox>
-        </el-space>
-      </el-form-item>
-
-      <el-form-item label="默认视图">
-        <el-radio-group v-model="form.ui.defaultView">
-          <el-radio label="downloading">正在下载</el-radio>
-          <el-radio label="waiting">等待中</el-radio>
-          <el-radio label="stopped">已完成</el-radio>
-        </el-radio-group>
-      </el-form-item>
-
-      <el-divider />
 
       <el-form-item>
         <el-space>
-          <el-button type="primary" @click="saveSettings" :loading="saving">
-            保存设置
-          </el-button>
           <el-button @click="resetSettings" :disabled="settingsStore.isLoading">
-            重置为默认
+            重置设置
           </el-button>
           <el-button @click="exportSettings">
             导出设置
@@ -120,7 +101,6 @@ import { useSettingsStore } from '@/stores/settingsStore'
 
 const settingsStore = useSettingsStore()
 const formRef = ref<FormInstance>()
-const saving = ref(false)
 const importing = ref(false)
 const showImportDialog = ref(false)
 const importText = ref('')
@@ -153,35 +133,41 @@ watch(() => settingsStore.settings, (newSettings) => {
   })
 }, { immediate: true, deep: true })
 
+// 加载表单数据
+function loadFormData() {
+  Object.assign(form, {
+    language: settingsStore.settings.language,
+    theme: settingsStore.settings.theme,
+    refreshInterval: settingsStore.settings.refreshInterval,
+    autoConnect: settingsStore.settings.autoConnect,
+    minimizeToTray: settingsStore.settings.minimizeToTray,
+    ui: { ...settingsStore.settings.ui }
+  })
+}
+
 onMounted(async () => {
   await settingsStore.initialize()
 })
 
-async function saveSettings() {
-  saving.value = true
+// 自动刷新间隔变化处理
+async function handleRefreshIntervalChange() {
   try {
-    // 创建纯 JavaScript 对象，避免 Vue 响应式对象的序列化问题
-    const allSettings = {
-      language: form.language,
-      theme: form.theme,
-      refreshInterval: form.refreshInterval,
-      autoConnect: form.autoConnect,
-      minimizeToTray: form.minimizeToTray,
-      ui: {
-        showStatusBar: form.ui.showStatusBar,
-        showToolbar: form.ui.showToolbar,
-        taskListColumns: [...form.ui.taskListColumns],
-        defaultView: form.ui.defaultView
-      }
-    }
-
-    await settingsStore.updateSettings(allSettings)
-    ElMessage.success('设置已保存')
+    await settingsStore.updateSetting('refreshInterval', form.refreshInterval)
+    ElMessage.success('刷新间隔已更新')
   } catch (error) {
-    console.error('Save settings error:', error)
-    ElMessage.error('保存设置失败：' + (error instanceof Error ? error.message : '未知错误'))
-  } finally {
-    saving.value = false
+    console.error('Refresh interval change error:', error)
+    ElMessage.error('刷新间隔更新失败：' + (error instanceof Error ? error.message : '未知错误'))
+  }
+}
+
+// 自动连接变化处理
+async function handleAutoConnectChange() {
+  try {
+    await settingsStore.updateSetting('autoConnect', form.autoConnect)
+    ElMessage.success(form.autoConnect ? '已启用启动时自动连接' : '已禁用启动时自动连接')
+  } catch (error) {
+    console.error('Auto connect change error:', error)
+    ElMessage.error('自动连接设置失败：' + (error instanceof Error ? error.message : '未知错误'))
   }
 }
 
@@ -189,19 +175,33 @@ async function resetSettings() {
   try {
     await ElMessageBox.confirm(
       '确定要重置所有设置为默认值吗？此操作不可撤销。',
-      '确认重置',
+      '确认重置设置',
       {
-        confirmButtonText: '确定',
+        confirmButtonText: '确定重置',
         cancelButtonText: '取消',
         type: 'warning'
       }
     )
 
+    // 重置设置到默认值
     await settingsStore.resetSettings()
+
+    // 重新加载表单数据
+    loadFormData()
+
+    // 应用主题（因为主题可能被重置了）
+    settingsStore.applyTheme()
+
+    // 控制托盘（根据重置后的设置）
+    if (window.electronAPI?.setTrayEnabled) {
+      await window.electronAPI.setTrayEnabled(settingsStore.settings.minimizeToTray)
+    }
+
     ElMessage.success('设置已重置为默认值')
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('重置设置失败')
+      console.error('Reset settings error:', error)
+      ElMessage.error('重置设置失败：' + (error instanceof Error ? error.message : '未知错误'))
     }
   }
 }
@@ -246,12 +246,70 @@ async function importSettings() {
   }
 }
 
-function handleThemeChange() {
-  settingsStore.applyTheme()
+async function handleThemeChange() {
+  try {
+    // 立即应用主题（直接使用当前选择的主题值）
+    applyThemeDirectly(form.theme)
+
+    // 保存主题设置
+    await settingsStore.updateSetting('theme', form.theme)
+
+    ElMessage.success('主题已切换并保存')
+  } catch (error) {
+    console.error('Theme change error:', error)
+    ElMessage.error('主题切换失败：' + (error instanceof Error ? error.message : '未知错误'))
+  }
 }
 
-function handleLanguageChange() {
-  ElMessage.info('语言设置将在重启应用后生效')
+// 直接应用主题的辅助函数
+function applyThemeDirectly(theme: 'light' | 'dark' | 'auto') {
+  const isDark = theme === 'dark' ||
+    (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+
+  document.documentElement.classList.toggle('dark', isDark)
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+
+  // 如果是自动模式，监听系统主题变化
+  if (theme === 'auto') {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleChange = () => {
+      if (settingsStore.settings.theme === 'auto') {
+        settingsStore.applyTheme()
+      }
+    }
+
+    // 移除之前的监听器（如果存在）
+    mediaQuery.removeEventListener('change', handleChange)
+    // 添加新的监听器
+    mediaQuery.addEventListener('change', handleChange)
+  }
+}
+
+async function handleLanguageChange() {
+  try {
+    await settingsStore.updateSetting('language', form.language)
+    ElMessage.info('语言设置已保存，将在重启应用后生效')
+  } catch (error) {
+    console.error('Language change error:', error)
+    ElMessage.error('语言设置失败：' + (error instanceof Error ? error.message : '未知错误'))
+  }
+}
+
+async function handleTraySettingChange() {
+  try {
+    // 立即控制托盘的创建/销毁
+    if (window.electronAPI?.setTrayEnabled) {
+      await window.electronAPI.setTrayEnabled(form.minimizeToTray)
+    }
+
+    // 自动保存设置
+    await settingsStore.updateSetting('minimizeToTray', form.minimizeToTray)
+
+    ElMessage.success(form.minimizeToTray ? '已启用系统托盘' : '已禁用系统托盘')
+  } catch (error) {
+    console.error('Tray setting change error:', error)
+    ElMessage.error('托盘设置失败：' + (error instanceof Error ? error.message : '未知错误'))
+  }
 }
 </script>
 
@@ -272,18 +330,76 @@ function handleLanguageChange() {
 
 .settings-description {
   margin: 0;
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
-.form-tip {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
-  line-height: 1.4;
-}
+/* 使用全局 .form-tip 样式 */
 
 :deep(.el-divider) {
   margin: 24px 0;
+}
+
+/* 深色主题下的下拉选择框样式 */
+[data-theme="dark"] :deep(.el-select .el-input__wrapper) {
+  background-color: transparent !important;
+  border: 1px solid var(--border-base) !important;
+}
+
+[data-theme="dark"] :deep(.el-select .el-input__wrapper:hover) {
+  border-color: var(--border-dark) !important;
+}
+
+[data-theme="dark"] :deep(.el-select .el-input__wrapper.is-focus) {
+  border-color: var(--color-primary) !important;
+}
+
+[data-theme="dark"] :deep(.el-select .el-input__inner) {
+  color: var(--text-primary) !important;
+  background-color: transparent !important;
+}
+
+[data-theme="dark"] :deep(.el-select .el-input__suffix) {
+  color: var(--text-secondary) !important;
+}
+
+/* 下拉选择框边框颜色修复 */
+[data-theme="dark"] :deep(.el-select .el-select__wrapper) {
+  background-color: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-base) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] :deep(.el-select .el-select__wrapper:hover) {
+  border-color: var(--border-dark) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] :deep(.el-select .el-select__wrapper.is-focus),
+[data-theme="dark"] :deep(.el-select .el-select__wrapper.is-focused) {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2) !important;
+}
+
+/* 输入框深色主题样式 */
+[data-theme="dark"] :deep(.el-input .el-input__wrapper) {
+  background-color: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-base) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] :deep(.el-input .el-input__wrapper:hover) {
+  border-color: var(--border-dark) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] :deep(.el-input .el-input__wrapper.is-focus) {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2) !important;
+}
+
+[data-theme="dark"] :deep(.el-input .el-input__inner) {
+  color: var(--text-light) !important;
+  background-color: transparent !important;
 }
 </style>

@@ -62,12 +62,13 @@ onMounted(async () => {
 <style scoped>
 .app-header {
   height: 60px;
-  background: #ffffff;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   padding: 0 16px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-light);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .header-left {
@@ -83,13 +84,13 @@ onMounted(async () => {
 .logo-text {
   font-size: 18px;
   font-weight: bold;
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .version {
   font-size: 12px;
-  color: #909399;
-  background: #f4f4f5;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
   padding: 2px 6px;
   border-radius: 4px;
 }

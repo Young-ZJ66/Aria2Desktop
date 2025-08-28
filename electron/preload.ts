@@ -18,6 +18,9 @@ const electronAPI = {
   openPath: (path: string) => ipcRenderer.invoke('open-path', path),
   openInExplorer: (path: string) => ipcRenderer.invoke('open-in-explorer', path),
   deleteFiles: (paths: string[]) => ipcRenderer.invoke('delete-files', paths),
+
+  // 托盘控制
+  setTrayEnabled: (enabled: boolean) => ipcRenderer.invoke('set-tray-enabled', enabled),
   
   // 平台信息
   platform: process.platform,
