@@ -1,7 +1,7 @@
 {
 	"settings": {
 		"language": "zh-CN",
-		"theme": "light",
+		"theme": "dark",
 		"refreshInterval": 1000,
 		"autoConnect": true,
 		"minimizeToTray": true,

@@ -2,7 +2,8 @@
   <div class="advanced-settings">
     <div class="settings-header">
       <h2>高级设置</h2>
-      <p class="settings-description">配置 Aria2 的高级参数和性能选项</p>
+      <p class="settings-description">配置 Aria2 的高级参数和系统级选项</p>
+
     </div>
 
     <el-form
@@ -86,78 +87,7 @@
 
       <el-card class="setting-group">
         <template #header>
-          <span class="group-title">网络设置</span>
-        </template>
-
-        <el-form-item label="最大整体下载速度">
-          <el-input
-            v-model="settings.maxOverallDownloadLimit"
-            placeholder="0 表示无限制"
-            style="width: 200px"
-          />
-          <span style="margin-left: 8px">KB/s</span>
-          <div class="form-tip">全局最大下载速度限制</div>
-        </el-form-item>
-
-        <el-form-item label="最大整体上传速度">
-          <el-input
-            v-model="settings.maxOverallUploadLimit"
-            placeholder="0 表示无限制"
-            style="width: 200px"
-          />
-          <span style="margin-left: 8px">KB/s</span>
-          <div class="form-tip">全局最大上传速度限制</div>
-        </el-form-item>
-
-        <el-form-item label="最大下载结果">
-          <el-input-number
-            v-model="settings.maxDownloadResult"
-            :min="0"
-            :max="1000"
-            style="width: 200px"
-          />
-          <div class="form-tip">保存的最大下载结果数量</div>
-        </el-form-item>
-
-        <el-form-item label="URI 选择器">
-          <el-select v-model="settings.uriSelector" style="width: 200px">
-            <el-option label="反馈" value="feedback" />
-            <el-option label="顺序" value="inorder" />
-            <el-option label="自适应" value="adaptive" />
-          </el-select>
-          <div class="form-tip">URI 选择策略</div>
-        </el-form-item>
-      </el-card>
-
-      <el-card class="setting-group">
-        <template #header>
-          <span class="group-title">安全设置</span>
-        </template>
-
-        <el-form-item label="RPC 密钥">
-          <el-input
-            v-model="settings.rpcSecret"
-            type="password"
-            placeholder="RPC 访问密钥"
-            show-password
-          />
-          <div class="form-tip">RPC 接口访问密钥</div>
-        </el-form-item>
-
-        <el-form-item label="允许覆盖">
-          <el-switch v-model="settings.allowOverwrite" />
-          <div class="form-tip">允许覆盖已存在的文件</div>
-        </el-form-item>
-
-        <el-form-item label="自动重命名">
-          <el-switch v-model="settings.autoFileRenaming" />
-          <div class="form-tip">自动重命名重复文件</div>
-        </el-form-item>
-      </el-card>
-
-      <el-card class="setting-group">
-        <template #header>
-          <span class="group-title">其他设置</span>
+          <span class="group-title">系统设置</span>
         </template>
 
         <el-form-item label="摘要算法">
@@ -234,13 +164,6 @@ const settings = reactive({
   logLevel: 'warn',
   log: '',
   consoleLogLevel: 'notice',
-  maxOverallDownloadLimit: '0',
-  maxOverallUploadLimit: '0',
-  maxDownloadResult: 1000,
-  uriSelector: 'feedback',
-  rpcSecret: '',
-  allowOverwrite: false,
-  autoFileRenaming: true,
   checksumAlgorithm: 'sha-1',
   eventPoll: 'epoll',
   checksumCheck: true
@@ -269,13 +192,6 @@ async function loadSettings() {
       settings.logLevel = options['log-level'] || 'warn'
       settings.log = options['log'] || ''
       settings.consoleLogLevel = options['console-log-level'] || 'notice'
-      settings.maxOverallDownloadLimit = options['max-overall-download-limit'] || '0'
-      settings.maxOverallUploadLimit = options['max-overall-upload-limit'] || '0'
-      settings.maxDownloadResult = parseInt(options['max-download-result'] || '1000')
-      settings.uriSelector = options['uri-selector'] || 'feedback'
-      settings.rpcSecret = options['rpc-secret'] || ''
-      settings.allowOverwrite = options['allow-overwrite'] === 'true'
-      settings.autoFileRenaming = options['auto-file-renaming'] !== 'false'
       settings.checksumAlgorithm = options['checksum'] || 'sha-1'
       settings.eventPoll = options['event-poll'] || 'epoll'
       settings.checksumCheck = options['checksum-check'] !== 'false'
@@ -304,19 +220,12 @@ async function saveSettings() {
       'realtime-chunk-checksum': settings.realtimeChunkChecksum ? 'true' : 'false',
       'log-level': settings.logLevel,
       'console-log-level': settings.consoleLogLevel,
-      'max-overall-download-limit': settings.maxOverallDownloadLimit,
-      'max-overall-upload-limit': settings.maxOverallUploadLimit,
-      'max-download-result': settings.maxDownloadResult.toString(),
-      'uri-selector': settings.uriSelector,
-      'allow-overwrite': settings.allowOverwrite ? 'true' : 'false',
-      'auto-file-renaming': settings.autoFileRenaming ? 'true' : 'false',
       'checksum': settings.checksumAlgorithm,
       'event-poll': settings.eventPoll,
       'checksum-check': settings.checksumCheck ? 'true' : 'false'
     }
 
     if (settings.log) options['log'] = settings.log
-    if (settings.rpcSecret) options['rpc-secret'] = settings.rpcSecret
 
     await aria2Store.changeGlobalOptions(options)
     ElMessage.success('设置保存成功')
@@ -336,13 +245,6 @@ function resetSettings() {
   settings.logLevel = 'warn'
   settings.log = ''
   settings.consoleLogLevel = 'notice'
-  settings.maxOverallDownloadLimit = '0'
-  settings.maxOverallUploadLimit = '0'
-  settings.maxDownloadResult = 1000
-  settings.uriSelector = 'feedback'
-  settings.rpcSecret = ''
-  settings.allowOverwrite = false
-  settings.autoFileRenaming = true
   settings.checksumAlgorithm = 'sha-1'
   settings.eventPoll = 'epoll'
   settings.checksumCheck = true

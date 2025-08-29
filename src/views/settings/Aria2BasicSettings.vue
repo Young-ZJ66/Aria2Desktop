@@ -3,6 +3,7 @@
     <div class="settings-header">
       <h2>Aria2 基本设置</h2>
       <p class="settings-description">配置 Aria2 的基本下载参数</p>
+
     </div>
 
     <el-alert
@@ -77,33 +78,12 @@
 
       <el-card class="setting-group">
         <template #header>
-          <span class="group-title">重试设置</span>
+          <span class="group-title">下载选项</span>
         </template>
 
         <el-form-item label="断点续传" prop="continue">
           <el-switch v-model="settings.continue" />
           <div class="form-tip">支持断点续传的下载任务</div>
-        </el-form-item>
-
-        <el-form-item label="最大重试次数" prop="maxTries">
-          <el-input-number
-            v-model="settings.maxTries"
-            :min="0"
-            :max="100"
-            style="width: 200px"
-          />
-          <div class="form-tip">下载失败时的最大重试次数（0表示不重试）</div>
-        </el-form-item>
-
-        <el-form-item label="重试等待时间" prop="retryWait">
-          <el-input-number
-            v-model="settings.retryWait"
-            :min="0"
-            :max="600"
-            style="width: 200px"
-          />
-          <span style="margin-left: 8px">秒</span>
-          <div class="form-tip">重试前的等待时间（0-600秒）</div>
         </el-form-item>
       </el-card>
 
@@ -178,8 +158,6 @@ const settings = reactive({
   maxConnectionPerServer: 5,
   minSplitSize: '10M',
   continue: true,
-  maxTries: 5,
-  retryWait: 0,
   saveSession: true,
   saveSessionInterval: 60
 })
@@ -193,12 +171,6 @@ const rules: FormRules = {
   maxConnectionPerServer: [
     { required: true, message: '请输入每服务器最大连接数', trigger: 'blur' },
     { type: 'number', min: 1, max: 16, message: '值必须在1-16之间', trigger: 'blur' }
-  ],
-  maxTries: [
-    { type: 'number', min: 0, max: 100, message: '值必须在0-100之间', trigger: 'blur' }
-  ],
-  retryWait: [
-    { type: 'number', min: 0, max: 600, message: '值必须在0-600之间', trigger: 'blur' }
   ],
   saveSessionInterval: [
     { type: 'number', min: 60, max: 3600, message: '值必须在60-3600之间', trigger: 'blur' }
@@ -230,8 +202,6 @@ async function loadSettings() {
       settings.maxConnectionPerServer = parseInt(options['max-connection-per-server'] || '5')
       settings.minSplitSize = options['min-split-size'] || '10M'
       settings.continue = (options.continue === 'true' || options.continue === true)
-      settings.maxTries = parseInt(options['max-tries'] || '5')
-      settings.retryWait = parseInt(options['retry-wait'] || '0')
       settings.saveSession = (options['save-session'] !== 'false' && options['save-session'] !== false)
       settings.saveSessionInterval = parseInt(options['save-session-interval'] || '60')
 
@@ -271,8 +241,6 @@ async function saveSettings() {
       'max-connection-per-server': settings.maxConnectionPerServer.toString(),
       'min-split-size': settings.minSplitSize,
       'continue': settings.continue.toString(),
-      'max-tries': settings.maxTries.toString(),
-      'retry-wait': settings.retryWait.toString(),
       'save-session': settings.saveSession.toString(),
       'save-session-interval': settings.saveSessionInterval.toString()
     }
@@ -306,8 +274,6 @@ async function resetToDefaults() {
       maxConnectionPerServer: 5,
       minSplitSize: '10M',
       continue: true,
-      maxTries: 5,
-      retryWait: 0,
       saveSession: true,
       saveSessionInterval: 60
     })

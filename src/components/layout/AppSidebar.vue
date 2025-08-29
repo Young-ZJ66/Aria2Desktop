@@ -43,13 +43,15 @@
         </template>
         
         <el-menu-item index="/settings/aria2/basic">基本设置</el-menu-item>
-        <el-menu-item index="/settings/aria2/http-ftp-sftp">HTTP/FTP/SFTP</el-menu-item>
+        <el-menu-item index="/settings/aria2/connection">连接设置</el-menu-item>
         <el-menu-item index="/settings/aria2/http">HTTP 设置</el-menu-item>
         <el-menu-item index="/settings/aria2/ftp-sftp">FTP/SFTP 设置</el-menu-item>
         <el-menu-item index="/settings/aria2/bt">BitTorrent 设置</el-menu-item>
         <el-menu-item index="/settings/aria2/metalink">Metalink 设置</el-menu-item>
-        <el-menu-item index="/settings/aria2/rpc">RPC 设置</el-menu-item>
+        <el-menu-item index="/settings/aria2/performance">性能与限制</el-menu-item>
+        <el-menu-item index="/settings/aria2/security">安全与认证</el-menu-item>
         <el-menu-item index="/settings/aria2/advanced">高级设置</el-menu-item>
+        <el-menu-item index="/settings/aria2/rpc">RPC 连接</el-menu-item>
       </el-sub-menu>
       
       <el-menu-item index="/status">

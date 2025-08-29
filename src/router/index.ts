@@ -44,9 +44,9 @@ const router = createRouter({
       component: () => import('@/views/settings/Aria2BasicSettings.vue')
     },
     {
-      path: '/settings/aria2/http-ftp-sftp',
-      name: 'aria2-http-ftp-sftp-settings',
-      component: () => import('@/views/settings/Aria2HttpFtpSftpSettings.vue')
+      path: '/settings/aria2/connection',
+      name: 'aria2-connection-settings',
+      component: () => import('@/views/settings/Aria2ConnectionSettings.vue')
     },
     {
       path: '/settings/aria2/http',
@@ -72,6 +72,16 @@ const router = createRouter({
       path: '/settings/aria2/rpc',
       name: 'aria2-rpc-settings',
       component: () => import('@/views/settings/Aria2RpcSettings.vue')
+    },
+    {
+      path: '/settings/aria2/performance',
+      name: 'aria2-performance-settings',
+      component: () => import('@/views/settings/Aria2PerformanceSettings.vue')
+    },
+    {
+      path: '/settings/aria2/security',
+      name: 'aria2-security-settings',
+      component: () => import('@/views/settings/Aria2SecuritySettings.vue')
     },
     {
       path: '/settings/aria2/advanced',
