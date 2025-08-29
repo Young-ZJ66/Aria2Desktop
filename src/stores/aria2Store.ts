@@ -94,20 +94,28 @@ export const useAria2Store = defineStore('aria2', () => {
       // 尝试连接WebSocket
       try {
         await service.value.connect()
-        isConnected.value = true
+        console.log('WebSocket connection established')
       } catch (wsError) {
-        console.warn('WebSocket connection failed, using HTTP:', wsError)
-        // WebSocket连接失败，使用HTTP模式
-        isConnected.value = true
+        console.warn('WebSocket connection failed, will use HTTP:', wsError)
       }
       
-      // 获取初始数据
-      await Promise.all([
-        loadVersion(),
-        loadGlobalStat(),
-        loadGlobalOptions(),
-        loadAllTasks()
-      ])
+      // 测试连接是否可用（通过获取版本信息）
+      try {
+        await service.value.getVersion()
+        isConnected.value = true
+        console.log('Aria2 connection verified')
+        
+        // 获取初始数据
+        await Promise.all([
+          loadVersion(),
+          loadGlobalStat(),
+          loadGlobalOptions(),
+          loadAllTasks()
+        ])
+      } catch (testError) {
+        console.error('Failed to verify Aria2 connection:', testError)
+        throw new Error('无法连接到 Aria2 服务')
+      }
 
       // 启动自动更新
       startAutoUpdate()
@@ -128,6 +136,10 @@ export const useAria2Store = defineStore('aria2', () => {
     }
     isConnected.value = false
     connectionError.value = null
+  }
+
+  function updateConfig(newConfig: Partial<Aria2Config>) {
+    config.value = { ...config.value, ...newConfig }
   }
 
   function setupEventListeners() {
@@ -871,6 +883,7 @@ export const useAria2Store = defineStore('aria2', () => {
     // 方法
     connect,
     disconnect,
+    updateConfig,
     loadAllTasks,
     loadGlobalStat,
     addUri,

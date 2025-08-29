@@ -42,6 +42,7 @@
           <span>Aria2 设置</span>
         </template>
         
+        <el-menu-item index="/settings/aria2/local-service">本地服务</el-menu-item>
         <el-menu-item index="/settings/aria2/basic">基本设置</el-menu-item>
         <el-menu-item index="/settings/aria2/connection">连接设置</el-menu-item>
         <el-menu-item index="/settings/aria2/http">HTTP 设置</el-menu-item>

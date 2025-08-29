@@ -1,16 +1,15 @@
 @echo off
-echo Starting Aria2 Desktop Application...
+echo Starting Aria2 Desktop Development Environment...
 
 echo.
-echo Step 1: Starting Vite development server...
-start "Vite Server" cmd /k "npx vite --port 5173"
+echo Using optimized npm run dev command with concurrently...
+echo This will start both Vue development server and Electron application.
+echo.
+
+echo Starting development environment...
+npm run dev
 
 echo.
-echo Step 2: Waiting for Vite server to start...
-timeout /t 1 /nobreak > nul
-
-echo.
-echo Step 3: Starting Electron application...
-set NODE_ENV=development
-npx electron dist/electron/main.js
-
+echo Development environment has exited.
+echo Press any key to close this window...
+pause > nul

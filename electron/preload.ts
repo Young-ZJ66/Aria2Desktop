@@ -22,6 +22,15 @@ const electronAPI = {
   // 托盘控制
   setTrayEnabled: (enabled: boolean) => ipcRenderer.invoke('set-tray-enabled', enabled),
   
+  // Aria2 进程管理
+  aria2: {
+    start: () => ipcRenderer.invoke('aria2-start'),
+    stop: () => ipcRenderer.invoke('aria2-stop'),
+    restart: () => ipcRenderer.invoke('aria2-restart'),
+    getStatus: () => ipcRenderer.invoke('aria2-status'),
+    updateConfig: (config: any) => ipcRenderer.invoke('aria2-update-config', config)
+  },
+  
   // 平台信息
   platform: process.platform,
   

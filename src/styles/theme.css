@@ -125,8 +125,9 @@ body {
   background-color: var(--bg-tertiary);
 }
 
+/* 彻底禁用全局表格悬浮样式，避免与组件样式冲突 */
 [data-theme="dark"] .el-table__body tr:hover > td.el-table__cell {
-  background-color: var(--bg-tertiary) !important;
+  background-color: transparent !important;
 }
 
 [data-theme="dark"] .el-input__wrapper {

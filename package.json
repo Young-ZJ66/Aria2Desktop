@@ -7,12 +7,13 @@
   "license": "MIT",
   "homepage": "./",
   "scripts": {
-    "dev": "concurrently \"npm run dev:vue\" \"npm run dev:electron\"",
+    "dev": "concurrently --kill-others --kill-others-on-fail \"npm run dev:vue\" \"npm run dev:electron\"",
     "dev:vue": "vite",
     "dev:electron": "cross-env NODE_ENV=development electron .",
-    "build": "npm run build:vue && npm run build:electron",
+    "build": "npm run build:vue && npm run build:electron && npm run fix-paths",
     "build:vue": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
+    "fix-paths": "node scripts/fix-electron-paths.js",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "preview": "vite preview",
@@ -58,13 +59,31 @@
       "dist/**/*",
       "node_modules/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": ".",
+        "filter": ["aria2c.exe", "aria2.conf", "aria2.session"]
+      }
+    ],
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "artifactName": "${productName}-${version}-Setup.${ext}",
+      "publisherName": "Aria2 Desktop Team"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Aria2 Desktop",
+      "perMachine": false,
+      "runAfterFinish": true
     }
   }
 }

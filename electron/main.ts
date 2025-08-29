@@ -4,6 +4,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 // import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
+import { getAria2ProcessManager, Aria2ProcessManager } from '../src/services/aria2ProcessManager'
 
 // 获取应用所在目录
 const getAppDirectory = () => {
@@ -16,10 +17,10 @@ const getAppDirectory = () => {
   }
 }
 
-// 获取配置文件目录
+// 获取配置文件目录 - 统一存放在安装目录的 data 文件夹中
 const getConfigDirectory = () => {
   const appDir = getAppDirectory()
-  const configDir = path.join(appDir, 'config')
+  const configDir = path.join(appDir, 'data', 'config')
 
   // 确保配置目录存在
   if (!fs.existsSync(configDir)) {
@@ -27,6 +28,19 @@ const getConfigDirectory = () => {
   }
 
   return configDir
+}
+
+// 获取用户数据根目录
+const getUserDataDirectory = () => {
+  const appDir = getAppDirectory()
+  const dataDir = path.join(appDir, 'data')
+
+  // 确保数据目录存在
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true })
+  }
+
+  return dataDir
 }
 
 // 初始化配置存储，设置存储路径为应用所在目录的 config 文件夹
@@ -44,6 +58,7 @@ console.log('Config file path:', store.path)
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let hasShownTrayNotification = false
+let aria2Manager: Aria2ProcessManager | null = null
 
 function createWindow(): void {
   console.log('Creating main window...')
@@ -180,8 +195,32 @@ function createTray(): void {
   })
 }
 
+// 初始化 Aria2 进程管理器
+async function initializeAria2Manager() {
+  try {
+    // 使用默认配置，实际配置从 aria2.conf 文件读取
+    const aria2Config = {
+      autoStart: true // 默认启用自动启动
+    }
+
+    aria2Manager = getAria2ProcessManager(aria2Config)
+    
+    // 如果启用了自动启动，则启动 Aria2
+    if (aria2Config.autoStart) {
+      const success = await aria2Manager.start()
+      if (success) {
+        console.log('Aria2 自动启动成功')
+      } else {
+        console.error('Aria2 自动启动失败')
+      }
+    }
+  } catch (error) {
+    console.error('初始化 Aria2 进程管理器失败:', error)
+  }
+}
+
 // 应用准备就绪
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   console.log('App ready, creating window...')
   // 设置应用用户模型ID (Windows)
   // electronApp.setAppUserModelId('com.aria2desktop.app')
@@ -199,6 +238,9 @@ app.whenReady().then(() => {
   if (minimizeToTray) {
     createTray()
   }
+
+  // 初始化 Aria2 进程管理器
+  await initializeAria2Manager()
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -222,6 +264,52 @@ app.on('window-all-closed', () => {
 
   // 其他情况下退出应用
   app.quit()
+})
+
+// 应用即将退出时清理 Aria2 进程
+app.on('before-quit', async (event) => {
+  console.log('应用即将退出，执行清理工作...')
+  
+  if (aria2Manager && aria2Manager.isRunning()) {
+    console.log('应用退出，正在停止 Aria2 进程...')
+    event.preventDefault()
+    
+    try {
+      await aria2Manager.stop()
+      console.log('Aria2 进程已停止，应用即将退出')
+      // 设置标志避免重复处理
+      ;(app as any).isQuiting = true
+      app.quit()
+    } catch (error) {
+      console.error('停止 Aria2 进程失败:', error)
+      ;(app as any).isQuiting = true
+      app.quit() // 强制退出
+    }
+  }
+})
+
+// 处理进程信号，确保优雅退出
+process.on('SIGINT', () => {
+  console.log('收到SIGINT信号，正在退出...')
+  ;(app as any).isQuiting = true
+  app.quit()
+})
+
+process.on('SIGTERM', () => {
+  console.log('收到SIGTERM信号，正在退出...')
+  ;(app as any).isQuiting = true
+  app.quit()
+})
+
+// 处理未捕获的异常，避免进程僵死
+process.on('uncaughtException', (error) => {
+  console.error('未捕获的异常:', error)
+  ;(app as any).isQuiting = true
+  app.quit()
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('未处理的Promise拒绝:', reason, 'at:', promise)
 })
 
 // IPC通信处理
@@ -375,7 +463,7 @@ ipcMain.handle('delete-files', async (_, filePaths: string[]) => {
   try {
     console.log('Attempting to delete files:', filePaths)
 
-    const results = []
+    const results: Array<{ path: string; success: boolean; error?: string }> = []
     for (const filePath of filePaths) {
       try {
         const normalizedPath = path.normalize(filePath)
@@ -405,6 +493,98 @@ ipcMain.handle('delete-files', async (_, filePaths: string[]) => {
     return { success: true, results }
   } catch (error) {
     console.error('Failed to delete files:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// Aria2 进程管理 IPC 接口
+ipcMain.handle('aria2-start', async () => {
+  try {
+    if (!aria2Manager) {
+      await initializeAria2Manager()
+    }
+    const success = await aria2Manager!.start()
+    return { success, error: success ? null : 'Failed to start Aria2' }
+  } catch (error) {
+    console.error('Failed to start Aria2:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('aria2-stop', async () => {
+  try {
+    if (!aria2Manager) {
+      return { success: true, message: 'Aria2 not running' }
+    }
+    const success = await aria2Manager.stop()
+    return { success, error: success ? null : 'Failed to stop Aria2' }
+  } catch (error) {
+    console.error('Failed to stop Aria2:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('aria2-restart', async () => {
+  try {
+    if (!aria2Manager) {
+      await initializeAria2Manager()
+    }
+    const success = await aria2Manager!.restart()
+    return { success, error: success ? null : 'Failed to restart Aria2' }
+  } catch (error) {
+    console.error('Failed to restart Aria2:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('aria2-status', () => {
+  try {
+    if (!aria2Manager) {
+      return { 
+        isRunning: false, 
+        pid: null, 
+        retryCount: 0, 
+        config: null,
+        error: 'Aria2 manager not initialized'
+      }
+    }
+    return aria2Manager.getProcessInfo()
+  } catch (error) {
+    console.error('Failed to get Aria2 status:', error)
+    return { 
+      isRunning: false, 
+      pid: null, 
+      retryCount: 0, 
+      config: null,
+      error: error instanceof Error ? error.message : String(error)
+    }
+  }
+})
+
+ipcMain.handle('aria2-update-config', async (_, config) => {
+  try {
+    if (!aria2Manager) {
+      await initializeAria2Manager()
+    }
+    
+    // 只提取可序列化的配置项
+    const serializableConfig = {
+      port: config.port,
+      secret: config.secret,
+      downloadDir: config.downloadDir,
+      enableRpc: config.enableRpc,
+      rpcAllowOriginAll: config.rpcAllowOriginAll,
+      autoStart: config.autoStart
+    }
+    
+    aria2Manager!.updateConfig(serializableConfig)
+    
+    // 配置已通过 Aria2ConfigManager 直接保存到 aria2.conf 文件
+    // 不再需要保存到 electron-store
+    
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to update Aria2 config:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })

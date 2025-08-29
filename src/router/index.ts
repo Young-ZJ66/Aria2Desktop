@@ -89,6 +89,11 @@ const router = createRouter({
       component: () => import('@/views/settings/Aria2AdvancedSettings.vue')
     },
     {
+      path: '/settings/aria2/local-service',
+      name: 'aria2-local-service',
+      component: () => import('@/views/settings/Aria2LocalService.vue')
+    },
+    {
       path: '/status',
       name: 'status',
       component: () => import('@/views/Status.vue')

@@ -33,6 +33,21 @@ declare global {
 
       // 托盘控制
       setTrayEnabled: (enabled: boolean) => Promise<void>
+
+      // Aria2 进程管理
+      aria2: {
+        start: () => Promise<{ success: boolean; error?: string }>
+        stop: () => Promise<{ success: boolean; error?: string }>
+        restart: () => Promise<{ success: boolean; error?: string }>
+        getStatus: () => Promise<{
+          isRunning: boolean
+          pid: number | null
+          retryCount: number
+          config: any | null
+          error?: string
+        }>
+        updateConfig: (config: any) => Promise<{ success: boolean; error?: string }>
+      }
     }
   }
 }

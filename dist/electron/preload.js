@@ -18,6 +18,14 @@ const electronAPI = {
     deleteFiles: (paths) => electron_1.ipcRenderer.invoke('delete-files', paths),
     // 托盘控制
     setTrayEnabled: (enabled) => electron_1.ipcRenderer.invoke('set-tray-enabled', enabled),
+    // Aria2 进程管理
+    aria2: {
+        start: () => electron_1.ipcRenderer.invoke('aria2-start'),
+        stop: () => electron_1.ipcRenderer.invoke('aria2-stop'),
+        restart: () => electron_1.ipcRenderer.invoke('aria2-restart'),
+        getStatus: () => electron_1.ipcRenderer.invoke('aria2-status'),
+        updateConfig: (config) => electron_1.ipcRenderer.invoke('aria2-update-config', config)
+    },
     // 平台信息
     platform: process.platform,
     // 窗口控制

@@ -1159,11 +1159,33 @@ watch(
 
 .task-table :deep(.el-table__row) {
   cursor: pointer;
-  transition: background-color 0.2s;
 }
 
-.task-table :deep(.el-table__row:hover) {
-  background-color: #f5f7fa;
+/* 彻底重置所有可能的悬浮样式 */
+.task-table :deep(.el-table__body tr),
+.task-table :deep(.el-table__body tr > td),
+.task-table :deep(.el-table__fixed-body-wrapper .el-table__body tr),
+.task-table :deep(.el-table__fixed-body-wrapper .el-table__body tr > td) {
+  background-color: transparent !important;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* 彻底修复悬浮效果闪烁问题 */
+.task-table :deep(.el-table__body-wrapper .el-table__body tbody tr:hover td),
+.task-table :deep(.el-table__fixed-body-wrapper .el-table__body tbody tr:hover td),
+.task-table :deep(.el-table__fixed-right-patch:hover),
+.task-table :deep(.el-table__fixed-left-patch:hover) {
+  background-color: rgba(64, 158, 255, 0.08) !important;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* 深色主题悬浮效果 - 使用与浅色主题相同的样式结构，只调整颜色 */
+[data-theme="dark"] .task-table :deep(.el-table__body-wrapper .el-table__body tbody tr:hover td),
+[data-theme="dark"] .task-table :deep(.el-table__fixed-body-wrapper .el-table__body tbody tr:hover td),
+[data-theme="dark"] .task-table :deep(.el-table__fixed-right-patch:hover),
+[data-theme="dark"] .task-table :deep(.el-table__fixed-left-patch:hover) {
+  background-color: rgba(64, 158, 255, 0.08) !important;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .task-table :deep(.el-table__row:hover) .detail-icon {
