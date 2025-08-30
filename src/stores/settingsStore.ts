@@ -131,13 +131,22 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   // 应用主题
-  function applyTheme() {
+  async function applyTheme() {
     const theme = settings.value.theme
     const isDark = theme === 'dark' ||
       (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
     document.documentElement.classList.toggle('dark', isDark)
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+
+    // {{ AURA: Add - 通知 Electron 主进程更新窗口主题 }}
+    if (window.electronAPI) {
+      try {
+        await window.electronAPI.setWindowTheme(isDark)
+      } catch (error) {
+        console.warn('Failed to update window theme:', error)
+      }
+    }
 
     // 如果是自动模式，监听系统主题变化
     if (theme === 'auto') {

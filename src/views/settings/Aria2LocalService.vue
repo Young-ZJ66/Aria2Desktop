@@ -123,7 +123,10 @@
         </el-form-item>
 
         <el-form-item label="自动启动">
-          <el-switch v-model="localConfig.autoStart" />
+          <el-switch 
+            v-model="localConfig.autoStart" 
+            @change="updateAutoStart"
+          />
           <div class="form-tip">应用启动时自动启动 Aria2 服务</div>
         </el-form-item>
 
@@ -388,6 +391,13 @@ async function saveConfig() {
   } finally {
     isSavingConfig.value = false
   }
+}
+
+// 更新自动启动设置
+const updateAutoStart = (value: boolean) => {
+  console.log('Auto-start changed to:', value)
+  localConfig.autoStart = value
+  updateConfig(localConfig)
 }
 
 // 重置配置

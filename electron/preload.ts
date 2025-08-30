@@ -21,6 +21,8 @@ const electronAPI = {
 
   // 托盘控制
   setTrayEnabled: (enabled: boolean) => ipcRenderer.invoke('set-tray-enabled', enabled),
+  // {{ AURA: Add - 窗口主题设置 IPC 方法 }}
+  setWindowTheme: (isDark: boolean) => ipcRenderer.invoke('set-window-theme', isDark),
   
   // Aria2 进程管理
   aria2: {

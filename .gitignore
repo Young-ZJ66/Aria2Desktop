@@ -1,4 +1,9 @@
+.codebuddy
+.cursor
+.vscode
+.idea
+.trae
+.augment
 node_modules
 *.md
-.codebuddy
 data

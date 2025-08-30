@@ -38,6 +38,8 @@ const aria2Store = useAria2Store()
 const appVersion = ref('1.0.0')
 const showConnectionDialog = ref(false)
 
+
+
 // 计算属性
 const isConnected = computed(() => aria2Store.isConnected)
 const connectionStatus = computed(() => {
@@ -70,6 +72,8 @@ onMounted(async () => {
   box-shadow: var(--shadow-light);
   transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
+
+
 
 .header-left {
   flex: 0 0 auto;

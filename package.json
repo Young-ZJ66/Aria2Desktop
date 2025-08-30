@@ -2,7 +2,7 @@
   "name": "aria2-desktop",
   "version": "1.0.0",
   "description": "A modern Windows desktop client for Aria2, porting all AriaNg features",
-  "main": "dist/electron/main.js",
+  "main": "dist/electron/electron/main.js",
   "author": "Your Name",
   "license": "MIT",
   "homepage": "./",

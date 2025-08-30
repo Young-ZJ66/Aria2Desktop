@@ -249,7 +249,7 @@ async function importSettings() {
 async function handleThemeChange() {
   try {
     // 立即应用主题（直接使用当前选择的主题值）
-    applyThemeDirectly(form.theme)
+    await applyThemeDirectly(form.theme)
 
     // 保存主题设置
     await settingsStore.updateSetting('theme', form.theme)
@@ -262,12 +262,22 @@ async function handleThemeChange() {
 }
 
 // 直接应用主题的辅助函数
-function applyThemeDirectly(theme: 'light' | 'dark' | 'auto') {
+async function applyThemeDirectly(theme: 'light' | 'dark' | 'auto') {
   const isDark = theme === 'dark' ||
     (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
   document.documentElement.classList.toggle('dark', isDark)
   document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+
+  // {{ AURA: Add - 通知 Electron 主进程更新窗口主题 }}
+  if (window.electronAPI?.setWindowTheme) {
+    try {
+      await window.electronAPI.setWindowTheme(isDark)
+      console.log(`窗口主题已更新为: ${isDark ? 'dark' : 'light'}`)
+    } catch (error) {
+      console.error('更新窗口主题失败:', error)
+    }
+  }
 
   // 如果是自动模式，监听系统主题变化
   if (theme === 'auto') {

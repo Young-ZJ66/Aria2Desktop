@@ -1,5 +1,5 @@
 <template>
-  <div id="app" class="app-container">
+  <div id="app" class="app-container" :class="{ 'windows-titlebar': isWindowsPlatform }">
     <!-- 顶部工具栏 -->
     <AppHeader />
     
@@ -23,7 +23,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useAria2Store } from '@/stores/aria2Store'
 import { useSettingsStore } from '@/stores/settingsStore'
 import AppHeader from '@/components/layout/AppHeader.vue'
@@ -34,6 +34,11 @@ import ConnectionDialog from '@/components/dialogs/ConnectionDialog.vue'
 const aria2Store = useAria2Store()
 const settingsStore = useSettingsStore()
 const showConnectionDialog = ref(false)
+
+// {{ AURA: Add - 检测是否为 Windows 平台以调整标题栏布局 }}
+const isWindowsPlatform = computed(() => {
+  return typeof window !== 'undefined' && window.navigator.platform.toLowerCase().includes('win')
+})
 
 onMounted(async () => {
   // 初始化设置
@@ -69,6 +74,16 @@ onUnmounted(() => {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* {{ AURA: Add - Windows 标题栏按钮预留空间 }} */
+.app-container.windows-titlebar .main-container {
+  position: relative;
+}
+
+/* 确保右上角区域不被内容遮挡 */
+.app-container.windows-titlebar .content-container {
+  padding-right: 20px; /* 减少右侧间距 */
 }
 
 .main-container {

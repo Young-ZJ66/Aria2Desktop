@@ -185,15 +185,17 @@ export function useAria2LocalService() {
         port: config.port,
         secret: config.secret,
         downloadDir: config.downloadDir,
-        autoStart: config.autoStart,
-        logLevel: config.logLevel
+        autoStart: config.autoStart
       }
       
+      console.log('正在更新 Aria2 配置:', plainConfig) // {{ AURA: Add - 调试日志 }}
       const result = await window.electronAPI.aria2.updateConfig(plainConfig)
+      console.log('配置更新结果:', result) // {{ AURA: Add - 调试日志 }}
       
       if (result.success) {
         // 移除重复的成功提示，让调用方决定是否显示消息
         await getStatus()
+        console.log('配置更新成功，状态已刷新') // {{ AURA: Add - 调试日志 }}
         return true
       } else {
         ElMessage.error(`更新 Aria2 配置失败: ${result.error}`)

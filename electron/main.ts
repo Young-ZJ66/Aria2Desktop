@@ -62,6 +62,10 @@ let aria2Manager: Aria2ProcessManager | null = null
 
 function createWindow(): void {
   console.log('Creating main window...')
+  
+  // {{ AURA: Add - 完全移除应用菜单栏 }}
+  Menu.setApplicationMenu(null)
+  
   // 创建主窗口
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -72,7 +76,15 @@ function createWindow(): void {
     autoHideMenuBar: false,
     center: true,
     resizable: true,
-    icon: join(__dirname, '../../build/Aria2.ico'),
+    titleBarStyle: 'default',  // {{ AURA: Modify - 使用默认标题栏但启用覆盖 }}
+    titleBarOverlay: {         // {{ AURA: Modify - 启用标题栏覆盖以支持主题切换 }}
+      color: '#f0f0f0',        // 默认浅色
+      symbolColor: '#000000',  // 默认深色图标
+      height: 32
+    },
+    icon: process.env.NODE_ENV === 'development' 
+      ? join(process.cwd(), 'build/Aria2.ico')
+      : join(__dirname, '../../build/Aria2.ico'),
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       sandbox: false,
@@ -80,6 +92,9 @@ function createWindow(): void {
       contextIsolation: true
     }
   })
+
+  // {{ AURA: Add - 完全移除应用菜单栏 }}
+  Menu.setApplicationMenu(null)
 
   mainWindow.on('ready-to-show', () => {
     console.log('Window ready to show')
@@ -89,6 +104,12 @@ function createWindow(): void {
     setTimeout(() => {
       mainWindow?.setAlwaysOnTop(false)
     }, 1000)
+    
+    // {{ AURA: Add - 应用启动时检查并设置主题 }}
+    const settings = store.get('settings', {}) as any
+    const isDarkTheme = settings.theme === 'dark'
+    setWindowTheme(isDarkTheme)
+    
     console.log('Window shown and focused')
   })
 
@@ -154,7 +175,10 @@ function createWindow(): void {
 
 function createTray(): void {
   // 使用 ico 文件作为托盘图标
-  const iconPath = join(__dirname, '../../build/Aria2.ico')
+  // {{ AURA: Modify - 根据环境选择正确的图标路径 }}
+  const iconPath = process.env.NODE_ENV === 'development' 
+    ? join(process.cwd(), 'build/Aria2.ico')  // 开发环境
+    : join(__dirname, '../../build/Aria2.ico') // 生产环境
   tray = new Tray(iconPath)
 
   const contextMenu = Menu.buildFromTemplate([
@@ -195,13 +219,82 @@ function createTray(): void {
   })
 }
 
+// {{ AURA: Add - 设置窗口主题的函数 }}
+function setWindowTheme(isDark: boolean) {
+  console.log(`setWindowTheme 被调用: isDark=${isDark}, platform=${process.platform}`)
+  
+  if (process.platform === 'win32') {
+    console.log('正在设置 Windows 标题栏主题...')
+    try {
+      // 方法1: 使用 nativeTheme 设置全局主题
+      const { nativeTheme } = require('electron')
+      nativeTheme.themeSource = isDark ? 'dark' : 'light'
+      console.log(`Windows nativeTheme 设置成功: ${isDark ? 'dark' : 'light'}`)
+      
+      if (mainWindow) {
+        // 方法2: 设置标题栏覆盖颜色 - 使用更明显的颜色对比
+        const darkColor = '#1a1a1a'    // 更深的黑色
+        const lightColor = '#ffffff'   // 纯白色
+        const darkSymbol = '#ffffff'   // 白色图标
+        const lightSymbol = '#000000'  // 黑色图标
+        
+        mainWindow.setTitleBarOverlay({
+          color: isDark ? darkColor : lightColor,
+          symbolColor: isDark ? darkSymbol : lightSymbol,
+          height: 32
+        })
+        console.log(`标题栏覆盖颜色更新: ${isDark ? 'dark' : 'light'} (${isDark ? darkColor : lightColor})`)
+        
+        // 方法3: 尝试使用 Windows 特定的 API
+        if (process.platform === 'win32') {
+          try {
+            // 强制重绘窗口
+            mainWindow.setSize(mainWindow.getSize()[0], mainWindow.getSize()[1] + 1)
+            setTimeout(() => {
+              if (mainWindow) {
+                mainWindow.setSize(mainWindow.getSize()[0], mainWindow.getSize()[1] - 1)
+                console.log('窗口重绘完成')
+              }
+            }, 50)
+          } catch (err) {
+            console.log('窗口重绘失败:', err)
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('设置 Windows 标题栏主题失败:', error)
+    }
+  }
+  
+  // macOS 平台
+  if (process.platform === 'darwin') {
+    console.log('正在设置 macOS 主题...')
+    try {
+      const { nativeTheme } = require('electron')
+      nativeTheme.themeSource = isDark ? 'dark' : 'light'
+      console.log(`macOS 主题设置成功: ${isDark ? 'dark' : 'light'}`)
+    } catch (error) {
+      console.error('设置 macOS 主题失败:', error)
+    }
+  }
+}
+
 // 初始化 Aria2 进程管理器
 async function initializeAria2Manager() {
   try {
-    // 使用默认配置，实际配置从 aria2.conf 文件读取
+    // 统一从 settings.aria2 读取配置，包含本地服务配置
+    const settings = store.get('settings', {}) as any
+    const aria2Settings = settings.aria2 || {}
+    
     const aria2Config = {
-      autoStart: true // 默认启用自动启动
+      port: aria2Settings.port || 6800,
+      secret: aria2Settings.secret || '',
+      downloadDir: aria2Settings.downloadDir || 'D:/Downloads/Aria2Downloads',
+      autoStart: aria2Settings.autoStart !== undefined ? aria2Settings.autoStart : true
     }
+
+    console.log('从 settings.aria2 读取的配置:', aria2Config)
 
     aria2Manager = getAria2ProcessManager(aria2Config)
     
@@ -213,6 +306,8 @@ async function initializeAria2Manager() {
       } else {
         console.error('Aria2 自动启动失败')
       }
+    } else {
+      console.log('Aria2 自动启动已禁用')
     }
   } catch (error) {
     console.error('初始化 Aria2 进程管理器失败:', error)
@@ -278,7 +373,7 @@ app.on('before-quit', async (event) => {
       // 先强制保存会话，防止任务丢失
       console.log('正在强制保存Aria2会话...')
       try {
-        const aria2Service = require('../src/services/aria2Service')
+        const aria2Service = require('../../../src/services/aria2Service')
         if (aria2Service && aria2Service.Aria2Service) {
           const service = new aria2Service.Aria2Service()
           await service.saveSession()
@@ -338,6 +433,13 @@ ipcMain.handle('set-tray-enabled', (_, enabled: boolean) => {
     tray.destroy()
     tray = null
   }
+})
+
+// {{ AURA: Add - 主题切换 IPC 处理 }}
+ipcMain.handle('set-window-theme', (_, isDark: boolean) => {
+  console.log(`收到主题切换请求: ${isDark ? 'dark' : 'light'}`)
+  setWindowTheme(isDark)
+  console.log(`主题切换完成: ${isDark ? 'dark' : 'light'}`)
 })
 
 
@@ -532,7 +634,7 @@ ipcMain.handle('aria2-save-session', async () => {
     }
     
     // 通过配置管理器获取会话文件路径并触发保存
-    const aria2Service = require('../src/services/aria2Service')
+    const aria2Service = require('../../../src/services/aria2Service')
     if (aria2Service && aria2Service.Aria2Service) {
       const service = new aria2Service.Aria2Service()
       await service.saveSession()
@@ -613,10 +715,41 @@ ipcMain.handle('aria2-update-config', async (_, config) => {
       autoStart: config.autoStart
     }
     
+    console.log('更新 Aria2 配置:', serializableConfig)
+    
+    // 更新 Aria2ProcessManager 的配置
     aria2Manager!.updateConfig(serializableConfig)
     
-    // 配置已通过 Aria2ConfigManager 直接保存到 aria2.conf 文件
-    // 不再需要保存到 electron-store
+    // 统一保存到 settings.aria2，移除重复的 aria2 配置
+    const currentSettings = store.get('settings', {}) as any
+    const updatedSettings = {
+      ...currentSettings,
+      aria2: {
+        ...currentSettings.aria2,
+        host: 'localhost',
+        port: serializableConfig.port || currentSettings.aria2?.port || 6800,
+        protocol: 'http',
+        secret: serializableConfig.secret || currentSettings.aria2?.secret || '',
+        path: '/jsonrpc',
+        // 添加本地服务配置
+        downloadDir: serializableConfig.downloadDir || currentSettings.aria2?.downloadDir || 'D:/Downloads/Aria2Downloads',
+        autoStart: serializableConfig.autoStart !== undefined ? serializableConfig.autoStart : (currentSettings.aria2?.autoStart !== undefined ? currentSettings.aria2.autoStart : true)
+      }
+    }
+    
+    console.log('准备保存的统一配置:', updatedSettings.aria2)
+    store.set('settings', updatedSettings)
+    
+    // 移除旧的重复配置
+    if (store.has('aria2')) {
+      store.delete('aria2')
+      console.log('已移除重复的 aria2 配置')
+    }
+    
+    // 验证配置是否真的保存了
+    const savedSettings = store.get('settings', {}) as any
+    console.log('保存后的统一 settings.aria2 配置:', savedSettings.aria2)
+    console.log('配置文件路径:', store.path)
     
     return { success: true }
   } catch (error) {
