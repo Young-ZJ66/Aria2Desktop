@@ -51,9 +51,11 @@
   },
   "build": {
     "appId": "com.aria2desktop.app",
-    "productName": "Aria2 Desktop",
+    "productName": "Aria2Desktop",
+    "icon": "build/Aria2.ico",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
@@ -68,17 +70,19 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico",
-      "artifactName": "${productName}-${version}-Setup.${ext}",
-      "publisherName": "Aria2 Desktop Team"
+      "icon": "build/Aria2.ico",
+      "signAndEditExecutable": true,
+      "artifactName": "Aria2Desktop-${version}-Setup.${ext}",
+      "publisherName": "Aria2 Desktop Team",
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "allowElevation": true,
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico",
+      "installerIcon": "build/Aria2.ico",
+      "uninstallerIcon": "build/Aria2.ico",
+      "installerHeaderIcon": "build/Aria2.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Aria2 Desktop",
