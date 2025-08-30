@@ -125,7 +125,7 @@ function createWindow(): void {
     mainWindow.loadURL('http://localhost:5173')
   } else {
     console.log('Loading production file')
-    mainWindow.loadFile(join(__dirname, '../vue/index.html'))
+    mainWindow.loadFile(join(__dirname, '../../vue/index.html'))
   }
 
   // 窗口关闭时的处理
@@ -176,10 +176,47 @@ function createWindow(): void {
 function createTray(): void {
   // 使用 ico 文件作为托盘图标
   // {{ AURA: Modify - 根据环境选择正确的图标路径 }}
-  const iconPath = process.env.NODE_ENV === 'development' 
-    ? join(process.cwd(), 'build/Aria2.ico')  // 开发环境
-    : join(__dirname, '../../build/Aria2.ico') // 生产环境
-  tray = new Tray(iconPath)
+  let iconPath: string
+  const fs = require('fs')
+  
+  if (process.env.NODE_ENV === 'development') {
+    iconPath = join(process.cwd(), 'build/Aria2.ico')
+  } else {
+    // 生产环境：尝试多个可能的路径
+    const possiblePaths = [
+      join(process.resourcesPath, 'build', 'Aria2.ico'),
+      join(process.resourcesPath, 'app.asar.unpacked', 'build', 'Aria2.ico'),
+      join(process.resourcesPath, 'Aria2.ico'),
+      join(__dirname, '../../build/Aria2.ico'),
+      join(__dirname, '../../../build/Aria2.ico')
+    ]
+    
+    iconPath = possiblePaths.find(path => {
+      const exists = fs.existsSync(path)
+      console.log(`检查图标路径: ${path} - ${exists ? '存在' : '不存在'}`)
+      return exists
+    }) || possiblePaths[0]
+  }
+  
+  console.log('最终托盘图标路径:', iconPath)
+  console.log('图标文件是否存在:', fs.existsSync(iconPath))
+  
+  try {
+    tray = new Tray(iconPath)
+    console.log('托盘创建成功')
+  } catch (error) {
+    console.error('创建托盘图标失败:', error)
+    // 如果图标加载失败，尝试创建一个空的托盘（某些系统支持）
+    try {
+      const { nativeImage } = require('electron')
+      const emptyImage = nativeImage.createEmpty()
+      tray = new Tray(emptyImage)
+      console.log('使用空图标创建托盘成功')
+    } catch (fallbackError) {
+      console.error('托盘创建完全失败:', fallbackError)
+      return
+    }
+  }
 
   const contextMenu = Menu.buildFromTemplate([
     {
