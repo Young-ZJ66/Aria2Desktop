@@ -31,6 +31,9 @@ const electronAPI = {
     updateConfig: (config: any) => ipcRenderer.invoke('aria2-update-config', config)
   },
   
+  // 会话管理
+  saveSession: () => ipcRenderer.invoke('aria2-save-session'),
+  
   // 平台信息
   platform: process.platform,
   

@@ -281,6 +281,19 @@ electron_1.app.on('before-quit', async (event) => {
         console.log('应用退出，正在停止 Aria2 进程...');
         event.preventDefault();
         try {
+            // 先强制保存会话，防止任务丢失
+            console.log('正在强制保存Aria2会话...');
+            try {
+                const aria2Service = require('../src/services/aria2Service');
+                if (aria2Service && aria2Service.Aria2Service) {
+                    const service = new aria2Service.Aria2Service();
+                    await service.saveSession();
+                    console.log('会话保存成功');
+                }
+            }
+            catch (sessionError) {
+                console.warn('保存会话失败，但继续退出流程:', sessionError);
+            }
             await aria2Manager.stop();
             console.log('Aria2 进程已停止，应用即将退出');
             electron_1.app.isQuiting = true;
@@ -493,6 +506,27 @@ electron_1.ipcMain.handle('aria2-start', async () => {
     }
     catch (error) {
         console.error('Failed to start Aria2:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+});
+// 会话保存 IPC 接口
+electron_1.ipcMain.handle('aria2-save-session', async () => {
+    try {
+        if (!aria2Manager || !aria2Manager.isRunning()) {
+            return { success: false, error: 'Aria2 not running' };
+        }
+        // 通过配置管理器获取会话文件路径并触发保存
+        const aria2Service = require('../src/services/aria2Service');
+        if (aria2Service && aria2Service.Aria2Service) {
+            const service = new aria2Service.Aria2Service();
+            await service.saveSession();
+            console.log('Session saved via IPC');
+            return { success: true };
+        }
+        return { success: false, error: 'Aria2 service not available' };
+    }
+    catch (error) {
+        console.error('Failed to save session via IPC:', error);
         return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
 });

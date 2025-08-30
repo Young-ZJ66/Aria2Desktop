@@ -1161,30 +1161,109 @@ watch(
   cursor: pointer;
 }
 
-/* 彻底重置所有可能的悬浮样式 */
+/* 表格行和单元格需要有背景色 */
 .task-table :deep(.el-table__body tr),
-.task-table :deep(.el-table__body tr > td),
-.task-table :deep(.el-table__fixed-body-wrapper .el-table__body tr),
-.task-table :deep(.el-table__fixed-body-wrapper .el-table__body tr > td) {
-  background-color: transparent !important;
+.task-table :deep(.el-table__body tr > td) {
+  background-color: #ffffff !important;
   transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-/* 彻底修复悬浮效果闪烁问题 */
+/* 固定列需要有背景色，不能透明 - 使用更具体的选择器 */
+.task-table :deep(.el-table__fixed-right) {
+  background-color: #ffffff !important;
+}
+
+.task-table :deep(.el-table__fixed-left) {
+  background-color: #ffffff !important;
+}
+
+.task-table :deep(.el-table__fixed-right .el-table__fixed-body-wrapper) {
+  background-color: #ffffff !important;
+}
+
+.task-table :deep(.el-table__fixed-left .el-table__fixed-body-wrapper) {
+  background-color: #ffffff !important;
+}
+
+.task-table :deep(.el-table__fixed-right .el-table__body-wrapper) {
+  background-color: #ffffff !important;
+}
+
+.task-table :deep(.el-table__fixed-left .el-table__body-wrapper) {
+  background-color: #ffffff !important;
+}
+
+.task-table :deep(.el-table__fixed-right .el-table__body tr),
+.task-table :deep(.el-table__fixed-right .el-table__body tr > td) {
+  background-color: #ffffff !important;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.task-table :deep(.el-table__fixed-left .el-table__body tr),
+.task-table :deep(.el-table__fixed-left .el-table__body tr > td) {
+  background-color: #ffffff !important;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* 彻底修复悬浮效果闪烁问题 - 浅色主题悬浮效果 */
 .task-table :deep(.el-table__body-wrapper .el-table__body tbody tr:hover td),
 .task-table :deep(.el-table__fixed-body-wrapper .el-table__body tbody tr:hover td),
 .task-table :deep(.el-table__fixed-right-patch:hover),
 .task-table :deep(.el-table__fixed-left-patch:hover) {
-  background-color: rgba(64, 158, 255, 0.08) !important;
+  background-color: #f0f9ff !important;
   transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-/* 深色主题悬浮效果 - 使用与浅色主题相同的样式结构，只调整颜色 */
+/* 深色主题悬浮效果 - 使用不透明的深色背景 */
 [data-theme="dark"] .task-table :deep(.el-table__body-wrapper .el-table__body tbody tr:hover td),
 [data-theme="dark"] .task-table :deep(.el-table__fixed-body-wrapper .el-table__body tbody tr:hover td),
 [data-theme="dark"] .task-table :deep(.el-table__fixed-right-patch:hover),
 [data-theme="dark"] .task-table :deep(.el-table__fixed-left-patch:hover) {
-  background-color: rgba(64, 158, 255, 0.08) !important;
+  background-color: #2c313a !important;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* 暗色主题下固定列的背景色 - 使用更具体的选择器 */
+[data-theme="dark"] .task-table :deep(.el-table__fixed-right) {
+  background-color: #1e2329 !important;
+}
+
+[data-theme="dark"] .task-table :deep(.el-table__fixed-left) {
+  background-color: #1e2329 !important;
+}
+
+[data-theme="dark"] .task-table :deep(.el-table__fixed-right .el-table__fixed-body-wrapper) {
+  background-color: #1e2329 !important;
+}
+
+[data-theme="dark"] .task-table :deep(.el-table__fixed-left .el-table__fixed-body-wrapper) {
+  background-color: #1e2329 !important;
+}
+
+[data-theme="dark"] .task-table :deep(.el-table__fixed-right .el-table__body-wrapper) {
+  background-color: #1e2329 !important;
+}
+
+[data-theme="dark"] .task-table :deep(.el-table__fixed-left .el-table__body-wrapper) {
+  background-color: #1e2329 !important;
+}
+
+[data-theme="dark"] .task-table :deep(.el-table__fixed-right .el-table__body tr),
+[data-theme="dark"] .task-table :deep(.el-table__fixed-right .el-table__body tr > td) {
+  background-color: #1e2329 !important;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+[data-theme="dark"] .task-table :deep(.el-table__fixed-left .el-table__body tr),
+[data-theme="dark"] .task-table :deep(.el-table__fixed-left .el-table__body tr > td) {
+  background-color: #1e2329 !important;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* 暗色主题下普通表格行和单元格的背景色 */
+[data-theme="dark"] .task-table :deep(.el-table__body tr),
+[data-theme="dark"] .task-table :deep(.el-table__body tr > td) {
+  background-color: #1e2329 !important;
   transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 

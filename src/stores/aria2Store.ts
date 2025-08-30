@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { Aria2Service } from '@/services/aria2Service'
 import { taskTimeService } from '@/services/taskTimeService'
 import { taskPersistenceService } from '@/services/taskPersistenceService'
+import { sessionManager } from '@/services/sessionManager'
 import type { 
   Aria2Config, 
   Aria2Task, 
@@ -318,6 +319,17 @@ export const useAria2Store = defineStore('aria2', () => {
     const fileName = uris[0]?.split('/').pop() || uris[0]?.split('\\').pop() || 'Unknown'
     taskTimeService.recordTaskAdd(gid, fileName)
 
+    // 标记任务需要保存到会话文件
+    sessionManager.markTaskForSave(gid)
+
+    // 立即保存会话以防止任务丢失
+    try {
+      await service.value.saveSession()
+      console.log('Session saved immediately after adding task:', gid)
+    } catch (error) {
+      console.warn('Failed to save session immediately:', error)
+    }
+
     await loadAllTasks()
     return gid
   }
@@ -326,9 +338,28 @@ export const useAria2Store = defineStore('aria2', () => {
     if (!service.value) throw new Error('Not connected')
 
     const gid = await service.value.addTorrent(torrent, uris, options)
+    
+    // 立即保存会话，防止任务丢失
+    try {
+      await sessionManager.saveSessionImmediate()
+      console.log('会话已在添加种子任务后立即保存')
+    } catch (error) {
+      console.warn('添加种子任务后保存会话失败:', error)
+    }
 
     // 记录任务添加时间（种子文件名暂时未知，后续会在 loadAllTasks 中更新）
     taskTimeService.recordTaskAdd(gid, 'Torrent Task')
+
+    // 标记任务需要保存到会话文件
+    sessionManager.markTaskForSave(gid)
+
+    // 立即保存会话以防止任务丢失
+    try {
+      await service.value.saveSession()
+      console.log('Session saved immediately after adding torrent:', gid)
+    } catch (error) {
+      console.warn('Failed to save session immediately:', error)
+    }
 
     await loadAllTasks()
     return gid
@@ -680,6 +711,14 @@ export const useAria2Store = defineStore('aria2', () => {
     // 清理持久化记录和时间记录
     taskPersistenceService.removePersistedTask(gid)
     taskTimeService.removeTaskTime(gid)
+
+    // 删除任务后立即保存会话，防止重启后任务重新出现
+    try {
+      await service.value.saveSession()
+      console.log('Session saved immediately after removing task:', gid)
+    } catch (error) {
+      console.warn('Failed to save session after removing task:', error)
+    }
 
     await loadAllTasks()
   }

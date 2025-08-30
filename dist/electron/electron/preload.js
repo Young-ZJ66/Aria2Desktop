@@ -26,6 +26,8 @@ const electronAPI = {
         getStatus: () => electron_1.ipcRenderer.invoke('aria2-status'),
         updateConfig: (config) => electron_1.ipcRenderer.invoke('aria2-update-config', config)
     },
+    // 会话管理
+    saveSession: () => electron_1.ipcRenderer.invoke('aria2-save-session'),
     // 平台信息
     platform: process.platform,
     // 窗口控制
