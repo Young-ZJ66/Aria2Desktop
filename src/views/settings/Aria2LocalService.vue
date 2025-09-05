@@ -100,7 +100,7 @@
           <el-input
             v-model="localConfig.secret"
             type="password"
-            placeholder="留空则自动生成"
+            placeholder="留空则不设置密码"
             show-password
             clearable
           />
@@ -110,7 +110,7 @@
         <el-form-item label="下载目录" prop="downloadDir">
           <el-input
             v-model="localConfig.downloadDir"
-            placeholder="留空使用默认目录"
+            placeholder="留空则使用默认目录"
           >
             <template #append>
               <el-button @click="selectDownloadDir">

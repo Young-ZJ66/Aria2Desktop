@@ -190,13 +190,14 @@ export class ResourceManager {
    * 生成默认配置内容
    */
   private generateDefaultConfig(): string {
-    const sessionPath = this.getSessionFilePath().replace(/\\/g, '/')
+    //const sessionPath = this.getSessionFilePath().replace(/\\/g, '/')
+    const sessionPath = 'data/aria2/aria2.session'
     return `## Aria2 Desktop 默认配置 ##
 
 ## 文件保存相关 ##
 
 # 文件的保存路径(可使用绝对路径或相对路径), 默认: 当前启动位置
-dir=D:/Downloads
+dir=${app.getPath('downloads').replace(/\\\\/g, '/')}
 # 启用磁盘缓存, 0为禁用缓存, 需1.16以上版本, 默认:16M
 #disk-cache=32M
 # 文件预分配方式, 能有效降低磁盘碎片, 默认:prealloc
@@ -245,7 +246,7 @@ min-split-size=10M
 input-file=${sessionPath}
 # 在Aria2退出时保存错误或未完成的下载任务到会话文件
 save-session=${sessionPath}
-# 定时保存会话, 0为退出时才保存, 需1.16.1以上版本, 默认:0
+# 定时保存会话, 0为退出时才保存, 默认:0
 save-session-interval=60
 
 
