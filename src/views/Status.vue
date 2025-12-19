@@ -75,22 +75,26 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useConnectionStore } from '@/stores/connectionStore'
+import { useTaskStore } from '@/stores/taskStore'
+import { useStatsStore } from '@/stores/statsStore'
 import TaskStats from '@/components/TaskStats.vue'
 import { getTaskStats } from '@/utils/taskUtils'
 
-const aria2Store = useAria2Store()
+const connectionStore = useConnectionStore()
+const taskStore = useTaskStore()
+const statsStore = useStatsStore()
 
-const isConnected = computed(() => aria2Store.isConnected)
-const config = computed(() => aria2Store.config)
-const globalStat = computed(() => aria2Store.globalStat)
-const version = computed(() => aria2Store.version)
+const isConnected = computed(() => connectionStore.isConnected)
+const config = computed(() => connectionStore.config)
+const globalStat = computed(() => statsStore.globalStat)
+const version = computed(() => statsStore.version)
 
 // 计算所有任务
 const allTasks = computed(() => [
-  ...aria2Store.activeTasks,
-  ...aria2Store.waitingTasks,
-  ...aria2Store.stoppedTasks
+  ...taskStore.activeTasks,
+  ...taskStore.waitingTasks,
+  ...taskStore.stoppedTasks
 ])
 
 // 计算所有任务统计

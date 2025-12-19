@@ -37,7 +37,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useStatsStore } from '@/stores/statsStore'
+import { useConnectionStore } from '@/stores/connectionStore'
 import { 
   Download, 
   Upload, 
@@ -46,11 +47,12 @@ import {
   CircleCheckFilled
 } from '@element-plus/icons-vue'
 
-const aria2Store = useAria2Store()
+const statsStore = useStatsStore()
+const connectionStore = useConnectionStore()
 
-const globalStat = computed(() => aria2Store.globalStat)
-const isConnected = computed(() => aria2Store.isConnected)
-const isConnecting = computed(() => aria2Store.isConnecting)
+const globalStat = computed(() => statsStore.globalStat)
+const isConnected = computed(() => connectionStore.isConnected)
+const isConnecting = computed(() => connectionStore.isConnecting)
 
 const connectionStatusText = computed(() => {
   if (isConnecting.value) return '连接中...'

@@ -61,13 +61,13 @@
           </el-button>
 
           <el-button 
-            :type="aria2Store.isConnected ? 'warning' : 'success'"
-            @click="aria2Store.isConnected ? disconnectFromLocal() : connectToLocal()"
+            :type="connectionStore.isConnected ? 'warning' : 'success'"
+            @click="connectionStore.isConnected ? disconnectFromLocal() : connectToLocal()"
             :loading="isConnecting"
             :disabled="!isRunning"
           >
-            <el-icon><Link v-if="!aria2Store.isConnected" /><Close v-else /></el-icon>
-            {{ aria2Store.isConnected ? '断开' : '连接' }}
+            <el-icon><Link v-if="!connectionStore.isConnected" /><Close v-else /></el-icon>
+            {{ connectionStore.isConnected ? '断开' : '连接' }}
           </el-button>
         </el-space>
       </div>
@@ -195,7 +195,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { 
   Refresh, 
@@ -206,9 +206,11 @@ import {
   Close
 } from '@element-plus/icons-vue'
 import { useAria2LocalService, type Aria2LocalConfig } from '@/composables/useAria2LocalService'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useConnectionStore } from '@/stores/connectionStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 
-const aria2Store = useAria2Store()
+const connectionStore = useConnectionStore()
+const settingsStore = useSettingsStore()
 const {
   processInfo,
   isRunning,
@@ -429,16 +431,19 @@ async function connectToLocal() {
       secret: config.secret ? '***' : '(无密钥)'
     })
     
-    // 更新 Aria2Store 的连接配置
-    aria2Store.updateConfig({
+    // 构建连接配置
+    const connectionConfig = {
       host: config.host,
       port: config.port,
-      protocol: config.protocol as 'http' | 'https',
-      secret: config.secret
-    })
+      protocol: config.protocol as 'http' | 'https' | 'ws' | 'wss',
+      secret: config.secret,
+      path: '/jsonrpc' // 默认路径
+    }
 
-    // 尝试连接
-    await aria2Store.connect()
+    // 更新设置并连接
+    await settingsStore.updateAria2Config(connectionConfig)
+    await connectionStore.connect(connectionConfig)
+    
     ElMessage.success('已连接到本地 Aria2 服务')
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -453,7 +458,7 @@ async function connectToLocal() {
 // 断开连接
 function disconnectFromLocal() {
   try {
-    aria2Store.disconnect()
+    connectionStore.disconnect()
     ElMessage.success('已断开与 Aria2 服务的连接')
   } catch (error) {
     ElMessage.error('断开连接失败')

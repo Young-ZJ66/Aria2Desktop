@@ -176,11 +176,11 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { Aria2Service } from '@/services/aria2Service'
 
-const aria2Store = useAria2Store()
+const connectionStore = useConnectionStore()
 const settingsStore = useSettingsStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
@@ -226,9 +226,9 @@ const rules: FormRules = {
 
 // 连接状态
 const connectionStatus = computed(() => {
-  if (aria2Store.isConnecting) {
+  if (connectionStore.isConnecting) {
     return { type: 'warning', text: '连接中...' }
-  } else if (aria2Store.isConnected) {
+  } else if (connectionStore.isConnected) {
     return { type: 'success', text: '已连接' }
   } else {
     return { type: 'danger', text: '未连接' }
@@ -313,7 +313,7 @@ async function saveAndConnect() {
     await settingsStore.updateAria2Config(form)
 
     // 连接到 Aria2
-    await aria2Store.connect(form)
+    await connectionStore.connect(form)
 
     ElMessage.success('连接成功')
   } catch (error) {

@@ -65,7 +65,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useConnectionStore } from '@/stores/connectionStore'
 import type { Aria2Config } from '@/types/aria2'
 
 interface Props {
@@ -79,7 +79,7 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const aria2Store = useAria2Store()
+const connectionStore = useConnectionStore()
 const formRef = ref<FormInstance>()
 const connecting = ref(false)
 
@@ -107,7 +107,7 @@ watch(() => props.modelValue, (newVal) => {
   visible.value = newVal
   if (newVal) {
     // 打开对话框时，加载当前配置
-    Object.assign(form, aria2Store.config)
+    Object.assign(form, connectionStore.config)
   }
 })
 
@@ -124,7 +124,7 @@ async function handleConnect() {
     
     connecting.value = true
     
-    await aria2Store.connect(form)
+    await connectionStore.connect(form)
     
     ElMessage.success('连接成功')
     visible.value = false

@@ -28,23 +28,23 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useConnectionStore } from '@/stores/connectionStore'
 import {
   Connection
 } from '@element-plus/icons-vue'
 import ConnectionDialog from '@/components/dialogs/ConnectionDialog.vue'
 
-const aria2Store = useAria2Store()
+const connectionStore = useConnectionStore()
 const appVersion = ref('1.0.0')
 const showConnectionDialog = ref(false)
 
 
 
 // 计算属性
-const isConnected = computed(() => aria2Store.isConnected)
+const isConnected = computed(() => connectionStore.isConnected)
 const connectionStatus = computed(() => {
-  if (aria2Store.isConnecting) return '连接中...'
-  return aria2Store.isConnected ? '已连接' : '未连接'
+  if (connectionStore.isConnecting) return '连接中...'
+  return connectionStore.isConnected ? '已连接' : '未连接'
 })
 
 

@@ -6,7 +6,7 @@
     </div>
 
     <el-alert
-      v-if="!aria2Store.isConnected"
+      v-if="!connectionStore.isConnected"
       title="未连接到 Aria2 服务器"
       description="请先连接到 Aria2 服务器才能修改设置"
       type="warning"
@@ -21,7 +21,7 @@
       label-width="200px"
       style="max-width: 800px"
       v-loading="loading"
-      :disabled="!aria2Store.isConnected"
+      :disabled="!connectionStore.isConnected"
     >
       <el-card class="setting-group">
         <template #header>
@@ -137,19 +137,19 @@
             type="primary"
             @click="saveSettings"
             :loading="saving"
-            :disabled="!aria2Store.isConnected"
+            :disabled="!connectionStore.isConnected"
           >
             保存设置
           </el-button>
           <el-button
             @click="loadSettings"
-            :disabled="!aria2Store.isConnected"
+            :disabled="!connectionStore.isConnected"
           >
             重新加载
           </el-button>
           <el-button
             @click="resetToDefaults"
-            :disabled="!aria2Store.isConnected"
+            :disabled="!connectionStore.isConnected"
           >
             恢复默认
           </el-button>
@@ -162,9 +162,11 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useConnectionStore } from '@/stores/connectionStore'
+import { useStatsStore } from '@/stores/statsStore'
 
-const aria2Store = useAria2Store()
+const connectionStore = useConnectionStore()
+const statsStore = useStatsStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const saving = ref(false)
@@ -194,20 +196,20 @@ const rules: FormRules = {
 }
 
 onMounted(() => {
-  if (aria2Store.isConnected) {
+  if (connectionStore.isConnected) {
     loadSettings()
   }
 })
 
 async function loadSettings() {
-  if (!aria2Store.isConnected) {
+  if (!connectionStore.isConnected) {
     ElMessage.warning('请先连接到 Aria2 服务器')
     return
   }
 
   loading.value = true
   try {
-    const options = await aria2Store.getGlobalOptions()
+    const options = await statsStore.getGlobalOptions()
     
     if (options && typeof options === 'object') {
       settings.maxOverallDownloadLimit = options['max-overall-download-limit'] || '0'
@@ -245,14 +247,14 @@ async function saveSettings() {
     return
   }
 
-  if (!aria2Store.isConnected) {
+  if (!connectionStore.isConnected) {
     ElMessage.warning('请先连接到 Aria2 服务器')
     return
   }
 
   saving.value = true
   try {
-    const options = {
+    const options: Record<string, string> = {
       'max-overall-download-limit': settings.maxOverallDownloadLimit,
       'max-overall-upload-limit': settings.maxOverallUploadLimit,
       'max-upload-limit': settings.maxUploadLimit,
@@ -265,7 +267,7 @@ async function saveSettings() {
       'enable-mmap': settings.enableMmap ? 'true' : 'false'
     }
 
-    await aria2Store.changeGlobalOptions(options)
+    await statsStore.changeGlobalOptions(options)
     ElMessage.success('性能设置已保存')
   } catch (error) {
     ElMessage.error('保存性能设置失败')

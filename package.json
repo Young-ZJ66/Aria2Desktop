@@ -1,7 +1,7 @@
 {
   "name": "aria2-desktop",
   "version": "1.0.0",
-  "description": "A modern Windows desktop client for Aria2, porting all AriaNg features",
+  "description": "A modern Windows desktop client for Aria2",
   "main": "dist/electron/electron/main.js",
   "author": "Your Name",
   "license": "MIT",
@@ -24,7 +24,7 @@
     "axios": "^1.6.0",
     "dayjs": "^1.11.10",
     "echarts": "^5.4.3",
-    "electron-store": "^8.1.0",
+    "electron-store": "^8.2.0",
     "element-plus": "^2.4.2",
     "file-saver": "^2.0.5",
     "pinia": "^2.1.7",
@@ -59,13 +59,22 @@
     },
     "files": [
       "dist/**/*",
+      "!dist/vue/**/*.map",
       "node_modules/**/*",
-      "build/Aria2.ico"
+      "build/**/*"
+    ],
+    "asarUnpack": [
+      "dist/vue/**/*",
+      "build/**/*"
     ],
     "extraResources": [
       {
         "from": "resources/aria2c.exe",
         "to": "aria2c.exe"
+      },
+      {
+        "from": "build/Aria2.ico",
+        "to": "Aria2.ico"
       }
     ],
     "win": {

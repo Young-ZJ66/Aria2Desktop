@@ -25,20 +25,20 @@ export interface BatchDeleteResult {
 }
 
 class CompletedTaskDeleteService {
-  
+
   /**
    * 获取任务的所有文件路径
    */
   getTaskFilePaths(task: Aria2Task): string[] {
     const filePaths: string[] = []
-    
+
     console.log(`Getting file paths for task ${task.gid}:`, {
       status: task.status,
       dir: task.dir,
       files: task.files,
       filesLength: task.files?.length || 0
     })
-    
+
     if (task.files && task.files.length > 0) {
       task.files.forEach((file, index) => {
         console.log(`  File ${index}:`, {
@@ -47,7 +47,7 @@ class CompletedTaskDeleteService {
           length: file.length,
           completedLength: file.completedLength
         })
-        
+
         if (file.path && file.path.trim()) {
           let fullPath = file.path.trim()
           const isAbsolute = this.isAbsolutePath(fullPath)
@@ -91,7 +91,7 @@ class CompletedTaskDeleteService {
     console.log(`Final file paths for task ${task.gid} (including .aria2 files):`, allFiles)
     return allFiles
   }
-  
+
   /**
    * 检查路径是否为绝对路径
    */
@@ -100,7 +100,7 @@ class CompletedTaskDeleteService {
     // Unix: / 开头
     return /^([a-zA-Z]:[\\\/]|\\\\|\/)/i.test(path)
   }
-  
+
   /**
    * 连接路径
    */
@@ -133,24 +133,7 @@ class CompletedTaskDeleteService {
 
     return normalizedPath
   }
-  
-  /**
-   * 验证文件路径是否有效
-   */
-  private async validateFilePath(filePath: string): Promise<boolean> {
-    try {
-      // 在桌面环境中，可以尝试检查文件是否存在
-      if (window.electronAPI?.openPath) {
-        // 这里可以添加文件存在性检查的逻辑
-        // 暂时返回 true，让删除操作去处理不存在的文件
-        return true
-      }
-      return true
-    } catch (error) {
-      console.warn(`Failed to validate file path: ${filePath}`, error)
-      return true // 即使验证失败，也让删除操作去处理
-    }
-  }
+
 
   /**
    * 获取任务显示名称
@@ -159,7 +142,7 @@ class CompletedTaskDeleteService {
     if (task.bittorrent?.info?.name) {
       return task.bittorrent.info.name
     }
-    
+
     if (task.files && task.files.length > 0) {
       const file = task.files[0]
       const path = file.path
@@ -167,15 +150,15 @@ class CompletedTaskDeleteService {
         return path.split('/').pop() || path.split('\\').pop() || 'Unknown'
       }
     }
-    
+
     return `Task ${task.gid}`
   }
-  
+
   /**
    * 删除单个已完成任务
    */
   async deleteCompletedTask(
-    task: Aria2Task, 
+    task: Aria2Task,
     deleteFiles: boolean = false
   ): Promise<DeleteResult> {
     const taskName = this.getTaskDisplayName(task)
@@ -186,28 +169,28 @@ class CompletedTaskDeleteService {
       filesDeleted: 0,
       errors: []
     }
-    
+
     console.log(`Deleting completed task ${task.gid} (${taskName}), deleteFiles: ${deleteFiles}`)
-    
+
     try {
       // 如果需要删除文件
       if (deleteFiles && window.electronAPI?.deleteFiles) {
         const filePaths = this.getTaskFilePaths(task)
-        
+
         if (filePaths.length > 0) {
           console.log(`Attempting to delete ${filePaths.length} files for task ${task.gid}`)
-          
+
           try {
             const deleteResult = await window.electronAPI.deleteFiles(filePaths)
             console.log(`File deletion result for task ${task.gid}:`, deleteResult)
-            
+
             if (deleteResult.success && deleteResult.results) {
-              const successfulDeletes = deleteResult.results.filter(r => r.success)
+              const successfulDeletes = deleteResult.results.filter((r: any) => r.success)
               result.filesDeleted = successfulDeletes.length
-              
-              const failedDeletes = deleteResult.results.filter(r => !r.success)
+
+              const failedDeletes = deleteResult.results.filter((r: any) => !r.success)
               if (failedDeletes.length > 0) {
-                failedDeletes.forEach(failed => {
+                failedDeletes.forEach((failed: any) => {
                   result.errors.push(`删除文件失败: ${failed.path} - ${failed.error}`)
                 })
               }
@@ -223,27 +206,27 @@ class CompletedTaskDeleteService {
           console.log(`Task ${task.gid} has no files to delete`)
         }
       }
-      
+
       // 删除任务记录
       try {
         // 1. 尝试从 Aria2 中删除任务（如果任务仍在 Aria2 中）
         try {
-          // 动态导入 aria2Store 来删除任务
-          const { useAria2Store } = await import('@/stores/aria2Store')
-          const aria2Store = useAria2Store()
+          // 动态导入 connectionStore 来删除任务
+          const { useConnectionStore } = await import('@/stores/connectionStore')
+          const connectionStore = useConnectionStore()
 
-          if (aria2Store.service && aria2Store.isConnected) {
+          if (connectionStore.service && connectionStore.isConnected) {
             console.log(`Attempting to remove task ${task.gid} from Aria2`)
 
             // 先尝试从下载结果中删除（适用于已完成的任务）
             try {
-              await aria2Store.service.removeDownloadResult(task.gid)
+              await connectionStore.service.removeDownloadResult(task.gid)
               console.log(`Successfully removed task ${task.gid} from Aria2 download results`)
             } catch (resultError) {
               // 如果从下载结果删除失败，尝试常规删除
               console.log(`Failed to remove from download results, trying regular remove:`, resultError)
               try {
-                await aria2Store.service.remove(task.gid)
+                await connectionStore.service.remove(task.gid)
                 console.log(`Successfully removed task ${task.gid} from Aria2 (regular remove)`)
               } catch (removeError) {
                 console.log(`Failed to remove task ${task.gid} from Aria2 (may not exist):`, removeError)
@@ -272,25 +255,25 @@ class CompletedTaskDeleteService {
         result.errors.push(errorMsg)
         console.error(errorMsg, error)
       }
-      
+
     } catch (error) {
       const errorMsg = `删除任务时发生未知错误: ${error instanceof Error ? error.message : String(error)}`
       result.errors.push(errorMsg)
       console.error(errorMsg, error)
     }
-    
+
     return result
   }
-  
+
   /**
    * 批量删除已完成任务
    */
   async batchDeleteCompletedTasks(
-    tasks: Aria2Task[], 
+    tasks: Aria2Task[],
     deleteFiles: boolean = false
   ): Promise<BatchDeleteResult> {
     console.log(`Batch deleting ${tasks.length} completed tasks, deleteFiles: ${deleteFiles}`)
-    
+
     const batchResult: BatchDeleteResult = {
       totalTasks: tasks.length,
       successfulTasks: 0,
@@ -299,12 +282,12 @@ class CompletedTaskDeleteService {
       results: [],
       errors: []
     }
-    
+
     for (const task of tasks) {
       try {
         const result = await this.deleteCompletedTask(task, deleteFiles)
         batchResult.results.push(result)
-        
+
         if (result.success) {
           batchResult.successfulTasks++
           batchResult.totalFilesDeleted += result.filesDeleted
@@ -319,11 +302,11 @@ class CompletedTaskDeleteService {
         console.error(errorMsg, error)
       }
     }
-    
+
     console.log('Batch delete completed:', batchResult)
     return batchResult
   }
-  
+
   /**
    * 检查任务是否有可删除的文件
    */
@@ -331,7 +314,7 @@ class CompletedTaskDeleteService {
     const filePaths = this.getTaskFilePaths(task)
     return filePaths.length > 0
   }
-  
+
   /**
    * 获取任务文件信息摘要
    */

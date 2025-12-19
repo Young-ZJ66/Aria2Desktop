@@ -57,6 +57,7 @@ export interface Aria2Uri {
 export interface Aria2BitTorrent {
   announceList?: string[][]
   comment?: string
+  createdBy?: string
   creationDate?: number
   mode?: string
   info?: {
@@ -141,7 +142,7 @@ export enum Aria2Methods {
   FORCE_PAUSE_ALL = 'aria2.forcePauseAll',
   UNPAUSE = 'aria2.unpause',
   UNPAUSE_ALL = 'aria2.unpauseAll',
-  
+
   // 任务信息
   TELL_STATUS = 'aria2.tellStatus',
   GET_URIS = 'aria2.getUris',
@@ -151,30 +152,30 @@ export enum Aria2Methods {
   TELL_ACTIVE = 'aria2.tellActive',
   TELL_WAITING = 'aria2.tellWaiting',
   TELL_STOPPED = 'aria2.tellStopped',
-  
+
   // 位置控制
   CHANGE_POSITION = 'aria2.changePosition',
-  
+
   // 选项设置
   CHANGE_OPTION = 'aria2.changeOption',
   GET_OPTION = 'aria2.getOption',
   GET_GLOBAL_OPTION = 'aria2.getGlobalOption',
   CHANGE_GLOBAL_OPTION = 'aria2.changeGlobalOption',
-  
+
   // 统计信息
   GET_GLOBAL_STAT = 'aria2.getGlobalStat',
   PURGE_DOWNLOAD_RESULT = 'aria2.purgeDownloadResult',
   REMOVE_DOWNLOAD_RESULT = 'aria2.removeDownloadResult',
-  
+
   // 系统信息
   GET_VERSION = 'aria2.getVersion',
   GET_SESSION_INFO = 'aria2.getSessionInfo',
   SHUTDOWN = 'aria2.shutdown',
   FORCE_SHUTDOWN = 'aria2.forceShutdown',
-  
+
   // 会话管理
   SAVE_SESSION = 'aria2.saveSession',
-  
+
   // 多播
   MULTICALL = 'system.multicall'
 }

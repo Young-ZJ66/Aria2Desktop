@@ -7,7 +7,7 @@
     </div>
 
     <el-alert
-      v-if="!aria2Store.isConnected"
+      v-if="!connectionStore.isConnected"
       title="未连接到 Aria2 服务器"
       description="请先连接到 Aria2 服务器才能修改设置"
       type="warning"
@@ -22,7 +22,7 @@
       label-width="200px"
       style="max-width: 800px"
       v-loading="loading"
-      :disabled="!aria2Store.isConnected"
+      :disabled="!connectionStore.isConnected"
     >
       <el-card class="setting-group">
         <template #header>
@@ -116,19 +116,19 @@
             type="primary"
             @click="saveSettings"
             :loading="saving"
-            :disabled="!aria2Store.isConnected"
+            :disabled="!connectionStore.isConnected"
           >
             保存设置
           </el-button>
           <el-button
             @click="loadSettings"
-            :disabled="!aria2Store.isConnected"
+            :disabled="!connectionStore.isConnected"
           >
             重新加载
           </el-button>
           <el-button
             @click="resetToDefaults"
-            :disabled="!aria2Store.isConnected"
+            :disabled="!connectionStore.isConnected"
           >
             恢复默认
           </el-button>
@@ -142,9 +142,11 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Folder } from '@element-plus/icons-vue'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useConnectionStore } from '@/stores/connectionStore'
+import { useStatsStore } from '@/stores/statsStore'
 
-const aria2Store = useAria2Store()
+const connectionStore = useConnectionStore()
+const statsStore = useStatsStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const saving = ref(false)
@@ -178,13 +180,13 @@ const rules: FormRules = {
 }
 
 onMounted(() => {
-  if (aria2Store.isConnected) {
+  if (connectionStore.isConnected) {
     loadSettings()
   }
 })
 
 async function loadSettings() {
-  if (!aria2Store.isConnected) {
+  if (!connectionStore.isConnected) {
     ElMessage.warning('请先连接到 Aria2 服务器')
     return
   }
@@ -192,7 +194,7 @@ async function loadSettings() {
   loading.value = true
   try {
     console.log('Loading Aria2 global settings...')
-    const options = await aria2Store.getGlobalOptions()
+    const options = await statsStore.getGlobalOptions()
     console.log('Received options:', options)
 
     if (options && typeof options === 'object') {
@@ -201,8 +203,8 @@ async function loadSettings() {
       settings.maxConcurrentDownloads = parseInt(options['max-concurrent-downloads'] || '5')
       settings.maxConnectionPerServer = parseInt(options['max-connection-per-server'] || '5')
       settings.minSplitSize = options['min-split-size'] || '10M'
-      settings.continue = (options.continue === 'true' || options.continue === true)
-      settings.saveSession = (options['save-session'] !== 'false' && options['save-session'] !== false)
+      settings.continue = options.continue === 'true'
+      settings.saveSession = options['save-session'] !== 'false'
       settings.saveSessionInterval = parseInt(options['save-session-interval'] || '60')
 
       console.log('Parsed settings:', settings)
@@ -228,7 +230,7 @@ async function saveSettings() {
     return
   }
 
-  if (!aria2Store.isConnected) {
+  if (!connectionStore.isConnected) {
     ElMessage.warning('请先连接到 Aria2 服务器')
     return
   }
@@ -245,7 +247,7 @@ async function saveSettings() {
       'save-session-interval': settings.saveSessionInterval.toString()
     }
 
-    await aria2Store.changeGlobalOptions(options)
+    await statsStore.changeGlobalOptions(options)
     ElMessage.success('设置已保存')
   } catch (error) {
     ElMessage.error('保存设置失败')

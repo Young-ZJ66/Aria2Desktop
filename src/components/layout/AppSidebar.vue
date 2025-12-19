@@ -65,7 +65,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useTaskStore } from '@/stores/taskStore'
 import {
   Download,
   Check,
@@ -74,11 +74,11 @@ import {
   Monitor
 } from '@element-plus/icons-vue'
 
-const aria2Store = useAria2Store()
+const taskStore = useTaskStore()
 
-const activeTasks = computed(() => aria2Store.activeTasks)
-const waitingTasks = computed(() => aria2Store.waitingTasks)
-const stoppedTasks = computed(() => aria2Store.stoppedTasks)
+const activeTasks = computed(() => taskStore.activeTasks)
+const waitingTasks = computed(() => taskStore.waitingTasks)
+const stoppedTasks = computed(() => taskStore.stoppedTasks)
 
 // 合并正在下载和等待中的任务数量
 const activeAndWaitingCount = computed(() =>

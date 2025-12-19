@@ -285,9 +285,10 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  CopyDocument, FolderOpened, Document, Folder, Link
+  CopyDocument, FolderOpened, Document
 } from '@element-plus/icons-vue'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useConnectionStore } from '@/stores/connectionStore'
+import { useTaskStore } from '@/stores/taskStore'
 import type { Aria2Task, Aria2File } from '@/types/aria2'
 import { getTaskRemainingTime, formatTime, formatSpeed as utilFormatSpeed } from '@/utils/taskUtils'
 
@@ -297,7 +298,8 @@ interface Props {
 
 const props = defineProps<Props>()
 const route = useRoute()
-const aria2Store = useAria2Store()
+const connectionStore = useConnectionStore()
+const taskStore = useTaskStore()
 
 const task = ref<Aria2Task | null>(null)
 const loading = ref(false)
@@ -315,7 +317,7 @@ onMounted(async () => {
   await loadTaskDetail()
   // 设置定时刷新，但只在任务未完成时刷新
   const interval = setInterval(async () => {
-    if (aria2Store.isConnected && gid.value && task.value) {
+    if (connectionStore.isConnected && gid.value && task.value) {
       // 只有活跃任务才需要频繁刷新
       if (['active', 'waiting', 'paused'].includes(task.value.status)) {
         await loadTaskDetail()
@@ -330,7 +332,7 @@ onMounted(async () => {
 })
 
 async function loadTaskDetail() {
-  if (!aria2Store.isConnected || !gid.value) {
+  if (!connectionStore.isConnected || !gid.value) {
     return
   }
 
@@ -339,9 +341,9 @@ async function loadTaskDetail() {
     // 先从 store 中查找任务
     let foundTask = findTaskInStore(gid.value)
 
-    if (!foundTask && aria2Store.service) {
+    if (!foundTask && connectionStore.service) {
       // 如果 store 中没有，直接从 Aria2 获取
-      foundTask = await aria2Store.service.tellStatus(gid.value, [
+      foundTask = await connectionStore.service.tellStatus(gid.value, [
         'gid', 'status', 'totalLength', 'completedLength', 'uploadLength',
         'downloadSpeed', 'uploadSpeed', 'connections', 'numPieces', 'pieceLength',
         'dir', 'files', 'bittorrent', 'errorCode', 'errorMessage'
@@ -352,17 +354,17 @@ async function loadTaskDetail() {
       task.value = foundTask
 
       // 获取详细信息
-      if (aria2Store.service) {
+      if (connectionStore.service) {
         try {
           // 获取文件信息
-          const files = await aria2Store.service.getFiles(gid.value)
+          const files = await connectionStore.service.getFiles(gid.value)
           if (files && task.value) {
             task.value.files = files
           }
 
           // 获取 URI 信息
           try {
-            const uris = await aria2Store.service.getUris(gid.value)
+            const uris = await connectionStore.service.getUris(gid.value)
             console.log('原始 URI 数据:', uris)
             // 对 URI 进行去重处理
             taskUris.value = deduplicateUris(uris || [])
@@ -390,7 +392,7 @@ async function loadTaskDetail() {
           // 获取 Peer 信息（仅对 BitTorrent 任务）
           if (task.value.bittorrent) {
             try {
-              const peers = await aria2Store.service.getPeers(gid.value)
+              const peers = await connectionStore.service.getPeers(gid.value)
               taskPeers.value = peers || []
             } catch (error) {
               console.warn('Failed to get peers:', error)
@@ -400,7 +402,7 @@ async function loadTaskDetail() {
 
           // 获取服务器信息
           try {
-            const servers = await aria2Store.service.getServers(gid.value)
+            const servers = await connectionStore.service.getServers(gid.value)
             taskServers.value = servers || []
           } catch (error) {
             console.warn('Failed to get servers:', error)
@@ -423,9 +425,9 @@ async function loadTaskDetail() {
 function findTaskInStore(gid: string): Aria2Task | null {
   // 在所有任务列表中查找
   const allTasks = [
-    ...aria2Store.activeTasks,
-    ...aria2Store.waitingTasks,
-    ...aria2Store.stoppedTasks
+    ...taskStore.activeTasks,
+    ...taskStore.waitingTasks,
+    ...taskStore.stoppedTasks
   ]
 
   return allTasks.find(t => t.gid === gid) || null
@@ -527,13 +529,10 @@ function deduplicateUris(uris: any[]): any[] {
   return uniqueUris
 }
 
-function isDirectory(path: string): boolean {
-  return path.endsWith('/') || path.endsWith('\\')
-}
-
-function formatDate(timestamp: string): string {
-  if (!timestamp || timestamp === '0') return '未知'
-  const date = new Date(parseInt(timestamp) * 1000)
+function formatDate(timestamp: string | number | undefined): string {
+  if (!timestamp || timestamp === '0' || timestamp === 0) return '未知'
+  const ts = typeof timestamp === 'string' ? parseInt(timestamp) : timestamp
+  const date = new Date(ts * 1000)
   return date.toLocaleString()
 }
 
@@ -544,26 +543,19 @@ function copyGid() {
   }
 }
 
-function copyFilePath(path: string) {
-  navigator.clipboard.writeText(path)
-  ElMessage.success('文件路径已复制到剪贴板')
-}
-
 function copyUri(uri: string) {
   navigator.clipboard.writeText(uri)
   ElMessage.success('下载链接已复制到剪贴板')
 }
 
+// 格式化 URI 显示
 function formatUri(uri: string): string {
   if (!uri) return ''
-
-  // 如果URI太长，进行截断显示
   if (uri.length > 80) {
     const start = uri.substring(0, 40)
     const end = uri.substring(uri.length - 30)
     return `${start}...${end}`
   }
-
   return uri
 }
 
@@ -575,6 +567,15 @@ async function openFileInFolder(filePath: string) {
 
   try {
     console.log('Opening file in folder:', filePath)
+    // 尝试使用更智能的打开方式
+    if (window.electronAPI.openInExplorer) {
+       const result = await window.electronAPI.openInExplorer(filePath)
+       if (result?.success) {
+         ElMessage.success('已打开文件位置')
+         return
+       }
+    }
+    
     const result = await window.electronAPI.showItemInFolder(filePath)
     if (result?.success) {
       ElMessage.success('已打开文件位置')
@@ -605,75 +606,6 @@ async function openFile(filePath: string) {
     console.error('Failed to open file:', error)
     ElMessage.error('打开文件失败')
   }
-}
-
-async function openFileLocation() {
-  if (!window.electronAPI) {
-    ElMessage.warning('此功能仅在桌面版中可用')
-    return
-  }
-
-  if (!task.value?.dir) {
-    ElMessage.warning('没有找到文件目录信息')
-    return
-  }
-
-  try {
-    let result
-
-    // 优先使用 Windows Explorer 方法（如果可用）
-    if (window.electronAPI.openInExplorer) {
-      console.log('Using Windows Explorer method')
-
-      // 如果有具体的文件，打开文件位置
-      if (task.value.files && task.value.files.length > 0) {
-        const firstFile = task.value.files[0]
-        if (firstFile.path) {
-          result = await window.electronAPI.openInExplorer(firstFile.path)
-          if (result?.success) {
-            ElMessage.success('已打开文件位置')
-            return
-          }
-        }
-      }
-
-      // 否则打开目录
-      result = await window.electronAPI.openInExplorer(task.value.dir)
-      if (result?.success) {
-        ElMessage.success('已打开目录')
-        return
-      }
-    }
-
-    // 备用方法：使用 showItemInFolder
-    console.log('Fallback to showItemInFolder method')
-    if (task.value.files && task.value.files.length > 0) {
-      const firstFile = task.value.files[0]
-      if (firstFile.path) {
-        result = await window.electronAPI.showItemInFolder(firstFile.path)
-        if (result?.success) {
-          ElMessage.success('已打开文件位置')
-          return
-        }
-      }
-    }
-
-    // 最后尝试 openPath
-    result = await window.electronAPI.openPath(task.value.dir)
-    if (result?.success) {
-      ElMessage.success('已打开目录')
-    } else {
-      ElMessage.error(`打开目录失败: ${result?.error || '未知错误'}`)
-    }
-  } catch (error) {
-    console.error('Failed to open file location:', error)
-    ElMessage.error('打开目录失败')
-  }
-}
-
-function showFileUris(file: Aria2File) {
-  selectedFileUris.value = file.uris || []
-  uriDialogVisible.value = true
 }
 
 

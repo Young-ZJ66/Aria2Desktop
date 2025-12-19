@@ -9,7 +9,7 @@
             (显示 {{ filteredTasks.length }} 个)
           </span>
           <el-tag v-if="taskStats.totalSpeed > 0" type="primary" size="small">
-            总速度: {{ formatSpeed(taskStats.totalSpeed) }}
+            总速度: {{ utilFormatSpeed(taskStats.totalSpeed) }}
           </el-tag>
         </el-space>
       </div>
@@ -275,18 +275,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, h, nextTick, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { VideoPlay, VideoPause, Clock, Plus, Select, Delete, Search } from '@element-plus/icons-vue'
-import { useAria2Store } from '@/stores/aria2Store'
+import { VideoPlay, Clock, Search } from '@element-plus/icons-vue'
+import { useTaskStore } from '@/stores/taskStore'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { taskTimeService } from '@/services/taskTimeService'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
 import TaskCheckbox from '@/components/TaskCheckbox.vue'
 import CustomIcon from '@/components/CustomIcon.vue'
 import DeleteTaskDialog from '@/components/dialogs/DeleteTaskDialog.vue'
-import type { Aria2Task } from '@/types/aria2'
+import type { Aria2Task, Aria2File } from '@/types/aria2'
 import {
   getTaskStats,
   formatSpeed as utilFormatSpeed,
@@ -299,7 +299,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const aria2Store = useAria2Store()
+const taskStore = useTaskStore()
 const router = useRouter()
 
 // 删除对话框相关状态
@@ -346,30 +346,30 @@ const title = computed(() => {
 })
 
 const allTasks = computed(() => {
-  let tasks: any[] = []
+  let tasks: Aria2Task[] = []
 
   switch (props.taskType) {
     case 'active':
-      tasks = [...aria2Store.activeTasks]
+      tasks = [...taskStore.activeTasks]
       break
     case 'waiting':
-      tasks = [...aria2Store.waitingTasks]
+      tasks = [...taskStore.waitingTasks]
       break
     case 'stopped':
-      tasks = [...aria2Store.stoppedTasks]
+      tasks = [...taskStore.stoppedTasks]
       break
     case 'active-and-waiting':
       // 合并正在下载和等待中的任务，按状态和下载顺序排序
-      tasks = [...aria2Store.activeTasks, ...aria2Store.waitingTasks]
+      tasks = [...taskStore.activeTasks, ...taskStore.waitingTasks]
       break
     default:
       return []
   }
 
   // 按状态和添加时间排序：error > active > waiting > paused，然后按添加时间倒序
-  return tasks.sort((a, b) => {
+  return tasks.sort((a: Aria2Task, b: Aria2Task) => {
     // 状态优先级
-    const statusPriority = { 'error': 4, 'active': 3, 'waiting': 2, 'paused': 1 }
+    const statusPriority: Record<string, number> = { 'error': 4, 'active': 3, 'waiting': 2, 'paused': 1 }
     const aPriority = statusPriority[a.status] || 0
     const bPriority = statusPriority[b.status] || 0
 
@@ -389,14 +389,14 @@ const filteredTasks = computed(() => {
   // 搜索过滤
   if (searchText.value.trim()) {
     const searchTerm = searchText.value.toLowerCase().trim()
-    tasks = tasks.filter(task => {
+    tasks = tasks.filter((task: Aria2Task) => {
       // 搜索任务名称
       const taskName = getTaskName(task).toLowerCase()
       if (taskName.includes(searchTerm)) return true
 
       // 搜索文件路径
       if (task.files && task.files.length > 0) {
-        const hasMatchingFile = task.files.some(file =>
+        const hasMatchingFile = task.files.some((file: Aria2File) =>
           file.path && file.path.toLowerCase().includes(searchTerm)
         )
         if (hasMatchingFile) return true
@@ -404,8 +404,8 @@ const filteredTasks = computed(() => {
 
       // 搜索下载链接
       if (task.files && task.files.length > 0) {
-        const hasMatchingUri = task.files.some(file =>
-          file.uris && file.uris.some(uri =>
+        const hasMatchingUri = task.files.some((file: Aria2File) =>
+          file.uris && file.uris.some((uri: any) =>
             uri.uri && uri.uri.toLowerCase().includes(searchTerm)
           )
         )
@@ -422,7 +422,7 @@ const filteredTasks = computed(() => {
   // 根据任务类型设置不同的排序规则
   if (props.taskType === 'stopped') {
     // 已完成任务：按完成时间降序排序（最近完成的在前）
-    return tasks.sort((a, b) => {
+    return tasks.sort((a: Aria2Task, b: Aria2Task) => {
       // 优先使用本地记录的完成时间
       const aCompleteTime = taskTimeService.getCompleteTime(a.gid)
       const bCompleteTime = taskTimeService.getCompleteTime(b.gid)
@@ -440,9 +440,9 @@ const filteredTasks = computed(() => {
     })
   } else {
     // 下载任务：错误任务排在最前面，然后是下载中的任务
-    return tasks.sort((a, b) => {
+    return tasks.sort((a: Aria2Task, b: Aria2Task) => {
       // 状态优先级：error > active > waiting > paused
-      const statusPriority = { 'error': 4, 'active': 3, 'waiting': 2, 'paused': 1 }
+      const statusPriority: Record<string, number> = { 'error': 4, 'active': 3, 'waiting': 2, 'paused': 1 }
       const aPriority = statusPriority[a.status] || 0
       const bPriority = statusPriority[b.status] || 0
 
@@ -556,11 +556,7 @@ function formatCompleteTime(task: Aria2Task): string {
 
 // 移除过滤器功能，使用简单的默认排序
 
-// 行点击处理
-function handleRowClick(row: Aria2Task) {
-  // 跳转到任务详情页面
-  router.push(`/task/${row.gid}`)
-}
+
 
 function getProgress(task: Aria2Task): number {
   const total = parseInt(task.totalLength)
@@ -623,20 +619,20 @@ async function pauseTask(gid: string) {
     }
 
     // 执行暂停操作
-    await aria2Store.pauseTask(gid, true)
+    await taskStore.pauseTask(gid, true)
     ElMessage.success('任务已暂停')
 
     // 延迟刷新确保服务器状态同步
     setTimeout(async () => {
-      await aria2Store.loadAllTasks()
+      await taskStore.loadAllTasks()
     }, 1000)
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('暂停任务失败:', error)
     ElMessage.error(`暂停任务失败: ${error.message || error}`)
 
     // 如果操作失败，恢复原始状态
-    await aria2Store.loadAllTasks()
+    await taskStore.loadAllTasks()
   } finally {
     // 移除操作锁
     operatingTasks.value.delete(gid)
@@ -663,20 +659,20 @@ async function unpauseTask(gid: string) {
     }
 
     // 执行开始操作
-    await aria2Store.unpauseTask(gid)
+    await taskStore.unpauseTask(gid)
     ElMessage.success('任务已开始')
 
     // 延迟刷新确保服务器状态同步
     setTimeout(async () => {
-      await aria2Store.loadAllTasks()
+      await taskStore.loadAllTasks()
     }, 1000)
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('开始任务失败:', error)
     ElMessage.error(`开始任务失败: ${error.message || error}`)
 
     // 如果操作失败，恢复原始状态
-    await aria2Store.loadAllTasks()
+    await taskStore.loadAllTasks()
   } finally {
     // 移除操作锁
     operatingTasks.value.delete(gid)
@@ -703,20 +699,20 @@ async function retryTask(gid: string) {
     }
 
     // 执行重试操作
-    const newGid = await aria2Store.retryErrorTask(gid)
+    const newGid = await taskStore.retryErrorTask(gid)
     ElMessage.success('任务重试成功')
 
     console.log('Task retried with new GID:', newGid)
 
     // 立即刷新任务列表（retryErrorTask 内部已经刷新了，但为了确保界面同步再刷新一次）
-    await aria2Store.loadAllTasks()
+    await taskStore.loadAllTasks()
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('重试任务失败:', error)
     ElMessage.error(`重试任务失败: ${error.message || error}`)
 
     // 如果操作失败，恢复原始状态
-    await aria2Store.loadAllTasks()
+    await taskStore.loadAllTasks()
   } finally {
     // 移除操作锁
     operatingTasks.value.delete(gid)
@@ -767,7 +763,7 @@ async function removeTask(gid: string) {
       if (props.taskType === 'stopped') {
         // 已完成任务使用专门的删除服务
         const result = await completedTaskDeleteService.deleteCompletedTask(task, false)
-        await aria2Store.loadAllTasks()
+        await taskStore.loadAllTasks()
 
         if (result.success) {
           ElMessage.success('任务已删除')
@@ -776,11 +772,11 @@ async function removeTask(gid: string) {
         }
       } else {
         // 其他任务使用原有逻辑
-        await aria2Store.removeTask(gid, false, false)
+        await taskStore.removeTask(gid, false, false)
         ElMessage.success('任务已删除')
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     if (error !== 'cancel') {
       console.error('删除任务失败:', error)
       ElMessage.error('删除任务失败')
@@ -873,7 +869,7 @@ function handleDeleteDialogClose() {
 async function confirmDelete() {
   try {
     console.log('Deleting task:', currentDeleteGid.value, 'deleteFiles:', deleteFiles.value)
-    await aria2Store.removeTask(currentDeleteGid.value, false, deleteFiles.value)
+    await taskStore.removeTask(currentDeleteGid.value, false, deleteFiles.value)
     ElMessage.success(deleteFiles.value ? '任务和文件已删除' : '任务已删除')
     handleDeleteDialogClose()
   } catch (error) {
@@ -887,7 +883,7 @@ async function confirmDelete() {
         ElMessage.warning(errorMessage)
         handleDeleteDialogClose()
         // 刷新任务列表
-        await aria2Store.loadAllTasks()
+        await taskStore.loadAllTasks()
         return
       } else {
         errorMessage = error.message
@@ -915,15 +911,15 @@ async function batchStart() {
     for (const task of startableTasks) {
       if (task.status === 'error') {
         // 对错误任务使用重试方法
-        await aria2Store.retryErrorTask(task.gid)
+        await taskStore.retryErrorTask(task.gid)
       } else {
         // 对其他任务使用普通的开始方法
-        await aria2Store.unpauseTask(task.gid)
+        await taskStore.unpauseTask(task.gid)
       }
     }
 
     // 批量操作完成后刷新任务列表
-    await aria2Store.loadAllTasks()
+    await taskStore.loadAllTasks()
 
     ElMessage.success(`已开始 ${startableTasks.length} 个任务`)
     clearSelection()
@@ -947,7 +943,7 @@ async function batchPause() {
 
     for (const task of pausableTasks) {
       // 使用 force = true 来确保等待中的任务也能被暂停
-      await aria2Store.pauseTask(task.gid, true)
+      await taskStore.pauseTask(task.gid, true)
     }
 
     ElMessage.success(`已暂停 ${pausableTasks.length} 个任务`)
@@ -1025,7 +1021,7 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
       const result = await completedTaskDeleteService.batchDeleteCompletedTasks(tasks, deleteFiles)
 
       // 刷新任务列表
-      await aria2Store.loadAllTasks()
+      await taskStore.loadAllTasks()
 
       // 显示结果
       if (result.successfulTasks === result.totalTasks) {
@@ -1052,7 +1048,7 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
       let successCount = 0
       for (const task of tasks) {
         try {
-          await aria2Store.removeTask(task.gid, false, deleteFiles)
+          await taskStore.removeTask(task.gid, false, deleteFiles)
           successCount++
         } catch (error) {
           console.error(`Failed to delete task ${task.gid}:`, error)

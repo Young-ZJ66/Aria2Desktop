@@ -126,11 +126,13 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useTaskStore } from '@/stores/taskStore'
+import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 
 const router = useRouter()
-const aria2Store = useAria2Store()
+const taskStore = useTaskStore()
+const connectionStore = useConnectionStore()
 const settingsStore = useSettingsStore()
 
 const activeTab = ref('uri')
@@ -177,14 +179,14 @@ async function handleUriSubmit() {
   try {
     await uriFormRef.value.validate()
 
-    if (!aria2Store.isConnected) {
+    if (!connectionStore.isConnected) {
       ElMessage.error('请先连接到 Aria2 服务器')
       return
     }
 
     console.log('Aria2 connection status:', {
-      isConnected: aria2Store.isConnected,
-      service: !!aria2Store.service
+      isConnected: connectionStore.isConnected,
+      service: !!connectionStore.service
     })
 
     submitting.value = true
@@ -213,7 +215,7 @@ async function handleUriSubmit() {
 
     console.log('URI download options:', options)
 
-    const gid = await aria2Store.addUri(uris, options)
+    const gid = await taskStore.addUri(uris, options)
     console.log('Task added with GID:', gid)
 
     ElMessage.success(`已添加 ${uris.length} 个下载任务`)
@@ -241,7 +243,7 @@ async function handleTorrentSubmit() {
   try {
     await torrentFormRef.value.validate()
 
-    if (!aria2Store.isConnected) {
+    if (!connectionStore.isConnected) {
       ElMessage.error('请先连接到 Aria2 服务器')
       return
     }
@@ -260,7 +262,7 @@ async function handleTorrentSubmit() {
     if (torrentForm.dir) options.dir = torrentForm.dir
     if (!torrentForm.autoStart) options.pause = 'true'
 
-    const gid = await aria2Store.addTorrent(torrentData, [], options)
+    const gid = await taskStore.addTorrent(torrentData, [], options)
     console.log('Torrent task added with GID:', gid)
 
     ElMessage.success('种子任务已添加')

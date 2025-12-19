@@ -23,15 +23,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useAria2Store } from '@/stores/aria2Store'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { useConnectionStore } from '@/stores/connectionStore'
+import { useStatsStore } from '@/stores/statsStore'
+import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import ConnectionDialog from '@/components/dialogs/ConnectionDialog.vue'
 
-const aria2Store = useAria2Store()
+const connectionStore = useConnectionStore()
+const statsStore = useStatsStore()
+const taskStore = useTaskStore()
 const settingsStore = useSettingsStore()
 const showConnectionDialog = ref(false)
 
@@ -40,6 +44,25 @@ const isWindowsPlatform = computed(() => {
   return typeof window !== 'undefined' && window.navigator.platform.toLowerCase().includes('win')
 })
 
+let updateInterval: any = null
+
+function startAutoUpdate(interval = 1000) {
+    if (updateInterval) clearInterval(updateInterval)
+    updateInterval = setInterval(() => {
+      if (connectionStore.isConnected) {
+        statsStore.loadGlobalStat()
+        taskStore.loadAllTasks()
+      }
+    }, interval)
+}
+
+function stopAutoUpdate() {
+    if (updateInterval) {
+      clearInterval(updateInterval)
+      updateInterval = null
+    }
+}
+
 onMounted(async () => {
   // 初始化设置
   await settingsStore.initialize()
@@ -47,22 +70,64 @@ onMounted(async () => {
   // 应用主题
   settingsStore.applyTheme()
 
+  // Listen for config changes from main process (hot-reload)
+  if (window.electronAPI) {
+    window.electronAPI.onConfigChanged((data: { key: string; value: any }) => {
+      console.log('[App] Config changed from main process:', data)
+      
+      if (data.key === 'theme') {
+        // Update theme setting and apply
+        settingsStore.updateSetting('theme', data.value).then(() => {
+          settingsStore.applyTheme()
+        })
+      } else if (data.key === 'refreshInterval') {
+        // Update refresh interval
+        stopAutoUpdate()
+        startAutoUpdate(data.value)
+      }
+    })
+  }
+
   // 如果启用了自动连接，尝试连接
   if (settingsStore.getSetting('autoConnect')) {
     try {
       const aria2Config = settingsStore.aria2Config
-      await aria2Store.connect(aria2Config)
-      aria2Store.startAutoUpdate(settingsStore.getSetting('refreshInterval'))
+      await connectionStore.connect(aria2Config)
+      
+      // 连接成功后立即加载一次数据
+      console.log('[App] Auto-connect successful, loading initial data...')
+      await Promise.all([
+        statsStore.loadGlobalStat(),
+        taskStore.loadAllTasks()
+      ])
+      
+      // 然后启动定时更新
+      startAutoUpdate(settingsStore.getSetting('refreshInterval'))
     } catch (error) {
       console.error('Auto connection failed:', error)
       showConnectionDialog.value = true
     }
   }
+  
+  // 通知主进程应用已完全准备好
+  if (window.electronAPI) {
+    window.electronAPI.send('app-ready')
+    console.log('[App] Notified main process: app ready')
+  }
 })
 
 onUnmounted(() => {
-  aria2Store.stopAutoUpdate()
-  aria2Store.disconnect()
+  stopAutoUpdate()
+  connectionStore.disconnect()
+})
+
+// {{ AURA: Add - 自动关闭连接对话框 }}
+// 当连接状态变为已连接时，自动关闭对话框
+// 这解决了启动时由于竞态条件导致的对话框弹出但随后连接成功的问题
+watch(() => connectionStore.isConnected, (connected) => {
+  if (connected) {
+    showConnectionDialog.value = false
+  }
 })
 </script>
 

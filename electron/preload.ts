@@ -8,7 +8,7 @@ const electronAPI = {
   // 数据存储
   getStoreValue: (key: string) => ipcRenderer.invoke('get-store-value', key),
   setStoreValue: (key: string, value: any) => ipcRenderer.invoke('set-store-value', key, value),
-  
+
   // 文件对话框
   showSaveDialog: (options: any) => ipcRenderer.invoke('show-save-dialog', options),
   showOpenDialog: (options: any) => ipcRenderer.invoke('show-open-dialog', options),
@@ -23,7 +23,7 @@ const electronAPI = {
   setTrayEnabled: (enabled: boolean) => ipcRenderer.invoke('set-tray-enabled', enabled),
   // {{ AURA: Add - 窗口主题设置 IPC 方法 }}
   setWindowTheme: (isDark: boolean) => ipcRenderer.invoke('set-window-theme', isDark),
-  
+
   // Aria2 进程管理
   aria2: {
     start: () => ipcRenderer.invoke('aria2-start'),
@@ -32,17 +32,27 @@ const electronAPI = {
     getStatus: () => ipcRenderer.invoke('aria2-status'),
     updateConfig: (config: any) => ipcRenderer.invoke('aria2-update-config', config)
   },
-  
+
   // 会话管理
   saveSession: () => ipcRenderer.invoke('aria2-save-session'),
-  
+
   // 平台信息
   platform: process.platform,
-  
+
   // 窗口控制
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
-  close: () => ipcRenderer.send('window-close')
+  close: () => ipcRenderer.send('window-close'),
+
+  // 配置热重载
+  onConfigChanged: (callback: (data: { key: string; value: any }) => void) => {
+    ipcRenderer.on('config:changed', (_event, data) => callback(data))
+  },
+
+  // 通用消息发送
+  send: (channel: string, ...args: any[]) => {
+    ipcRenderer.send(channel, ...args)
+  }
 }
 
 // 类型声明

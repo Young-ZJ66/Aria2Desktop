@@ -125,14 +125,14 @@
           <el-button
             type="primary"
             @click="saveSettings"
-            :disabled="!aria2Store.isConnected"
+            :disabled="!connectionStore.isConnected"
             :loading="saving"
           >
             保存设置
           </el-button>
           <el-button
             @click="loadSettings"
-            :disabled="!aria2Store.isConnected"
+            :disabled="!connectionStore.isConnected"
           >
             重新加载
           </el-button>
@@ -148,9 +148,11 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
-import { useAria2Store } from '@/stores/aria2Store'
+import { useConnectionStore } from '@/stores/connectionStore'
+import { useStatsStore } from '@/stores/statsStore'
 
-const aria2Store = useAria2Store()
+const connectionStore = useConnectionStore()
+const statsStore = useStatsStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const saving = ref(false)
@@ -170,20 +172,20 @@ const settings = reactive({
 })
 
 onMounted(() => {
-  if (aria2Store.isConnected) {
+  if (connectionStore.isConnected) {
     loadSettings()
   }
 })
 
 async function loadSettings() {
-  if (!aria2Store.isConnected) {
+  if (!connectionStore.isConnected) {
     ElMessage.warning('请先连接到 Aria2 服务器')
     return
   }
 
   loading.value = true
   try {
-    const options = await aria2Store.getGlobalOptions()
+    const options = await statsStore.getGlobalOptions()
     if (options) {
       settings.diskCache = parseInt(options['disk-cache'] || '16')
       settings.fileAllocation = options['file-allocation'] || 'prealloc'
@@ -196,7 +198,6 @@ async function loadSettings() {
       settings.eventPoll = options['event-poll'] || 'epoll'
       settings.checksumCheck = options['checksum-check'] !== 'false'
     }
-    ElMessage.success('设置加载成功')
   } catch (error) {
     ElMessage.error('加载设置失败')
     console.error('Failed to load advanced settings:', error)
@@ -206,7 +207,7 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
-  if (!aria2Store.isConnected) {
+  if (!connectionStore.isConnected) {
     ElMessage.warning('请先连接到 Aria2 服务器')
     return
   }
@@ -227,7 +228,7 @@ async function saveSettings() {
 
     if (settings.log) options['log'] = settings.log
 
-    await aria2Store.changeGlobalOptions(options)
+    await statsStore.changeGlobalOptions(options)
     ElMessage.success('设置保存成功')
   } catch (error) {
     ElMessage.error('保存设置失败')
