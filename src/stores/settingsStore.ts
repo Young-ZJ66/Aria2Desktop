@@ -19,11 +19,11 @@ export const useSettingsStore = defineStore('settings', () => {
   async function initialize() {
     isLoading.value = true
     error.value = null
-    
+
     try {
       await settingsService.loadSettings()
       settings.value = settingsService.getSettings()
-      
+
       // 监听设置变化
       settingsService.onSettingsChange((newSettings) => {
         settings.value = newSettings
@@ -39,7 +39,7 @@ export const useSettingsStore = defineStore('settings', () => {
   async function updateSettings(newSettings: Partial<AppSettings>) {
     isLoading.value = true
     error.value = null
-    
+
     try {
       await settingsService.saveSettings(newSettings)
       settings.value = settingsService.getSettings()
@@ -53,7 +53,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // 更新特定设置
   async function updateSetting<K extends keyof AppSettings>(
-    key: K, 
+    key: K,
     value: AppSettings[K]
   ) {
     await updateSettings({ [key]: value } as Partial<AppSettings>)
@@ -97,7 +97,7 @@ export const useSettingsStore = defineStore('settings', () => {
   async function resetSettings() {
     isLoading.value = true
     error.value = null
-    
+
     try {
       await settingsService.resetSettings()
       settings.value = settingsService.getSettings()
@@ -118,7 +118,7 @@ export const useSettingsStore = defineStore('settings', () => {
   async function importSettings(settingsJson: string) {
     isLoading.value = true
     error.value = null
-    
+
     try {
       await settingsService.importSettings(settingsJson)
       settings.value = settingsService.getSettings()
@@ -174,14 +174,14 @@ export const useSettingsStore = defineStore('settings', () => {
     settings,
     isLoading,
     error,
-    
+
     // 计算属性
     aria2Config,
     uiConfig,
     downloadConfig,
     theme,
     language,
-    
+
     // 方法
     initialize,
     updateSettings,
