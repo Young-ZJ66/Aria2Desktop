@@ -1,5 +1,6 @@
 import Store from 'electron-store'
 import { EventEmitter } from 'events'
+import type { StoreData } from '../types/store'
 
 export interface ConfigChangeEvent {
     key: string
@@ -12,10 +13,10 @@ export interface ConfigChangeEvent {
  * 灵感来自 Motrix 的配置监听机制
  */
 export class ConfigWatcher extends EventEmitter {
-  private store: Store
+  private store: Store<StoreData>
   private configListeners: Map<string, () => void> = new Map()
 
-  constructor(store: Store) {
+  constructor(store: Store<StoreData>) {
     super()
     this.store = store
   }
@@ -29,7 +30,7 @@ export class ConfigWatcher extends EventEmitter {
       return
     }
 
-    const unsubscribe = this.store.onDidChange(key, (newValue, oldValue) => {
+    const unsubscribe = this.store.onDidChange(key as keyof StoreData, (newValue, oldValue) => {
       console.log(`[ConfigWatcher] Config changed: ${key}`, { newValue, oldValue })
       callback(newValue, oldValue)
       this.emit('change', { key, newValue, oldValue })

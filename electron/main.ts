@@ -7,6 +7,7 @@ import { TrayController } from './controllers/TrayController'
 import { Aria2Controller } from './controllers/Aria2Controller'
 import { IpcController } from './controllers/IpcController'
 import { AppLifecycle } from './controllers/AppLifecycle'
+import type { StoreData, AppSettings } from './types/store'
 
 // ==========================================
 // 配置和路径设置
@@ -30,7 +31,7 @@ const getConfigDirectory = () => {
 }
 
 const configDir = getConfigDirectory()
-const store = new Store({
+const store = new Store<StoreData>({
   cwd: configDir,
   name: 'aria2-desktop-settings'
 })
@@ -75,16 +76,16 @@ if (!gotTheLock) {
     try {
       // 通过 AppLifecycle 初始化所有子系统
       await appLifecycle.initialize()
-      console.log('✓ Application initialized successfully')
+      console.log('Application initialized successfully')
     } catch (error) {
-      console.error('✗ Application initialization failed:', error)
+      console.error('Application initialization failed:', error)
       // 如果初始化严重失败，退出应用
       app.quit()
     }
   })
 
   app.on('window-all-closed', () => {
-    const settings = store.get('settings', {}) as unknown
+    const settings = store.get('settings', {}) as AppSettings
     const minimizeToTray = settings.minimizeToTray !== false
     const platform = process.platform
 
@@ -105,18 +106,18 @@ if (!gotTheLock) {
   })
 
   app.on('before-quit', async (e) => {
-    if ((app as unknown).isQuiting) return
+    if ((app as unknown as { isQuiting?: boolean }).isQuiting) return
 
     e.preventDefault();
-    (app as unknown).isQuiting = true
+    (app as unknown as { isQuiting?: boolean }).isQuiting = true
 
     console.log('App quitting, starting graceful shutdown...')
 
     try {
       await appLifecycle.shutdown()
-      console.log('✓ Graceful shutdown complete')
+      console.log('Graceful shutdown complete')
     } catch (error) {
-      console.error('✗ Shutdown error:', error)
+      console.error('Shutdown error:', error)
     } finally {
       app.quit()
     }
@@ -124,7 +125,7 @@ if (!gotTheLock) {
 
   // 处理信号
   process.on('SIGINT', () => {
-    (app as unknown).isQuiting = true
+    (app as unknown as { isQuiting?: boolean }).isQuiting = true
     app.quit()
   })
 }

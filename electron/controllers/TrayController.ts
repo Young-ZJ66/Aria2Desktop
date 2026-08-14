@@ -67,7 +67,7 @@ export class TrayController {
       {
         label: '退出',
         click: () => {
-          (app as unknown).isQuiting = true
+          (app as unknown as { isQuiting?: boolean }).isQuiting = true
           app.quit()
         }
       }

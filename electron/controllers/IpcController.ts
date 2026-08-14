@@ -5,6 +5,7 @@ import { Aria2Controller } from './Aria2Controller'
 import Store from 'electron-store'
 import * as path from 'path'
 import * as fs from 'fs'
+import type { StoreData, AppSettings } from '../types/store'
 
 /** 允许通过 get/set-store-value 访问的 store 键白名单 */
 const ALLOWED_STORE_KEYS = new Set([
@@ -16,13 +17,13 @@ export class IpcController {
   private windowController: WindowController
   private trayController: TrayController
   private aria2Controller: Aria2Controller
-  private store: Store
+  private store: Store<StoreData>
 
   constructor(
     windowController: WindowController,
     trayController: TrayController,
     aria2Controller: Aria2Controller,
-    store: Store
+    store: Store<StoreData>
   ) {
     this.windowController = windowController
     this.trayController = trayController
@@ -132,7 +133,7 @@ export class IpcController {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
 
       // 获取允许删除文件的根目录（下载目录）
-      const settings = this.store.get('settings', {}) as unknown
+      const settings = this.store.get('settings', {}) as AppSettings
       const allowedDir = settings?.aria2?.downloadDir || settings?.download?.defaultDir || ''
       const normalizedAllowedDir = allowedDir ? path.resolve(allowedDir) : ''
 

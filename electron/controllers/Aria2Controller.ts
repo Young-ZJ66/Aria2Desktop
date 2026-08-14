@@ -3,25 +3,26 @@ import Store from 'electron-store'
 import http from 'http'
 import * as path from 'path'
 import { getAria2ProcessManager, Aria2ProcessManager } from '../managers/Aria2ProcessManager'
+import type { StoreData, AppSettings } from '../types/store'
 
 export class Aria2Controller {
   private aria2Manager: Aria2ProcessManager | null = null
-  private store: Store
+  private store: Store<StoreData>
 
-  constructor(store: Store) {
+  constructor(store: Store<StoreData>) {
     this.store = store
   }
 
   public async initialize() {
     try {
-      const settings = this.store.get('settings', {}) as unknown
+      const settings = this.store.get('settings', {}) as AppSettings
       const aria2Settings = settings.aria2 || {}
 
       const aria2Config = {
-        port: aria2Settings.port || 6800,
-        secret: aria2Settings.secret || '',
-        downloadDir: aria2Settings.downloadDir || path.join(app.getPath('downloads'), 'Aria2Downloads'),
-        autoStart: aria2Settings.autoStart !== undefined ? aria2Settings.autoStart : true
+        port: Number(aria2Settings.port) || 6800,
+        secret: String(aria2Settings.secret || ''),
+        downloadDir: aria2Settings.downloadDir ? String(aria2Settings.downloadDir) : path.join(app.getPath('downloads'), 'Aria2Downloads'),
+        autoStart: aria2Settings.autoStart !== undefined ? Boolean(aria2Settings.autoStart) : true
       }
 
       console.log('Initializing Aria2 with config:', aria2Config)
@@ -120,10 +121,10 @@ export class Aria2Controller {
     ipcMain.handle('aria2-save-session', async () => {
       // 通过 HTTP 直接调用 Aria2 RPC 保存会话，避免跨进程导入渲染进程代码
       try {
-        const settings = this.store.get('settings', {}) as unknown
+        const settings = this.store.get('settings', {}) as AppSettings
         const aria2Settings = settings.aria2 || {}
-        const port = aria2Settings.port || 6800
-        const secret = aria2Settings.secret || ''
+        const port = Number(aria2Settings.port) || 6800
+        const secret = String(aria2Settings.secret || '')
 
         await this.callAria2Rpc(port, secret, 'aria2.saveSession')
         return { success: true }
@@ -147,7 +148,7 @@ export class Aria2Controller {
             this.aria2Manager!.updateConfig(serializableConfig)
 
             // 更新存储
-            const currentSettings = this.store.get('settings', {}) as unknown
+            const currentSettings = this.store.get('settings', {}) as AppSettings
             const updatedSettings = {
               ...currentSettings,
               aria2: {

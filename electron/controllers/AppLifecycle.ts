@@ -6,6 +6,7 @@ import { TrayController } from './TrayController'
 import { Aria2Controller } from './Aria2Controller'
 import { IpcController } from './IpcController'
 import { ConfigWatcher } from '../utils/ConfigWatcher'
+import type { StoreData, AppSettings } from '../types/store'
 
 export enum AppStatus {
     INITIALIZING = 'initializing',
@@ -20,7 +21,7 @@ export enum AppStatus {
  */
 export class AppLifecycle extends EventEmitter {
   private status: AppStatus = AppStatus.INITIALIZING
-  private store: Store
+  private store: Store<StoreData>
   private configWatcher: ConfigWatcher
   private windowController: WindowController
   private trayController: TrayController
@@ -28,7 +29,7 @@ export class AppLifecycle extends EventEmitter {
   private ipcController: IpcController
 
   constructor(
-    store: Store,
+    store: Store<StoreData>,
     windowController: WindowController,
     trayController: TrayController,
     aria2Controller: Aria2Controller,
@@ -73,7 +74,7 @@ export class AppLifecycle extends EventEmitter {
 
       // 步骤 6: 标记为就绪
       this.status = AppStatus.READY
-      console.log('[AppLifecycle] ✓ Initialization complete')
+      console.log('[AppLifecycle] Initialization complete')
       this.emit('ready')
 
       // 步骤 7: 显示窗口
@@ -81,7 +82,7 @@ export class AppLifecycle extends EventEmitter {
       this.windowController.show()
 
     } catch (error) {
-      console.error('[AppLifecycle] ✗ Initialization failed:', error)
+      console.error('[AppLifecycle] Initialization failed:', error)
       this.status = AppStatus.ERROR
       this.emit('error', error)
       throw error
@@ -123,7 +124,7 @@ export class AppLifecycle extends EventEmitter {
      * 如果设置中启用，则创建托盘
      */
   private createTrayIfEnabled() {
-    const settings = this.store.get('settings', {}) as unknown
+    const settings = this.store.get('settings', {}) as AppSettings
     const minimizeToTray = settings.minimizeToTray !== false
     if (minimizeToTray) {
       this.trayController.createTray()
@@ -205,7 +206,7 @@ export class AppLifecycle extends EventEmitter {
       console.log('[AppLifecycle] Step 4: Destroying tray...')
       this.trayController.destroy()
 
-      console.log('[AppLifecycle] ✓ Shutdown complete')
+      console.log('[AppLifecycle] Shutdown complete')
     } catch (error) {
       console.error('[AppLifecycle] Shutdown error:', error)
       // 即使有错误也继续关闭

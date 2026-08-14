@@ -1,13 +1,14 @@
 import { BrowserWindow, Menu, shell, app } from 'electron'
 import { join } from 'path'
 import Store from 'electron-store'
+import type { StoreData, AppSettings, WindowState } from '../types/store'
 
 export class WindowController {
   private mainWindow: BrowserWindow | null = null
-  private store: Store
+  private store: Store<StoreData>
   private isContentReady = false // 页面内容是否已加载完成
 
-  constructor(store: Store) {
+  constructor(store: Store<StoreData>) {
     this.store = store
   }
 
@@ -18,11 +19,11 @@ export class WindowController {
     Menu.setApplicationMenu(null)
 
     // 如果启用，恢复窗口状态
-    const settings = this.store.get('settings', {}) as unknown
+    const settings = this.store.get('settings', {}) as AppSettings
     const keepWindowState = settings.keepWindowState !== false
-    const savedState = this.store.get('windowState') as unknown
+    const savedState = this.store.get('windowState') as WindowState
 
-    let windowOptions: unknown = {
+    let windowOptions: Electron.BrowserWindowConstructorOptions = {
       width: 1200,
       height: 800,
       minWidth: 800,
@@ -98,7 +99,7 @@ export class WindowController {
     const centerX = bounds.x + bounds.width / 2
     const centerY = bounds.y + bounds.height / 2
 
-    return displays.some((display: unknown) => {
+    return displays.some((display: Electron.Display) => {
       const { x, y, width, height } = display.bounds
       return centerX >= x && centerX < x + width &&
         centerY >= y && centerY < y + height
@@ -113,7 +114,7 @@ export class WindowController {
       // 不在这里自动显示 - 让 AppLifecycle 控制显示时机
 
       // 初始化主题
-      const settings = this.store.get('settings', {}) as unknown
+      const settings = this.store.get('settings', {}) as AppSettings
       const isDarkTheme = settings.theme === 'dark'
       this.setWindowTheme(isDarkTheme)
 
@@ -130,11 +131,11 @@ export class WindowController {
 
     // 拦截关闭事件 - 如果启用了托盘，隐藏而不是关闭
     this.mainWindow.on('close', (event) => {
-      const settings = this.store.get('settings', {}) as unknown
+      const settings = this.store.get('settings', {}) as AppSettings
       const minimizeToTray = settings.minimizeToTray !== false
 
       // 如果启用了托盘且不是真正退出应用
-      if (minimizeToTray && !(app as unknown).isQuiting) {
+      if (minimizeToTray && !(app as unknown as { isQuiting?: boolean }).isQuiting) {
         event.preventDefault()
         this.hide()
         console.log('[WindowController] Window hidden to tray')
@@ -153,7 +154,7 @@ export class WindowController {
   private setupWindowStatePersistence() {
     if (!this.mainWindow) return
 
-    const settings = this.store.get('settings', {}) as unknown
+    const settings = this.store.get('settings', {}) as AppSettings
     const keepWindowState = settings.keepWindowState !== false
 
     if (!keepWindowState) return
