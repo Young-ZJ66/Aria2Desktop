@@ -11,20 +11,20 @@
           {{ formatSpeed(globalStat.uploadSpeed) }}/s
         </span>
         <span class="stat-item">
-          活动: {{ globalStat.numActive }}
+          {{ t('footer.active') }}: {{ globalStat.numActive }}
         </span>
         <span class="stat-item">
-          等待: {{ globalStat.numWaiting }}
+          {{ t('footer.waiting') }}: {{ globalStat.numWaiting }}
         </span>
         <span class="stat-item">
-          已停止: {{ globalStat.numStopped }}
+          {{ t('footer.stopped') }}: {{ globalStat.numStopped }}
         </span>
       </div>
     </div>
-    
+
     <div class="footer-right">
       <div class="connection-status">
-        <el-icon 
+        <el-icon
           :class="connectionStatusClass"
         >
           <component :is="connectionIcon" />
@@ -37,11 +37,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useStatsStore } from '@/stores/statsStore'
 import { useConnectionStore } from '@/stores/connectionStore'
-import { 
-  Download, 
-  Upload, 
+import {
+  Download,
+  Upload,
   Connection,
   WarningFilled,
   CircleCheckFilled
@@ -49,14 +50,15 @@ import {
 
 const statsStore = useStatsStore()
 const connectionStore = useConnectionStore()
+const { t } = useI18n()
 
 const globalStat = computed(() => statsStore.globalStat)
 const isConnected = computed(() => connectionStore.isConnected)
 const isConnecting = computed(() => connectionStore.isConnecting)
 
 const connectionStatusText = computed(() => {
-  if (isConnecting.value) return '连接中...'
-  return isConnected.value ? '已连接' : '未连接'
+  if (isConnecting.value) return t('header.connecting')
+  return isConnected.value ? t('header.connected') : t('header.disconnected')
 })
 
 const connectionStatusClass = computed(() => {
@@ -72,11 +74,11 @@ const connectionIcon = computed(() => {
 function formatSpeed(speed: string): string {
   const bytes = parseInt(speed)
   if (bytes === 0) return '0 B'
-  
+
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 </script>

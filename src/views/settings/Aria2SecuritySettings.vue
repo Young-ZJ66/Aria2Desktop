@@ -16,10 +16,10 @@
 
     <el-form
       ref="formRef"
+      v-loading="loading"
       :model="settings"
       label-width="200px"
       style="max-width: 800px"
-      v-loading="loading"
       :disabled="!connectionStore.isConnected"
     >
       <el-card class="setting-group">
@@ -69,7 +69,7 @@
           <div class="form-tip">强制保存文件，即使校验失败</div>
         </el-form-item>
 
-        <el-form-item label="文件权限" v-if="!isWindows">
+        <el-form-item v-if="!isWindows" label="文件权限">
           <el-input
             v-model="settings.fileAllocationMode"
             placeholder="644"
@@ -152,23 +152,23 @@
         <el-space>
           <el-button
             type="primary"
-            @click="saveSettings"
             :loading="saving"
             :disabled="!connectionStore.isConnected"
+            @click="saveSettings"
           >
-            保存设置
+            {{ t('settings.save') }}
           </el-button>
           <el-button
+            :disabled="!connectionStore.isConnected"
             @click="loadSettings"
-            :disabled="!connectionStore.isConnected"
           >
-            重新加载
+            {{ t('settings.reload') }}
           </el-button>
           <el-button
-            @click="resetToDefaults"
             :disabled="!connectionStore.isConnected"
+            @click="resetToDefaults"
           >
-            恢复默认
+            {{ t('settings.restoreDefaults') }}
           </el-button>
         </el-space>
       </el-form-item>
@@ -178,12 +178,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
 
 const connectionStore = useConnectionStore()
 const statsStore = useStatsStore()
+const { t } = useI18n()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const saving = ref(false)
@@ -220,14 +222,14 @@ onMounted(() => {
 
 async function loadSettings() {
   if (!connectionStore.isConnected) {
-    ElMessage.warning('请先连接到 Aria2 服务器')
+    ElMessage.warning(t('settings.connectFirst'))
     return
   }
 
   loading.value = true
   try {
     const options = await statsStore.getGlobalOptions()
-    
+
     if (options && typeof options === 'object') {
       settings.rpcSecret = options['rpc-secret'] || ''
       settings.rpcListenAll = options['rpc-listen-all'] === 'true'
@@ -245,11 +247,10 @@ async function loadSettings() {
       settings.certificate = options['certificate'] || ''
       settings.privateKey = options['private-key'] || ''
 
-      ElMessage.success('安全设置加载成功')
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '未知错误'
-    ElMessage.error(`加载安全设置失败: ${errorMessage}`)
+    const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
+    ElMessage.error(t('aria2Security.loadFailed', { error: errorMessage }))
     console.error('Failed to load security settings:', error)
   } finally {
     loading.value = false
@@ -258,7 +259,7 @@ async function loadSettings() {
 
 async function saveSettings() {
   if (!connectionStore.isConnected) {
-    ElMessage.warning('请先连接到 Aria2 服务器')
+    ElMessage.warning(t('settings.connectFirst'))
     return
   }
 
@@ -285,9 +286,9 @@ async function saveSettings() {
     if (settings.privateKey) options['private-key'] = settings.privateKey
 
     await statsStore.changeGlobalOptions(options)
-    ElMessage.success('安全设置已保存')
+    ElMessage.success(t('aria2Security.saved'))
   } catch (error) {
-    ElMessage.error('保存安全设置失败')
+    ElMessage.error(t('aria2Security.saveFailed'))
     console.error('Failed to save security settings:', error)
   } finally {
     saving.value = false
@@ -297,11 +298,11 @@ async function saveSettings() {
 async function resetToDefaults() {
   try {
     await ElMessageBox.confirm(
-      '确定要恢复为默认安全设置吗？',
-      '确认恢复',
+      t('aria2Security.restoreConfirm'),
+      t('aria2Security.restoreTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.ok'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
@@ -325,7 +326,7 @@ async function resetToDefaults() {
       privateKey: ''
     })
 
-    ElMessage.success('已恢复为默认安全设置')
+    ElMessage.success(t('aria2Security.restored'))
   } catch (error) {
     // 用户取消
   }

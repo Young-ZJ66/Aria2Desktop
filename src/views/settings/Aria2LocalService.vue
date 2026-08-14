@@ -1,20 +1,20 @@
 <template>
   <div class="aria2-local-service">
     <div class="settings-header">
-      <h2>本地 Aria2 服务</h2>
-      <p class="settings-description">管理内置的 Aria2 服务，让小白用户也能轻松使用</p>
+      <h2>{{ t('localService.title') }}</h2>
+      <p class="settings-description">{{ t('localService.description') }}</p>
     </div>
 
     <!-- 服务状态卡片 -->
     <el-card class="status-card">
       <template #header>
         <div class="card-header">
-          <span class="header-title">服务状态</span>
-          <el-button 
-            size="small" 
-            @click="refreshStatus" 
+          <span class="header-title">{{ t('localService.serviceStatus') }}</span>
+          <el-button
+            size="small"
             :loading="isRefreshing"
             circle
+            @click="refreshStatus"
           >
             <el-icon><Refresh /></el-icon>
           </el-button>
@@ -23,51 +23,51 @@
 
       <div class="status-content">
         <div class="status-row">
-          <span class="status-label">运行状态：</span>
-          <el-tag 
-            :type="isRunning ? 'success' : 'danger'" 
+          <span class="status-label">{{ t('localService.runStatus') }}</span>
+          <el-tag
+            :type="isRunning ? 'success' : 'danger'"
             size="large"
           >
-            {{ isRunning ? '运行中' : '已停止' }}
+            {{ isRunning ? t('localService.running') : t('localService.stopped') }}
           </el-tag>
         </div>
 
-        <div class="status-row" v-if="hasError">
-          <span class="status-label">错误信息：</span>
+        <div v-if="hasError" class="status-row">
+          <span class="status-label">{{ t('localService.errorLabel') }}</span>
           <el-tag type="danger">{{ processInfo.error }}</el-tag>
         </div>
       </div>
 
       <div class="control-buttons">
         <el-space size="large">
-          <el-button 
+          <el-button
             :type="isRunning ? 'danger' : 'primary'"
-            @click="isRunning ? stopService() : startService()"
             :loading="isStarting || isStopping"
             :disabled="!canStart && !canStop"
+            @click="isRunning ? stopService() : startService()"
           >
             <el-icon><VideoPlay v-if="!isRunning" /><VideoPause v-else /></el-icon>
-            {{ isRunning ? '停止' : '启动' }}
+            {{ isRunning ? t('localService.stop') : t('localService.start') }}
           </el-button>
 
-          <el-button 
-            type="warning" 
-            @click="restartService"
+          <el-button
+            type="warning"
             :loading="isStarting || isStopping"
             :disabled="!canRestart"
+            @click="restartService"
           >
             <el-icon><Refresh /></el-icon>
-            重启
+            {{ t('localService.restart') }}
           </el-button>
 
-          <el-button 
+          <el-button
             :type="connectionStore.isConnected ? 'warning' : 'success'"
-            @click="connectionStore.isConnected ? disconnectFromLocal() : connectToLocal()"
             :loading="isConnecting"
             :disabled="!isRunning"
+            @click="connectionStore.isConnected ? disconnectFromLocal() : connectToLocal()"
           >
             <el-icon><Link v-if="!connectionStore.isConnected" /><Close v-else /></el-icon>
-            {{ connectionStore.isConnected ? '断开' : '连接' }}
+            {{ connectionStore.isConnected ? t('localService.disconnect') : t('localService.connect') }}
           </el-button>
         </el-space>
       </div>
@@ -76,7 +76,7 @@
     <!-- 服务配置 -->
     <el-card class="config-card">
       <template #header>
-        <span class="header-title">服务配置</span>
+        <span class="header-title">{{ t('localService.serviceConfig') }}</span>
       </template>
 
       <el-form
@@ -86,87 +86,87 @@
         label-width="150px"
         style="max-width: 600px"
       >
-        <el-form-item label="监听端口" prop="port">
+        <el-form-item :label="t('localService.listenPort')" prop="port">
           <el-input-number
             v-model="localConfig.port"
             :min="1024"
             :max="65535"
             style="width: 200px"
           />
-          <div class="form-tip">Aria2 RPC 服务监听的端口号</div>
+          <div class="form-tip">{{ t('localService.listenPortTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="访问密钥" prop="secret">
+        <el-form-item :label="t('localService.accessSecret')" prop="secret">
           <el-input
             v-model="localConfig.secret"
             type="password"
-            placeholder="留空则不设置密码"
+            :placeholder="t('localService.accessSecretPlaceholder')"
             show-password
             clearable
           />
-          <div class="form-tip">RPC 接口的访问密钥，提高安全性</div>
+          <div class="form-tip">{{ t('localService.accessSecretTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="下载目录" prop="downloadDir">
+        <el-form-item :label="t('localService.downloadDir')" prop="downloadDir">
           <el-input
             v-model="localConfig.downloadDir"
-            placeholder="留空则使用默认目录"
+            :placeholder="t('localService.downloadDirPlaceholder')"
           >
             <template #append>
               <el-button @click="selectDownloadDir">
                 <el-icon><Folder /></el-icon>
-                选择
+                {{ t('localService.select') }}
               </el-button>
             </template>
           </el-input>
-          <div class="form-tip">文件下载保存的默认目录</div>
+          <div class="form-tip">{{ t('localService.downloadDirTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="自动启动">
-          <el-switch 
-            v-model="localConfig.autoStart" 
+        <el-form-item :label="t('localService.autoStart')">
+          <el-switch
+            v-model="localConfig.autoStart"
             @change="updateAutoStart"
           />
-          <div class="form-tip">应用启动时自动启动 Aria2 服务</div>
+          <div class="form-tip">{{ t('localService.autoStartTip') }}</div>
         </el-form-item>
 
         <el-form-item>
           <el-space>
-            <el-button 
-              type="primary" 
-              @click="saveConfig"
+            <el-button
+              type="primary"
               :loading="isSavingConfig"
+              @click="saveConfig"
             >
-              保存配置
+              {{ t('localService.saveConfig') }}
             </el-button>
-            <el-button @click="resetConfig">重置配置</el-button>
+            <el-button @click="resetConfig">{{ t('localService.resetConfig') }}</el-button>
           </el-space>
         </el-form-item>
       </el-form>
     </el-card>
 
     <!-- 内置 Aria2 不可用提示 -->
-    <el-card class="guide-card" v-if="isElectronAvailable && processInfo.isAria2Available === false">
+    <el-card v-if="isElectronAvailable && processInfo.isAria2Available === false" class="guide-card">
       <template #header>
-        <span class="header-title">内置 Aria2 不可用</span>
+        <span class="header-title">{{ t('localService.aria2Unavailable') }}</span>
       </template>
 
       <el-alert
-        title="内置 Aria2 文件未找到"
+        :title="t('localService.aria2NotFound')"
         type="warning"
         :closable="false"
         show-icon
       >
         <template #default>
-          <p>应用中没有找到内置的 Aria2 可执行文件。</p>
-          <p><strong>解决方案：</strong></p>
+          <p>{{ t('localService.aria2NotFoundDesc1') }}</p>
+          <p><strong>{{ t('localService.solution') }}</strong></p>
           <ol>
-            <li>请确保您下载的是完整版本的 Aria2Desktop</li>
-            <li>或者手动下载 Aria2 并将 aria2c.exe 放置到用户数据目录</li>
-            <li>也可以安装系统版本的 Aria2 并配置路径</li>
+            <li>{{ t('localService.solution1') }}</li>
+            <li>{{ t('localService.solution2') }}</li>
+            <li>{{ t('localService.solution3') }}</li>
           </ol>
           <p v-if="processInfo.resourceInfo">
-            <strong>用户数据目录：</strong><br>
+            <strong>{{ t('localService.userDataDir') }}</strong><br />
             <code>{{ processInfo.resourceInfo.userDataPath }}</code>
           </p>
         </template>
@@ -174,20 +174,20 @@
     </el-card>
 
     <!-- 安装指南 -->
-    <el-card class="guide-card" v-if="!isElectronAvailable">
+    <el-card v-if="!isElectronAvailable" class="guide-card">
       <template #header>
-        <span class="header-title">安装指南</span>
+        <span class="header-title">{{ t('localService.installGuide') }}</span>
       </template>
 
       <el-alert
-        title="本功能仅在桌面应用中可用"
+        :title="t('localService.desktopOnlyTitle')"
         type="info"
         :closable="false"
         show-icon
       >
         <template #default>
-          <p>本地 Aria2 服务管理功能需要在 Electron 桌面应用中使用。</p>
-          <p>如果您正在使用 Web 版本，请下载桌面版应用以享受完整功能。</p>
+          <p>{{ t('localService.desktopOnlyDesc1') }}</p>
+          <p>{{ t('localService.desktopOnlyDesc2') }}</p>
         </template>
       </el-alert>
     </el-card>
@@ -195,13 +195,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { 
-  Refresh, 
-  VideoPlay, 
-  VideoPause, 
-  Folder, 
+import {
+  Refresh,
+  VideoPlay,
+  VideoPause,
+  Folder,
   Link,
   Close
 } from '@element-plus/icons-vue'
@@ -209,6 +210,7 @@ import { useAria2LocalService, type Aria2LocalConfig } from '@/composables/useAr
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 
+const { t } = useI18n()
 const connectionStore = useConnectionStore()
 const settingsStore = useSettingsStore()
 const {
@@ -243,11 +245,11 @@ const localConfig = reactive<Aria2LocalConfig>({
 })
 
 // 表单验证规则
-const configRules: FormRules = {
+const configRules = computed<FormRules>(() => ({
   port: [
-    { type: 'number', min: 1024, max: 65535, message: '端口号必须在 1024-65535 之间', trigger: 'blur' }
+    { type: 'number', min: 1024, max: 65535, message: t('localService.portRangeError'), trigger: 'blur' }
   ]
-}
+}))
 
 // 刷新状态
 async function refreshStatus() {
@@ -256,9 +258,9 @@ async function refreshStatus() {
     await getStatus()
     // 刷新状态后重新加载配置到表单
     loadCurrentConfig()
-    ElMessage.success('状态已刷新')
+    ElMessage.success(t('localService.statusRefreshed'))
   } catch (error) {
-    ElMessage.error('刷新状态失败')
+    ElMessage.error(t('localService.refreshFailed'))
   } finally {
     isRefreshing.value = false
   }
@@ -270,7 +272,7 @@ async function startService() {
   if (success) {
     // 启动成功后重新加载配置到表单
     loadCurrentConfig()
-    ElMessage.success('Aria2 服务已启动')
+    ElMessage.success(t('localService.serviceStarted'))
   }
 }
 
@@ -278,15 +280,15 @@ async function startService() {
 async function stopService() {
   try {
     await ElMessageBox.confirm(
-      '确定要停止 Aria2 服务吗？这将中断所有正在进行的下载。',
-      '确认停止',
+      t('localService.confirmStop'),
+      t('localService.confirmStopTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.ok'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
-    
+
     await stop()
   } catch (error) {
     // 用户取消
@@ -297,15 +299,15 @@ async function stopService() {
 async function restartService() {
   try {
     await ElMessageBox.confirm(
-      '确定要重启 Aria2 服务吗？这将暂时中断所有正在进行的下载。',
-      '确认重启',
+      t('localService.confirmRestart'),
+      t('localService.confirmRestartTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.ok'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
-    
+
     await restart()
   } catch (error) {
     // 用户取消
@@ -315,13 +317,13 @@ async function restartService() {
 // 选择下载目录
 async function selectDownloadDir() {
   if (!window.electronAPI) {
-    ElMessage.error('此功能仅在桌面应用中可用')
+    ElMessage.error(t('localService.desktopOnly'))
     return
   }
 
   try {
     const result = await window.electronAPI.showOpenDialog({
-      title: '选择下载目录',
+      title: t('localService.selectDirTitle'),
       properties: ['openDirectory'],
       defaultPath: localConfig.downloadDir
     })
@@ -330,7 +332,7 @@ async function selectDownloadDir() {
       localConfig.downloadDir = result.filePaths[0]
     }
   } catch (error) {
-    ElMessage.error('选择目录失败')
+    ElMessage.error(t('localService.selectDirFailed'))
     console.error('选择目录失败:', error)
   }
 }
@@ -352,43 +354,43 @@ async function saveConfig() {
     if (isRunning.value) {
       try {
         await ElMessageBox.confirm(
-          'Aria2 服务正在运行中。保存配置需要重启服务以应用新配置，是否继续？',
-          '确认保存配置',
+          t('localService.confirmSaveRestart'),
+          t('localService.confirmSaveTitle'),
           {
-            confirmButtonText: '保存并重启',
-            cancelButtonText: '取消',
+            confirmButtonText: t('localService.saveAndRestart'),
+            cancelButtonText: t('common.cancel'),
             type: 'warning'
           }
         )
-        
+
         // 用户确认后，保存配置并重启服务
         const success = await updateConfig(localConfig)
         if (success) {
-          ElMessage.success('配置已保存，正在重启服务...')
+          ElMessage.success(t('localService.configSavedRestarting'))
           await restart()
         }
       } catch {
         // 用户取消，不保存配置
-        ElMessage.info('已取消保存配置')
+        ElMessage.info(t('localService.saveCancelled'))
         return
       }
     } else {
       // 服务未运行，直接保存配置
       const success = await updateConfig(localConfig)
       if (success) {
-        ElMessage.success('配置已保存')
+        ElMessage.success(t('localService.configSaved'))
       }
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error('保存配置失败:', error)
-    
+
     if (errorMessage.includes('下载目录验证失败')) {
-      ElMessage.error('下载目录无效，请检查路径是否正确且具有写入权限')
+      ElMessage.error(t('localService.invalidDir'))
     } else if (errorMessage.includes('启动失败')) {
-      ElMessage.error('服务重启失败，请检查配置是否正确')
+      ElMessage.error(t('localService.restartFailed'))
     } else {
-      ElMessage.error(`保存配置失败: ${errorMessage}`)
+      ElMessage.error(t('localService.configSaveFailed', { error: errorMessage }))
     }
   } finally {
     isSavingConfig.value = false
@@ -397,7 +399,6 @@ async function saveConfig() {
 
 // 更新自动启动设置
 const updateAutoStart = (value: boolean) => {
-  console.log('Auto-start changed to:', value)
   localConfig.autoStart = value
   updateConfig(localConfig)
 }
@@ -410,13 +411,13 @@ function resetConfig() {
     downloadDir: 'D:/Downloads/Aria2Downloads',
     autoStart: true
   })
-  ElMessage.success('配置已重置')
+  ElMessage.success(t('localService.configReset'))
 }
 
 // 连接到本地服务
 async function connectToLocal() {
   if (!isRunning.value) {
-    ElMessage.warning('请先启动本地 Aria2 服务')
+    ElMessage.warning(t('localService.startServiceFirst'))
     return
   }
 
@@ -424,13 +425,7 @@ async function connectToLocal() {
 
   try {
     const config = getConnectionConfig.value
-    console.log('尝试连接配置:', {
-      host: config.host,
-      port: config.port,
-      protocol: config.protocol,
-      secret: config.secret ? '***' : '(无密钥)'
-    })
-    
+
     // 构建连接配置
     const connectionConfig = {
       host: config.host,
@@ -443,11 +438,11 @@ async function connectToLocal() {
     // 更新设置并连接
     await settingsStore.updateAria2Config(connectionConfig)
     await connectionStore.connect(connectionConfig)
-    
-    ElMessage.success('已连接到本地 Aria2 服务')
+
+    ElMessage.success(t('localService.connectedToLocal'))
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    ElMessage.error(`连接到本地服务失败: ${errorMessage}`)
+    ElMessage.error(t('localService.connectLocalFailed', { error: errorMessage }))
     console.error('连接失败详情:', error)
     console.error('连接配置:', getConnectionConfig.value)
   } finally {
@@ -459,9 +454,9 @@ async function connectToLocal() {
 function disconnectFromLocal() {
   try {
     connectionStore.disconnect()
-    ElMessage.success('已断开与 Aria2 服务的连接')
+    ElMessage.success(t('localService.disconnectedFromLocal'))
   } catch (error) {
-    ElMessage.error('断开连接失败')
+    ElMessage.error(t('localService.disconnectFailed'))
     console.error('断开连接失败:', error)
   }
 }
@@ -476,17 +471,6 @@ function loadCurrentConfig() {
       localConfig.secret = processInfo.value.config.secret
       localConfig.autoStart = processInfo.value.config.autoStart
       localConfig.downloadDir = processInfo.value.config.downloadDir
-      
-      // 调试输出
-      console.log('processInfo.value:', processInfo.value)
-      console.log('processInfo.value.config:', processInfo.value.config)
-      console.log('从后端获取的完整配置:', processInfo.value.config)
-      console.log('设置到UI的配置:', {
-        port: localConfig.port,
-        downloadDir: localConfig.downloadDir,
-        secret: localConfig.secret,
-        autoStart: localConfig.autoStart
-      })
     } else {
       // 如果没有配置信息，使用默认值
       Object.assign(localConfig, {
@@ -506,8 +490,6 @@ onMounted(async () => {
     await getStatus()
     // 然后加载配置到表单
     loadCurrentConfig()
-    
-    console.log('页面初始化完成，当前配置:', localConfig)
   }
 })
 </script>
@@ -639,17 +621,5 @@ onMounted(async () => {
   color: var(--color-info, #909399) !important;
 }
 
-/* 深色主题下的禁用按钮样式 */
-[data-theme="dark"] :deep(.el-button.is-disabled) {
-  background-color: var(--bg-tertiary) !important;
-  border-color: var(--border-base) !important;
-  color: var(--text-secondary) !important;
-  opacity: 0.6;
-}
-
-[data-theme="dark"] :deep(.el-button.is-disabled:hover) {
-  background-color: var(--bg-tertiary) !important;
-  border-color: var(--border-base) !important;
-  color: var(--text-secondary) !important;
-}
+/* 深色主题下的禁用按钮样式已统一在 theme.css 中 */
 </style>

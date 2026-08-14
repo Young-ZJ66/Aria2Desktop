@@ -16,6 +16,13 @@ export interface Aria2ProcessInfo {
     autoStart: boolean
   } | null
   error?: string
+  /** 内置 Aria2 是否可用 */
+  isAria2Available?: boolean
+  /** 资源路径信息 */
+  resourceInfo?: {
+    userDataPath: string
+    resourcesPath: string
+  }
 }
 
 export interface Aria2LocalConfig {
@@ -32,7 +39,7 @@ export function useAria2LocalService() {
     retryCount: 0,
     config: null
   })
-  
+
   const isStarting = ref(false)
   const isStopping = ref(false)
   const statusCheckInterval = ref<NodeJS.Timeout | null>(null)
@@ -46,8 +53,8 @@ export function useAria2LocalService() {
 
   // 检查 Electron API 是否可用
   const isElectronAvailable = computed(() => {
-    return typeof window !== 'undefined' && 
-           window.electronAPI && 
+    return typeof window !== 'undefined' &&
+           window.electronAPI &&
            window.electronAPI.aria2
   })
 
@@ -80,10 +87,10 @@ export function useAria2LocalService() {
     }
 
     isStarting.value = true
-    
+
     try {
       const result = await window.electronAPI.aria2.start()
-      
+
       if (result.success) {
         // 移除自动提示，让调用方决定是否显示成功消息
         await getStatus()
@@ -118,7 +125,7 @@ export function useAria2LocalService() {
 
     try {
       const result = await window.electronAPI.aria2.stop()
-      
+
       if (result.success) {
         ElMessage.success('Aria2 已停止')
         await getStatus()
@@ -153,7 +160,7 @@ export function useAria2LocalService() {
 
     try {
       const result = await window.electronAPI.aria2.restart()
-      
+
       if (result.success) {
         ElMessage.success('Aria2 重启成功')
         await getStatus()
@@ -187,15 +194,15 @@ export function useAria2LocalService() {
         downloadDir: config.downloadDir,
         autoStart: config.autoStart
       }
-      
-      console.log('正在更新 Aria2 配置:', plainConfig) // {{ AURA: Add - 调试日志 }}
+
+      console.warn('正在更新 Aria2 配置:', plainConfig) // {{ AURA: Add - 调试日志 }}
       const result = await window.electronAPI.aria2.updateConfig(plainConfig)
-      console.log('配置更新结果:', result) // {{ AURA: Add - 调试日志 }}
-      
+      console.warn('配置更新结果:', result) // {{ AURA: Add - 调试日志 }}
+
       if (result.success) {
         // 移除重复的成功提示，让调用方决定是否显示消息
         await getStatus()
-        console.log('配置更新成功，状态已刷新') // {{ AURA: Add - 调试日志 }}
+        console.warn('配置更新成功，状态已刷新') // {{ AURA: Add - 调试日志 }}
         return true
       } else {
         ElMessage.error(`更新 Aria2 配置失败: ${result.error}`)
@@ -270,7 +277,7 @@ export function useAria2LocalService() {
     isStarting,
     isStopping,
     isElectronAvailable,
-    
+
     // 方法
     start,
     stop,
@@ -279,7 +286,7 @@ export function useAria2LocalService() {
     updateConfig,
     startStatusCheck,
     stopStatusCheck,
-    
+
     // 配置
     getConnectionConfig
   }

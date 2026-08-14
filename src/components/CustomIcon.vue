@@ -1,6 +1,6 @@
 <template>
-  <img 
-    :src="iconSrc" 
+  <img
+    :src="iconSrc"
     :alt="name"
     :class="['custom-icon', `custom-icon-${size}`]"
     :style="{ filter: colorFilter }"

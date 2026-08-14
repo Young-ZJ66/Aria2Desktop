@@ -24,7 +24,7 @@ const isSelected = computed(() => isTaskSelected(props.task.gid))
 
 // 处理勾选变化
 function handleChange(checked: boolean) {
-  console.log('Checkbox changed for task:', props.task.gid, 'checked:', checked)
+  console.warn('Checkbox changed for task:', props.task.gid, 'checked:', checked)
   toggleTask(props.task)
 }
 </script>

@@ -1,51 +1,50 @@
 <template>
   <div class="general-settings">
     <div class="settings-header">
-      <h2>常规设置</h2>
-      <p class="settings-description">配置应用程序的基本行为和外观</p>
+      <h2>{{ t('generalSettings.title') }}</h2>
+      <p class="settings-description">{{ t('generalSettings.description') }}</p>
     </div>
 
     <el-form
       ref="formRef"
+      v-loading="settingsStore.isLoading"
       :model="form"
       label-width="150px"
       style="max-width: 600px"
-      v-loading="settingsStore.isLoading"
     >
-      <el-form-item label="语言">
+      <el-form-item :label="t('generalSettings.language')">
         <el-select v-model="form.language" style="width: 100%" @change="handleLanguageChange">
           <el-option label="简体中文" value="zh-CN" />
-          <el-option label="繁体中文" value="zh-TW" />
-          <el-option label="English" value="en" />
+          <el-option label="English" value="en-US" />
         </el-select>
       </el-form-item>
 
-      <el-form-item label="主题">
+      <el-form-item :label="t('generalSettings.theme')">
         <el-select v-model="form.theme" style="width: 100%" @change="handleThemeChange">
-          <el-option label="浅色主题" value="light" />
-          <el-option label="深色主题" value="dark" />
-          <el-option label="跟随系统" value="auto" />
+          <el-option :label="t('generalSettings.themeLight')" value="light" />
+          <el-option :label="t('generalSettings.themeDark')" value="dark" />
+          <el-option :label="t('generalSettings.themeAuto')" value="auto" />
         </el-select>
       </el-form-item>
 
-      <el-form-item label="自动刷新间隔">
+      <el-form-item :label="t('generalSettings.refreshInterval')">
         <el-select v-model="form.refreshInterval" style="width: 100%" @change="handleRefreshIntervalChange">
-          <el-option label="1秒" :value="1000" />
-          <el-option label="2秒" :value="2000" />
-          <el-option label="5秒" :value="5000" />
-          <el-option label="10秒" :value="10000" />
+          <el-option :label="t('generalSettings.refreshInterval1s')" :value="1000" />
+          <el-option :label="t('generalSettings.refreshInterval2s')" :value="2000" />
+          <el-option :label="t('generalSettings.refreshInterval5s')" :value="5000" />
+          <el-option :label="t('generalSettings.refreshInterval10s')" :value="10000" />
         </el-select>
-        <div class="form-tip">设置任务列表和统计信息的自动刷新频率</div>
+        <div class="form-tip">{{ t('generalSettings.refreshIntervalTip') }}</div>
       </el-form-item>
 
-      <el-form-item label="启动时自动连接">
+      <el-form-item :label="t('generalSettings.autoConnect')">
         <el-switch v-model="form.autoConnect" @change="handleAutoConnectChange" />
-        <div class="form-tip">应用启动时自动连接到上次使用的 Aria2 服务器</div>
+        <div class="form-tip">{{ t('generalSettings.autoConnectTip') }}</div>
       </el-form-item>
 
-      <el-form-item label="最小化到系统托盘">
+      <el-form-item :label="t('generalSettings.minimizeToTray')">
         <el-switch v-model="form.minimizeToTray" @change="handleTraySettingChange" />
-        <div class="form-tip">关闭窗口时最小化到系统托盘而不是退出程序</div>
+        <div class="form-tip">{{ t('generalSettings.minimizeToTrayTip') }}</div>
       </el-form-item>
 
       <el-divider />
@@ -53,14 +52,14 @@
 
       <el-form-item>
         <el-space>
-          <el-button @click="resetSettings" :disabled="settingsStore.isLoading">
-            重置设置
+          <el-button :disabled="settingsStore.isLoading" @click="resetSettings">
+            {{ t('generalSettings.resetSettings') }}
           </el-button>
           <el-button @click="exportSettings">
-            导出设置
+            {{ t('generalSettings.exportSettings') }}
           </el-button>
           <el-button @click="showImportDialog = true">
-            导入设置
+            {{ t('generalSettings.importSettings') }}
           </el-button>
         </el-space>
       </el-form-item>
@@ -69,24 +68,24 @@
     <!-- 导入设置对话框 -->
     <el-dialog
       v-model="showImportDialog"
-      title="导入设置"
+      :title="t('generalSettings.importDialogTitle')"
       width="500px"
     >
       <el-form>
-        <el-form-item label="设置文件">
+        <el-form-item :label="t('generalSettings.settingsFile')">
           <el-input
             v-model="importText"
             type="textarea"
             :rows="10"
-            placeholder="请粘贴设置 JSON 内容..."
+            :placeholder="t('generalSettings.importPlaceholder')"
           />
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="showImportDialog = false">取消</el-button>
-        <el-button type="primary" @click="importSettings" :loading="importing">
-          导入
+        <el-button @click="showImportDialog = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="importing" @click="importSettings">
+          {{ t('generalSettings.importButton') }}
         </el-button>
       </template>
     </el-dialog>
@@ -95,11 +94,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 
 import { useSettingsStore } from '@/stores/settingsStore'
+import { setLocale, type AppLocale } from '@/i18n'
 
 const settingsStore = useSettingsStore()
+const { t } = useI18n()
 const formRef = ref<FormInstance>()
 const importing = ref(false)
 const showImportDialog = ref(false)
@@ -108,7 +110,7 @@ const importText = ref('')
 
 // 表单数据
 const form = reactive({
-  language: 'zh-CN',
+  language: 'zh-CN' as 'zh-CN' | 'en-US',
   theme: 'light' as 'light' | 'dark' | 'auto',
   refreshInterval: 1000,
   autoConnect: true,
@@ -153,10 +155,10 @@ onMounted(async () => {
 async function handleRefreshIntervalChange() {
   try {
     await settingsStore.updateSetting('refreshInterval', form.refreshInterval)
-    ElMessage.success('刷新间隔已更新')
+    ElMessage.success(t('generalSettings.refreshIntervalUpdated'))
   } catch (error) {
     console.error('Refresh interval change error:', error)
-    ElMessage.error('刷新间隔更新失败：' + (error instanceof Error ? error.message : '未知错误'))
+    ElMessage.error(t('generalSettings.refreshIntervalUpdateFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
   }
 }
 
@@ -164,21 +166,21 @@ async function handleRefreshIntervalChange() {
 async function handleAutoConnectChange() {
   try {
     await settingsStore.updateSetting('autoConnect', form.autoConnect)
-    ElMessage.success(form.autoConnect ? '已启用启动时自动连接' : '已禁用启动时自动连接')
+    ElMessage.success(form.autoConnect ? t('generalSettings.autoConnectEnabled') : t('generalSettings.autoConnectDisabled'))
   } catch (error) {
     console.error('Auto connect change error:', error)
-    ElMessage.error('自动连接设置失败：' + (error instanceof Error ? error.message : '未知错误'))
+    ElMessage.error(t('generalSettings.autoConnectFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
   }
 }
 
 async function resetSettings() {
   try {
     await ElMessageBox.confirm(
-      '确定要重置所有设置为默认值吗？此操作不可撤销。',
-      '确认重置设置',
+      t('generalSettings.resetConfirmMsg'),
+      t('generalSettings.resetConfirmTitle'),
       {
-        confirmButtonText: '确定重置',
-        cancelButtonText: '取消',
+        confirmButtonText: t('generalSettings.resetConfirmBtn'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
@@ -197,11 +199,11 @@ async function resetSettings() {
       await window.electronAPI.setTrayEnabled(settingsStore.settings.minimizeToTray)
     }
 
-    ElMessage.success('设置已重置为默认值')
+    ElMessage.success(t('generalSettings.resetDone'))
   } catch (error) {
     if (error !== 'cancel') {
       console.error('Reset settings error:', error)
-      ElMessage.error('重置设置失败：' + (error instanceof Error ? error.message : '未知错误'))
+      ElMessage.error(t('generalSettings.resetFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
     }
   }
 }
@@ -221,15 +223,15 @@ function exportSettings() {
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
 
-    ElMessage.success('设置已导出')
+    ElMessage.success(t('generalSettings.exportDone'))
   } catch (error) {
-    ElMessage.error('导出设置失败')
+    ElMessage.error(t('generalSettings.exportFailed'))
   }
 }
 
 async function importSettings() {
   if (!importText.value.trim()) {
-    ElMessage.warning('请输入设置内容')
+    ElMessage.warning(t('generalSettings.importEmpty'))
     return
   }
 
@@ -238,9 +240,9 @@ async function importSettings() {
     await settingsStore.importSettings(importText.value)
     showImportDialog.value = false
     importText.value = ''
-    ElMessage.success('设置已导入')
+    ElMessage.success(t('generalSettings.importDone'))
   } catch (error) {
-    ElMessage.error('导入设置失败：' + (error instanceof Error ? error.message : '未知错误'))
+    ElMessage.error(t('generalSettings.importFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
   } finally {
     importing.value = false
   }
@@ -254,10 +256,10 @@ async function handleThemeChange() {
     // 保存主题设置
     await settingsStore.updateSetting('theme', form.theme)
 
-    ElMessage.success('主题已切换并保存')
+    ElMessage.success(t('generalSettings.themeSwitched'))
   } catch (error) {
     console.error('Theme change error:', error)
-    ElMessage.error('主题切换失败：' + (error instanceof Error ? error.message : '未知错误'))
+    ElMessage.error(t('generalSettings.themeSwitchFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
   }
 }
 
@@ -273,7 +275,7 @@ async function applyThemeDirectly(theme: 'light' | 'dark' | 'auto') {
   if (window.electronAPI?.setWindowTheme) {
     try {
       await window.electronAPI.setWindowTheme(isDark)
-      console.log(`窗口主题已更新为: ${isDark ? 'dark' : 'light'}`)
+      console.warn(`窗口主题已更新为: ${isDark ? 'dark' : 'light'}`)
     } catch (error) {
       console.error('更新窗口主题失败:', error)
     }
@@ -297,11 +299,16 @@ async function applyThemeDirectly(theme: 'light' | 'dark' | 'auto') {
 
 async function handleLanguageChange() {
   try {
+    // 立即切换 i18n 语言
+    setLocale(form.language as AppLocale)
+
+    // 保存设置
     await settingsStore.updateSetting('language', form.language)
-    ElMessage.info('语言设置已保存，将在重启应用后生效')
+
+    ElMessage.info(t('generalSettings.languageSaved'))
   } catch (error) {
     console.error('Language change error:', error)
-    ElMessage.error('语言设置失败：' + (error instanceof Error ? error.message : '未知错误'))
+    ElMessage.error(t('generalSettings.languageFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
   }
 }
 
@@ -315,10 +322,10 @@ async function handleTraySettingChange() {
     // 自动保存设置
     await settingsStore.updateSetting('minimizeToTray', form.minimizeToTray)
 
-    ElMessage.success(form.minimizeToTray ? '已启用系统托盘' : '已禁用系统托盘')
+    ElMessage.success(form.minimizeToTray ? t('generalSettings.trayEnabled') : t('generalSettings.trayDisabled'))
   } catch (error) {
     console.error('Tray setting change error:', error)
-    ElMessage.error('托盘设置失败：' + (error instanceof Error ? error.message : '未知错误'))
+    ElMessage.error(t('generalSettings.trayFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
   }
 }
 </script>
@@ -350,66 +357,5 @@ async function handleTraySettingChange() {
   margin: 24px 0;
 }
 
-/* 深色主题下的下拉选择框样式 */
-[data-theme="dark"] :deep(.el-select .el-input__wrapper) {
-  background-color: transparent !important;
-  border: 1px solid var(--border-base) !important;
-}
-
-[data-theme="dark"] :deep(.el-select .el-input__wrapper:hover) {
-  border-color: var(--border-dark) !important;
-}
-
-[data-theme="dark"] :deep(.el-select .el-input__wrapper.is-focus) {
-  border-color: var(--color-primary) !important;
-}
-
-[data-theme="dark"] :deep(.el-select .el-input__inner) {
-  color: var(--text-primary) !important;
-  background-color: transparent !important;
-}
-
-[data-theme="dark"] :deep(.el-select .el-input__suffix) {
-  color: var(--text-secondary) !important;
-}
-
-/* 下拉选择框边框颜色修复 */
-[data-theme="dark"] :deep(.el-select .el-select__wrapper) {
-  background-color: var(--bg-tertiary) !important;
-  border: 1px solid var(--border-base) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="dark"] :deep(.el-select .el-select__wrapper:hover) {
-  border-color: var(--border-dark) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="dark"] :deep(.el-select .el-select__wrapper.is-focus),
-[data-theme="dark"] :deep(.el-select .el-select__wrapper.is-focused) {
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2) !important;
-}
-
-/* 输入框深色主题样式 */
-[data-theme="dark"] :deep(.el-input .el-input__wrapper) {
-  background-color: var(--bg-tertiary) !important;
-  border: 1px solid var(--border-base) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="dark"] :deep(.el-input .el-input__wrapper:hover) {
-  border-color: var(--border-dark) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="dark"] :deep(.el-input .el-input__wrapper.is-focus) {
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2) !important;
-}
-
-[data-theme="dark"] :deep(.el-input .el-input__inner) {
-  color: var(--text-light) !important;
-  background-color: transparent !important;
-}
+/* 深色主题下的输入框/下拉选择框样式已统一在 theme.css 中 */
 </style>

@@ -7,10 +7,10 @@
 
     <el-form
       ref="formRef"
+      v-loading="loading"
       :model="settings"
       label-width="200px"
       style="max-width: 800px"
-      v-loading="loading"
     >
       <el-card class="setting-group">
         <template #header>
@@ -151,15 +151,15 @@
         <el-space>
           <el-button
             type="primary"
-            @click="saveSettings"
             :disabled="!connectionStore.isConnected"
             :loading="saving"
+            @click="saveSettings"
           >
             保存设置
           </el-button>
           <el-button
-            @click="loadSettings"
             :disabled="!connectionStore.isConnected"
+            @click="loadSettings"
           >
             重新加载
           </el-button>

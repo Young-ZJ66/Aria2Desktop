@@ -7,11 +7,11 @@
 
     <el-form
       ref="formRef"
+      v-loading="loading"
       :model="form"
       :rules="rules"
       label-width="150px"
       style="max-width: 600px"
-      v-loading="loading"
     >
       <el-card class="setting-group">
         <template #header>
@@ -96,7 +96,7 @@
           <div class="form-tip">连接断开时自动尝试重新连接</div>
         </el-form-item>
 
-        <el-form-item label="重连间隔" v-if="autoReconnect">
+        <el-form-item v-if="autoReconnect" label="重连间隔">
           <el-input-number
             v-model="reconnectInterval"
             :min="1000"
@@ -113,15 +113,15 @@
         <el-space>
           <el-button
             type="primary"
-            @click="testConnection"
             :loading="testing"
+            @click="testConnection"
           >
             测试连接
           </el-button>
           <el-button
             type="success"
-            @click="saveAndConnect"
             :loading="connecting"
+            @click="saveAndConnect"
           >
             保存并连接
           </el-button>
@@ -148,13 +148,13 @@
               {{ testResult.success ? '成功' : '失败' }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="响应时间" v-if="testResult.success">
+          <el-descriptions-item v-if="testResult.success" label="响应时间">
             {{ testResult.responseTime }}ms
           </el-descriptions-item>
-          <el-descriptions-item label="Aria2 版本" v-if="testResult.version">
+          <el-descriptions-item v-if="testResult.version" label="Aria2 版本">
             {{ testResult.version }}
           </el-descriptions-item>
-          <el-descriptions-item label="支持功能" v-if="testResult.features">
+          <el-descriptions-item v-if="testResult.features" label="支持功能">
             <el-tag
               v-for="feature in testResult.features"
               :key="feature"
@@ -164,8 +164,8 @@
               {{ feature }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="错误信息" v-if="!testResult.success && testResult.error">
-            <span style="color: #f56c6c">{{ testResult.error }}</span>
+          <el-descriptions-item v-if="!testResult.success && testResult.error" label="错误信息">
+            <span style="color: var(--color-danger)">{{ testResult.error }}</span>
           </el-descriptions-item>
         </el-descriptions>
       </div>

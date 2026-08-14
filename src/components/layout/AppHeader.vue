@@ -6,11 +6,11 @@
         <span class="version">v{{ appVersion }}</span>
       </div>
     </div>
-    
+
     <div class="header-center">
       <!-- 可以在这里添加其他中间内容 -->
     </div>
-    
+
     <div class="header-right">
       <el-button
         :icon="Connection"
@@ -20,7 +20,7 @@
         {{ connectionStatus }}
       </el-button>
     </div>
-    
+
     <!-- 连接对话框 -->
     <ConnectionDialog v-model="showConnectionDialog" />
   </div>
@@ -28,6 +28,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useConnectionStore } from '@/stores/connectionStore'
 import {
   Connection
@@ -35,6 +36,7 @@ import {
 import ConnectionDialog from '@/components/dialogs/ConnectionDialog.vue'
 
 const connectionStore = useConnectionStore()
+const { t } = useI18n()
 const appVersion = ref('1.0.0')
 const showConnectionDialog = ref(false)
 
@@ -43,8 +45,8 @@ const showConnectionDialog = ref(false)
 // 计算属性
 const isConnected = computed(() => connectionStore.isConnected)
 const connectionStatus = computed(() => {
-  if (connectionStore.isConnecting) return '连接中...'
-  return connectionStore.isConnected ? '已连接' : '未连接'
+  if (connectionStore.isConnecting) return t('header.connecting')
+  return connectionStore.isConnected ? t('header.connected') : t('header.disconnected')
 })
 
 

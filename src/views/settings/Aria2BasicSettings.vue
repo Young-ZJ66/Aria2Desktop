@@ -1,15 +1,14 @@
 <template>
   <div class="aria2-basic-settings">
     <div class="settings-header">
-      <h2>Aria2 基本设置</h2>
-      <p class="settings-description">配置 Aria2 的基本下载参数</p>
-
+      <h2>{{ t('aria2Basic.title') }}</h2>
+      <p class="settings-description">{{ t('aria2Basic.description') }}</p>
     </div>
 
     <el-alert
       v-if="!connectionStore.isConnected"
-      title="未连接到 Aria2 服务器"
-      description="请先连接到 Aria2 服务器才能修改设置"
+      :title="t('settings.notConnectedTitle')"
+      :description="t('settings.notConnectedDesc')"
       type="warning"
       :closable="false"
       style="margin-bottom: 20px"
@@ -17,53 +16,53 @@
 
     <el-form
       ref="formRef"
+      v-loading="loading"
       :model="settings"
       :rules="rules"
       label-width="200px"
       style="max-width: 800px"
-      v-loading="loading"
       :disabled="!connectionStore.isConnected"
     >
       <el-card class="setting-group">
         <template #header>
-          <span class="group-title">下载设置</span>
+          <span class="group-title">{{ t('aria2Basic.downloadSettings') }}</span>
         </template>
 
-        <el-form-item label="下载目录" prop="dir">
+        <el-form-item :label="t('aria2Basic.downloadDir')" prop="dir">
           <el-input
             v-model="settings.dir"
-            placeholder="默认下载目录，如：D:\Downloads"
+            :placeholder="t('aria2Basic.downloadDirPlaceholder')"
           >
             <template #append>
-              <el-button @click="selectDirectory" :disabled="!isElectron">
+              <el-button :disabled="!isElectron" @click="selectDirectory">
                 <el-icon><Folder /></el-icon>
               </el-button>
             </template>
           </el-input>
-          <div class="form-tip">设置新任务的默认保存目录</div>
+          <div class="form-tip">{{ t('aria2Basic.downloadDirTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="最大同时下载数" prop="maxConcurrentDownloads">
+        <el-form-item :label="t('aria2Basic.maxConcurrentDownloads')" prop="maxConcurrentDownloads">
           <el-input-number
             v-model="settings.maxConcurrentDownloads"
             :min="1"
             :max="16"
             style="width: 200px"
           />
-          <div class="form-tip">同时进行的下载任务数量限制（1-16）</div>
+          <div class="form-tip">{{ t('aria2Basic.maxConcurrentDownloadsTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="每服务器最大连接数" prop="maxConnectionPerServer">
+        <el-form-item :label="t('aria2Basic.maxConnectionPerServer')" prop="maxConnectionPerServer">
           <el-input-number
             v-model="settings.maxConnectionPerServer"
             :min="1"
             :max="16"
             style="width: 200px"
           />
-          <div class="form-tip">对单个服务器的最大连接数（1-16）</div>
+          <div class="form-tip">{{ t('aria2Basic.maxConnectionPerServerTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="最小分片大小" prop="minSplitSize">
+        <el-form-item :label="t('aria2Basic.minSplitSize')" prop="minSplitSize">
           <el-select v-model="settings.minSplitSize" style="width: 200px">
             <el-option label="1M" value="1M" />
             <el-option label="5M" value="5M" />
@@ -72,32 +71,32 @@
             <el-option label="50M" value="50M" />
             <el-option label="100M" value="100M" />
           </el-select>
-          <div class="form-tip">文件分片下载的最小大小</div>
+          <div class="form-tip">{{ t('aria2Basic.minSplitSizeTip') }}</div>
         </el-form-item>
       </el-card>
 
       <el-card class="setting-group">
         <template #header>
-          <span class="group-title">下载选项</span>
+          <span class="group-title">{{ t('aria2Basic.downloadOptions') }}</span>
         </template>
 
-        <el-form-item label="断点续传" prop="continue">
+        <el-form-item :label="t('aria2Basic.resumeDownload')" prop="continue">
           <el-switch v-model="settings.continue" />
-          <div class="form-tip">支持断点续传的下载任务</div>
+          <div class="form-tip">{{ t('aria2Basic.resumeDownloadTip') }}</div>
         </el-form-item>
       </el-card>
 
       <el-card class="setting-group">
         <template #header>
-          <span class="group-title">其他设置</span>
+          <span class="group-title">{{ t('aria2Basic.otherSettings') }}</span>
         </template>
 
-        <el-form-item label="自动保存会话" prop="saveSession">
+        <el-form-item :label="t('aria2Basic.autoSaveSession')" prop="saveSession">
           <el-switch v-model="settings.saveSession" />
-          <div class="form-tip">定期保存下载会话，重启后可恢复未完成的任务</div>
+          <div class="form-tip">{{ t('aria2Basic.autoSaveSessionTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="会话保存间隔" prop="saveSessionInterval">
+        <el-form-item :label="t('aria2Basic.sessionSaveInterval')" prop="saveSessionInterval">
           <el-input-number
             v-model="settings.saveSessionInterval"
             :min="60"
@@ -105,8 +104,8 @@
             :disabled="!settings.saveSession"
             style="width: 200px"
           />
-          <span style="margin-left: 8px">秒</span>
-          <div class="form-tip">自动保存会话的时间间隔（60-3600秒）</div>
+          <span style="margin-left: 8px">{{ t('aria2Basic.seconds') }}</span>
+          <div class="form-tip">{{ t('aria2Basic.sessionSaveIntervalTip') }}</div>
         </el-form-item>
       </el-card>
 
@@ -114,23 +113,23 @@
         <el-space>
           <el-button
             type="primary"
-            @click="saveSettings"
             :loading="saving"
             :disabled="!connectionStore.isConnected"
+            @click="saveSettings"
           >
-            保存设置
+            {{ t('settings.save') }}
           </el-button>
           <el-button
+            :disabled="!connectionStore.isConnected"
             @click="loadSettings"
-            :disabled="!connectionStore.isConnected"
           >
-            重新加载
+            {{ t('settings.reload') }}
           </el-button>
           <el-button
-            @click="resetToDefaults"
             :disabled="!connectionStore.isConnected"
+            @click="resetToDefaults"
           >
-            恢复默认
+            {{ t('settings.restoreDefaults') }}
           </el-button>
         </el-space>
       </el-form-item>
@@ -140,6 +139,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Folder } from '@element-plus/icons-vue'
 import { useConnectionStore } from '@/stores/connectionStore'
@@ -147,6 +147,7 @@ import { useStatsStore } from '@/stores/statsStore'
 
 const connectionStore = useConnectionStore()
 const statsStore = useStatsStore()
+const { t } = useI18n()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const saving = ref(false)
@@ -167,15 +168,15 @@ const settings = reactive({
 // 表单验证规则
 const rules: FormRules = {
   maxConcurrentDownloads: [
-    { required: true, message: '请输入最大同时下载数', trigger: 'blur' },
-    { type: 'number', min: 1, max: 16, message: '值必须在1-16之间', trigger: 'blur' }
+    { required: true, message: () => t('aria2Basic.requireMaxConcurrent'), trigger: 'blur' },
+    { type: 'number', min: 1, max: 16, message: () => t('settings.valueRange', { min: 1, max: 16 }), trigger: 'blur' }
   ],
   maxConnectionPerServer: [
-    { required: true, message: '请输入每服务器最大连接数', trigger: 'blur' },
-    { type: 'number', min: 1, max: 16, message: '值必须在1-16之间', trigger: 'blur' }
+    { required: true, message: () => t('aria2Basic.requireMaxConnection'), trigger: 'blur' },
+    { type: 'number', min: 1, max: 16, message: () => t('settings.valueRange', { min: 1, max: 16 }), trigger: 'blur' }
   ],
   saveSessionInterval: [
-    { type: 'number', min: 60, max: 3600, message: '值必须在60-3600之间', trigger: 'blur' }
+    { type: 'number', min: 60, max: 3600, message: () => t('settings.valueRange', { min: 60, max: 3600 }), trigger: 'blur' }
   ]
 }
 
@@ -187,15 +188,15 @@ onMounted(() => {
 
 async function loadSettings() {
   if (!connectionStore.isConnected) {
-    ElMessage.warning('请先连接到 Aria2 服务器')
+    ElMessage.warning(t('settings.connectFirst'))
     return
   }
 
   loading.value = true
   try {
-    console.log('Loading Aria2 global settings...')
+    console.warn('Loading Aria2 global settings...')
     const options = await statsStore.getGlobalOptions()
-    console.log('Received options:', options)
+    console.warn('Received options:', options)
 
     if (options && typeof options === 'object') {
       // 安全地解析选项值
@@ -207,14 +208,13 @@ async function loadSettings() {
       settings.saveSession = options['save-session'] !== 'false'
       settings.saveSessionInterval = parseInt(options['save-session-interval'] || '60')
 
-      console.log('Parsed settings:', settings)
-      ElMessage.success('设置加载成功')
+      console.warn('Parsed settings:', settings)
     } else {
       throw new Error('Invalid options format received')
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '未知错误'
-    ElMessage.error(`加载设置失败: ${errorMessage}`)
+    const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
+    ElMessage.error(t('aria2Basic.loadFailed', { error: errorMessage }))
     console.error('Failed to load settings:', error)
   } finally {
     loading.value = false
@@ -231,7 +231,7 @@ async function saveSettings() {
   }
 
   if (!connectionStore.isConnected) {
-    ElMessage.warning('请先连接到 Aria2 服务器')
+    ElMessage.warning(t('settings.connectFirst'))
     return
   }
 
@@ -248,9 +248,9 @@ async function saveSettings() {
     }
 
     await statsStore.changeGlobalOptions(options)
-    ElMessage.success('设置已保存')
+    ElMessage.success(t('settings.saved'))
   } catch (error) {
-    ElMessage.error('保存设置失败')
+    ElMessage.error(t('settings.saveFailedShort'))
     console.error('Failed to save settings:', error)
   } finally {
     saving.value = false
@@ -260,11 +260,11 @@ async function saveSettings() {
 async function resetToDefaults() {
   try {
     await ElMessageBox.confirm(
-      '确定要恢复为默认设置吗？',
-      '确认恢复',
+      t('settings.restoreConfirm'),
+      t('settings.restoreConfirmTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.ok'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
@@ -280,7 +280,7 @@ async function resetToDefaults() {
       saveSessionInterval: 60
     })
 
-    ElMessage.success('已恢复为默认设置')
+    ElMessage.success(t('settings.restored'))
   } catch (error) {
     // 用户取消
   }
@@ -288,21 +288,21 @@ async function resetToDefaults() {
 
 async function selectDirectory() {
   if (!window.electronAPI) {
-    ElMessage.warning('此功能仅在桌面版中可用')
+    ElMessage.warning(t('task.desktopOnly'))
     return
   }
 
   try {
     const result = await window.electronAPI.showOpenDialog({
       properties: ['openDirectory'],
-      title: '选择下载目录'
+      title: t('aria2Basic.selectDownloadDir')
     })
 
     if (!result.canceled && result.filePaths.length > 0) {
       settings.dir = result.filePaths[0]
     }
   } catch (error) {
-    ElMessage.error('选择目录失败')
+    ElMessage.error(t('newTask.selectDirFailed'))
   }
 }
 </script>
@@ -355,65 +355,5 @@ async function selectDirectory() {
   background-color: var(--bg-secondary);
 }
 
-/* 输入框深色主题样式 */
-[data-theme="dark"] :deep(.el-input .el-input__wrapper) {
-  background-color: var(--bg-tertiary) !important;
-  border: 1px solid var(--border-base) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="dark"] :deep(.el-input .el-input__wrapper:hover) {
-  border-color: var(--border-dark) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="dark"] :deep(.el-input .el-input__wrapper.is-focus) {
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2) !important;
-}
-
-[data-theme="dark"] :deep(.el-input .el-input__inner) {
-  color: var(--text-light) !important;
-  background-color: transparent !important;
-}
-
-/* 输入框附加按钮深色主题样式 */
-[data-theme="dark"] :deep(.el-input-group__append) {
-  background-color: var(--bg-tertiary) !important;
-  border: 1px solid var(--border-base) !important;
-  border-left: none !important;
-}
-
-[data-theme="dark"] :deep(.el-input-group__append .el-button) {
-  background-color: var(--bg-tertiary) !important;
-  border: 1px solid var(--border-base) !important;
-  border-left: none !important;
-  color: var(--text-secondary) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="dark"] :deep(.el-input-group__append .el-button:hover) {
-  background-color: var(--bg-secondary) !important;
-  border-color: var(--border-dark) !important;
-  color: var(--text-primary) !important;
-  box-shadow: none !important;
-}
-
-/* 下拉选择框边框颜色修复 */
-[data-theme="dark"] :deep(.el-select .el-select__wrapper) {
-  background-color: var(--bg-tertiary) !important;
-  border: 1px solid var(--border-base) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="dark"] :deep(.el-select .el-select__wrapper:hover) {
-  border-color: var(--border-dark) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="dark"] :deep(.el-select .el-select__wrapper.is-focus),
-[data-theme="dark"] :deep(.el-select .el-select__wrapper.is-focused) {
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2) !important;
-}
+/* 深色主题下的输入框/下拉选择框/附加按钮样式已统一在 theme.css 中 */
 </style>

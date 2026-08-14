@@ -11,7 +11,7 @@
           @input="handleSearch"
         />
       </el-col>
-      
+
       <!-- 状态过滤 -->
       <el-col :span="4">
         <el-select
@@ -29,7 +29,7 @@
           <el-option label="已删除" value="removed" />
         </el-select>
       </el-col>
-      
+
       <!-- 大小过滤 -->
       <el-col :span="4">
         <el-select
@@ -45,7 +45,7 @@
           <el-option label="> 10GB" value="huge" />
         </el-select>
       </el-col>
-      
+
       <!-- 排序 -->
       <el-col :span="4">
         <el-select
@@ -61,31 +61,31 @@
           <el-option label="剩余时间" value="remaining" />
         </el-select>
       </el-col>
-      
+
       <!-- 排序方向 -->
       <el-col :span="2">
         <el-button
           :icon="sortOrder === 'asc' ? SortUp : SortDown"
-          @click="toggleSortOrder"
           :title="sortOrder === 'asc' ? '升序' : '降序'"
+          @click="toggleSortOrder"
         />
       </el-col>
-      
+
       <!-- 重置按钮 -->
       <el-col :span="2">
-        <el-button :icon="Refresh" @click="resetFilters" title="重置过滤器" />
+        <el-button :icon="Refresh" title="重置过滤器" @click="resetFilters" />
       </el-col>
     </el-row>
-    
+
     <!-- 过滤结果统计 -->
-    <div class="filter-stats" v-if="hasActiveFilters">
+    <div v-if="hasActiveFilters" class="filter-stats">
       <el-tag size="small" type="info">
         找到 {{ filteredCount }} 个任务
         <el-button
           link
           size="small"
-          @click="resetFilters"
           style="margin-left: 8px"
+          @click="resetFilters"
         >
           清除过滤器
         </el-button>
@@ -119,7 +119,7 @@ interface Emits {
   (e: 'reset'): void
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   filteredCount: 0
 })
 

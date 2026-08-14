@@ -6,6 +6,7 @@
   --bg-primary: #ffffff;
   --bg-secondary: #f5f7fa;
   --bg-tertiary: #ebeef5;
+  --bg-hover: #f0f9ff;
   --text-primary: #303133;
   --text-regular: #606266;
   --text-secondary: #909399;
@@ -31,6 +32,7 @@
   --bg-primary: #1e2329;        /* 主背景 - 深蓝灰 */
   --bg-secondary: #252932;      /* 次要背景 - 中蓝灰 */
   --bg-tertiary: #2c313a;       /* 第三背景 - 浅蓝灰 */
+  --bg-hover: #2c313a;          /* 悬停背景 */
   
   /* 文字颜色 */
   --text-primary: #e4e7ed;      /* 主要文字 - 浅灰 */
@@ -420,6 +422,14 @@ body {
 [data-theme="dark"] .el-button--danger:hover {
   background-color: #e9635f;
   border-color: #e9635f;
+}
+
+/* 禁用按钮深色主题 */
+[data-theme="dark"] .el-button.is-disabled,
+[data-theme="dark"] .el-button.is-disabled:hover {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-base) !important;
+  color: var(--text-secondary) !important;
 }
 
 /* 通知消息深色主题 */

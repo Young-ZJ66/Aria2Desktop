@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="连接设置"
+    :title="t('connection.title')"
     width="500px"
     :close-on-click-modal="false"
   >
@@ -11,7 +11,7 @@
       :rules="rules"
       label-width="100px"
     >
-      <el-form-item label="协议" prop="protocol">
+      <el-form-item :label="t('connection.protocol')" prop="protocol">
         <el-select v-model="form.protocol" style="width: 100%">
           <el-option label="HTTP" value="http" />
           <el-option label="HTTPS" value="https" />
@@ -19,43 +19,38 @@
           <el-option label="WebSocket Secure" value="wss" />
         </el-select>
       </el-form-item>
-      
-      <el-form-item label="主机" prop="host">
-        <el-input v-model="form.host" placeholder="localhost" />
+      <el-form-item :label="t('connection.host')" prop="host">
+        <el-input v-model="form.host" :placeholder="t('connection.hostPlaceholder')" />
       </el-form-item>
-      
-      <el-form-item label="端口" prop="port">
-        <el-input-number 
-          v-model="form.port" 
-          :min="1" 
-          :max="65535" 
+      <el-form-item :label="t('connection.port')" prop="port">
+        <el-input-number
+          v-model="form.port"
+          :min="1"
+          :max="65535"
           style="width: 100%"
         />
       </el-form-item>
-      
-      <el-form-item label="路径" prop="path">
-        <el-input v-model="form.path" placeholder="/jsonrpc" />
+      <el-form-item :label="t('connection.path')" prop="path">
+        <el-input v-model="form.path" :placeholder="t('connection.pathPlaceholder')" />
       </el-form-item>
-      
-      <el-form-item label="密钥" prop="secret">
-        <el-input 
-          v-model="form.secret" 
-          type="password" 
-          placeholder="可选，RPC密钥"
+      <el-form-item :label="t('connection.secret')" prop="secret">
+        <el-input
+          v-model="form.secret"
+          type="password"
+          :placeholder="t('connection.secretPlaceholder')"
           show-password
         />
       </el-form-item>
     </el-form>
-    
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="visible = false">取消</el-button>
-        <el-button 
-          type="primary" 
+        <el-button @click="visible = false">{{ t('common.cancel') }}</el-button>
+        <el-button
+          type="primary"
           :loading="connecting"
           @click="handleConnect"
         >
-          {{ connecting ? '连接中...' : '连接' }}
+          {{ connecting ? t('connection.connectingText') : t('connection.connect') }}
         </el-button>
       </div>
     </template>
@@ -63,7 +58,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useConnectionStore } from '@/stores/connectionStore'
 import type { Aria2Config } from '@/types/aria2'
@@ -76,6 +72,7 @@ interface Emits {
   (e: 'update:modelValue', value: boolean): void
 }
 
+const { t } = useI18n()
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
@@ -92,15 +89,15 @@ const form = reactive<Aria2Config>({
   secret: ''
 })
 
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   host: [
-    { required: true, message: '请输入主机地址', trigger: 'blur' }
+    { required: true, message: t('connection.requireHost'), trigger: 'blur' }
   ],
   port: [
-    { required: true, message: '请输入端口号', trigger: 'blur' },
-    { type: 'number', min: 1, max: 65535, message: '端口号必须在1-65535之间', trigger: 'blur' }
+    { required: true, message: t('connection.requirePort'), trigger: 'blur' },
+    { type: 'number', min: 1, max: 65535, message: t('connection.portRange'), trigger: 'blur' }
   ]
-}
+}))
 
 // 监听props变化
 watch(() => props.modelValue, (newVal) => {
@@ -118,20 +115,19 @@ watch(visible, (newVal) => {
 
 async function handleConnect() {
   if (!formRef.value) return
-  
+
   try {
     await formRef.value.validate()
-    
+
     connecting.value = true
-    
+
     await connectionStore.connect(form)
-    
-    ElMessage.success('连接成功')
+
+    ElMessage.success(t('connection.connectSuccess'))
     visible.value = false
-    
   } catch (error) {
     console.error('Connection failed:', error)
-    ElMessage.error(error instanceof Error ? error.message : '连接失败')
+    ElMessage.error(error instanceof Error ? error.message : t('connection.connectionFailed'))
   } finally {
     connecting.value = false
   }

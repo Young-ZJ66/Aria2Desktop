@@ -16,11 +16,11 @@
 
     <el-form
       ref="formRef"
+      v-loading="loading"
       :model="settings"
       :rules="rules"
       label-width="200px"
       style="max-width: 800px"
-      v-loading="loading"
       :disabled="!connectionStore.isConnected"
     >
       <el-card class="setting-group">
@@ -156,21 +156,21 @@
         <el-space>
           <el-button
             type="primary"
-            @click="saveSettings"
             :loading="saving"
             :disabled="!connectionStore.isConnected"
+            @click="saveSettings"
           >
             保存设置
           </el-button>
           <el-button
-            @click="loadSettings"
             :disabled="!connectionStore.isConnected"
+            @click="loadSettings"
           >
             重新加载
           </el-button>
           <el-button
-            @click="resetToDefaults"
             :disabled="!connectionStore.isConnected"
+            @click="resetToDefaults"
           >
             恢复默认
           </el-button>
@@ -244,7 +244,7 @@ async function loadSettings() {
   loading.value = true
   try {
     const options = await statsStore.getGlobalOptions()
-    
+
     if (options && typeof options === 'object') {
       settings.connectTimeout = parseInt(options['connect-timeout'] || '60')
       settings.timeout = parseInt(options['timeout'] || '60')

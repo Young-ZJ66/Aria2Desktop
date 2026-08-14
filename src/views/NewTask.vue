@@ -1,13 +1,14 @@
 <template>
-  <div class="new-task">
+  <div class="new-task" :class="{ 'drag-active': isDragging }" @dragover.prevent="handleDragOver" @drop.prevent="handleDrop" @dragleave.prevent="handleDragLeave">
     <div class="new-task-header">
-      <h2>新建下载任务</h2>
-      <p class="header-description">支持 HTTP/HTTPS、FTP/SFTP、BitTorrent、Metalink 等多种协议</p>
+      <h2>{{ t('newTask.title') }}</h2>
+      <p class="header-description">{{ t('newTask.description') }}</p>
+      <p v-if="isDragging" class="drag-hint">{{ t('newTask.dropReleaseHint') }}</p>
     </div>
 
     <el-tabs v-model="activeTab" class="task-tabs">
       <!-- URI 下载 -->
-      <el-tab-pane label="链接下载" name="uri">
+      <el-tab-pane :label="t('newTask.uriTab')" name="uri">
         <el-form
           ref="uriFormRef"
           :model="uriForm"
@@ -15,31 +16,37 @@
           label-width="120px"
           style="max-width: 800px"
         >
-          <el-form-item label="下载链接" prop="uris">
+          <el-form-item :label="t('newTask.urls')" prop="uris">
             <el-input
               v-model="uriForm.uris"
               type="textarea"
               :rows="6"
-              placeholder="请输入下载链接，每行一个&#10;支持协议：HTTP/HTTPS、FTP/SFTP、磁力链接等&#10;&#10;示例：&#10;https://example.com/file.zip&#10;magnet:?xt=urn:btih:..."
+              :placeholder="t('newTask.urlsPlaceholder')"
             />
           </el-form-item>
 
           <el-row :gutter="20">
             <el-col :span="12">
-              <el-form-item label="保存目录" prop="dir">
-                <el-input v-model="uriForm.dir" placeholder="留空使用默认目录" />
+              <el-form-item :label="t('newTask.downloadDir')" prop="dir">
+                <el-input v-model="uriForm.dir" :placeholder="t('newTask.dirPlaceholder')">
+                  <template #append>
+                    <el-button :disabled="!isElectron" @click="selectDirectory('uri')">
+                      <el-icon><Folder /></el-icon>
+                    </el-button>
+                  </template>
+                </el-input>
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="文件名" prop="out">
-                <el-input v-model="uriForm.out" placeholder="可选，指定文件名" />
+              <el-form-item :label="t('newTask.fileName')" prop="out">
+                <el-input v-model="uriForm.out" :placeholder="t('newTask.fileNamePlaceholder')" />
               </el-form-item>
             </el-col>
           </el-row>
 
           <el-row :gutter="20">
             <el-col :span="8">
-              <el-form-item label="最大连接数">
+              <el-form-item :label="t('newTask.maxConnectionPerServer')">
                 <el-input-number
                   v-model="uriForm.maxConnectionPerServer"
                   :min="1"
@@ -49,18 +56,19 @@
               </el-form-item>
             </el-col>
             <el-col :span="8">
-              <el-form-item label="分片大小">
+              <el-form-item :label="t('newTask.minSplitSize')">
                 <el-select v-model="uriForm.minSplitSize" style="width: 100%">
                   <el-option label="1M" value="1M" />
                   <el-option label="5M" value="5M" />
                   <el-option label="10M" value="10M" />
                   <el-option label="20M" value="20M" />
                   <el-option label="50M" value="50M" />
+                  <el-option label="100M" value="100M" />
                 </el-select>
               </el-form-item>
             </el-col>
             <el-col :span="8">
-              <el-form-item label="自动开始">
+              <el-form-item :label="t('newTask.autoStart')">
                 <el-switch v-model="uriForm.autoStart" />
               </el-form-item>
             </el-col>
@@ -68,17 +76,17 @@
 
           <el-form-item>
             <el-space>
-              <el-button type="primary" @click="handleUriSubmit" :loading="submitting">
-                开始下载
+              <el-button type="primary" :loading="submitting" @click="handleUriSubmit">
+                {{ t('newTask.startDownload') }}
               </el-button>
-              <el-button @click="handleUriReset">重置</el-button>
+              <el-button @click="handleUriReset">{{ t('newTask.reset') }}</el-button>
             </el-space>
           </el-form-item>
         </el-form>
       </el-tab-pane>
 
       <!-- 种子文件下载 -->
-      <el-tab-pane label="种子文件" name="torrent">
+      <el-tab-pane :label="t('newTask.torrentTab')" name="torrent">
         <el-form
           ref="torrentFormRef"
           :model="torrentForm"
@@ -86,7 +94,7 @@
           label-width="120px"
           style="max-width: 800px"
         >
-          <el-form-item label="种子文件" prop="torrentFile">
+          <el-form-item :label="t('newTask.torrentFile')" prop="torrentFile">
             <el-upload
               ref="uploadRef"
               :auto-upload="false"
@@ -97,22 +105,101 @@
             >
               <el-button type="primary">
                 <el-icon><Upload /></el-icon>
-                选择种子文件
+                {{ t('newTask.selectTorrentFile') }}
               </el-button>
               <template #tip>
                 <div class="el-upload__tip">
-                  只能上传 .torrent 文件
+                  {{ t('newTask.torrentTip') }}
                 </div>
               </template>
             </el-upload>
           </el-form-item>
 
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item :label="t('newTask.downloadDir')" prop="dir">
+                <el-input v-model="torrentForm.dir" :placeholder="t('newTask.dirPlaceholder')">
+                  <template #append>
+                    <el-button :disabled="!isElectron" @click="selectDirectory('torrent')">
+                      <el-icon><Folder /></el-icon>
+                    </el-button>
+                  </template>
+                </el-input>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item :label="t('newTask.autoStart')">
+                <el-switch v-model="torrentForm.autoStart" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+
           <el-form-item>
             <el-space>
-              <el-button type="primary" @click="handleTorrentSubmit" :loading="submitting">
-                开始下载
+              <el-button type="primary" :loading="submitting" @click="handleTorrentSubmit">
+                {{ t('newTask.startDownload') }}
               </el-button>
-              <el-button @click="handleTorrentReset">重置</el-button>
+              <el-button @click="handleTorrentReset">{{ t('newTask.reset') }}</el-button>
+            </el-space>
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
+
+      <!-- Metalink 下载 -->
+      <el-tab-pane :label="t('newTask.metalinkTab')" name="metalink">
+        <el-form
+          ref="metalinkFormRef"
+          :model="metalinkForm"
+          :rules="metalinkRules"
+          label-width="120px"
+          style="max-width: 800px"
+        >
+          <el-form-item :label="t('newTask.metalinkFile')" prop="metalinkFile">
+            <el-upload
+              ref="metalinkUploadRef"
+              :auto-upload="false"
+              :show-file-list="true"
+              :limit="1"
+              accept=".metalink,.meta4"
+              @change="handleMetalinkFileChange"
+            >
+              <el-button type="primary">
+                <el-icon><Upload /></el-icon>
+                {{ t('newTask.selectMetalinkFile') }}
+              </el-button>
+              <template #tip>
+                <div class="el-upload__tip">
+                  {{ t('newTask.metalinkTip') }}
+                </div>
+              </template>
+            </el-upload>
+          </el-form-item>
+
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item :label="t('newTask.downloadDir')" prop="dir">
+                <el-input v-model="metalinkForm.dir" :placeholder="t('newTask.dirPlaceholder')">
+                  <template #append>
+                    <el-button :disabled="!isElectron" @click="selectDirectory('metalink')">
+                      <el-icon><Folder /></el-icon>
+                    </el-button>
+                  </template>
+                </el-input>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item :label="t('newTask.autoStart')">
+                <el-switch v-model="metalinkForm.autoStart" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+
+          <el-form-item>
+            <el-space>
+              <el-button type="primary" :loading="submitting" @click="handleMetalinkSubmit">
+                {{ t('newTask.startDownload') }}
+              </el-button>
+              <el-button @click="handleMetalinkReset">{{ t('newTask.reset') }}</el-button>
             </el-space>
           </el-form-item>
         </el-form>
@@ -122,25 +209,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
-import { Upload } from '@element-plus/icons-vue'
+import { Upload, Folder } from '@element-plus/icons-vue'
 import { useTaskStore } from '@/stores/taskStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 
 const router = useRouter()
+const { t } = useI18n()
 const taskStore = useTaskStore()
 const connectionStore = useConnectionStore()
 const settingsStore = useSettingsStore()
 
 const activeTab = ref('uri')
 const submitting = ref(false)
+const isDragging = ref(false)
+
+const isElectron = computed(() => !!window.electronAPI)
 
 // 表单引用
 const uriFormRef = ref<FormInstance>()
 const torrentFormRef = ref<FormInstance>()
+const metalinkFormRef = ref<FormInstance>()
 
 // URI 下载表单
 const uriForm = reactive({
@@ -159,16 +252,29 @@ const torrentForm = reactive({
   autoStart: true
 })
 
+// Metalink 下载表单
+const metalinkForm = reactive({
+  metalinkFile: null as File | null,
+  dir: '',
+  autoStart: true
+})
+
 // 验证规则
 const uriRules: FormRules = {
   uris: [
-    { required: true, message: '请输入下载链接', trigger: 'blur' }
+    { required: true, message: () => t('newTask.requireUrl'), trigger: 'blur' }
   ]
 }
 
 const torrentRules: FormRules = {
   torrentFile: [
-    { required: true, message: '请选择种子文件', trigger: 'change' }
+    { required: true, message: () => t('newTask.requireTorrent'), trigger: 'change' }
+  ]
+}
+
+const metalinkRules: FormRules = {
+  metalinkFile: [
+    { required: true, message: () => t('newTask.requireMetalink'), trigger: 'change' }
   ]
 }
 
@@ -180,11 +286,11 @@ async function handleUriSubmit() {
     await uriFormRef.value.validate()
 
     if (!connectionStore.isConnected) {
-      ElMessage.error('请先连接到 Aria2 服务器')
+      ElMessage.error(t('newTask.connectFirst'))
       return
     }
 
-    console.log('Aria2 connection status:', {
+    console.warn('Aria2 connection status:', {
       isConnected: connectionStore.isConnected,
       service: !!connectionStore.service
     })
@@ -196,7 +302,7 @@ async function handleUriSubmit() {
       .filter(uri => uri.length > 0)
 
     if (uris.length === 0) {
-      ElMessage.error('请输入有效的下载链接')
+      ElMessage.error(t('newTask.invalidUrl'))
       return
     }
 
@@ -213,18 +319,18 @@ async function handleUriSubmit() {
       options.pause = 'true'
     }
 
-    console.log('URI download options:', options)
+    console.warn('URI download options:', options)
 
     const gid = await taskStore.addUri(uris, options)
-    console.log('Task added with GID:', gid)
+    console.warn('Task added with GID:', gid)
 
-    ElMessage.success(`已添加 ${uris.length} 个下载任务`)
+    ElMessage.success(t('newTask.addedCount', { count: uris.length }))
     router.push('/downloading')
 
   } catch (error) {
     console.error('Failed to add URI task:', error)
-    const errorMessage = error instanceof Error ? error.message : '添加任务失败'
-    ElMessage.error(`添加任务失败: ${errorMessage}`)
+    const errorMessage = error instanceof Error ? error.message : t('newTask.addFailed')
+    ElMessage.error(`${t('newTask.addFailed')}: ${errorMessage}`)
   } finally {
     submitting.value = false
   }
@@ -244,12 +350,12 @@ async function handleTorrentSubmit() {
     await torrentFormRef.value.validate()
 
     if (!connectionStore.isConnected) {
-      ElMessage.error('请先连接到 Aria2 服务器')
+      ElMessage.error(t('newTask.connectFirst'))
       return
     }
 
     if (!torrentForm.torrentFile) {
-      ElMessage.error('请选择种子文件')
+      ElMessage.error(t('newTask.invalidTorrent'))
       return
     }
 
@@ -258,20 +364,20 @@ async function handleTorrentSubmit() {
     // 读取种子文件内容
     const torrentData = await readFileAsBase64(torrentForm.torrentFile)
 
-    const options: any = {}
+    const options: unknown = {}
     if (torrentForm.dir) options.dir = torrentForm.dir
     if (!torrentForm.autoStart) options.pause = 'true'
 
     const gid = await taskStore.addTorrent(torrentData, [], options)
-    console.log('Torrent task added with GID:', gid)
+    console.warn('Torrent task added with GID:', gid)
 
-    ElMessage.success('种子任务已添加')
+    ElMessage.success(t('newTask.torrentAdded'))
     router.push('/downloading')
 
   } catch (error) {
     console.error('Failed to add torrent task:', error)
-    const errorMessage = error instanceof Error ? error.message : '添加种子任务失败'
-    ElMessage.error(`添加种子任务失败: ${errorMessage}`)
+    const errorMessage = error instanceof Error ? error.message : t('newTask.addTorrentFailed')
+    ElMessage.error(`${t('newTask.addTorrentFailed')}: ${errorMessage}`)
   } finally {
     submitting.value = false
   }
@@ -285,6 +391,128 @@ function handleUriReset() {
 function handleTorrentReset() {
   torrentFormRef.value?.resetFields()
   torrentForm.torrentFile = null
+}
+
+// Metalink 文件处理
+function handleMetalinkFileChange(file: UploadFile) {
+  if (file.raw) {
+    metalinkForm.metalinkFile = file.raw
+  }
+}
+
+async function handleMetalinkSubmit() {
+  if (!metalinkFormRef.value) return
+
+  try {
+    await metalinkFormRef.value.validate()
+
+    if (!connectionStore.isConnected) {
+      ElMessage.error(t('newTask.connectFirst'))
+      return
+    }
+
+    if (!metalinkForm.metalinkFile) {
+      ElMessage.error(t('newTask.invalidMetalink'))
+      return
+    }
+
+    submitting.value = true
+
+    const metalinkData = await readFileAsBase64(metalinkForm.metalinkFile)
+
+    const options: unknown = {}
+    if (metalinkForm.dir) options.dir = metalinkForm.dir
+    if (!metalinkForm.autoStart) options.pause = 'true'
+
+    const gids = await taskStore.addMetalink(metalinkData, options)
+    console.warn('Metalink tasks added with GIDs:', gids)
+
+    ElMessage.success(t('newTask.metalinkAdded', { count: gids.length }))
+    router.push('/downloading')
+
+  } catch (error) {
+    console.error('Failed to add metalink task:', error)
+    const errorMessage = error instanceof Error ? error.message : t('newTask.addMetalinkFailed')
+    ElMessage.error(`${t('newTask.addMetalinkFailed')}: ${errorMessage}`)
+  } finally {
+    submitting.value = false
+  }
+}
+
+function handleMetalinkReset() {
+  metalinkFormRef.value?.resetFields()
+  metalinkForm.metalinkFile = null
+}
+
+// 目录选择
+async function selectDirectory(formType: 'uri' | 'torrent' | 'metalink') {
+  if (!window.electronAPI) {
+    ElMessage.warning(t('newTask.desktopOnly'))
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.showOpenDialog({
+      properties: ['openDirectory'],
+      title: t('newTask.selectDirTitle')
+    })
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      if (formType === 'uri') {
+        uriForm.dir = result.filePaths[0]
+      } else if (formType === 'torrent') {
+        torrentForm.dir = result.filePaths[0]
+      } else if (formType === 'metalink') {
+        metalinkForm.dir = result.filePaths[0]
+      }
+    }
+  } catch (error) {
+    ElMessage.error(t('newTask.selectDirFailed'))
+  }
+}
+
+// 拖拽处理
+function handleDragOver() {
+  isDragging.value = true
+}
+
+function handleDragLeave() {
+  isDragging.value = false
+}
+
+function handleDrop(event: DragEvent) {
+  isDragging.value = false
+  if (!event.dataTransfer) return
+
+  // 处理拖入的文本（链接）
+  const text = event.dataTransfer.getData('text/plain')
+  if (text) {
+    // 自动切换到 URI 标签页并填充链接
+    activeTab.value = 'uri'
+    const existingUris = uriForm.uris.trim()
+    uriForm.uris = existingUris ? `${existingUris}\n${text}` : text
+    ElMessage.success(t('newTask.linkDropped'))
+    return
+  }
+
+  // 处理拖入的文件
+  const files = event.dataTransfer.files
+  if (files && files.length > 0) {
+    const file = files[0]
+    const fileName = file.name.toLowerCase()
+
+    if (fileName.endsWith('.torrent')) {
+      activeTab.value = 'torrent'
+      torrentForm.torrentFile = file
+      ElMessage.success(t('newTask.torrentDropped', { name: file.name }))
+    } else if (fileName.endsWith('.metalink') || fileName.endsWith('.meta4')) {
+      activeTab.value = 'metalink'
+      metalinkForm.metalinkFile = file
+      ElMessage.success(t('newTask.metalinkDropped', { name: file.name }))
+    } else {
+      ElMessage.warning(t('newTask.unsupportedFileType'))
+    }
+  }
 }
 
 // 读取文件为 Base64
@@ -334,7 +562,7 @@ onMounted(async () => {
 
 .header-description {
   margin: 0;
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -349,6 +577,6 @@ onMounted(async () => {
 :deep(.el-upload__tip) {
   margin-top: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 </style>

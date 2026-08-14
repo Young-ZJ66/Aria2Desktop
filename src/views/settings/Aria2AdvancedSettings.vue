@@ -3,15 +3,14 @@
     <div class="settings-header">
       <h2>高级设置</h2>
       <p class="settings-description">配置 Aria2 的高级参数和系统级选项</p>
-
     </div>
 
     <el-form
       ref="formRef"
+      v-loading="loading"
       :model="settings"
       label-width="200px"
       style="max-width: 800px"
-      v-loading="loading"
     >
       <el-card class="setting-group">
         <template #header>
@@ -124,15 +123,15 @@
         <el-space>
           <el-button
             type="primary"
-            @click="saveSettings"
             :disabled="!connectionStore.isConnected"
             :loading="saving"
+            @click="saveSettings"
           >
             保存设置
           </el-button>
           <el-button
-            @click="loadSettings"
             :disabled="!connectionStore.isConnected"
+            @click="loadSettings"
           >
             重新加载
           </el-button>

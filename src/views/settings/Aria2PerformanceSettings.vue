@@ -1,14 +1,14 @@
 <template>
   <div class="performance-settings">
     <div class="settings-header">
-      <h2>性能与限制</h2>
-      <p class="settings-description">配置速度限制、磁盘缓存和性能优化参数</p>
+      <h2>{{ t('aria2Perf.title') }}</h2>
+      <p class="settings-description">{{ t('aria2Perf.description') }}</p>
     </div>
 
     <el-alert
       v-if="!connectionStore.isConnected"
-      title="未连接到 Aria2 服务器"
-      description="请先连接到 Aria2 服务器才能修改设置"
+      :title="t('settings.notConnectedTitle')"
+      :description="t('settings.notConnectedDesc')"
       type="warning"
       :closable="false"
       style="margin-bottom: 20px"
@@ -16,55 +16,55 @@
 
     <el-form
       ref="formRef"
+      v-loading="loading"
       :model="settings"
       :rules="rules"
       label-width="200px"
       style="max-width: 800px"
-      v-loading="loading"
       :disabled="!connectionStore.isConnected"
     >
       <el-card class="setting-group">
         <template #header>
-          <span class="group-title">速度限制</span>
+          <span class="group-title">{{ t('aria2Perf.speedLimit') }}</span>
         </template>
 
-        <el-form-item label="全局最大下载速度" prop="maxOverallDownloadLimit">
+        <el-form-item :label="t('aria2Perf.maxOverallDownloadLimit')" prop="maxOverallDownloadLimit">
           <el-input
             v-model="settings.maxOverallDownloadLimit"
-            placeholder="0 表示无限制"
+            :placeholder="t('aria2Perf.noLimit')"
             style="width: 200px"
           />
           <span style="margin-left: 8px">KB/s</span>
-          <div class="form-tip">全局最大下载速度限制</div>
+          <div class="form-tip">{{ t('aria2Perf.maxOverallDownloadLimitTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="全局最大上传速度" prop="maxOverallUploadLimit">
+        <el-form-item :label="t('aria2Perf.maxOverallUploadLimit')" prop="maxOverallUploadLimit">
           <el-input
             v-model="settings.maxOverallUploadLimit"
-            placeholder="0 表示无限制"
+            :placeholder="t('aria2Perf.noLimit')"
             style="width: 200px"
           />
           <span style="margin-left: 8px">KB/s</span>
-          <div class="form-tip">全局最大上传速度限制</div>
+          <div class="form-tip">{{ t('aria2Perf.maxOverallUploadLimitTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="单任务最大上传速度" prop="maxUploadLimit">
+        <el-form-item :label="t('aria2Perf.maxUploadLimit')" prop="maxUploadLimit">
           <el-input
             v-model="settings.maxUploadLimit"
-            placeholder="0 表示无限制"
+            :placeholder="t('aria2Perf.noLimit')"
             style="width: 200px"
           />
           <span style="margin-left: 8px">KB/s</span>
-          <div class="form-tip">单个任务的最大上传速度限制</div>
+          <div class="form-tip">{{ t('aria2Perf.maxUploadLimitTip') }}</div>
         </el-form-item>
       </el-card>
 
       <el-card class="setting-group">
         <template #header>
-          <span class="group-title">磁盘和内存</span>
+          <span class="group-title">{{ t('aria2Perf.diskAndMemory') }}</span>
         </template>
 
-        <el-form-item label="磁盘缓存" prop="diskCache">
+        <el-form-item :label="t('aria2Perf.diskCache')" prop="diskCache">
           <el-input-number
             v-model="settings.diskCache"
             :min="0"
@@ -72,49 +72,49 @@
             style="width: 200px"
           />
           <span style="margin-left: 8px">MB</span>
-          <div class="form-tip">磁盘缓存大小，0 表示禁用缓存</div>
+          <div class="form-tip">{{ t('aria2Perf.diskCacheTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="文件预分配" prop="fileAllocation">
+        <el-form-item :label="t('aria2Perf.fileAllocation')" prop="fileAllocation">
           <el-select v-model="settings.fileAllocation" style="width: 200px">
-            <el-option label="无预分配" value="none" />
-            <el-option label="预分配" value="prealloc" />
-            <el-option label="快速预分配" value="falloc" />
+            <el-option :label="t('aria2Perf.fileAllocNone')" value="none" />
+            <el-option :label="t('aria2Perf.fileAllocPrealloc')" value="prealloc" />
+            <el-option :label="t('aria2Perf.fileAllocFalloc')" value="falloc" />
           </el-select>
-          <div class="form-tip">文件预分配方法，可提高磁盘性能</div>
+          <div class="form-tip">{{ t('aria2Perf.fileAllocationTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="最大下载结果" prop="maxDownloadResult">
+        <el-form-item :label="t('aria2Perf.maxDownloadResult')" prop="maxDownloadResult">
           <el-input-number
             v-model="settings.maxDownloadResult"
             :min="0"
             :max="10000"
             style="width: 200px"
           />
-          <div class="form-tip">保存的最大下载结果数量</div>
+          <div class="form-tip">{{ t('aria2Perf.maxDownloadResultTip') }}</div>
         </el-form-item>
       </el-card>
 
       <el-card class="setting-group">
         <template #header>
-          <span class="group-title">性能优化</span>
+          <span class="group-title">{{ t('aria2Perf.performanceOptimization') }}</span>
         </template>
 
-        <el-form-item label="实时检查数据块" prop="realtimeChunkChecksum">
+        <el-form-item :label="t('aria2Perf.realtimeChunkChecksum')" prop="realtimeChunkChecksum">
           <el-switch v-model="settings.realtimeChunkChecksum" />
-          <div class="form-tip">实时检查下载数据块的校验和</div>
+          <div class="form-tip">{{ t('aria2Perf.realtimeChunkChecksumTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="URI 选择策略" prop="uriSelector">
+        <el-form-item :label="t('aria2Perf.uriSelector')" prop="uriSelector">
           <el-select v-model="settings.uriSelector" style="width: 200px">
-            <el-option label="反馈选择" value="feedback" />
-            <el-option label="顺序选择" value="inorder" />
-            <el-option label="自适应选择" value="adaptive" />
+            <el-option :label="t('aria2Perf.uriFeedback')" value="feedback" />
+            <el-option :label="t('aria2Perf.uriInorder')" value="inorder" />
+            <el-option :label="t('aria2Perf.uriAdaptive')" value="adaptive" />
           </el-select>
-          <div class="form-tip">URI 选择策略，影响下载源的选择</div>
+          <div class="form-tip">{{ t('aria2Perf.uriSelectorTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="事件轮询方法" prop="eventPoll">
+        <el-form-item :label="t('aria2Perf.eventPoll')" prop="eventPoll">
           <el-select v-model="settings.eventPoll" style="width: 200px">
             <el-option label="epoll (Linux)" value="epoll" />
             <el-option label="kqueue (BSD)" value="kqueue" />
@@ -122,12 +122,12 @@
             <el-option label="poll" value="poll" />
             <el-option label="select" value="select" />
           </el-select>
-          <div class="form-tip">系统事件轮询方法，影响网络性能</div>
+          <div class="form-tip">{{ t('aria2Perf.eventPollTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="启用 mmap" prop="enableMmap">
+        <el-form-item :label="t('aria2Perf.enableMmap')" prop="enableMmap">
           <el-switch v-model="settings.enableMmap" />
-          <div class="form-tip">启用内存映射文件，可能提高性能</div>
+          <div class="form-tip">{{ t('aria2Perf.enableMmapTip') }}</div>
         </el-form-item>
       </el-card>
 
@@ -135,23 +135,23 @@
         <el-space>
           <el-button
             type="primary"
-            @click="saveSettings"
             :loading="saving"
             :disabled="!connectionStore.isConnected"
+            @click="saveSettings"
           >
-            保存设置
+            {{ t('settings.save') }}
           </el-button>
           <el-button
+            :disabled="!connectionStore.isConnected"
             @click="loadSettings"
-            :disabled="!connectionStore.isConnected"
           >
-            重新加载
+            {{ t('settings.reload') }}
           </el-button>
           <el-button
-            @click="resetToDefaults"
             :disabled="!connectionStore.isConnected"
+            @click="resetToDefaults"
           >
-            恢复默认
+            {{ t('settings.restoreDefaults') }}
           </el-button>
         </el-space>
       </el-form-item>
@@ -161,12 +161,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
 
 const connectionStore = useConnectionStore()
 const statsStore = useStatsStore()
+const { t } = useI18n()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const saving = ref(false)
@@ -188,10 +190,10 @@ const settings = reactive({
 // 表单验证规则
 const rules: FormRules = {
   diskCache: [
-    { type: 'number', min: 0, max: 1024, message: '值必须在0-1024之间', trigger: 'blur' }
+    { type: 'number', min: 0, max: 1024, message: () => t('settings.valueRange', { min: 0, max: 1024 }), trigger: 'blur' }
   ],
   maxDownloadResult: [
-    { type: 'number', min: 0, max: 10000, message: '值必须在0-10000之间', trigger: 'blur' }
+    { type: 'number', min: 0, max: 10000, message: () => t('settings.valueRange', { min: 0, max: 10000 }), trigger: 'blur' }
   ]
 }
 
@@ -203,23 +205,23 @@ onMounted(() => {
 
 async function loadSettings() {
   if (!connectionStore.isConnected) {
-    ElMessage.warning('请先连接到 Aria2 服务器')
+    ElMessage.warning(t('settings.connectFirst'))
     return
   }
 
   loading.value = true
   try {
     const options = await statsStore.getGlobalOptions()
-    
+
     if (options && typeof options === 'object') {
       settings.maxOverallDownloadLimit = options['max-overall-download-limit'] || '0'
       settings.maxOverallUploadLimit = options['max-overall-upload-limit'] || '0'
       settings.maxUploadLimit = options['max-upload-limit'] || '0'
-      
+
       // 磁盘缓存值需要去掉单位
       const diskCacheValue = options['disk-cache'] || '16M'
       settings.diskCache = parseInt(diskCacheValue.replace(/[^0-9]/g, '')) || 16
-      
+
       settings.fileAllocation = options['file-allocation'] || 'prealloc'
       settings.maxDownloadResult = parseInt(options['max-download-result'] || '1000')
       settings.realtimeChunkChecksum = options['realtime-chunk-checksum'] !== 'false'
@@ -227,11 +229,10 @@ async function loadSettings() {
       settings.eventPoll = options['event-poll'] || 'epoll'
       settings.enableMmap = options['enable-mmap'] === 'true'
 
-      ElMessage.success('性能设置加载成功')
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '未知错误'
-    ElMessage.error(`加载性能设置失败: ${errorMessage}`)
+    const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
+    ElMessage.error(t('aria2Perf.loadFailed', { error: errorMessage }))
     console.error('Failed to load performance settings:', error)
   } finally {
     loading.value = false
@@ -248,7 +249,7 @@ async function saveSettings() {
   }
 
   if (!connectionStore.isConnected) {
-    ElMessage.warning('请先连接到 Aria2 服务器')
+    ElMessage.warning(t('settings.connectFirst'))
     return
   }
 
@@ -268,9 +269,9 @@ async function saveSettings() {
     }
 
     await statsStore.changeGlobalOptions(options)
-    ElMessage.success('性能设置已保存')
+    ElMessage.success(t('aria2Perf.saved'))
   } catch (error) {
-    ElMessage.error('保存性能设置失败')
+    ElMessage.error(t('aria2Perf.saveFailed'))
     console.error('Failed to save performance settings:', error)
   } finally {
     saving.value = false
@@ -280,11 +281,11 @@ async function saveSettings() {
 async function resetToDefaults() {
   try {
     await ElMessageBox.confirm(
-      '确定要恢复为默认性能设置吗？',
-      '确认恢复',
+      t('aria2Perf.restoreConfirm'),
+      t('aria2Perf.restoreTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.ok'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
@@ -303,7 +304,7 @@ async function resetToDefaults() {
       enableMmap: false
     })
 
-    ElMessage.success('已恢复为默认性能设置')
+    ElMessage.success(t('aria2Perf.restored'))
   } catch (error) {
     // 用户取消
   }

@@ -1,9 +1,9 @@
 <template>
   <div class="app-sidebar">
     <div class="sidebar-header">
-      <h3>下载管理</h3>
+      <h3>{{ t('app.downloadManager') }}</h3>
     </div>
-    
+
     <el-menu
       :default-active="$route.path"
       router
@@ -11,21 +11,21 @@
     >
       <el-menu-item index="/downloading">
         <el-icon><Download /></el-icon>
-        <span>下载任务 ({{ activeAndWaitingCount }})</span>
+        <span>{{ t('nav.downloading') }} ({{ activeAndWaitingCount }})</span>
       </el-menu-item>
-      
+
       <el-menu-item index="/completed">
         <el-icon><Check /></el-icon>
-        <span>下载完成 ({{ stoppedTasks.length }})</span>
+        <span>{{ t('nav.completed') }} ({{ stoppedTasks.length }})</span>
       </el-menu-item>
     </el-menu>
-    
-    <div class="sidebar-divider"></div>
-    
+
+    <div class="sidebar-divider" />
+
     <div class="sidebar-header">
-      <h3>设置</h3>
+      <h3>{{ t('app.settings') }}</h3>
     </div>
-    
+
     <el-menu
       :default-active="$route.path"
       router
@@ -33,31 +33,31 @@
     >
       <el-menu-item index="/settings/general">
         <el-icon><Setting /></el-icon>
-        <span>常规设置</span>
+        <span>{{ t('nav.generalSettings') }}</span>
       </el-menu-item>
-      
+
       <el-sub-menu index="/settings/aria2">
         <template #title>
           <el-icon><Tools /></el-icon>
-          <span>Aria2 设置</span>
+          <span>{{ t('nav.aria2Settings') }}</span>
         </template>
-        
-        <el-menu-item index="/settings/aria2/local-service">本地服务</el-menu-item>
-        <el-menu-item index="/settings/aria2/basic">基本设置</el-menu-item>
-        <el-menu-item index="/settings/aria2/connection">连接设置</el-menu-item>
-        <el-menu-item index="/settings/aria2/http">HTTP 设置</el-menu-item>
-        <el-menu-item index="/settings/aria2/ftp-sftp">FTP/SFTP 设置</el-menu-item>
-        <el-menu-item index="/settings/aria2/bt">BitTorrent 设置</el-menu-item>
-        <el-menu-item index="/settings/aria2/metalink">Metalink 设置</el-menu-item>
-        <el-menu-item index="/settings/aria2/performance">性能与限制</el-menu-item>
-        <el-menu-item index="/settings/aria2/security">安全与认证</el-menu-item>
-        <el-menu-item index="/settings/aria2/advanced">高级设置</el-menu-item>
-        <el-menu-item index="/settings/aria2/rpc">RPC 连接</el-menu-item>
+
+        <el-menu-item index="/settings/aria2/local-service">{{ t('nav.localService') }}</el-menu-item>
+        <el-menu-item index="/settings/aria2/basic">{{ t('nav.basicSettings') }}</el-menu-item>
+        <el-menu-item index="/settings/aria2/connection">{{ t('nav.connectionSettings') }}</el-menu-item>
+        <el-menu-item index="/settings/aria2/http">{{ t('nav.httpSettings') }}</el-menu-item>
+        <el-menu-item index="/settings/aria2/ftp-sftp">{{ t('nav.ftpSftpSettings') }}</el-menu-item>
+        <el-menu-item index="/settings/aria2/bt">{{ t('nav.btSettings') }}</el-menu-item>
+        <el-menu-item index="/settings/aria2/metalink">{{ t('nav.metalinkSettings') }}</el-menu-item>
+        <el-menu-item index="/settings/aria2/performance">{{ t('nav.performanceSettings') }}</el-menu-item>
+        <el-menu-item index="/settings/aria2/security">{{ t('nav.securitySettings') }}</el-menu-item>
+        <el-menu-item index="/settings/aria2/advanced">{{ t('nav.advancedSettings') }}</el-menu-item>
+        <el-menu-item index="/settings/aria2/rpc">{{ t('nav.rpcSettings') }}</el-menu-item>
       </el-sub-menu>
-      
+
       <el-menu-item index="/status">
         <el-icon><Monitor /></el-icon>
-        <span>Aria2 状态</span>
+        <span>{{ t('nav.aria2Status') }}</span>
       </el-menu-item>
     </el-menu>
   </div>
@@ -65,6 +65,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useTaskStore } from '@/stores/taskStore'
 import {
   Download,
@@ -74,6 +75,7 @@ import {
   Monitor
 } from '@element-plus/icons-vue'
 
+const { t } = useI18n()
 const taskStore = useTaskStore()
 
 const activeTasks = computed(() => taskStore.activeTasks)
@@ -85,6 +87,7 @@ const activeAndWaitingCount = computed(() =>
   activeTasks.value.length + waitingTasks.value.length
 )
 </script>
+
 
 <style scoped>
 .app-sidebar {

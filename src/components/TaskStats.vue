@@ -6,63 +6,62 @@
         <el-card class="stats-card">
           <template #header>
             <div class="card-header">
-              <span>任务状态分布</span>
+              <span>{{ t('stats.statusDistribution') }}</span>
               <el-icon><PieChart /></el-icon>
             </div>
           </template>
-          <div ref="statusChartRef" class="chart-container"></div>
+          <div ref="statusChartRef" class="chart-container" />
         </el-card>
       </el-col>
-      
+
       <!-- 下载速度趋势 -->
       <el-col :span="8">
         <el-card class="stats-card">
           <template #header>
             <div class="card-header">
-              <span>下载速度趋势</span>
+              <span>{{ t('stats.speedTrend') }}</span>
               <el-icon><TrendCharts /></el-icon>
             </div>
           </template>
-          <div ref="speedChartRef" class="chart-container"></div>
+          <div ref="speedChartRef" class="chart-container" />
         </el-card>
       </el-col>
-      
+
       <!-- 文件大小分布 -->
       <el-col :span="8">
         <el-card class="stats-card">
           <template #header>
             <div class="card-header">
-              <span>文件大小分布</span>
+              <span>{{ t('stats.sizeDistribution') }}</span>
               <el-icon><DataAnalysis /></el-icon>
             </div>
           </template>
-          <div ref="sizeChartRef" class="chart-container"></div>
+          <div ref="sizeChartRef" class="chart-container" />
         </el-card>
       </el-col>
     </el-row>
-    
+
     <!-- 详细统计信息 -->
     <el-row :gutter="16" style="margin-top: 16px">
       <el-col :span="24">
         <el-card>
           <template #header>
-            <span>详细统计</span>
+            <span>{{ t('stats.detailedStats') }}</span>
           </template>
-          
+
           <el-row :gutter="16">
             <el-col :span="6">
               <div class="statistic-wrapper">
                 <el-statistic
-                  title="总任务数"
+                  :title="t('stats.totalTasks')"
                   :value="stats.total"
-                  suffix="个"
                 />
               </div>
             </el-col>
             <el-col :span="6">
               <div class="statistic-wrapper">
                 <el-statistic
-                  title="总下载量"
+                  :title="t('stats.totalDownloaded')"
                   :value="formatSize(stats.totalSize)"
                 />
               </div>
@@ -70,7 +69,7 @@
             <el-col :span="6">
               <div class="statistic-wrapper">
                 <el-statistic
-                  title="已完成"
+                  :title="t('stats.completed')"
                   :value="formatSize(stats.completedSize)"
                 />
               </div>
@@ -78,50 +77,50 @@
             <el-col :span="6">
               <div class="statistic-wrapper">
                 <el-statistic
-                  title="当前速度"
+                  :title="t('stats.currentSpeed')"
                   :value="formatSpeed(stats.totalSpeed)"
                 />
               </div>
             </el-col>
           </el-row>
-          
+
           <el-divider />
-          
+
           <el-row :gutter="16">
             <el-col :span="4">
               <div class="status-stat">
                 <div class="status-count active">{{ stats.active }}</div>
-                <div class="status-label">下载中</div>
+                <div class="status-label">{{ t('stats.downloading') }}</div>
               </div>
             </el-col>
             <el-col :span="4">
               <div class="status-stat">
                 <div class="status-count waiting">{{ stats.waiting }}</div>
-                <div class="status-label">等待中</div>
+                <div class="status-label">{{ t('stats.waiting') }}</div>
               </div>
             </el-col>
             <el-col :span="4">
               <div class="status-stat">
                 <div class="status-count paused">{{ stats.paused }}</div>
-                <div class="status-label">已暂停</div>
+                <div class="status-label">{{ t('stats.paused') }}</div>
               </div>
             </el-col>
             <el-col :span="4">
               <div class="status-stat">
                 <div class="status-count complete">{{ stats.complete }}</div>
-                <div class="status-label">已完成</div>
+                <div class="status-label">{{ t('stats.completed') }}</div>
               </div>
             </el-col>
             <el-col :span="4">
               <div class="status-stat">
                 <div class="status-count error">{{ stats.error }}</div>
-                <div class="status-label">错误</div>
+                <div class="status-label">{{ t('stats.error') }}</div>
               </div>
             </el-col>
             <el-col :span="4">
               <div class="status-stat">
                 <div class="status-count progress">{{ progressPercentage }}%</div>
-                <div class="status-label">总进度</div>
+                <div class="status-label">{{ t('stats.totalProgress') }}</div>
               </div>
             </el-col>
           </el-row>
@@ -133,9 +132,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import { PieChart, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
 import { formatSize, formatSpeed } from '@/utils/taskUtils'
+
+const { t } = useI18n()
 
 interface TaskStats {
   total: number
@@ -151,7 +153,7 @@ interface TaskStats {
 
 interface Props {
   stats: TaskStats
-  tasks?: any[] // 添加任务数据用于计算文件大小分布
+  tasks?: unknown[] // 添加任务数据用于计算文件大小分布
 }
 
 const props = defineProps<Props>()
@@ -180,7 +182,7 @@ const progressPercentage = computed(() => {
 onMounted(async () => {
   await nextTick()
   initCharts()
-  
+
   // 开始收集速度数据
   startSpeedCollection()
 })
@@ -199,12 +201,12 @@ function initCharts() {
     statusChart = echarts.init(statusChartRef.value)
     updateStatusChart()
   }
-  
+
   if (speedChartRef.value) {
     speedChart = echarts.init(speedChartRef.value)
     updateSpeedChart()
   }
-  
+
   if (sizeChartRef.value) {
     sizeChart = echarts.init(sizeChartRef.value)
     updateSizeChart()
@@ -219,7 +221,7 @@ function updateCharts() {
 
 function updateStatusChart() {
   if (!statusChart) return
-  
+
   const option = {
     tooltip: {
       trigger: 'item',
@@ -227,7 +229,7 @@ function updateStatusChart() {
     },
     series: [
       {
-        name: '任务状态',
+        name: t('stats.taskStatus'),
         type: 'pie',
         radius: ['40%', '70%'],
         avoidLabelOverlap: false,
@@ -246,28 +248,28 @@ function updateStatusChart() {
           show: false
         },
         data: [
-          { value: props.stats.active, name: '下载中', itemStyle: { color: '#409eff' } },
-          { value: props.stats.waiting, name: '等待中', itemStyle: { color: '#e6a23c' } },
-          { value: props.stats.paused, name: '已暂停', itemStyle: { color: '#909399' } },
-          { value: props.stats.complete, name: '已完成', itemStyle: { color: '#67c23a' } },
-          { value: props.stats.error, name: '错误', itemStyle: { color: '#f56c6c' } }
+          { value: props.stats.active, name: t('stats.downloading'), itemStyle: { color: '#409eff' } },
+          { value: props.stats.waiting, name: t('stats.waiting'), itemStyle: { color: '#e6a23c' } },
+          { value: props.stats.paused, name: t('stats.paused'), itemStyle: { color: '#909399' } },
+          { value: props.stats.complete, name: t('stats.completed'), itemStyle: { color: '#67c23a' } },
+          { value: props.stats.error, name: t('stats.error'), itemStyle: { color: '#f56c6c' } }
         ].filter(item => item.value > 0)
       }
     ]
   }
-  
+
   statusChart.setOption(option)
 }
 
 function updateSpeedChart() {
   if (!speedChart) return
-  
+
   const option = {
     tooltip: {
       trigger: 'axis',
-      formatter: (params: any) => {
+      formatter: (params: unknown) => {
         const data = params[0]
-        return `${data.name}<br/>速度: ${formatSpeed(data.value)}`
+        return `${data.name}<br/>${t('stats.speedLabel')}: ${formatSpeed(data.value)}`
       }
     },
     xAxis: {
@@ -285,7 +287,7 @@ function updateSpeedChart() {
     },
     series: [
       {
-        name: '下载速度',
+        name: t('stats.downloadSpeed'),
         type: 'line',
         smooth: true,
         data: speedHistory.value.map(item => item.speed),
@@ -301,7 +303,7 @@ function updateSpeedChart() {
       }
     ]
   }
-  
+
   speedChart.setOption(option)
 }
 
@@ -338,13 +340,13 @@ function updateSizeChart() {
   const option = {
     tooltip: {
       trigger: 'item',
-      formatter: (params: any) => {
-        return `${params.name}<br/>任务数: ${params.value} (${params.percent}%)`
+      formatter: (params: unknown) => {
+        return `${params.name}<br/>${t('stats.taskCount')}: ${params.value} (${params.percent}%)`
       }
     },
     series: [
       {
-        name: '文件大小',
+        name: t('stats.fileSize'),
         type: 'pie',
         radius: '70%',
         data: sizeDistribution.filter(item => item.value > 0),
@@ -366,20 +368,20 @@ function startSpeedCollection() {
   const interval = setInterval(() => {
     const now = new Date()
     const timeStr = now.toLocaleTimeString()
-    
+
     speedHistory.value.push({
       time: timeStr,
       speed: props.stats.totalSpeed
     })
-    
+
     // 保持历史数据长度
     if (speedHistory.value.length > maxHistoryLength) {
       speedHistory.value.shift()
     }
-    
+
     updateSpeedChart()
   }, 2000)
-  
+
   // 清理定时器
   onUnmounted(() => {
     clearInterval(interval)
@@ -435,27 +437,15 @@ function destroyCharts() {
   margin-bottom: 4px;
 }
 
-.status-count.active { color: #409eff; }
-.status-count.waiting { color: #e6a23c; }
-.status-count.paused { color: #909399; }
-.status-count.complete { color: #67c23a; }
-.status-count.error { color: #f56c6c; }
-.status-count.progress { color: #606266; }
+.status-count.active { color: var(--color-primary); }
+.status-count.waiting { color: var(--color-warning); }
+.status-count.paused { color: var(--text-secondary); }
+.status-count.complete { color: var(--color-success); }
+.status-count.error { color: var(--color-danger); }
+.status-count.progress { color: var(--text-regular); }
 
 .status-label {
   font-size: 12px;
-  color: #909399;
-}
-
-/* 深色主题适配 */
-[data-theme="dark"] .status-count.active { color: var(--color-primary); }
-[data-theme="dark"] .status-count.waiting { color: var(--color-warning); }
-[data-theme="dark"] .status-count.paused { color: var(--text-secondary); }
-[data-theme="dark"] .status-count.complete { color: var(--color-success); }
-[data-theme="dark"] .status-count.error { color: var(--color-danger); }
-[data-theme="dark"] .status-count.progress { color: var(--text-primary); }
-
-[data-theme="dark"] .status-label {
   color: var(--text-secondary);
 }
 </style>

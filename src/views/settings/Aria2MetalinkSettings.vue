@@ -7,10 +7,10 @@
 
     <el-form
       ref="formRef"
+      v-loading="loading"
       :model="settings"
       label-width="200px"
       style="max-width: 800px"
-      v-loading="loading"
     >
       <el-card class="setting-group">
         <template #header>
@@ -90,15 +90,15 @@
         <el-space>
           <el-button
             type="primary"
-            @click="saveSettings"
             :disabled="!connectionStore.isConnected"
             :loading="saving"
+            @click="saveSettings"
           >
             保存设置
           </el-button>
           <el-button
-            @click="loadSettings"
             :disabled="!connectionStore.isConnected"
+            @click="loadSettings"
           >
             重新加载
           </el-button>
@@ -232,7 +232,7 @@ function resetSettings() {
 
 .settings-description {
   margin: 0;
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -242,7 +242,7 @@ function resetSettings() {
 
 .group-title {
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
 }
 
 .form-tip {

@@ -1,64 +1,64 @@
 <template>
   <div class="status-page">
     <div class="status-header">
-      <h2>Aria2 状态</h2>
+      <h2>{{ t('statusPage.title') }}</h2>
     </div>
-    
+
     <div class="status-content">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-card title="连接状态">
+          <el-card :title="t('statusPage.connectionStatus')">
             <div class="status-item">
-              <span class="label">连接状态:</span>
+              <span class="label">{{ t('statusPage.connectionLabel') }}</span>
               <el-tag :type="isConnected ? 'success' : 'danger'">
-                {{ isConnected ? '已连接' : '未连接' }}
+                {{ isConnected ? t('header.connected') : t('header.disconnected') }}
               </el-tag>
             </div>
             <div class="status-item">
-              <span class="label">服务器地址:</span>
+              <span class="label">{{ t('statusPage.serverAddress') }}</span>
               <span>{{ config.protocol }}://{{ config.host }}:{{ config.port }}</span>
             </div>
-            <div class="status-item" v-if="version">
-              <span class="label">Aria2 版本:</span>
+            <div v-if="version" class="status-item">
+              <span class="label">{{ t('statusPage.aria2Version') }}</span>
               <span>{{ version.version }}</span>
             </div>
           </el-card>
         </el-col>
-        
+
         <el-col :span="12">
-          <el-card title="全局统计">
+          <el-card :title="t('statusPage.globalStats')">
             <div class="status-item">
-              <span class="label">下载速度:</span>
+              <span class="label">{{ t('statusPage.downloadSpeed') }}</span>
               <span>{{ formatSpeed(globalStat.downloadSpeed) }}/s</span>
             </div>
             <div class="status-item">
-              <span class="label">上传速度:</span>
+              <span class="label">{{ t('statusPage.uploadSpeed') }}</span>
               <span>{{ formatSpeed(globalStat.uploadSpeed) }}/s</span>
             </div>
             <div class="status-item">
-              <span class="label">活动任务:</span>
+              <span class="label">{{ t('statusPage.activeTasks') }}</span>
               <span>{{ globalStat.numActive }}</span>
             </div>
             <div class="status-item">
-              <span class="label">等待任务:</span>
+              <span class="label">{{ t('statusPage.waitingTasks') }}</span>
               <span>{{ globalStat.numWaiting }}</span>
             </div>
             <div class="status-item">
-              <span class="label">已停止任务:</span>
+              <span class="label">{{ t('statusPage.stoppedTasks') }}</span>
               <span>{{ globalStat.numStopped }}</span>
             </div>
           </el-card>
         </el-col>
       </el-row>
-      
+
       <!-- 任务统计图表 -->
       <div style="margin-top: 20px;">
         <TaskStats :stats="allTaskStats" :tasks="allTasks" />
       </div>
 
-      <el-row :gutter="20" style="margin-top: 20px;" v-if="version">
+      <el-row v-if="version" :gutter="20" style="margin-top: 20px;">
         <el-col :span="24">
-          <el-card title="支持的功能">
+          <el-card :title="t('statusPage.enabledFeatures')">
             <el-tag
               v-for="feature in version.enabledFeatures"
               :key="feature"
@@ -75,6 +75,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useStatsStore } from '@/stores/statsStore'
@@ -84,6 +85,7 @@ import { getTaskStats } from '@/utils/taskUtils'
 const connectionStore = useConnectionStore()
 const taskStore = useTaskStore()
 const statsStore = useStatsStore()
+const { t } = useI18n()
 
 const isConnected = computed(() => connectionStore.isConnected)
 const config = computed(() => connectionStore.config)
@@ -105,11 +107,11 @@ const allTaskStats = computed(() => {
 function formatSpeed(speed: string): string {
   const bytes = parseInt(speed)
   if (bytes === 0) return '0 B'
-  
+
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 </script>
@@ -144,18 +146,5 @@ function formatSpeed(speed: string): string {
 .label {
   font-weight: 500;
   color: var(--text-secondary);
-}
-
-/* 深色主题适配 */
-[data-theme="dark"] .status-header h2 {
-  color: var(--text-primary);
-}
-
-[data-theme="dark"] .label {
-  color: var(--text-secondary);
-}
-
-[data-theme="dark"] .status-item {
-  color: var(--text-primary);
 }
 </style>
