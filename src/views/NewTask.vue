@@ -467,7 +467,7 @@ async function selectDirectory(formType: 'uri' | 'torrent' | 'metalink') {
         metalinkForm.dir = result.filePaths[0]
       }
     }
-  } catch (error) {
+  } catch (_error) {
     ElMessage.error(t('newTask.selectDirFailed'))
   }
 }

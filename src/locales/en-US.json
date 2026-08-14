@@ -409,7 +409,7 @@
   },
   "localService": {
     "title": "Local Aria2 Service",
-    "description": "Manage the built-in Aria2 service for easy use",
+    "description": "Manage the built-in Aria2 engine: start, stop, restart, and monitor status",
     "serviceStatus": "Service Status",
     "runStatus": "Status:",
     "running": "Running",

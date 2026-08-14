@@ -76,7 +76,6 @@ import { ElMessage } from 'element-plus'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
 import type { Aria2Task, Aria2Uri, Aria2Server } from '@/types/aria2'
-import { getFileName } from '@/utils/taskFormatters'
 import TaskBasicInfo from '@/components/task/TaskBasicInfo.vue'
 import TaskServerInfo from '@/components/task/TaskServerInfo.vue'
 import TaskPeerInfo from '@/components/task/TaskPeerInfo.vue'
@@ -158,14 +157,10 @@ async function loadTaskDetail() {
             console.warn('Failed to get URIs (task may be completed):', error)
             if (task.value.files && task.value.files.length > 0) {
               const fileUris: Aria2Uri[] = []
-              task.value.files.forEach((file, index) => {
+              task.value.files.forEach((file) => {
                 if (file.uris && file.uris.length > 0) {
                   file.uris.forEach(uri => {
-                    fileUris.push({
-                      ...uri,
-                      fileIndex: index,
-                      fileName: getFileName(file.path)
-                    })
+                    fileUris.push(uri)
                   })
                 }
               })
@@ -215,21 +210,14 @@ function findTaskInStore(gid: string): Aria2Task | null {
 }
 
 // URI 去重函数
-function deduplicateUris(uris: unknown[]): unknown[] {
+function deduplicateUris(uris: Aria2Uri[]): Aria2Uri[] {
   if (!uris || uris.length === 0) return []
 
   const seen = new Set<string>()
   const uniqueUris: Aria2Uri[] = []
 
   uris.forEach(uri => {
-    let uriKey: string
-    if (typeof uri === 'string') {
-      uriKey = uri
-    } else if (uri && typeof uri === 'object' && 'uri' in uri) {
-      uriKey = (uri as Aria2Uri).uri
-    } else {
-      return
-    }
+    const uriKey = uri.uri
 
     if (!seen.has(uriKey)) {
       seen.add(uriKey)

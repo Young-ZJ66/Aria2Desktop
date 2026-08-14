@@ -45,7 +45,7 @@ const isWindowsPlatform = computed(() => {
   return typeof window !== 'undefined' && window.navigator.platform.toLowerCase().includes('win')
 })
 
-let updateInterval: unknown = null
+let updateInterval: ReturnType<typeof setInterval> | null = null
 
 function startAutoUpdate(interval = 1000) {
   if (updateInterval) clearInterval(updateInterval)
@@ -84,13 +84,13 @@ onMounted(async () => {
 
       if (data.key === 'theme') {
         // Update theme setting and apply
-        settingsStore.updateSetting('theme', data.value).then(() => {
+        settingsStore.updateSetting('theme', data.value as 'light' | 'dark' | 'auto').then(() => {
           settingsStore.applyTheme()
         })
       } else if (data.key === 'refreshInterval') {
         // Update refresh interval
         stopAutoUpdate()
-        startAutoUpdate(data.value)
+        startAutoUpdate(Number(data.value))
       }
     })
   }

@@ -7,7 +7,7 @@
           <template #header>
             <div class="card-header">
               <span>{{ t('stats.statusDistribution') }}</span>
-              <el-icon><PieChart /></el-icon>
+              <el-icon><PieChartIcon /></el-icon>
             </div>
           </template>
           <div ref="statusChartRef" class="chart-container" />
@@ -133,9 +133,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import * as echarts from 'echarts'
-import { PieChart, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
+import * as echarts from 'echarts/core'
+import { PieChart, LineChart } from 'echarts/charts'
+import { TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+import { PieChart as PieChartIcon, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
 import { formatSize, formatSpeed } from '@/utils/taskUtils'
+import type { Aria2Task } from '@/types/aria2'
+
+// 注册按需导入的 ECharts 模块
+echarts.use([PieChart, LineChart, TooltipComponent, CanvasRenderer])
 
 const { t } = useI18n()
 
@@ -153,7 +160,7 @@ interface TaskStats {
 
 interface Props {
   stats: TaskStats
-  tasks?: unknown[] // 添加任务数据用于计算文件大小分布
+  tasks?: Aria2Task[]
 }
 
 const props = defineProps<Props>()
@@ -267,8 +274,8 @@ function updateSpeedChart() {
   const option = {
     tooltip: {
       trigger: 'axis',
-      formatter: (params: unknown) => {
-        const data = params[0]
+      formatter: (params: { name: string; value: number } | { name: string; value: number }[]) => {
+        const data = Array.isArray(params) ? params[0] : params
         return `${data.name}<br/>${t('stats.speedLabel')}: ${formatSpeed(data.value)}`
       }
     },
@@ -320,7 +327,7 @@ function updateSizeChart() {
 
   // 根据实际任务数据计算分布
   if (props.tasks && props.tasks.length > 0) {
-    props.tasks.forEach(task => {
+    props.tasks.forEach((task: Aria2Task) => {
       const size = parseInt(task.totalLength) || 0
       const sizeMB = size / (1024 * 1024)
       const sizeGB = size / (1024 * 1024 * 1024)
@@ -340,7 +347,7 @@ function updateSizeChart() {
   const option = {
     tooltip: {
       trigger: 'item',
-      formatter: (params: unknown) => {
+      formatter: (params: { name: string; value: number; percent: number }) => {
         return `${params.name}<br/>${t('stats.taskCount')}: ${params.value} (${params.percent}%)`
       }
     },

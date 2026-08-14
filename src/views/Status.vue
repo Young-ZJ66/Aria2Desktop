@@ -6,47 +6,57 @@
 
     <div class="status-content">
       <el-row :gutter="20">
-        <el-col :span="12">
-          <el-card :title="t('statusPage.connectionStatus')">
-            <div class="status-item">
-              <span class="label">{{ t('statusPage.connectionLabel') }}</span>
-              <el-tag :type="isConnected ? 'success' : 'danger'">
-                {{ isConnected ? t('header.connected') : t('header.disconnected') }}
-              </el-tag>
-            </div>
-            <div class="status-item">
-              <span class="label">{{ t('statusPage.serverAddress') }}</span>
-              <span>{{ config.protocol }}://{{ config.host }}:{{ config.port }}</span>
-            </div>
-            <div v-if="version" class="status-item">
-              <span class="label">{{ t('statusPage.aria2Version') }}</span>
-              <span>{{ version.version }}</span>
-            </div>
-          </el-card>
-        </el-col>
-
-        <el-col :span="12">
-          <el-card :title="t('statusPage.globalStats')">
-            <div class="status-item">
-              <span class="label">{{ t('statusPage.downloadSpeed') }}</span>
-              <span>{{ formatSpeed(globalStat.downloadSpeed) }}/s</span>
-            </div>
-            <div class="status-item">
-              <span class="label">{{ t('statusPage.uploadSpeed') }}</span>
-              <span>{{ formatSpeed(globalStat.uploadSpeed) }}/s</span>
-            </div>
-            <div class="status-item">
-              <span class="label">{{ t('statusPage.activeTasks') }}</span>
-              <span>{{ globalStat.numActive }}</span>
-            </div>
-            <div class="status-item">
-              <span class="label">{{ t('statusPage.waitingTasks') }}</span>
-              <span>{{ globalStat.numWaiting }}</span>
-            </div>
-            <div class="status-item">
-              <span class="label">{{ t('statusPage.stoppedTasks') }}</span>
-              <span>{{ globalStat.numStopped }}</span>
-            </div>
+        <el-col :span="24">
+          <el-card>
+            <template #header>
+              <span class="card-title">{{ t('statusPage.connectionStatus') }} & {{ t('statusPage.globalStats') }}</span>
+            </template>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <div class="status-section">
+                  <div class="status-section-title">{{ t('statusPage.connectionStatus') }}</div>
+                  <div class="status-item">
+                    <span class="label">{{ t('statusPage.connectionLabel') }}</span>
+                    <el-tag :type="isConnected ? 'success' : 'danger'">
+                      {{ isConnected ? t('header.connected') : t('header.disconnected') }}
+                    </el-tag>
+                  </div>
+                  <div class="status-item">
+                    <span class="label">{{ t('statusPage.serverAddress') }}</span>
+                    <span>{{ config.protocol }}://{{ config.host }}:{{ config.port }}</span>
+                  </div>
+                  <div v-if="version" class="status-item">
+                    <span class="label">{{ t('statusPage.aria2Version') }}</span>
+                    <span>{{ version.version }}</span>
+                  </div>
+                </div>
+              </el-col>
+              <el-col :span="12">
+                <div class="status-section">
+                  <div class="status-section-title">{{ t('statusPage.globalStats') }}</div>
+                  <div class="status-item">
+                    <span class="label">{{ t('statusPage.downloadSpeed') }}</span>
+                    <span>{{ formatSpeed(globalStat.downloadSpeed) }}/s</span>
+                  </div>
+                  <div class="status-item">
+                    <span class="label">{{ t('statusPage.uploadSpeed') }}</span>
+                    <span>{{ formatSpeed(globalStat.uploadSpeed) }}/s</span>
+                  </div>
+                  <div class="status-item">
+                    <span class="label">{{ t('statusPage.activeTasks') }}</span>
+                    <span>{{ globalStat.numActive }}</span>
+                  </div>
+                  <div class="status-item">
+                    <span class="label">{{ t('statusPage.waitingTasks') }}</span>
+                    <span>{{ globalStat.numWaiting }}</span>
+                  </div>
+                  <div class="status-item">
+                    <span class="label">{{ t('statusPage.stoppedTasks') }}</span>
+                    <span>{{ globalStat.numStopped }}</span>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
           </el-card>
         </el-col>
       </el-row>
@@ -130,6 +140,24 @@ function formatSpeed(speed: string): string {
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.status-section {
+  padding-left: 8px;
+}
+
+.status-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .status-item {

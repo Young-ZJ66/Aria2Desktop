@@ -409,7 +409,7 @@
   },
   "localService": {
     "title": "本地 Aria2 服务",
-    "description": "管理内置的 Aria2 服务，让小白用户也能轻松使用",
+    "description": "管理内置的 Aria2 引擎，支持启停、重启和状态监控",
     "serviceStatus": "服务状态",
     "runStatus": "运行状态：",
     "running": "运行中",

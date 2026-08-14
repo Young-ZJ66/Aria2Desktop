@@ -7,7 +7,8 @@ import type {
   Aria2Option,
   Aria2File,
   Aria2Peer,
-  Aria2Server
+  Aria2Server,
+  Aria2Uri
 } from '@/types/aria2'
 import { Aria2Methods } from '@/types/aria2'
 
@@ -170,8 +171,8 @@ export class Aria2Service {
   }
 
   // 获取任务URI列表
-  async getUris(gid: string): Promise<unknown[]> {
-    return this.client.call<unknown[]>(Aria2Methods.GET_URIS, [gid])
+  async getUris(gid: string): Promise<Aria2Uri[]> {
+    return this.client.call<Aria2Uri[]>(Aria2Methods.GET_URIS, [gid])
   }
 
   // 获取任务Peer列表
