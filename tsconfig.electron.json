@@ -6,17 +6,16 @@
     "outDir": "dist/electron",
     "rootDir": ".",
     "strict": true,
+    "noUnusedLocals": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "declaration": false,
     "sourceMap": false,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [

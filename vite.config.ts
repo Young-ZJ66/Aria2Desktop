@@ -7,7 +7,33 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'dist/vue',
-    emptyOutDir: true
+    emptyOutDir: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            // Element Plus 单独拆分
+            {
+              name: 'element-plus',
+              test: /node_modules[\\/]*element-plus/,
+              priority: 20
+            },
+            // Vue 生态（vue、vue-router、pinia、vue-i18n）单独拆分
+            {
+              name: 'vue-vendor',
+              test: /node_modules[\\/]*(@vue|vue|vue-router|pinia|@intlify)[\\/]/,
+              priority: 15
+            },
+            // ECharts 单独拆分
+            {
+              name: 'echarts',
+              test: /node_modules[\\/]*echarts/,
+              priority: 15
+            }
+          ]
+        }
+      }
+    }
   },
   resolve: {
     alias: {

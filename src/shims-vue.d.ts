@@ -6,3 +6,10 @@ declare module '*.vue' {
   const component: DefineComponent<Record<string, unknown>, Record<string, unknown>, unknown>
   export default component
 }
+
+/**
+ * CSS 模块类型声明（副作用导入）
+ */
+declare module '*.css'
+declare module '*.scss'
+declare module '*.sass'

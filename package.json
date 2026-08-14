@@ -1,7 +1,7 @@
 {
   "name": "aria2-desktop",
   "version": "1.0.0",
-  "description": "A modern Windows desktop client for Aria2",
+  "description": "集成 Aria2 引擎的现代化桌面下载管理器",
   "main": "dist/electron/electron/main.js",
   "author": "Your Name",
   "license": "MIT",
@@ -10,54 +10,59 @@
     "dev": "concurrently --kill-others --kill-others-on-fail \"npm run dev:vue\" \"npm run dev:electron\"",
     "dev:vue": "vite",
     "dev:electron": "cross-env NODE_ENV=development electron .",
-    "build": "npm run build:vue && npm run build:electron && npm run fix-paths",
+    "build": "npm run build:vue && npm run build:electron",
     "build:vue": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "fix-paths": "node scripts/fix-electron-paths.js",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "preview": "vite preview",
-    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore"
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-pattern .gitignore"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.1.0",
-    "axios": "^1.6.0",
-    "dayjs": "^1.11.10",
-    "echarts": "^5.4.3",
-    "electron-store": "^8.2.0",
-    "element-plus": "^2.4.2",
-    "file-saver": "^2.0.5",
-    "pinia": "^2.1.7",
-    "vue": "^3.3.8",
-    "vue-echarts": "^6.6.1",
-    "vue-i18n": "^9.14.5",
-    "vue-router": "^4.2.5",
-    "ws": "^8.14.2"
+    "electron-store": "^8.2.0"
   },
   "devDependencies": {
+    "@element-plus/icons-vue": "^2.1.0",
+    "@eslint/js": "^10.0.1",
     "@types/file-saver": "^2.0.7",
-    "@types/node": "^20.8.10",
-    "@types/ws": "^8.5.8",
-    "@vitejs/plugin-vue": "^4.4.1",
-    "@vue/eslint-config-typescript": "^12.0.0",
+    "@types/node": "^26.2.0",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/eslint-config-typescript": "^14.9.0",
+    "axios": "^1.19.0",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
-    "electron": "^27.1.0",
-    "electron-builder": "^24.6.4",
-    "eslint": "^8.52.0",
-    "eslint-plugin-vue": "^9.17.0",
-    "typescript": "^5.2.2",
-    "vite": "^4.5.0",
-    "wait-on": "^7.2.0"
+    "dayjs": "^1.11.10",
+    "echarts": "^6.1.0",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.7",
+    "element-plus": "^2.4.2",
+    "eslint": "^10.8.1",
+    "eslint-plugin-vue": "^10.10.0",
+    "file-saver": "^2.0.5",
+    "pinia": "^2.1.7",
+    "typescript": "^6.0.3",
+    "vite": "^8.2.1",
+    "vue": "^3.3.8",
+    "vue-echarts": "^8.1.0",
+    "vue-i18n": "^11.4.8",
+    "vue-router": "^4.2.5",
+    "wait-on": "^7.2.0",
+    "ws": "^8.21.3"
   },
   "build": {
     "appId": "com.aria2desktop.app",
     "productName": "Aria2Desktop",
     "icon": "build/Aria2.ico",
+    "compression": "maximum",
     "directories": {
       "output": "release",
       "buildResources": "build"
     },
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
+    ],
     "files": [
       "dist/**/*",
       "!dist/vue/**/*.map",
@@ -83,8 +88,10 @@
       "icon": "build/Aria2.ico",
       "signAndEditExecutable": true,
       "artifactName": "Aria2Desktop-${version}-Setup.${ext}",
-      "publisherName": "Aria2 Desktop Team",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "signtoolOptions": {
+        "publisherName": "Aria2 Desktop Team"
+      }
     },
     "nsis": {
       "oneClick": false,
@@ -99,5 +106,9 @@
       "perMachine": false,
       "runAfterFinish": true
     }
+  },
+  "allowScripts": {
+    "electron-winstaller@5.4.0": true,
+    "vue-demi@0.14.10": true
   }
 }

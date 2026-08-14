@@ -6,7 +6,9 @@
 .augment
 .sanshu-memory
 node_modules
-*.md
 data
 release
 dist
+*.log
+.env
+.env.*
