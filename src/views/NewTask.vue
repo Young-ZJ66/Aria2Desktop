@@ -217,6 +217,7 @@ import { Upload, Folder } from '@element-plus/icons-vue'
 import { useTaskStore } from '@/stores/taskStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import type { Aria2Option } from '@/types/aria2'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -364,7 +365,7 @@ async function handleTorrentSubmit() {
     // 读取种子文件内容
     const torrentData = await readFileAsBase64(torrentForm.torrentFile)
 
-    const options: unknown = {}
+    const options: Aria2Option = {}
     if (torrentForm.dir) options.dir = torrentForm.dir
     if (!torrentForm.autoStart) options.pause = 'true'
 
@@ -420,7 +421,7 @@ async function handleMetalinkSubmit() {
 
     const metalinkData = await readFileAsBase64(metalinkForm.metalinkFile)
 
-    const options: unknown = {}
+    const options: Aria2Option = {}
     if (metalinkForm.dir) options.dir = metalinkForm.dir
     if (!metalinkForm.autoStart) options.pause = 'true'
 
