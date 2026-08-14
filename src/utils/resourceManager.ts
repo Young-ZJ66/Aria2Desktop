@@ -14,8 +14,8 @@ export class ResourceManager {
 
   private constructor() {
     // 获取应用目录
-    const appDirectory = app.isPackaged 
-      ? join(process.execPath, '..') 
+    const appDirectory = app.isPackaged
+      ? join(process.execPath, '..')
       : process.cwd()
 
     // 资源路径 - aria2c.exe 和配置文件模板存放位置
@@ -29,8 +29,8 @@ export class ResourceManager {
 
     // 用户数据目录 - 配置文件和会话文件存放位置
     this.userDataPath = join(appDirectory, 'data', 'aria2')
-    
-    console.log('ResourceManager initialized:', {
+
+    console.warn('ResourceManager initialized:', {
       resourcesPath: this.resourcesPath,
       userDataPath: this.userDataPath,
       appDirectory,
@@ -51,7 +51,7 @@ export class ResourceManager {
   private ensureUserDataDir(): void {
     if (!existsSync(this.userDataPath)) {
       mkdirSync(this.userDataPath, { recursive: true })
-      console.log('Created user data directory:', this.userDataPath)
+      console.warn('Created user data directory:', this.userDataPath)
     }
   }
 
@@ -60,17 +60,17 @@ export class ResourceManager {
    */
   public getAria2ExecutablePath(): string {
     const executableName = process.platform === 'win32' ? 'aria2c.exe' : 'aria2c'
-    
+
     // aria2c.exe 应该在应用目录的 resources 文件夹中
     const bundledExecutable = join(this.resourcesPath, executableName)
-    
-    console.log('Looking for aria2c.exe at:', bundledExecutable)
-    
+
+    console.warn('Looking for aria2c.exe at:', bundledExecutable)
+
     if (existsSync(bundledExecutable)) {
       // 只在首次发现时记录日志
       const logKey = `found_bundled_${bundledExecutable}`
       if (!this.loggedStatus[logKey]) {
-        console.log('Found bundled Aria2 executable:', bundledExecutable)
+        console.warn('Found bundled Aria2 executable:', bundledExecutable)
         this.loggedStatus[logKey] = true
       }
       return bundledExecutable
@@ -82,7 +82,7 @@ export class ResourceManager {
     if (existsSync(userExecutable)) {
       const logKey = `found_user_${userExecutable}`
       if (!this.loggedStatus[logKey]) {
-        console.log('Found user Aria2 executable:', userExecutable)
+        console.warn('Found user Aria2 executable:', userExecutable)
         this.loggedStatus[logKey] = true
       }
       return userExecutable
@@ -91,7 +91,7 @@ export class ResourceManager {
     // 都不存在，返回用户数据目录路径（供后续下载使用）
     const logKey = `not_found_${userExecutable}`
     if (!this.loggedStatus[logKey]) {
-      console.log('No Aria2 executable found, will use:', userExecutable)
+      console.warn('No Aria2 executable found, will use:', userExecutable)
       this.loggedStatus[logKey] = true
     }
     return userExecutable
@@ -105,26 +105,26 @@ export class ResourceManager {
     const cacheKey = `availability_${executablePath}`
     const now = Date.now()
     const CACHE_DURATION = 30000 // 30秒缓存，减少频繁检查
-    
+
     // 检查缓存
-    if (this.availabilityCache[cacheKey] && 
+    if (this.availabilityCache[cacheKey] &&
         (now - this.availabilityCache[cacheKey].timestamp) < CACHE_DURATION) {
       return this.availabilityCache[cacheKey].result
     }
-    
+
     // 执行检查
     const available = existsSync(executablePath)
-    
+
     // 更新缓存
     this.availabilityCache[cacheKey] = { result: available, timestamp: now }
-    
+
     // 只在首次检查或状态改变时打印日志
     const logKey = `logged_${cacheKey}`
     if (this.loggedStatus[logKey] === undefined || this.loggedStatus[logKey] !== available) {
-      console.log('Aria2 availability check:', { executablePath, available })
+      console.warn('Aria2 availability check:', { executablePath, available })
       this.loggedStatus[logKey] = available
     }
-    
+
     return available
   }
 
@@ -150,11 +150,11 @@ export class ResourceManager {
   public copyDefaultConfigIfNeeded(): boolean {
     const targetConfig = this.getConfigFilePath()  // 目标：data/aria2/aria2.conf
 
-    console.log('Checking config file:', { targetConfig, exists: existsSync(targetConfig) })
+    console.warn('Checking config file:', { targetConfig, exists: existsSync(targetConfig) })
 
     // 如果目标配置文件已存在，不覆盖
     if (existsSync(targetConfig)) {
-      console.log('Config file already exists:', targetConfig)
+      console.warn('Config file already exists:', targetConfig)
       return true
     }
 
@@ -164,7 +164,7 @@ export class ResourceManager {
       if (existsSync(sourceConfig)) {
         try {
           copyFileSync(sourceConfig, targetConfig)
-          console.log('Copied default config file:', sourceConfig, '→', targetConfig)
+          console.warn('Copied default config file:', sourceConfig, '→', targetConfig)
           return true
         } catch (error) {
           console.error('Failed to copy default config file:', error)
@@ -178,7 +178,7 @@ export class ResourceManager {
       const defaultConfig = this.generateDefaultConfig()
       const fs = require('fs')
       fs.writeFileSync(targetConfig, defaultConfig, 'utf8')
-      console.log('Created default config file:', targetConfig)
+      console.warn('Created default config file:', targetConfig)
       return true
     } catch (error) {
       console.error('Failed to create default config file:', error)
@@ -321,11 +321,11 @@ bt-save-metadata=true
   public copyDefaultSessionIfNeeded(): boolean {
     const targetSession = this.getSessionFilePath()
 
-    console.log('Checking session file path:', { targetSession, exists: existsSync(targetSession) })
+    console.warn('Checking session file path:', { targetSession, exists: existsSync(targetSession) })
 
     // 如果目标会话文件已存在，不覆盖
     if (existsSync(targetSession)) {
-      console.log('Session file already exists:', targetSession)
+      console.warn('Session file already exists:', targetSession)
       return true
     }
 
@@ -333,7 +333,7 @@ bt-save-metadata=true
     try {
       const fs = require('fs')
       fs.writeFileSync(targetSession, '', 'utf8')
-      console.log('Created empty session file:', targetSession)
+      console.warn('Created empty session file:', targetSession)
       return true
     } catch (error) {
       console.error('Failed to create session file:', error)
@@ -349,16 +349,16 @@ bt-save-metadata=true
     configPath: string
     sessionPath: string
     isAria2Available: boolean
-  } {
-    console.log('Initializing Aria2 resources...')
-    
+    } {
+    console.warn('Initializing Aria2 resources...')
+
     // 确保用户数据目录存在
     this.ensureUserDataDir()
-    
+
     // 复制默认文件
     this.copyDefaultConfigIfNeeded()
     this.copyDefaultSessionIfNeeded()
-    
+
     const result = {
       executablePath: this.getAria2ExecutablePath(),
       configPath: this.getConfigFilePath(),
@@ -366,7 +366,7 @@ bt-save-metadata=true
       isAria2Available: this.isAria2Available()
     }
 
-    console.log('Resource initialization result:', result)
+    console.warn('Resource initialization result:', result)
     return result
   }
 
@@ -377,7 +377,7 @@ bt-save-metadata=true
     resourcesPath: string
     userDataPath: string
     isPackaged: boolean
-  } {
+    } {
     return {
       resourcesPath: this.resourcesPath,
       userDataPath: this.userDataPath,

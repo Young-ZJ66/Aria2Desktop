@@ -7,11 +7,11 @@ const electronAPI = {
 
   // 数据存储
   getStoreValue: (key: string) => ipcRenderer.invoke('get-store-value', key),
-  setStoreValue: (key: string, value: any) => ipcRenderer.invoke('set-store-value', key, value),
+  setStoreValue: (key: string, value: unknown) => ipcRenderer.invoke('set-store-value', key, value),
 
   // 文件对话框
-  showSaveDialog: (options: any) => ipcRenderer.invoke('show-save-dialog', options),
-  showOpenDialog: (options: any) => ipcRenderer.invoke('show-open-dialog', options),
+  showSaveDialog: (options: unknown) => ipcRenderer.invoke('show-save-dialog', options),
+  showOpenDialog: (options: unknown) => ipcRenderer.invoke('show-open-dialog', options),
 
   // 文件系统操作
   showItemInFolder: (path: string) => ipcRenderer.invoke('show-item-in-folder', path),
@@ -30,7 +30,7 @@ const electronAPI = {
     stop: () => ipcRenderer.invoke('aria2-stop'),
     restart: () => ipcRenderer.invoke('aria2-restart'),
     getStatus: () => ipcRenderer.invoke('aria2-status'),
-    updateConfig: (config: any) => ipcRenderer.invoke('aria2-update-config', config)
+    updateConfig: (config: unknown) => ipcRenderer.invoke('aria2-update-config', config)
   },
 
   // 会话管理
@@ -45,12 +45,12 @@ const electronAPI = {
   close: () => ipcRenderer.send('window-close'),
 
   // 配置热重载
-  onConfigChanged: (callback: (data: { key: string; value: any }) => void) => {
+  onConfigChanged: (callback: (data: { key: string; value: unknown }) => void) => {
     ipcRenderer.on('config:changed', (_event, data) => callback(data))
   },
 
   // 通用消息发送
-  send: (channel: string, ...args: any[]) => {
+  send: (channel: string, ...args: unknown[]) => {
     ipcRenderer.send(channel, ...args)
   }
 }

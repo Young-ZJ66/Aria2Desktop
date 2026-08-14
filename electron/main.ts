@@ -84,7 +84,7 @@ if (!gotTheLock) {
   })
 
   app.on('window-all-closed', () => {
-    const settings = store.get('settings', {}) as any
+    const settings = store.get('settings', {}) as unknown
     const minimizeToTray = settings.minimizeToTray !== false
     const platform = process.platform
 
@@ -105,10 +105,10 @@ if (!gotTheLock) {
   })
 
   app.on('before-quit', async (e) => {
-    if ((app as any).isQuiting) return
+    if ((app as unknown).isQuiting) return
 
     e.preventDefault();
-    (app as any).isQuiting = true
+    (app as unknown).isQuiting = true
 
     console.log('App quitting, starting graceful shutdown...')
 
@@ -124,7 +124,7 @@ if (!gotTheLock) {
 
   // 处理信号
   process.on('SIGINT', () => {
-    (app as any).isQuiting = true
+    (app as unknown).isQuiting = true
     app.quit()
   })
 }

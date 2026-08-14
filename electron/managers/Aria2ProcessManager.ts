@@ -1,7 +1,6 @@
 import { spawn, ChildProcess } from 'child_process'
-import { join } from 'path'
 import * as path from 'path'
-import { existsSync, mkdirSync } from 'fs'
+import { existsSync } from 'fs'
 import { app } from 'electron'
 import { ResourceManager } from '../utils/resourceManager'
 import { Aria2ConfigManager } from '../utils/aria2ConfigManager'
@@ -39,13 +38,13 @@ export class Aria2ProcessManager {
   private normalizeConfig(config: Partial<Aria2ProcessConfig>): Required<Aria2ProcessConfig> {
     // 初始化资源管理器
     const resources = this.resourceManager.initializeResources()
-    
+
     return {
       executablePath: config.executablePath || resources.executablePath,
       configPath: config.configPath || resources.configPath,
       port: config.port || 6800,
       secret: config.secret || '', // 默认不启用密钥
-      downloadDir: config.downloadDir || 'D:/Downloads/Aria2Downloads',
+      downloadDir: config.downloadDir || path.join(app.getPath('downloads'), 'Aria2Downloads'),
       enableRpc: config.enableRpc ?? true,
       rpcAllowOriginAll: config.rpcAllowOriginAll ?? true,
       autoStart: config.autoStart ?? true
@@ -61,17 +60,17 @@ export class Aria2ProcessManager {
     const sessionPath = this.resourceManager.getSessionFilePath().replace(/\\/g, '/')
     const currentInputFile = this.configManager.getConfigValue('input-file')
     const currentSaveSession = this.configManager.getConfigValue('save-session')
-    
+
     if (!currentInputFile) {
       console.log('设置会话输入文件路径:', sessionPath)
       this.configManager.setConfigValue('input-file', sessionPath)
     }
-    
+
     if (!currentSaveSession) {
       console.log('设置会话保存文件路径:', sessionPath)
       this.configManager.setConfigValue('save-session', sessionPath)
     }
-    
+
     // 不再验证或修改下载目录，完全交给Aria2处理
     console.log('下载目录配置交给Aria2处理，不做任何修改')
   }
@@ -146,7 +145,7 @@ export class Aria2ProcessManager {
 
     } catch (error) {
       console.error('启动 Aria2 失败:', error)
-      
+
       // 提供更详细的错误信息
       if (error instanceof Error) {
         if (error.message.includes('ENOENT')) {
@@ -163,7 +162,7 @@ export class Aria2ProcessManager {
           console.error('错误原因:', error.message)
         }
       }
-      
+
       this.process = null
       return false
     } finally {
@@ -179,8 +178,8 @@ export class Aria2ProcessManager {
       // 只输出有意义的内容，过滤空行和重复信息
       if (output && !output.match(/^\s*$/)) {
         // 过滤不重要的日志和RPC相关输出
-        if (!output.includes('Serialized session') && 
-            !output.includes('[INFO]') && 
+        if (!output.includes('Serialized session') &&
+            !output.includes('[INFO]') &&
             !output.includes('[DEBUG]') &&
             !output.includes('Executing RPC method') &&
             !output.includes('RPC: Accepted the connection') &&
@@ -222,7 +221,7 @@ export class Aria2ProcessManager {
     if (this.config.autoStart && this.retryCount < this.maxRetries) {
       this.retryCount++
       console.log(`Aria2 进程异常退出，${3}秒后尝试第${this.retryCount}次重启`)
-      
+
       this.restartTimer = setTimeout(() => {
         this.start().catch(error => {
           console.error(`第${this.retryCount}次重启失败:`, error)
@@ -246,10 +245,10 @@ export class Aria2ProcessManager {
 
     try {
       console.log('正在停止 Aria2 进程...')
-      
+
       // 优雅关闭
       this.process.kill('SIGTERM')
-      
+
       // 等待进程退出 - 确保完全退出
       await new Promise<void>((resolve) => {
         const timeout = setTimeout(() => {
@@ -284,30 +283,30 @@ export class Aria2ProcessManager {
     // 直接读取配置文件中的值
     this.configManager = new Aria2ConfigManager(this.config.configPath)
     const actualConfigs = this.configManager.getRelevantConfigs()
-    
+
     const result = {
       ...this.config,
       // 直接使用配置文件中的值
-      downloadDir: actualConfigs.dir || '',  
+      downloadDir: actualConfigs.dir || '',
       port: actualConfigs.port ? parseInt(actualConfigs.port) : this.config.port,
       secret: actualConfigs.secret || ''
     }
-    
+
     return result
   }
 
   public updateConfig(newConfig: Partial<Aria2ProcessConfig>): void {
     const oldConfig = { ...this.config }
     this.config = { ...this.config, ...newConfig }
-    
+
     // 直接修改配置文件中的相关配置项
     try {
       const configUpdates: Record<string, string | number> = {}
-      
+
       if (newConfig.port !== undefined) {
         configUpdates['rpc-listen-port'] = newConfig.port
       }
-      
+
       if (newConfig.secret !== undefined) {
         if (newConfig.secret && newConfig.secret.trim() !== '') {
           configUpdates['rpc-secret'] = newConfig.secret
@@ -316,14 +315,12 @@ export class Aria2ProcessManager {
           this.configManager.setConfigValue('#rpc-secret', '')
         }
       }
-      
+
       if (newConfig.downloadDir !== undefined && newConfig.downloadDir.trim() !== '') {
         // 简化下载目录验证，只做基本检查
         const downloadDir = newConfig.downloadDir.trim().replace(/\\/g, '/')
-        
+
         try {
-          const fs = require('fs')
-          
           // 只检查路径格式是否合理，不强制创建目录
           if (downloadDir && downloadDir.length > 0) {
             configUpdates['dir'] = downloadDir
@@ -335,7 +332,7 @@ export class Aria2ProcessManager {
           configUpdates['dir'] = downloadDir
         }
       }
-      
+
       if (Object.keys(configUpdates).length > 0) {
         this.configManager.setMultipleConfigs(configUpdates)
       }
@@ -365,11 +362,11 @@ export class Aria2ProcessManager {
   private async waitForConfigFileSync(): Promise<void> {
     // 等待文件系统同步
     await new Promise(resolve => setTimeout(resolve, 800))
-    
+
     // 验证配置文件是否可读
     let attempts = 0
     const maxAttempts = 5
-    
+
     while (attempts < maxAttempts) {
       try {
         // 尝试重新加载配置管理器以验证文件完整性
@@ -377,12 +374,12 @@ export class Aria2ProcessManager {
         break
       } catch (error) {
         attempts++
-        
+
         if (attempts >= maxAttempts) {
           console.error('配置文件同步验证失败:', error)
           throw new Error('配置文件同步验证失败')
         }
-        
+
         await new Promise(resolve => setTimeout(resolve, 200))
       }
     }
@@ -406,7 +403,7 @@ export class Aria2ProcessManager {
     }
 
     console.log('开始重启 Aria2 进程...')
-    
+
     try {
       // 先停止进程
       const stopSuccess = await this.stop()
@@ -416,7 +413,7 @@ export class Aria2ProcessManager {
 
       // 等待进程完全清理
       await this.waitForProcessCleanup()
-      
+
       // 额外等待确保端口完全释放
       console.log('等待端口完全释放...')
       await new Promise(resolve => setTimeout(resolve, 2000))
@@ -439,17 +436,17 @@ export class Aria2ProcessManager {
     // 等待进程完全退出
     let attempts = 0
     const maxAttempts = 20 // 增加到20次
-    
+
     while (attempts < maxAttempts) {
       // 检查进程是否还在运行
       if (!this.isRunning()) {
         break
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 500))
       attempts++
     }
-    
+
     // 额外等待确保端口释放
     await new Promise(resolve => setTimeout(resolve, 1500)) // 增加到1.5秒
   }
