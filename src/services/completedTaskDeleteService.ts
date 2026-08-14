@@ -7,6 +7,13 @@ import type { Aria2Task } from '@/types/aria2'
 import { taskPersistenceService } from './taskPersistenceService'
 import { taskTimeService } from './taskTimeService'
 
+/** 文件删除单项结果 */
+interface FileDeleteItemResult {
+  success: boolean
+  path: string
+  error?: string
+}
+
 export interface DeleteResult {
   success: boolean
   taskId: string
@@ -32,7 +39,7 @@ class CompletedTaskDeleteService {
   getTaskFilePaths(task: Aria2Task): string[] {
     const filePaths: string[] = []
 
-    console.log(`Getting file paths for task ${task.gid}:`, {
+    console.warn(`Getting file paths for task ${task.gid}:`, {
       status: task.status,
       dir: task.dir,
       files: task.files,
@@ -41,7 +48,7 @@ class CompletedTaskDeleteService {
 
     if (task.files && task.files.length > 0) {
       task.files.forEach((file, index) => {
-        console.log(`  File ${index}:`, {
+        console.warn(`  File ${index}:`, {
           path: file.path,
           selected: file.selected,
           length: file.length,
@@ -52,25 +59,25 @@ class CompletedTaskDeleteService {
           let fullPath = file.path.trim()
           const isAbsolute = this.isAbsolutePath(fullPath)
 
-          console.log(`    Original file path: "${fullPath}"`)
-          console.log(`    Is absolute path: ${isAbsolute}`)
-          console.log(`    Task dir: "${task.dir}"`)
+          console.warn(`    Original file path: "${fullPath}"`)
+          console.warn(`    Is absolute path: ${isAbsolute}`)
+          console.warn(`    Task dir: "${task.dir}"`)
 
           // 如果路径不是绝对路径，尝试与下载目录组合
           if (!isAbsolute && task.dir) {
             const originalPath = fullPath
             fullPath = this.joinPath(task.dir, fullPath)
-            console.log(`    Combined path: "${originalPath}" + "${task.dir}" = "${fullPath}"`)
+            console.warn(`    Combined path: "${originalPath}" + "${task.dir}" = "${fullPath}"`)
           } else if (isAbsolute) {
-            console.log(`    Using absolute path as-is: "${fullPath}"`)
+            console.warn(`    Using absolute path as-is: "${fullPath}"`)
           } else {
-            console.log(`    No task.dir available, using path as-is: "${fullPath}"`)
+            console.warn(`    No task.dir available, using path as-is: "${fullPath}"`)
           }
 
           // 规范化路径，处理可能的重复目录问题
           const normalizedPath = this.normalizePath(fullPath)
           filePaths.push(normalizedPath)
-          console.log(`    Final file path: "${normalizedPath}"`)
+          console.warn(`    Final file path: "${normalizedPath}"`)
         }
       })
     }
@@ -84,11 +91,11 @@ class CompletedTaskDeleteService {
 
     // 如果没有找到文件，尝试从下载目录推断
     if (filePaths.length === 0 && task.dir) {
-      console.log(`No files found in task.files, checking download directory: ${task.dir}`)
+      console.warn(`No files found in task.files, checking download directory: ${task.dir}`)
       // 这里可以添加从下载目录推断文件的逻辑
     }
 
-    console.log(`Final file paths for task ${task.gid} (including .aria2 files):`, allFiles)
+    console.warn(`Final file paths for task ${task.gid} (including .aria2 files):`, allFiles)
     return allFiles
   }
 
@@ -98,7 +105,7 @@ class CompletedTaskDeleteService {
   private isAbsolutePath(path: string): boolean {
     // Windows: C:\ 或 D:\ 等盘符开头，或 \\ 网络路径
     // Unix: / 开头
-    return /^([a-zA-Z]:[\\\/]|\\\\|\/)/i.test(path)
+    return /^([a-zA-Z]:[\\/]|\\\\|\/)/i.test(path)
   }
 
   /**
@@ -116,17 +123,17 @@ class CompletedTaskDeleteService {
     // 将所有斜杠统一为反斜杠（Windows）或正斜杠（Unix）
     const isWindows = path.includes('\\') || /^[a-zA-Z]:/.test(path)
     const separator = isWindows ? '\\' : '/'
-    const normalizedPath = path.replace(/[\\\/]+/g, separator)
+    const normalizedPath = path.replace(/[\\/]+/g, separator)
 
     // 检查是否有重复的目录路径
     if (isWindows) {
       // Windows 路径：检查是否有重复的盘符路径
-      const match = normalizedPath.match(/^([a-zA-Z]:[\\\/][^\\\/]+)[\\\/]\1(.*)$/i)
+      const match = normalizedPath.match(/^([a-zA-Z]:[\\/][^\\/]+)[\\/]\1(.*)$/i)
       if (match) {
         const duplicatedPart = match[1]
         const remainingPart = match[2]
         const correctedPath = duplicatedPart + (remainingPart ? separator + remainingPart : '')
-        console.log(`    Detected duplicate path: "${normalizedPath}" -> "${correctedPath}"`)
+        console.warn(`    Detected duplicate path: "${normalizedPath}" -> "${correctedPath}"`)
         return correctedPath
       }
     }
@@ -170,7 +177,7 @@ class CompletedTaskDeleteService {
       errors: []
     }
 
-    console.log(`Deleting completed task ${task.gid} (${taskName}), deleteFiles: ${deleteFiles}`)
+    console.warn(`Deleting completed task ${task.gid} (${taskName}), deleteFiles: ${deleteFiles}`)
 
     try {
       // 如果需要删除文件
@@ -178,19 +185,19 @@ class CompletedTaskDeleteService {
         const filePaths = this.getTaskFilePaths(task)
 
         if (filePaths.length > 0) {
-          console.log(`Attempting to delete ${filePaths.length} files for task ${task.gid}`)
+          console.warn(`Attempting to delete ${filePaths.length} files for task ${task.gid}`)
 
           try {
             const deleteResult = await window.electronAPI.deleteFiles(filePaths)
-            console.log(`File deletion result for task ${task.gid}:`, deleteResult)
+            console.warn(`File deletion result for task ${task.gid}:`, deleteResult)
 
             if (deleteResult.success && deleteResult.results) {
-              const successfulDeletes = deleteResult.results.filter((r: any) => r.success)
+              const successfulDeletes = deleteResult.results.filter((r: FileDeleteItemResult) => r.success)
               result.filesDeleted = successfulDeletes.length
 
-              const failedDeletes = deleteResult.results.filter((r: any) => !r.success)
+              const failedDeletes = deleteResult.results.filter((r: FileDeleteItemResult) => !r.success)
               if (failedDeletes.length > 0) {
-                failedDeletes.forEach((failed: any) => {
+                failedDeletes.forEach((failed: FileDeleteItemResult) => {
                   result.errors.push(`删除文件失败: ${failed.path} - ${failed.error}`)
                 })
               }
@@ -203,7 +210,7 @@ class CompletedTaskDeleteService {
             console.error(errorMsg, error)
           }
         } else {
-          console.log(`Task ${task.gid} has no files to delete`)
+          console.warn(`Task ${task.gid} has no files to delete`)
         }
       }
 
@@ -216,40 +223,40 @@ class CompletedTaskDeleteService {
           const connectionStore = useConnectionStore()
 
           if (connectionStore.service && connectionStore.isConnected) {
-            console.log(`Attempting to remove task ${task.gid} from Aria2`)
+            console.warn(`Attempting to remove task ${task.gid} from Aria2`)
 
             // 先尝试从下载结果中删除（适用于已完成的任务）
             try {
               await connectionStore.service.removeDownloadResult(task.gid)
-              console.log(`Successfully removed task ${task.gid} from Aria2 download results`)
+              console.warn(`Successfully removed task ${task.gid} from Aria2 download results`)
             } catch (resultError) {
               // 如果从下载结果删除失败，尝试常规删除
-              console.log(`Failed to remove from download results, trying regular remove:`, resultError)
+              console.warn(`Failed to remove from download results, trying regular remove:`, resultError)
               try {
                 await connectionStore.service.remove(task.gid)
-                console.log(`Successfully removed task ${task.gid} from Aria2 (regular remove)`)
+                console.warn(`Successfully removed task ${task.gid} from Aria2 (regular remove)`)
               } catch (removeError) {
-                console.log(`Failed to remove task ${task.gid} from Aria2 (may not exist):`, removeError)
+                console.warn(`Failed to remove task ${task.gid} from Aria2 (may not exist):`, removeError)
               }
             }
           } else {
-            console.log(`Aria2 not connected, skipping Aria2 deletion for task ${task.gid}`)
+            console.warn(`Aria2 not connected, skipping Aria2 deletion for task ${task.gid}`)
           }
         } catch (aria2Error) {
           // Aria2 删除失败不影响整体删除流程，可能任务已经不在 Aria2 中了
-          console.log(`Failed to remove task ${task.gid} from Aria2:`, aria2Error)
+          console.warn(`Failed to remove task ${task.gid} from Aria2:`, aria2Error)
         }
 
         // 2. 从持久化存储中删除
         taskPersistenceService.removePersistedTask(task.gid)
-        console.log(`Removed task ${task.gid} from persistence storage`)
+        console.warn(`Removed task ${task.gid} from persistence storage`)
 
         // 3. 从时间记录中删除
         taskTimeService.removeTaskTime(task.gid)
-        console.log(`Removed task ${task.gid} time record`)
+        console.warn(`Removed task ${task.gid} time record`)
 
         result.success = true
-        console.log(`Successfully deleted task record for ${task.gid}`)
+        console.warn(`Successfully deleted task record for ${task.gid}`)
       } catch (error) {
         const errorMsg = `删除任务记录失败: ${error instanceof Error ? error.message : String(error)}`
         result.errors.push(errorMsg)
@@ -272,7 +279,7 @@ class CompletedTaskDeleteService {
     tasks: Aria2Task[],
     deleteFiles: boolean = false
   ): Promise<BatchDeleteResult> {
-    console.log(`Batch deleting ${tasks.length} completed tasks, deleteFiles: ${deleteFiles}`)
+    console.warn(`Batch deleting ${tasks.length} completed tasks, deleteFiles: ${deleteFiles}`)
 
     const batchResult: BatchDeleteResult = {
       totalTasks: tasks.length,
@@ -303,7 +310,7 @@ class CompletedTaskDeleteService {
       }
     }
 
-    console.log('Batch delete completed:', batchResult)
+    console.warn('Batch delete completed:', batchResult)
     return batchResult
   }
 

@@ -109,10 +109,10 @@ export interface Aria2RpcRequest {
   jsonrpc: '2.0'
   id: string | number
   method: string
-  params?: any[]
+  params?: unknown[]
 }
 
-export interface Aria2RpcResponse<T = any> {
+export interface Aria2RpcResponse<T = unknown> {
   jsonrpc: '2.0'
   id: string | number
   result?: T
@@ -125,7 +125,7 @@ export interface Aria2RpcResponse<T = any> {
 export interface Aria2RpcNotification {
   jsonrpc: '2.0'
   method: string
-  params: any[]
+  params: unknown[]
 }
 
 // 常用的RPC方法名

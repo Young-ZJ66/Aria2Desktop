@@ -1,5 +1,4 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { join } from 'path'
 
 /**
  * Aria2 配置文件管理器
@@ -21,7 +20,7 @@ export class Aria2ConfigManager {
     if (!existsSync(this.configPath)) {
       throw new Error(`配置文件不存在: ${this.configPath}`)
     }
-    
+
     const content = readFileSync(this.configPath, 'utf-8')
     this.configContent = content.split('\n')
   }
@@ -72,7 +71,7 @@ export class Aria2ConfigManager {
     for (const [key, value] of Object.entries(configs)) {
       this.setConfigValueInMemory(key, value)
     }
-    
+
     // 一次性保存所有更改
     this.saveConfig()
   }
@@ -103,7 +102,7 @@ export class Aria2ConfigManager {
     // 查找现有的配置项
     for (let i = 0; i < this.configContent.length; i++) {
       const line = this.configContent[i].trim()
-      
+
       if (line.startsWith(`${key}=`) || line.startsWith(`#${key}=`)) {
         this.configContent[i] = configLine
         found = true
@@ -130,7 +129,7 @@ export class Aria2ConfigManager {
     consoleLogLevel: string | null
     enableRpc: string | null
     rpcAllowOriginAll: string | null
-  } {
+    } {
     const configs = {
       dir: this.getConfigValue('dir'),
       port: this.getConfigValue('rpc-listen-port'),
@@ -140,7 +139,7 @@ export class Aria2ConfigManager {
       enableRpc: this.getConfigValue('enable-rpc'),
       rpcAllowOriginAll: this.getConfigValue('rpc-allow-origin-all')
     }
-    
+
 
     return configs
   }

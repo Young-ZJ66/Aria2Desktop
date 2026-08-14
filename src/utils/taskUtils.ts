@@ -29,7 +29,7 @@ export function getTaskSize(task: Aria2Task): number {
 export function getTaskProgress(task: Aria2Task): number {
   const total = parseInt(task.totalLength)
   const completed = parseInt(task.completedLength)
-  
+
   if (total === 0) return 0
   return Math.round((completed / total) * 100)
 }
@@ -44,7 +44,7 @@ export function getTaskRemainingTime(task: Aria2Task): number {
   const total = parseInt(task.totalLength)
   const completed = parseInt(task.completedLength)
   const speed = parseInt(task.downloadSpeed)
-  
+
   if (speed === 0 || completed >= total) return 0
   return Math.round((total - completed) / speed)
 }
@@ -52,11 +52,11 @@ export function getTaskRemainingTime(task: Aria2Task): number {
 // 格式化文件大小
 export function formatSize(bytes: number): string {
   if (bytes === 0) return '0 B'
-  
+
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
@@ -68,11 +68,11 @@ export function formatSpeed(bytesPerSecond: number): string {
 // 格式化时间
 export function formatTime(seconds: number): string {
   if (seconds === 0) return '--'
-  
+
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = seconds % 60
-  
+
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   } else {
@@ -83,29 +83,29 @@ export function formatTime(seconds: number): string {
 // 搜索过滤
 export function searchTasks(tasks: Aria2Task[], searchText: string): Aria2Task[] {
   if (!searchText.trim()) return tasks
-  
+
   const text = searchText.toLowerCase()
   return tasks.filter(task => {
     const name = getTaskName(task).toLowerCase()
     const gid = task.gid.toLowerCase()
-    
+
     // 搜索文件名、GID
     if (name.includes(text) || gid.includes(text)) {
       return true
     }
-    
+
     // 搜索文件路径
     if (task.files?.some(file => file.path.toLowerCase().includes(text))) {
       return true
     }
-    
+
     // 搜索 URI
-    if (task.files?.some(file => 
+    if (task.files?.some(file =>
       file.uris?.some(uri => uri.uri.toLowerCase().includes(text))
     )) {
       return true
     }
-    
+
     return false
   })
 }
@@ -119,12 +119,12 @@ export function filterByStatus(tasks: Aria2Task[], status: string): Aria2Task[] 
 // 大小过滤
 export function filterBySize(tasks: Aria2Task[], sizeFilter: string): Aria2Task[] {
   if (!sizeFilter) return tasks
-  
+
   return tasks.filter(task => {
     const size = getTaskSize(task)
     const sizeMB = size / (1024 * 1024)
     const sizeGB = size / (1024 * 1024 * 1024)
-    
+
     switch (sizeFilter) {
       case 'small': return sizeMB < 100
       case 'medium': return sizeMB >= 100 && sizeGB < 1
@@ -138,9 +138,9 @@ export function filterBySize(tasks: Aria2Task[], sizeFilter: string): Aria2Task[
 // 任务排序
 export function sortTasks(tasks: Aria2Task[], sortBy: string, sortOrder: 'asc' | 'desc'): Aria2Task[] {
   const sorted = [...tasks].sort((a, b) => {
-    let aValue: any
-    let bValue: any
-    
+    let aValue: string | number
+    let bValue: string | number
+
     switch (sortBy) {
       case 'name':
         aValue = getTaskName(a).toLowerCase()
@@ -169,37 +169,37 @@ export function sortTasks(tasks: Aria2Task[], sortBy: string, sortOrder: 'asc' |
         bValue = b.gid
         break
     }
-    
+
     if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1
     if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1
     return 0
   })
-  
+
   return sorted
 }
 
 // 综合过滤和排序
 export function filterAndSortTasks(tasks: Aria2Task[], filters: FilterOptions): Aria2Task[] {
   let result = tasks
-  
+
   // 应用搜索过滤
   if (filters.searchText) {
     result = searchTasks(result, filters.searchText)
   }
-  
+
   // 应用状态过滤
   if (filters.statusFilter) {
     result = filterByStatus(result, filters.statusFilter)
   }
-  
+
   // 应用大小过滤
   if (filters.sizeFilter) {
     result = filterBySize(result, filters.sizeFilter)
   }
-  
+
   // 应用排序
   result = sortTasks(result, filters.sortBy, filters.sortOrder)
-  
+
   return result
 }
 
@@ -216,7 +216,7 @@ export function getTaskStats(tasks: Aria2Task[]) {
     completedSize: 0,
     totalSpeed: 0
   }
-  
+
   tasks.forEach(task => {
     switch (task.status) {
       case 'active':
@@ -235,11 +235,11 @@ export function getTaskStats(tasks: Aria2Task[]) {
         stats.error++
         break
     }
-    
+
     stats.totalSize += getTaskSize(task)
     stats.completedSize += parseInt(task.completedLength)
     stats.totalSpeed += getTaskSpeed(task)
   })
-  
+
   return stats
 }

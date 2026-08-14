@@ -28,7 +28,7 @@ class TaskPersistenceService {
       if (stored) {
         const data = JSON.parse(stored)
         this.persistedTasks = new Map(Object.entries(data))
-        console.log(`Loaded ${this.persistedTasks.size} persisted tasks from storage`)
+        console.warn(`Loaded ${this.persistedTasks.size} persisted tasks from storage`)
       }
     } catch (error) {
       console.error('Failed to load persisted tasks from storage:', error)
@@ -55,7 +55,7 @@ class TaskPersistenceService {
 
     // 如果任务已经持久化，不要覆盖完成时间
     if (existing) {
-      console.log(`Task ${task.gid} already persisted, skipping update`)
+      console.warn(`Task ${task.gid} already persisted, skipping update`)
       return
     }
 
@@ -73,7 +73,7 @@ class TaskPersistenceService {
     }
 
     this.saveToStorage()
-    console.log(`Persisted completed task: ${task.gid} at ${new Date(persistedTask.completedAt!)}`)
+    console.warn(`Persisted completed task: ${task.gid} at ${new Date(persistedTask.completedAt!)}`)
   }
 
   /**
@@ -103,7 +103,7 @@ class TaskPersistenceService {
   removePersistedTask(gid: string) {
     this.persistedTasks.delete(gid)
     this.saveToStorage()
-    console.log(`Removed persisted task: ${gid}`)
+    console.warn(`Removed persisted task: ${gid}`)
   }
 
   /**
@@ -112,7 +112,7 @@ class TaskPersistenceService {
   removePersistedTasks(gids: string[]) {
     gids.forEach(gid => this.persistedTasks.delete(gid))
     this.saveToStorage()
-    console.log(`Removed ${gids.length} persisted tasks`)
+    console.warn(`Removed ${gids.length} persisted tasks`)
   }
 
   /**
@@ -120,18 +120,18 @@ class TaskPersistenceService {
    */
   private cleanupOldTasks() {
     const tasks = Array.from(this.persistedTasks.values())
-    
+
     // 按完成时间排序，保留最新的任务
     tasks.sort((a, b) => (b.completedAt || b.persistedAt) - (a.completedAt || a.persistedAt))
-    
+
     // 删除超出限制的任务
     const tasksToRemove = tasks.slice(this.MAX_TASKS)
     tasksToRemove.forEach(task => {
       this.persistedTasks.delete(task.gid)
     })
-    
+
     if (tasksToRemove.length > 0) {
-      console.log(`Cleaned up ${tasksToRemove.length} old persisted tasks`)
+      console.warn(`Cleaned up ${tasksToRemove.length} old persisted tasks`)
     }
   }
 
@@ -141,7 +141,7 @@ class TaskPersistenceService {
   cleanupExpiredTasks(days: number = 30) {
     const expireTime = Date.now() - (days * 24 * 60 * 60 * 1000)
     let cleaned = 0
-    
+
     for (const [gid, task] of this.persistedTasks.entries()) {
       const taskTime = task.completedAt || task.persistedAt
       if (taskTime < expireTime) {
@@ -149,10 +149,10 @@ class TaskPersistenceService {
         cleaned++
       }
     }
-    
+
     if (cleaned > 0) {
       this.saveToStorage()
-      console.log(`Cleaned up ${cleaned} expired persisted tasks`)
+      console.warn(`Cleaned up ${cleaned} expired persisted tasks`)
     }
   }
 
@@ -201,7 +201,7 @@ class TaskPersistenceService {
   clearAllPersistedTasks() {
     this.persistedTasks.clear()
     localStorage.removeItem(this.STORAGE_KEY)
-    console.log('Cleared all persisted tasks')
+    console.warn('Cleared all persisted tasks')
   }
 }
 

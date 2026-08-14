@@ -6,7 +6,7 @@ export interface AppSettings {
   refreshInterval: number
   autoConnect: boolean
   minimizeToTray: boolean
-  
+
   // 连接设置
   aria2: {
     host: string
@@ -15,7 +15,7 @@ export interface AppSettings {
     secret: string
     path: string
   }
-  
+
   // 界面设置
   ui: {
     showStatusBar: boolean
@@ -23,7 +23,7 @@ export interface AppSettings {
     taskListColumns: string[]
     defaultView: 'downloading' | 'waiting' | 'stopped'
   }
-  
+
   // 下载设置
   download: {
     defaultDir: string
@@ -40,7 +40,7 @@ export const defaultSettings: AppSettings = {
   refreshInterval: 1000,
   autoConnect: true,
   minimizeToTray: true,
-  
+
   aria2: {
     host: 'localhost',
     port: 6800,
@@ -48,14 +48,14 @@ export const defaultSettings: AppSettings = {
     secret: '',
     path: '/jsonrpc'
   },
-  
+
   ui: {
     showStatusBar: true,
     showToolbar: true,
     taskListColumns: ['name', 'size', 'progress', 'status', 'speed'],
     defaultView: 'downloading'
   },
-  
+
   download: {
     defaultDir: '',
     maxConcurrentDownloads: 5,
@@ -98,7 +98,7 @@ class SettingsService {
   }
 
   // 创建纯 JavaScript 对象，移除 Vue 响应式属性
-  private toPlainObject(obj: any): any {
+  private toPlainObject(obj: unknown): unknown {
     return JSON.parse(JSON.stringify(obj))
   }
 
@@ -136,7 +136,7 @@ class SettingsService {
 
   // 更新特定设置
   async updateSetting<K extends keyof AppSettings>(
-    key: K, 
+    key: K,
     value: AppSettings[K]
   ): Promise<void> {
     await this.saveSettings({ [key]: value } as Partial<AppSettings>)

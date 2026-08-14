@@ -7,14 +7,13 @@ export class SessionManager {
   private saveQueue = new Set<string>()
   private saveTimer: NodeJS.Timeout | null = null
   private isSaving = false
-  private forceMode = false
 
   /**
    * 立即保存会话
    */
   async saveSessionImmediate(): Promise<boolean> {
     if (this.isSaving) {
-      console.log('Session save already in progress, skipping...')
+      console.warn('Session save already in progress, skipping...')
       return false
     }
 
@@ -27,7 +26,7 @@ export class SessionManager {
       }
 
       const result = await window.electronAPI.saveSession()
-      console.log('Session saved immediately:', result)
+      console.warn('Session saved immediately:', result)
       return true
     } catch (error) {
       console.error('Failed to save session immediately:', error)
@@ -56,7 +55,7 @@ export class SessionManager {
    */
   markTaskForSave(gid: string): void {
     this.saveQueue.add(gid)
-    
+
     // 短延迟保存，确保新任务快速持久化
     this.saveSessionDebounced(500)
   }
@@ -69,13 +68,13 @@ export class SessionManager {
       return true
     }
 
-    console.log(`Batch saving ${this.saveQueue.size} tasks`)
+    console.warn(`Batch saving ${this.saveQueue.size} tasks`)
     const success = await this.saveSessionImmediate()
-    
+
     if (success) {
       this.saveQueue.clear()
     }
-    
+
     return success
   }
 
@@ -83,14 +82,12 @@ export class SessionManager {
    * 强制保存模式 - 应用退出时使用
    */
   async forceExit(): Promise<boolean> {
-    this.forceMode = true
-    
     // 清除延迟保存定时器
     if (this.saveTimer) {
       clearTimeout(this.saveTimer)
       this.saveTimer = null
     }
-    
+
     // 执行最终保存
     return await this.saveSessionImmediate()
   }

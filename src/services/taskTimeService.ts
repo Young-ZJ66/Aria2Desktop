@@ -51,16 +51,16 @@ class TaskTimeService {
   recordTaskAdd(gid: string, fileName?: string) {
     const now = Date.now()
     const existing = this.taskTimes.get(gid)
-    
+
     this.taskTimes.set(gid, {
       gid,
       addTime: existing?.addTime || now, // 如果已存在，保持原有的添加时间
       completeTime: existing?.completeTime,
       fileName: fileName || existing?.fileName
     })
-    
+
     this.saveToStorage()
-    console.log(`Recorded add time for task ${gid}:`, new Date(now))
+    console.warn(`Recorded add time for task ${gid}:`, new Date(now))
   }
 
   /**
@@ -71,7 +71,7 @@ class TaskTimeService {
 
     // 如果已经有完成时间，不要覆盖
     if (existing?.completeTime) {
-      console.log(`Task ${gid} already has complete time, skipping update`)
+      console.warn(`Task ${gid} already has complete time, skipping update`)
       return
     }
 
@@ -85,7 +85,7 @@ class TaskTimeService {
     })
 
     this.saveToStorage()
-    console.log(`Recorded complete time for task ${gid}:`, new Date(now))
+    console.warn(`Recorded complete time for task ${gid}:`, new Date(now))
   }
 
   /**
@@ -123,7 +123,7 @@ class TaskTimeService {
   cleanupOldRecords() {
     const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000)
     let cleaned = 0
-    
+
     for (const [gid, record] of this.taskTimes.entries()) {
       const recordTime = record.completeTime || record.addTime
       if (recordTime < thirtyDaysAgo) {
@@ -131,10 +131,10 @@ class TaskTimeService {
         cleaned++
       }
     }
-    
+
     if (cleaned > 0) {
       this.saveToStorage()
-      console.log(`Cleaned up ${cleaned} old task time records`)
+      console.warn(`Cleaned up ${cleaned} old task time records`)
     }
   }
 

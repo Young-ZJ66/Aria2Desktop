@@ -48,7 +48,7 @@ export class Aria2Service {
 
   // 添加URI下载
   async addUri(uris: string[], options?: Aria2Option, position?: number): Promise<string> {
-    const params: any[] = [uris]
+    const params: unknown[] = [uris]
     if (options && Object.keys(options).length > 0) {
       params.push(options)
     } else {
@@ -56,26 +56,26 @@ export class Aria2Service {
     }
     if (position !== undefined) params.push(position)
 
-    console.log('Adding URI with params:', params)
+    console.warn('Adding URI with params:', params)
     return this.client.call<string>(Aria2Methods.ADD_URI, params)
   }
 
   // 添加种子下载
   async addTorrent(torrent: string, uris?: string[], options?: Aria2Option, position?: number): Promise<string> {
-    const params = [torrent]
+    const params: unknown[] = [torrent]
     if (uris) params.push(uris)
     if (options) params.push(options)
     if (position !== undefined) params.push(position)
-    
+
     return this.client.call<string>(Aria2Methods.ADD_TORRENT, params)
   }
 
   // 添加Metalink下载
   async addMetalink(metalink: string, options?: Aria2Option, position?: number): Promise<string[]> {
-    const params = [metalink]
+    const params: unknown[] = [metalink]
     if (options) params.push(options)
     if (position !== undefined) params.push(position)
-    
+
     return this.client.call<string[]>(Aria2Methods.ADD_METALINK, params)
   }
 
@@ -123,9 +123,9 @@ export class Aria2Service {
 
   // 获取任务状态
   async tellStatus(gid: string, keys?: string[]): Promise<Aria2Task> {
-    const params = [gid]
+    const params: unknown[] = [gid]
     if (keys) params.push(keys)
-    
+
     return this.client.call<Aria2Task>(Aria2Methods.TELL_STATUS, params)
   }
 
@@ -137,15 +137,15 @@ export class Aria2Service {
 
   // 获取等待任务列表
   async tellWaiting(offset: number, num: number, keys?: string[]): Promise<Aria2Task[]> {
-    const params = [offset, num]
+    const params: unknown[] = [offset, num]
     if (keys) params.push(keys)
-    
+
     return this.client.call<Aria2Task[]>(Aria2Methods.TELL_WAITING, params)
   }
 
   // 获取已停止任务列表
   async tellStopped(offset: number, num: number, keys?: string[]): Promise<Aria2Task[]> {
-    const params = [offset, num]
+    const params: unknown[] = [offset, num]
     // 如果没有指定字段，获取所有可能的字段包括时间信息
     if (keys) {
       params.push(keys)
@@ -170,8 +170,8 @@ export class Aria2Service {
   }
 
   // 获取任务URI列表
-  async getUris(gid: string): Promise<any[]> {
-    return this.client.call<any[]>(Aria2Methods.GET_URIS, [gid])
+  async getUris(gid: string): Promise<unknown[]> {
+    return this.client.call<unknown[]>(Aria2Methods.GET_URIS, [gid])
   }
 
   // 获取任务Peer列表
@@ -257,7 +257,7 @@ export class Aria2Service {
   // === 批量操作 ===
 
   // 多重调用
-  async multicall(calls: Array<{ methodName: string; params: any[] }>): Promise<any[]> {
-    return this.client.call<any[]>(Aria2Methods.MULTICALL, [calls])
+  async multicall(calls: Array<{ methodName: string; params: unknown[] }>): Promise<unknown[]> {
+    return this.client.call<unknown[]>(Aria2Methods.MULTICALL, [calls])
   }
 }

@@ -3,12 +3,7 @@ import type {
   Aria2Config,
   Aria2RpcRequest,
   Aria2RpcResponse,
-  Aria2RpcNotification,
-  Aria2Task,
-  Aria2GlobalStat,
-  Aria2Version,
-  Aria2Option,
-  Aria2Methods
+  Aria2RpcNotification
 } from '@/types/aria2'
 
 export class Aria2Client {
@@ -17,8 +12,8 @@ export class Aria2Client {
   private wsClient: WebSocket | null = null
   private requestId = 0
   private pendingRequests = new Map<string | number, {
-    resolve: (value: any) => void
-    reject: (reason: any) => void
+    resolve: (value: unknown) => void
+    reject: (reason: unknown) => void
   }>()
   private eventListeners = new Map<string, Function[]>()
 
@@ -29,7 +24,7 @@ export class Aria2Client {
 
   private createHttpClient(): AxiosInstance {
     const baseURL = `${this.config.protocol}://${this.config.host}:${this.config.port}${this.config.path || '/jsonrpc'}`
-    
+
     return axios.create({
       baseURL,
       timeout: 10000,
@@ -43,7 +38,7 @@ export class Aria2Client {
     return ++this.requestId
   }
 
-  private buildRpcRequest(method: string, params: any[] = []): Aria2RpcRequest {
+  private buildRpcRequest(method: string, params: unknown[] = []): Aria2RpcRequest {
     // 如果有secret，添加到参数开头
     if (this.config.secret) {
       params = [`token:${this.config.secret}`, ...params]
@@ -58,10 +53,10 @@ export class Aria2Client {
   }
 
   // HTTP RPC调用
-  async callHttp<T = any>(method: string, params: any[] = []): Promise<T> {
+  async callHttp<T = unknown>(method: string, params: unknown[] = []): Promise<T> {
     const request = this.buildRpcRequest(method, params)
 
-    console.log('Aria2 RPC Request:', {
+    console.warn('Aria2 RPC Request:', {
       method,
       params,
       url: this.httpClient.defaults.baseURL
@@ -71,7 +66,7 @@ export class Aria2Client {
       const response = await this.httpClient.post('', request)
       const rpcResponse: Aria2RpcResponse<T> = response.data
 
-      console.log('Aria2 RPC Response:', rpcResponse)
+      console.warn('Aria2 RPC Response:', rpcResponse)
 
       if (rpcResponse.error) {
         console.error('Aria2 RPC Error:', rpcResponse.error)
@@ -92,7 +87,7 @@ export class Aria2Client {
   async connectWebSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
       const wsUrl = `${this.config.protocol === 'https' ? 'wss' : 'ws'}://${this.config.host}:${this.config.port}${this.config.path || '/jsonrpc'}`
-      
+
       this.wsClient = new WebSocket(wsUrl)
 
       this.wsClient.onopen = () => {
@@ -137,7 +132,7 @@ export class Aria2Client {
     // 处理通知
     else if ('method' in data) {
       this.emit('notification', data)
-      
+
       // 处理特定的通知事件
       switch (data.method) {
         case 'aria2.onDownloadStart':
@@ -163,17 +158,17 @@ export class Aria2Client {
   }
 
   // WebSocket RPC调用
-  async callWebSocket<T = any>(method: string, params: any[] = []): Promise<T> {
+  async callWebSocket<T = unknown>(method: string, params: unknown[] = []): Promise<T> {
     if (!this.wsClient || this.wsClient.readyState !== WebSocket.OPEN) {
       throw new Error('WebSocket is not connected')
     }
 
     return new Promise((resolve, reject) => {
       const request = this.buildRpcRequest(method, params)
-      this.pendingRequests.set(request.id, { resolve, reject })
-      
+      this.pendingRequests.set(request.id, { resolve: resolve as (value: unknown) => void, reject })
+
       this.wsClient!.send(JSON.stringify(request))
-      
+
       // 设置超时
       setTimeout(() => {
         if (this.pendingRequests.has(request.id)) {
@@ -185,7 +180,7 @@ export class Aria2Client {
   }
 
   // 统一的RPC调用方法
-  async call<T = any>(method: string, params: any[] = []): Promise<T> {
+  async call<T = unknown>(method: string, params: unknown[] = []): Promise<T> {
     if (this.wsClient && this.wsClient.readyState === WebSocket.OPEN) {
       return this.callWebSocket<T>(method, params)
     } else {
@@ -211,7 +206,7 @@ export class Aria2Client {
     }
   }
 
-  private emit(event: string, ...args: any[]) {
+  private emit(event: string, ...args: unknown[]) {
     const listeners = this.eventListeners.get(event)
     if (listeners) {
       listeners.forEach(listener => listener(...args))
