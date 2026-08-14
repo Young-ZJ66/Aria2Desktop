@@ -1,5 +1,5 @@
 <template>
-  <div class="performance-settings">
+  <div class="performance-settings settings-page">
     <div class="settings-header">
       <h2>{{ t('aria2Perf.title') }}</h2>
       <p class="settings-description">{{ t('aria2Perf.description') }}</p>
@@ -20,7 +20,6 @@
       :model="settings"
       :rules="rules"
       label-width="200px"
-      style="max-width: 800px"
       :disabled="!connectionStore.isConnected"
     >
       <el-card class="setting-group">
@@ -32,7 +31,6 @@
           <el-input
             v-model="settings.maxOverallDownloadLimit"
             :placeholder="t('aria2Perf.noLimit')"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">KB/s</span>
           <div class="form-tip">{{ t('aria2Perf.maxOverallDownloadLimitTip') }}</div>
@@ -42,7 +40,6 @@
           <el-input
             v-model="settings.maxOverallUploadLimit"
             :placeholder="t('aria2Perf.noLimit')"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">KB/s</span>
           <div class="form-tip">{{ t('aria2Perf.maxOverallUploadLimitTip') }}</div>
@@ -52,7 +49,6 @@
           <el-input
             v-model="settings.maxUploadLimit"
             :placeholder="t('aria2Perf.noLimit')"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">KB/s</span>
           <div class="form-tip">{{ t('aria2Perf.maxUploadLimitTip') }}</div>
@@ -69,14 +65,13 @@
             v-model="settings.diskCache"
             :min="0"
             :max="1024"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">MB</span>
           <div class="form-tip">{{ t('aria2Perf.diskCacheTip') }}</div>
         </el-form-item>
 
         <el-form-item :label="t('aria2Perf.fileAllocation')" prop="fileAllocation">
-          <el-select v-model="settings.fileAllocation" style="width: 200px">
+          <el-select v-model="settings.fileAllocation">
             <el-option :label="t('aria2Perf.fileAllocNone')" value="none" />
             <el-option :label="t('aria2Perf.fileAllocPrealloc')" value="prealloc" />
             <el-option :label="t('aria2Perf.fileAllocFalloc')" value="falloc" />
@@ -89,7 +84,6 @@
             v-model="settings.maxDownloadResult"
             :min="0"
             :max="10000"
-            style="width: 200px"
           />
           <div class="form-tip">{{ t('aria2Perf.maxDownloadResultTip') }}</div>
         </el-form-item>
@@ -106,7 +100,7 @@
         </el-form-item>
 
         <el-form-item :label="t('aria2Perf.uriSelector')" prop="uriSelector">
-          <el-select v-model="settings.uriSelector" style="width: 200px">
+          <el-select v-model="settings.uriSelector">
             <el-option :label="t('aria2Perf.uriFeedback')" value="feedback" />
             <el-option :label="t('aria2Perf.uriInorder')" value="inorder" />
             <el-option :label="t('aria2Perf.uriAdaptive')" value="adaptive" />
@@ -115,7 +109,7 @@
         </el-form-item>
 
         <el-form-item :label="t('aria2Perf.eventPoll')" prop="eventPoll">
-          <el-select v-model="settings.eventPoll" style="width: 200px">
+          <el-select v-model="settings.eventPoll">
             <el-option label="epoll (Linux)" value="epoll" />
             <el-option label="kqueue (BSD)" value="kqueue" />
             <el-option label="port (Solaris)" value="port" />
@@ -305,7 +299,7 @@ async function resetToDefaults() {
     })
 
     ElMessage.success(t('aria2Perf.restored'))
-  } catch (error) {
+  } catch (_error) {
     // 用户取消
   }
 }

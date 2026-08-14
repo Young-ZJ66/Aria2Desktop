@@ -1,5 +1,5 @@
 <template>
-  <div class="http-settings">
+  <div class="http-settings settings-page">
     <div class="settings-header">
       <h2>HTTP/HTTPS 设置</h2>
       <p class="settings-description">配置 HTTP 和 HTTPS 下载相关参数</p>
@@ -10,7 +10,6 @@
       v-loading="loading"
       :model="settings"
       label-width="200px"
-      style="max-width: 800px"
     >
       <el-card class="setting-group">
         <template #header>
@@ -88,7 +87,13 @@
           <el-input
             v-model="settings.caCertificate"
             placeholder="CA 证书文件路径"
-          />
+          >
+            <template #append>
+              <el-button @click="selectCaCertificateFile">
+                <el-icon><Folder /></el-icon>
+              </el-button>
+            </template>
+          </el-input>
           <div class="form-tip">用于验证 HTTPS 证书的 CA 证书文件</div>
         </el-form-item>
       </el-card>
@@ -129,7 +134,6 @@
             v-model="settings.connectTimeout"
             :min="1"
             :max="600"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">秒</span>
           <div class="form-tip">建立连接的超时时间</div>
@@ -140,7 +144,6 @@
             v-model="settings.timeout"
             :min="1"
             :max="600"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">秒</span>
           <div class="form-tip">HTTP 请求的超时时间</div>
@@ -175,6 +178,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
+import { Folder } from '@element-plus/icons-vue'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
 
@@ -293,6 +297,27 @@ function resetSettings() {
   settings.timeout = 60
 
   ElMessage.info('已重置为默认值')
+}
+
+// 选择 CA 证书文件
+async function selectCaCertificateFile() {
+  if (!window.electronAPI) {
+    ElMessage.warning('此功能仅在桌面端可用')
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.showOpenDialog({
+      properties: ['openFile'],
+      title: '选择 CA 证书文件'
+    })
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      settings.caCertificate = result.filePaths[0]
+    }
+  } catch (_error) {
+    ElMessage.error('选择文件失败')
+  }
 }
 </script>
 

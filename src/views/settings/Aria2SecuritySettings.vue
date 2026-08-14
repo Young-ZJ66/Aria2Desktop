@@ -1,5 +1,5 @@
 <template>
-  <div class="security-settings">
+  <div class="security-settings settings-page">
     <div class="settings-header">
       <h2>安全与认证</h2>
       <p class="settings-description">配置 RPC 安全、文件安全和完整性检查参数</p>
@@ -19,7 +19,6 @@
       v-loading="loading"
       :model="settings"
       label-width="200px"
-      style="max-width: 800px"
       :disabled="!connectionStore.isConnected"
     >
       <el-card class="setting-group">
@@ -73,7 +72,6 @@
           <el-input
             v-model="settings.fileAllocationMode"
             placeholder="644"
-            style="width: 200px"
           />
           <div class="form-tip">新创建文件的权限模式（八进制）</div>
         </el-form-item>
@@ -95,7 +93,7 @@
         </el-form-item>
 
         <el-form-item label="校验算法" prop="checksumAlgorithm">
-          <el-select v-model="settings.checksumAlgorithm" style="width: 200px">
+          <el-select v-model="settings.checksumAlgorithm">
             <el-option label="SHA-1" value="sha-1" />
             <el-option label="SHA-224" value="sha-224" />
             <el-option label="SHA-256" value="sha-256" />
@@ -127,7 +125,13 @@
           <el-input
             v-model="settings.caCertificate"
             placeholder="CA 证书文件路径"
-          />
+          >
+            <template #append>
+              <el-button @click="selectFile('caCertificate', '选择 CA 证书文件')">
+                <el-icon><Folder /></el-icon>
+              </el-button>
+            </template>
+          </el-input>
           <div class="form-tip">用于验证 HTTPS 证书的 CA 证书文件</div>
         </el-form-item>
 
@@ -135,7 +139,13 @@
           <el-input
             v-model="settings.certificate"
             placeholder="客户端证书文件路径"
-          />
+          >
+            <template #append>
+              <el-button @click="selectFile('certificate', '选择客户端证书文件')">
+                <el-icon><Folder /></el-icon>
+              </el-button>
+            </template>
+          </el-input>
           <div class="form-tip">HTTPS 客户端证书文件</div>
         </el-form-item>
 
@@ -143,7 +153,13 @@
           <el-input
             v-model="settings.privateKey"
             placeholder="私钥文件路径"
-          />
+          >
+            <template #append>
+              <el-button @click="selectFile('privateKey', '选择私钥文件')">
+                <el-icon><Folder /></el-icon>
+              </el-button>
+            </template>
+          </el-input>
           <div class="form-tip">客户端证书的私钥文件</div>
         </el-form-item>
       </el-card>
@@ -180,6 +196,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
+import { Folder } from '@element-plus/icons-vue'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
 
@@ -327,8 +344,29 @@ async function resetToDefaults() {
     })
 
     ElMessage.success(t('aria2Security.restored'))
-  } catch (error) {
+  } catch (_error) {
     // 用户取消
+  }
+}
+
+// 选择文件
+async function selectFile(field: 'caCertificate' | 'certificate' | 'privateKey', title: string) {
+  if (!window.electronAPI) {
+    ElMessage.warning('此功能仅在桌面端可用')
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.showOpenDialog({
+      properties: ['openFile'],
+      title
+    })
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      settings[field] = result.filePaths[0]
+    }
+  } catch (_error) {
+    ElMessage.error('选择文件失败')
   }
 }
 </script>

@@ -1,5 +1,5 @@
 <template>
-  <div class="connection-settings">
+  <div class="connection-settings settings-page">
     <div class="settings-header">
       <h2>连接设置</h2>
       <p class="settings-description">配置连接、超时、重试和代理相关参数</p>
@@ -20,7 +20,6 @@
       :model="settings"
       :rules="rules"
       label-width="200px"
-      style="max-width: 800px"
       :disabled="!connectionStore.isConnected"
     >
       <el-card class="setting-group">
@@ -33,7 +32,6 @@
             v-model="settings.connectTimeout"
             :min="1"
             :max="600"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">秒</span>
           <div class="form-tip">建立连接的超时时间（1-600秒）</div>
@@ -44,7 +42,6 @@
             v-model="settings.timeout"
             :min="1"
             :max="600"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">秒</span>
           <div class="form-tip">HTTP/FTP 请求的超时时间（1-600秒）</div>
@@ -61,7 +58,6 @@
             v-model="settings.maxTries"
             :min="0"
             :max="100"
-            style="width: 200px"
           />
           <div class="form-tip">连接失败时的最大重试次数（0表示不重试）</div>
         </el-form-item>
@@ -71,7 +67,6 @@
             v-model="settings.retryWait"
             :min="0"
             :max="600"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">秒</span>
           <div class="form-tip">重试前的等待时间（0-600秒）</div>
@@ -88,7 +83,6 @@
             v-model="settings.maxConnectionPerServer"
             :min="1"
             :max="16"
-            style="width: 200px"
           />
           <div class="form-tip">对单个服务器的最大连接数（1-16）</div>
         </el-form-item>
@@ -98,7 +92,6 @@
             v-model="settings.split"
             :min="1"
             :max="16"
-            style="width: 200px"
           />
           <div class="form-tip">每个文件的分片连接数（1-16）</div>
         </el-form-item>
@@ -107,7 +100,6 @@
           <el-input
             v-model="settings.lowestSpeedLimit"
             placeholder="0 表示无限制"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">B/s</span>
           <div class="form-tip">最低下载速度限制，低于此速度将重连</div>
@@ -337,7 +329,7 @@ async function resetToDefaults() {
     })
 
     ElMessage.success('已恢复为默认连接设置')
-  } catch (error) {
+  } catch (_error) {
     // 用户取消
   }
 }

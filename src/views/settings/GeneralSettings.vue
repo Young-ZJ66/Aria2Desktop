@@ -1,5 +1,5 @@
 <template>
-  <div class="general-settings">
+  <div class="general-settings settings-page">
     <div class="settings-header">
       <h2>{{ t('generalSettings.title') }}</h2>
       <p class="settings-description">{{ t('generalSettings.description') }}</p>
@@ -10,17 +10,16 @@
       v-loading="settingsStore.isLoading"
       :model="form"
       label-width="150px"
-      style="max-width: 600px"
     >
       <el-form-item :label="t('generalSettings.language')">
-        <el-select v-model="form.language" style="width: 100%" @change="handleLanguageChange">
+        <el-select v-model="form.language" @change="handleLanguageChange">
           <el-option label="简体中文" value="zh-CN" />
           <el-option label="English" value="en-US" />
         </el-select>
       </el-form-item>
 
       <el-form-item :label="t('generalSettings.theme')">
-        <el-select v-model="form.theme" style="width: 100%" @change="handleThemeChange">
+        <el-select v-model="form.theme" @change="handleThemeChange">
           <el-option :label="t('generalSettings.themeLight')" value="light" />
           <el-option :label="t('generalSettings.themeDark')" value="dark" />
           <el-option :label="t('generalSettings.themeAuto')" value="auto" />
@@ -28,7 +27,7 @@
       </el-form-item>
 
       <el-form-item :label="t('generalSettings.refreshInterval')">
-        <el-select v-model="form.refreshInterval" style="width: 100%" @change="handleRefreshIntervalChange">
+        <el-select v-model="form.refreshInterval" @change="handleRefreshIntervalChange">
           <el-option :label="t('generalSettings.refreshInterval1s')" :value="1000" />
           <el-option :label="t('generalSettings.refreshInterval2s')" :value="2000" />
           <el-option :label="t('generalSettings.refreshInterval5s')" :value="5000" />
@@ -224,7 +223,7 @@ function exportSettings() {
     URL.revokeObjectURL(url)
 
     ElMessage.success(t('generalSettings.exportDone'))
-  } catch (error) {
+  } catch (_error) {
     ElMessage.error(t('generalSettings.exportFailed'))
   }
 }

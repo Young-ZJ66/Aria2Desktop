@@ -1,5 +1,5 @@
 <template>
-  <div class="metalink-settings">
+  <div class="metalink-settings settings-page">
     <div class="settings-header">
       <h2>Metalink 设置</h2>
       <p class="settings-description">配置 Metalink 协议相关参数</p>
@@ -10,7 +10,6 @@
       v-loading="loading"
       :model="settings"
       label-width="200px"
-      style="max-width: 800px"
     >
       <el-card class="setting-group">
         <template #header>

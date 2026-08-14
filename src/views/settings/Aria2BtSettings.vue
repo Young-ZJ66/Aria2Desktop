@@ -1,5 +1,5 @@
 <template>
-  <div class="bt-settings">
+  <div class="bt-settings settings-page">
     <div class="settings-header">
       <h2>BitTorrent 设置</h2>
       <p class="settings-description">配置 BitTorrent 下载相关参数</p>
@@ -10,7 +10,6 @@
       v-loading="loading"
       :model="settings"
       label-width="200px"
-      style="max-width: 800px"
     >
       <el-card class="setting-group">
         <template #header>
@@ -22,7 +21,6 @@
             v-model="settings.listenPort"
             :min="1024"
             :max="65535"
-            style="width: 200px"
           />
           <div class="form-tip">BitTorrent 监听端口</div>
         </el-form-item>
@@ -32,7 +30,6 @@
             v-model="settings.dhtListenPort"
             :min="1024"
             :max="65535"
-            style="width: 200px"
           />
           <div class="form-tip">DHT 网络监听端口</div>
         </el-form-item>
@@ -63,7 +60,6 @@
             v-model="settings.btMaxPeers"
             :min="1"
             :max="1000"
-            style="width: 200px"
           />
           <div class="form-tip">每个种子的最大连接数</div>
         </el-form-item>
@@ -75,7 +71,6 @@
             :max="100"
             :step="0.1"
             :precision="1"
-            style="width: 200px"
           />
           <div class="form-tip">达到此分享率后停止做种</div>
         </el-form-item>
@@ -85,7 +80,6 @@
             v-model="settings.seedTime"
             :min="0"
             :max="999999"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">分钟</span>
           <div class="form-tip">做种时间限制，0 表示无限制</div>
@@ -95,7 +89,6 @@
           <el-input
             v-model="settings.maxUploadLimit"
             placeholder="0 表示无限制"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">KB/s</span>
           <div class="form-tip">全局最大上传速度限制</div>
@@ -112,7 +105,6 @@
             v-model="settings.btTrackerTimeout"
             :min="1"
             :max="600"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">秒</span>
           <div class="form-tip">Tracker 请求超时时间</div>
@@ -123,7 +115,6 @@
             v-model="settings.btTrackerInterval"
             :min="0"
             :max="86400"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">秒</span>
           <div class="form-tip">Tracker 请求间隔时间</div>
@@ -151,7 +142,7 @@
         </el-form-item>
 
         <el-form-item label="最小加密级别">
-          <el-select v-model="settings.btMinCryptoLevel" style="width: 200px">
+          <el-select v-model="settings.btMinCryptoLevel">
             <el-option label="纯文本" value="plain" />
             <el-option label="ARC4" value="arc4" />
           </el-select>
@@ -172,7 +163,6 @@
           <el-input
             v-model="settings.btExternalIp"
             placeholder="自动检测"
-            style="width: 200px"
           />
           <div class="form-tip">向 Tracker 报告的外部 IP 地址</div>
         </el-form-item>

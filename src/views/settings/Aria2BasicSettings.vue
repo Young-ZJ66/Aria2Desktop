@@ -1,5 +1,5 @@
 <template>
-  <div class="aria2-basic-settings">
+  <div class="aria2-basic-settings settings-page">
     <div class="settings-header">
       <h2>{{ t('aria2Basic.title') }}</h2>
       <p class="settings-description">{{ t('aria2Basic.description') }}</p>
@@ -20,7 +20,6 @@
       :model="settings"
       :rules="rules"
       label-width="200px"
-      style="max-width: 800px"
       :disabled="!connectionStore.isConnected"
     >
       <el-card class="setting-group">
@@ -47,7 +46,6 @@
             v-model="settings.maxConcurrentDownloads"
             :min="1"
             :max="16"
-            style="width: 200px"
           />
           <div class="form-tip">{{ t('aria2Basic.maxConcurrentDownloadsTip') }}</div>
         </el-form-item>
@@ -57,13 +55,12 @@
             v-model="settings.maxConnectionPerServer"
             :min="1"
             :max="16"
-            style="width: 200px"
           />
           <div class="form-tip">{{ t('aria2Basic.maxConnectionPerServerTip') }}</div>
         </el-form-item>
 
         <el-form-item :label="t('aria2Basic.minSplitSize')" prop="minSplitSize">
-          <el-select v-model="settings.minSplitSize" style="width: 200px">
+          <el-select v-model="settings.minSplitSize">
             <el-option label="1M" value="1M" />
             <el-option label="5M" value="5M" />
             <el-option label="10M" value="10M" />
@@ -102,7 +99,6 @@
             :min="60"
             :max="3600"
             :disabled="!settings.saveSession"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">{{ t('aria2Basic.seconds') }}</span>
           <div class="form-tip">{{ t('aria2Basic.sessionSaveIntervalTip') }}</div>
@@ -281,7 +277,7 @@ async function resetToDefaults() {
     })
 
     ElMessage.success(t('settings.restored'))
-  } catch (error) {
+  } catch (_error) {
     // 用户取消
   }
 }
@@ -301,7 +297,7 @@ async function selectDirectory() {
     if (!result.canceled && result.filePaths.length > 0) {
       settings.dir = result.filePaths[0]
     }
-  } catch (error) {
+  } catch (_error) {
     ElMessage.error(t('newTask.selectDirFailed'))
   }
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="rpc-settings">
+  <div class="rpc-settings settings-page">
     <div class="settings-header">
       <h2>RPC 连接设置</h2>
       <p class="settings-description">配置与 Aria2 服务器的连接参数</p>
@@ -11,7 +11,6 @@
       :model="form"
       :rules="rules"
       label-width="150px"
-      style="max-width: 600px"
     >
       <el-card class="setting-group">
         <template #header>
@@ -27,7 +26,7 @@
         </template>
 
         <el-form-item label="协议" prop="protocol">
-          <el-select v-model="form.protocol" style="width: 100%">
+          <el-select v-model="form.protocol">
             <el-option label="HTTP" value="http" />
             <el-option label="HTTPS" value="https" />
             <el-option label="WebSocket" value="ws" />
@@ -49,7 +48,6 @@
             v-model="form.port"
             :min="1"
             :max="65535"
-            style="width: 100%"
           />
           <div class="form-tip">Aria2 RPC 服务端口（默认：6800）</div>
         </el-form-item>
@@ -85,7 +83,6 @@
             :min="1000"
             :max="30000"
             :step="1000"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">毫秒</span>
           <div class="form-tip">连接超时时间（1000-30000毫秒）</div>
@@ -102,7 +99,6 @@
             :min="1000"
             :max="60000"
             :step="1000"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">毫秒</span>
           <div class="form-tip">自动重连的时间间隔</div>
@@ -136,7 +132,7 @@
     </el-form>
 
     <!-- 连接测试结果 -->
-    <el-card v-if="testResult" class="test-result" style="margin-top: 20px; max-width: 600px">
+    <el-card v-if="testResult" class="test-result" style="margin-top: 20px">
       <template #header>
         <span>连接测试结果</span>
       </template>

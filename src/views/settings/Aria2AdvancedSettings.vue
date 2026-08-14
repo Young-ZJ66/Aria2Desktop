@@ -1,5 +1,5 @@
 <template>
-  <div class="advanced-settings">
+  <div class="advanced-settings settings-page">
     <div class="settings-header">
       <h2>高级设置</h2>
       <p class="settings-description">配置 Aria2 的高级参数和系统级选项</p>
@@ -10,7 +10,6 @@
       v-loading="loading"
       :model="settings"
       label-width="200px"
-      style="max-width: 800px"
     >
       <el-card class="setting-group">
         <template #header>
@@ -22,14 +21,13 @@
             v-model="settings.diskCache"
             :min="0"
             :max="1024"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">MB</span>
           <div class="form-tip">磁盘缓存大小，0 表示禁用</div>
         </el-form-item>
 
         <el-form-item label="文件预分配">
-          <el-select v-model="settings.fileAllocation" style="width: 200px">
+          <el-select v-model="settings.fileAllocation">
             <el-option label="无" value="none" />
             <el-option label="预分配" value="prealloc" />
             <el-option label="回退" value="falloc" />
@@ -54,7 +52,7 @@
         </template>
 
         <el-form-item label="日志级别">
-          <el-select v-model="settings.logLevel" style="width: 200px">
+          <el-select v-model="settings.logLevel">
             <el-option label="调试" value="debug" />
             <el-option label="信息" value="info" />
             <el-option label="通知" value="notice" />
@@ -68,12 +66,18 @@
           <el-input
             v-model="settings.log"
             placeholder="日志文件路径"
-          />
+          >
+            <template #append>
+              <el-button @click="selectLogFile">
+                <el-icon><Folder /></el-icon>
+              </el-button>
+            </template>
+          </el-input>
           <div class="form-tip">日志文件保存路径</div>
         </el-form-item>
 
         <el-form-item label="控制台日志级别">
-          <el-select v-model="settings.consoleLogLevel" style="width: 200px">
+          <el-select v-model="settings.consoleLogLevel">
             <el-option label="调试" value="debug" />
             <el-option label="信息" value="info" />
             <el-option label="通知" value="notice" />
@@ -90,7 +94,7 @@
         </template>
 
         <el-form-item label="摘要算法">
-          <el-select v-model="settings.checksumAlgorithm" style="width: 200px">
+          <el-select v-model="settings.checksumAlgorithm">
             <el-option label="SHA-1" value="sha-1" />
             <el-option label="SHA-224" value="sha-224" />
             <el-option label="SHA-256" value="sha-256" />
@@ -103,7 +107,7 @@
         </el-form-item>
 
         <el-form-item label="事件轮询">
-          <el-select v-model="settings.eventPoll" style="width: 200px">
+          <el-select v-model="settings.eventPoll">
             <el-option label="epoll" value="epoll" />
             <el-option label="kqueue" value="kqueue" />
             <el-option label="port" value="port" />
@@ -147,6 +151,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
+import { Folder } from '@element-plus/icons-vue'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
 
@@ -250,6 +255,27 @@ function resetSettings() {
   settings.checksumCheck = true
 
   ElMessage.info('已重置为默认值')
+}
+
+// 选择日志文件
+async function selectLogFile() {
+  if (!window.electronAPI) {
+    ElMessage.warning('此功能仅在桌面端可用')
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.showOpenDialog({
+      properties: ['openFile'],
+      title: '选择日志文件'
+    })
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      settings.log = result.filePaths[0]
+    }
+  } catch (_error) {
+    ElMessage.error('选择文件失败')
+  }
 }
 </script>
 

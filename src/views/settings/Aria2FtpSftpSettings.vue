@@ -1,5 +1,5 @@
 <template>
-  <div class="ftp-settings">
+  <div class="ftp-settings settings-page">
     <div class="settings-header">
       <h2>FTP/SFTP 设置</h2>
       <p class="settings-description">配置 FTP 和 SFTP 协议相关参数</p>
@@ -10,7 +10,6 @@
       v-loading="loading"
       :model="settings"
       label-width="200px"
-      style="max-width: 800px"
     >
       <el-card class="setting-group">
         <template #header>
@@ -57,7 +56,7 @@
         </el-form-item>
 
         <el-form-item label="FTP 类型">
-          <el-select v-model="settings.ftpType" style="width: 200px">
+          <el-select v-model="settings.ftpType">
             <el-option label="二进制" value="binary" />
             <el-option label="ASCII" value="ascii" />
           </el-select>
@@ -83,7 +82,13 @@
           <el-input
             v-model="settings.sshHostKeyMd"
             placeholder="SSH 主机密钥文件路径"
-          />
+          >
+            <template #append>
+              <el-button @click="selectSshHostKeyFile">
+                <el-icon><Folder /></el-icon>
+              </el-button>
+            </template>
+          </el-input>
         </el-form-item>
 
         <el-form-item label="SFTP 连接超时">
@@ -91,7 +96,6 @@
             v-model="settings.connectTimeout"
             :min="1"
             :max="600"
-            style="width: 200px"
           />
           <span style="margin-left: 8px">秒</span>
         </el-form-item>
@@ -125,6 +129,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
+import { Folder } from '@element-plus/icons-vue'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
 
@@ -227,6 +232,27 @@ function resetSettings() {
   settings.connectTimeout = 60
 
   ElMessage.info('已重置为默认值')
+}
+
+// 选择 SSH 主机密钥文件
+async function selectSshHostKeyFile() {
+  if (!window.electronAPI) {
+    ElMessage.warning('此功能仅在桌面端可用')
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.showOpenDialog({
+      properties: ['openFile'],
+      title: '选择 SSH 主机密钥文件'
+    })
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      settings.sshHostKeyMd = result.filePaths[0]
+    }
+  } catch (_error) {
+    ElMessage.error('选择文件失败')
+  }
 }
 </script>
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="aria2-local-service">
+  <div class="aria2-local-service settings-page">
     <div class="settings-header">
       <h2>{{ t('localService.title') }}</h2>
       <p class="settings-description">{{ t('localService.description') }}</p>
@@ -91,7 +91,6 @@
             v-model="localConfig.port"
             :min="1024"
             :max="65535"
-            style="width: 200px"
           />
           <div class="form-tip">{{ t('localService.listenPortTip') }}</div>
         </el-form-item>
@@ -115,7 +114,6 @@
             <template #append>
               <el-button @click="selectDownloadDir">
                 <el-icon><Folder /></el-icon>
-                {{ t('localService.select') }}
               </el-button>
             </template>
           </el-input>
@@ -259,7 +257,7 @@ async function refreshStatus() {
     // 刷新状态后重新加载配置到表单
     loadCurrentConfig()
     ElMessage.success(t('localService.statusRefreshed'))
-  } catch (error) {
+  } catch (_error) {
     ElMessage.error(t('localService.refreshFailed'))
   } finally {
     isRefreshing.value = false
@@ -290,7 +288,7 @@ async function stopService() {
     )
 
     await stop()
-  } catch (error) {
+  } catch (_error) {
     // 用户取消
   }
 }
@@ -309,7 +307,7 @@ async function restartService() {
     )
 
     await restart()
-  } catch (error) {
+  } catch (_error) {
     // 用户取消
   }
 }
