@@ -4,6 +4,7 @@
 .idea
 .trae
 .augment
+.sanshu-memory
 node_modules
 *.md
 data

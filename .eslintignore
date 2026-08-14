@@ -1,0 +1,41 @@
+# 依赖目录
+node_modules
+
+# 构建产物
+dist
+release
+
+# 运行时数据
+data
+
+# IDE 配置
+.vscode
+.idea
+.cursor
+.trae
+.augment
+.codebuddy
+
+# 文档
+*.md
+
+# 第三方资源
+resources/aria2c.exe
+
+# 非源码文件
+*.json
+*.bat
+*.ico
+*.png
+*.conf
+*.css
+LICENSE
+index.html
+eslint_output.txt
+
+# 类型声明文件
+src/types/*.d.ts
+src/i18n/types.d.ts
+
+# JS 副本
+src/utils/resourceManager.js

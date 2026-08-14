@@ -20,9 +20,7 @@
     }
   },
   "include": [
-    "electron/**/*",
-    "src/services/aria2ProcessManager.ts",
-    "src/utils/resourceManager.ts"
+    "electron/**/*"
   ],
   "exclude": [
     "node_modules",
