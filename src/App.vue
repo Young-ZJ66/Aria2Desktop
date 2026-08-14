@@ -2,21 +2,21 @@
   <div id="app" class="app-container" :class="{ 'windows-titlebar': isWindowsPlatform }">
     <!-- 顶部工具栏 -->
     <AppHeader />
-    
+
     <!-- 主要内容区域 -->
     <div class="main-container">
       <!-- 侧边栏 -->
       <AppSidebar />
-      
+
       <!-- 内容区域 -->
       <div class="content-container">
         <router-view />
       </div>
     </div>
-    
+
     <!-- 底部状态栏 -->
     <AppFooter />
-    
+
     <!-- 全局对话框 -->
     <ConnectionDialog v-model="showConnectionDialog" />
   </div>
@@ -28,6 +28,7 @@ import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { setLocale, type AppLocale } from '@/i18n'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
@@ -44,37 +45,43 @@ const isWindowsPlatform = computed(() => {
   return typeof window !== 'undefined' && window.navigator.platform.toLowerCase().includes('win')
 })
 
-let updateInterval: any = null
+let updateInterval: unknown = null
 
 function startAutoUpdate(interval = 1000) {
-    if (updateInterval) clearInterval(updateInterval)
-    updateInterval = setInterval(() => {
-      if (connectionStore.isConnected) {
-        statsStore.loadGlobalStat()
-        taskStore.loadAllTasks()
-      }
-    }, interval)
+  if (updateInterval) clearInterval(updateInterval)
+  updateInterval = setInterval(() => {
+    if (connectionStore.isConnected) {
+      statsStore.loadGlobalStat()
+      taskStore.loadAllTasks()
+    }
+  }, interval)
 }
 
 function stopAutoUpdate() {
-    if (updateInterval) {
-      clearInterval(updateInterval)
-      updateInterval = null
-    }
+  if (updateInterval) {
+    clearInterval(updateInterval)
+    updateInterval = null
+  }
 }
 
 onMounted(async () => {
   // 初始化设置
   await settingsStore.initialize()
 
+  // 同步语言设置到 i18n
+  const savedLang = settingsStore.getSetting('language') as string
+  if (savedLang === 'zh-CN' || savedLang === 'en-US') {
+    setLocale(savedLang as AppLocale)
+  }
+
   // 应用主题
   settingsStore.applyTheme()
 
   // Listen for config changes from main process (hot-reload)
   if (window.electronAPI) {
-    window.electronAPI.onConfigChanged((data: { key: string; value: any }) => {
-      console.log('[App] Config changed from main process:', data)
-      
+    window.electronAPI.onConfigChanged((data: { key: string; value: unknown }) => {
+      console.warn('[App] Config changed from main process:', data)
+
       if (data.key === 'theme') {
         // Update theme setting and apply
         settingsStore.updateSetting('theme', data.value).then(() => {
@@ -93,14 +100,14 @@ onMounted(async () => {
     try {
       const aria2Config = settingsStore.aria2Config
       await connectionStore.connect(aria2Config)
-      
+
       // 连接成功后立即加载一次数据
-      console.log('[App] Auto-connect successful, loading initial data...')
+      console.warn('[App] Auto-connect successful, loading initial data...')
       await Promise.all([
         statsStore.loadGlobalStat(),
         taskStore.loadAllTasks()
       ])
-      
+
       // 然后启动定时更新
       startAutoUpdate(settingsStore.getSetting('refreshInterval'))
     } catch (error) {
@@ -108,11 +115,11 @@ onMounted(async () => {
       showConnectionDialog.value = true
     }
   }
-  
+
   // 通知主进程应用已完全准备好
   if (window.electronAPI) {
     window.electronAPI.send('app-ready')
-    console.log('[App] Notified main process: app ready')
+    console.warn('[App] Notified main process: app ready')
   }
 })
 
