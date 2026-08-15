@@ -177,8 +177,8 @@ class TaskPersistenceService {
   syncAria2CompletedTasks(aria2CompletedTasks: Aria2Task[]) {
     aria2CompletedTasks.forEach(task => {
       if (!this.isTaskPersisted(task.gid) && task.status === 'complete') {
-        // 对于已存在的完成任务，使用估算的完成时间
-        const estimatedTime = Date.now() - (Math.random() * 24 * 60 * 60 * 1000) // 随机在过去24小时内
+        // 对于已存在的完成任务，使用估算的完成时间（24 小时前，保持稳定）
+        const estimatedTime = Date.now() - (24 * 60 * 60 * 1000)
         this.persistCompletedTask(task, estimatedTime)
       }
     })
@@ -208,7 +208,11 @@ class TaskPersistenceService {
 // 创建单例实例
 export const taskPersistenceService = new TaskPersistenceService()
 
-// 定期清理过期任务
-setInterval(() => {
+// 定期清理过期任务（保存引用，可通过 stopCleanupTimer 停止）
+const cleanupTimer = setInterval(() => {
   taskPersistenceService.cleanupExpiredTasks(30) // 清理30天前的任务
 }, 24 * 60 * 60 * 1000) // 每24小时执行一次
+
+export function stopCleanupTimer() {
+  clearInterval(cleanupTimer)
+}

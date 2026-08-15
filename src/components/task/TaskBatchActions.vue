@@ -1,52 +1,41 @@
 <template>
   <div class="batch-actions">
     <div class="action-buttons-group">
-      <el-button
-        size="default"
-        :disabled="totalCount === 0"
-        @click="$emit('select-all')"
-      >
-        <el-icon><Select /></el-icon>
-        {{ t('task.selectAll') }}
-      </el-button>
-
-      <el-button
-        size="default"
+      <n-button
+        size="small"
         type="primary"
         :disabled="!canBatchStart"
         @click="$emit('batch-start')"
       >
-        <el-icon><VideoPlay /></el-icon>
+        <template #icon>
+          <n-icon><PlayOutline /></n-icon>
+        </template>
         {{ t('task.batchStart') }}
-      </el-button>
+      </n-button>
 
-      <el-button
-        size="default"
+      <n-button
+        size="small"
         type="warning"
         :disabled="!canBatchPause"
         @click="$emit('batch-pause')"
       >
-        <el-icon><VideoPause /></el-icon>
+        <template #icon>
+          <n-icon><PauseOutline /></n-icon>
+        </template>
         {{ t('task.batchPause') }}
-      </el-button>
+      </n-button>
 
-      <el-button
-        size="default"
-        type="danger"
-        :disabled="!hasSelection"
+      <n-button
+        v-if="hasSelection"
+        size="small"
+        type="error"
         @click="$emit('batch-delete')"
       >
-        <el-icon><Delete /></el-icon>
+        <template #icon>
+          <n-icon><TrashOutline /></n-icon>
+        </template>
         {{ t('task.batchDelete') }}
-      </el-button>
-
-      <el-button
-        v-if="hasSelection"
-        size="default"
-        @click="$emit('clear-selection')"
-      >
-        {{ t('task.clearSelection') }}
-      </el-button>
+      </n-button>
     </div>
 
     <span v-if="hasSelection" class="selected-count">{{ t('task.selectedCount', { count: selectedCount }) }}</span>
@@ -55,22 +44,19 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Select, VideoPlay, VideoPause, Delete } from '@element-plus/icons-vue'
+import { PlayOutline, PauseOutline, TrashOutline } from '@vicons/ionicons5'
 
 interface Props {
   selectedCount: number
   hasSelection: boolean
   canBatchStart: boolean
   canBatchPause: boolean
-  totalCount: number
 }
 
 interface Emits {
-  (e: 'select-all'): void
   (e: 'batch-start'): void
   (e: 'batch-pause'): void
   (e: 'batch-delete'): void
-  (e: 'clear-selection'): void
 }
 
 const { t } = useI18n()

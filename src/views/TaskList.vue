@@ -3,152 +3,70 @@
     <div class="task-list-header">
       <h2>{{ title }}</h2>
       <div class="task-stats">
-        <el-space>
+        <n-space size="small">
           <span>{{ t('task.totalTasks', { count: allTasks.length }) }}</span>
           <span v-if="filteredTasks.length !== allTasks.length">
             {{ t('task.showingTasks', { count: filteredTasks.length }) }}
           </span>
-          <el-tag v-if="taskStats.totalSpeed > 0" type="primary" size="small">
+          <n-tag v-if="taskStats.totalSpeed > 0" type="primary" size="small">
             {{ t('task.totalSpeed') }}: {{ formatSpeed(taskStats.totalSpeed) }}
-          </el-tag>
-        </el-space>
+          </n-tag>
+        </n-space>
       </div>
     </div>
 
     <!-- 操作栏 -->
     <div class="task-actions">
       <div class="action-left">
-        <el-button size="default" type="primary" @click="$router.push('/new')">
-          <el-icon><Plus /></el-icon>
+        <n-button type="primary" @click="uiStore.openNewTask()">
+          <template #icon>
+            <n-icon><AddOutline /></n-icon>
+          </template>
           {{ t('task.newDownload') }}
-        </el-button>
+        </n-button>
 
-        <el-divider direction="vertical" class="action-divider" />
+        <n-divider vertical class="action-divider" />
 
         <TaskBatchActions
           :selected-count="selectedCount"
           :has-selection="hasSelection"
           :can-batch-start="canBatchStart"
           :can-batch-pause="canBatchPause"
-          :total-count="filteredTasks.length"
-          @select-all="selectAllTasks"
           @batch-start="batchStart"
           @batch-pause="batchPause"
           @batch-delete="batchDelete"
-          @clear-selection="clearSelection"
         />
       </div>
 
       <div class="action-right">
-        <div class="search-box">
-          <el-input
-            v-model="searchText"
-            :placeholder="t('task.searchPlaceholder')"
-            :prefix-icon="Search"
-            clearable
-            style="width: 200px;"
-            @input="handleSearch"
-          />
-        </div>
+        <n-input
+          v-model:value="searchText"
+          :placeholder="t('task.searchPlaceholder')"
+          clearable
+          style="width: 220px;"
+        >
+          <template #prefix>
+            <n-icon><SearchOutline /></n-icon>
+          </template>
+        </n-input>
       </div>
     </div>
 
     <div class="task-list-content">
-      <el-table
-        ref="tableRef"
-        v-loading="loading"
+      <n-data-table
+        :loading="loading"
+        :columns="columns"
         :data="filteredTasks"
-        style="width: 100%"
-        empty-text=""
+        :row-key="(row: Aria2Task) => row.gid"
+        :row-props="rowProps"
+        :scroll-x="1200"
+        :bordered="false"
         class="task-table"
-        row-key="gid"
-        @row-click="handleRowSelect"
       >
-        <el-table-column width="55" fixed="left" label="">
-          <template #default="{ row }">
-            <TaskCheckbox :task="row" />
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="gid" :label="t('task.gid')" width="120" />
-
-        <el-table-column :label="t('task.fileName')" min-width="200">
-          <template #default="{ row }">
-            <div class="file-info">
-              <div class="file-name">{{ getTaskName(row) }}</div>
-              <div v-if="row.dir" class="file-path">{{ row.dir }}</div>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('task.size')" width="100">
-          <template #default="{ row }">
-            {{ formatSize(row.totalLength) }}
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('task.progress')" width="120">
-          <template #default="{ row }">
-            <el-progress
-              :percentage="getProgress(row)"
-              :status="getProgressStatus(row)"
-              :stroke-width="6"
-            />
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('task.status')" width="120">
-          <template #default="{ row }">
-            <div class="status-column">
-              <el-tag :type="getStatusType(row.status)" size="small">
-                {{ t('status.' + row.status) }}
-              </el-tag>
-              <el-icon v-if="row.status === 'active'" class="status-icon active">
-                <VideoPlay />
-              </el-icon>
-              <el-icon v-else-if="row.status === 'waiting'" class="status-icon waiting">
-                <Clock />
-              </el-icon>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('task.downloadSpeed')" width="120">
-          <template #default="{ row }">
-            {{ formatSpeed(row.downloadSpeed) }}
-          </template>
-        </el-table-column>
-
-        <el-table-column v-if="taskType === 'stopped'" :label="t('task.completeTime')" width="150">
-          <template #default="{ row }">
-            {{ formatCompleteTimeLabel(row) }}
-          </template>
-        </el-table-column>
-
-        <el-table-column v-else :label="t('task.remainingTime')" width="120">
-          <template #default="{ row }">
-            {{ formatRemainingTime(row) }}
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('task.actions')" width="200" fixed="right" align="center" header-align="center">
-          <template #default="{ row }">
-            <TaskRowActions
-              :gid="row.gid"
-              :status="row.status"
-              :operating="operatingTasks.has(row.gid)"
-              :show-open-location="taskType === 'stopped'"
-              :task="row"
-              @unpause="unpauseTask"
-              @retry="retryTask"
-              @pause="pauseTask"
-              @open-location="openTaskLocation"
-              @remove="removeTask"
-              @view-detail="viewTaskDetail"
-            />
-          </template>
-        </el-table-column>
-      </el-table>
+        <template #empty>
+          <n-empty :description="t('task.noTasks')" size="small" />
+        </template>
+      </n-data-table>
     </div>
 
     <!-- 批量删除对话框（带文件删除选项） -->
@@ -163,12 +81,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, h, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { VideoPlay, Clock, Search, Plus } from '@element-plus/icons-vue'
+import { NIcon, NProgress, NTag, NCheckbox, type DataTableColumns } from 'naive-ui'
+import { AddOutline, SearchOutline, VideocamOutline, TimeOutline } from '@vicons/ionicons5'
+import { message, dialog } from '@/utils/feedback'
 import { useTaskStore } from '@/stores/taskStore'
+import { useUiStore } from '@/stores/uiStore'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { taskTimeService } from '@/services/taskTimeService'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
@@ -186,7 +105,6 @@ import {
   formatSpeed,
   formatRemainingTime,
   getProgress,
-  getProgressStatus,
   getStatusType,
   getTaskDisplayName,
   formatCompleteTime
@@ -198,7 +116,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const taskStore = useTaskStore()
-const router = useRouter()
+const uiStore = useUiStore()
 const { t } = useI18n()
 
 // 批量删除对话框状态
@@ -208,11 +126,9 @@ const tasksToDelete = ref<Aria2Task[]>([])
 // 操作锁定状态
 const operatingTasks = ref<Set<string>>(new Set())
 
-// 表格引用
-const tableRef = ref()
-
 // 使用独立的选择状态管理
 const {
+  selectedTaskGids,
   selectedTasks,
   selectedCount,
   hasSelection,
@@ -250,10 +166,16 @@ const allTasks = computed(() => {
       tasks = [...taskStore.waitingTasks]
       break
     case 'stopped':
-      tasks = [...taskStore.stoppedTasks]
+      // 已停止列表只展示已完成任务，失败/错误任务归入下载任务列表
+      tasks = taskStore.stoppedTasks.filter(task => task.status !== 'error')
       break
     case 'active-and-waiting':
-      tasks = [...taskStore.activeTasks, ...taskStore.waitingTasks]
+      // 下载任务列表：正在下载 + 等待 + 失败/错误（方便点击重试）
+      tasks = [
+        ...taskStore.activeTasks,
+        ...taskStore.waitingTasks,
+        ...taskStore.stoppedTasks.filter(task => task.status === 'error')
+      ]
       break
     default:
       return []
@@ -263,6 +185,12 @@ const allTasks = computed(() => {
   return sortTasksByStatus(tasks)
 })
 
+// GID 为 16 位十六进制数，BigInt 比较避免超出 Number 安全整数精度丢失
+function compareGidDesc(a: Aria2Task, b: Aria2Task): number {
+  const diff = BigInt(`0x${b.gid}`) - BigInt(`0x${a.gid}`)
+  return diff > 0n ? 1 : diff < 0n ? -1 : 0
+}
+
 // 排序任务：error > active > waiting > paused，同状态按添加时间倒序
 function sortTasksByStatus(tasks: Aria2Task[]): Aria2Task[] {
   const statusPriority: Record<string, number> = { 'error': 4, 'active': 3, 'waiting': 2, 'paused': 1 }
@@ -270,7 +198,7 @@ function sortTasksByStatus(tasks: Aria2Task[]): Aria2Task[] {
     const aPriority = statusPriority[a.status] || 0
     const bPriority = statusPriority[b.status] || 0
     if (aPriority !== bPriority) return bPriority - aPriority
-    return parseInt(b.gid, 16) - parseInt(a.gid, 16)
+    return compareGidDesc(a, b)
   })
 }
 
@@ -314,7 +242,7 @@ const filteredTasks = computed(() => {
       if (aCompleteTime && bCompleteTime) return bCompleteTime - aCompleteTime
       if (aCompleteTime && !bCompleteTime) return -1
       if (!aCompleteTime && bCompleteTime) return 1
-      return parseInt(b.gid, 16) - parseInt(a.gid, 16)
+      return compareGidDesc(a, b)
     })
   }
 
@@ -323,6 +251,23 @@ const filteredTasks = computed(() => {
 
 // 任务统计
 const taskStats = computed(() => getTaskStats(filteredTasks.value))
+
+// 表头全选复选框状态
+const allChecked = computed(() =>
+  filteredTasks.value.length > 0 && filteredTasks.value.every(t => selectedTaskGids.value.has(t.gid))
+)
+const indeterminate = computed(() => {
+  const selected = filteredTasks.value.filter(t => selectedTaskGids.value.has(t.gid))
+  return selected.length > 0 && selected.length < filteredTasks.value.length
+})
+
+function handleSelectAllChange(checked: boolean) {
+  if (checked) {
+    selectAll(filteredTasks.value)
+  } else {
+    clearSelection()
+  }
+}
 
 // 获取任务名称
 function getTaskName(task: Aria2Task): string {
@@ -335,6 +280,122 @@ function formatCompleteTimeLabel(task: Aria2Task): string {
   return completeTime ? formatCompleteTime(completeTime) : '--'
 }
 
+// ── 表格列定义 ──
+
+const columns = computed<DataTableColumns<Aria2Task>>(() => [
+  {
+    key: 'selection',
+    width: 55,
+    fixed: 'left',
+    title: () =>
+      h(NCheckbox, {
+        checked: allChecked.value,
+        indeterminate: indeterminate.value,
+        'onUpdate:checked': handleSelectAllChange,
+        'aria-label': t('task.selectAll')
+      }),
+    render: (row: Aria2Task) => h(TaskCheckbox, { task: row })
+  },
+  {
+    key: 'gid',
+    title: t('task.gid'),
+    width: 120
+  },
+  {
+    key: 'name',
+    title: t('task.fileName'),
+    minWidth: 220,
+    render: (row: Aria2Task) =>
+      h('div', { class: 'file-info' }, [
+        h('div', { class: 'file-name' }, getTaskName(row)),
+        row.dir ? h('div', { class: 'file-path' }, row.dir) : null
+      ])
+  },
+  {
+    key: 'size',
+    title: t('task.size'),
+    width: 100,
+    render: (row: Aria2Task) => formatSize(row.totalLength)
+  },
+  {
+    key: 'progress',
+    title: t('task.progress'),
+    width: 140,
+    render: (row: Aria2Task) =>
+      h(NProgress, {
+        type: 'line',
+        percentage: getProgress(row),
+        status: row.status === 'complete' ? 'success' : row.status === 'error' ? 'error' : 'default',
+        height: 8,
+        indicatorPlacement: 'outside'
+      })
+  },
+  {
+    key: 'status',
+    title: t('task.status'),
+    width: 130,
+    render: (row: Aria2Task) => {
+      const statusIcon =
+        row.status === 'active'
+          ? h(NIcon, { class: 'status-icon active' }, { default: () => h(VideocamOutline) })
+          : row.status === 'waiting'
+            ? h(NIcon, { class: 'status-icon waiting' }, { default: () => h(TimeOutline) })
+            : null
+      return h('div', { class: 'status-column' }, [
+        h(NTag, { type: (getStatusType(row.status) as 'primary' | 'warning' | 'info' | 'success' | 'error' | 'default') || 'default', size: 'small' }, { default: () => t('status.' + row.status) }),
+        statusIcon
+      ])
+    }
+  },
+  {
+    key: 'downloadSpeed',
+    title: t('task.downloadSpeed'),
+    width: 120,
+    render: (row: Aria2Task) => formatSpeed(row.downloadSpeed)
+  },
+  props.taskType === 'stopped'
+    ? {
+        key: 'completeTime',
+        title: t('task.completeTime'),
+        width: 150,
+        render: (row: Aria2Task) => formatCompleteTimeLabel(row)
+      }
+    : {
+        key: 'remainingTime',
+        title: t('task.remainingTime'),
+        width: 120,
+        render: (row: Aria2Task) => formatRemainingTime(row)
+      },
+  {
+    key: 'actions',
+    title: t('task.actions'),
+    width: 200,
+    fixed: 'right',
+    align: 'center',
+    render: (row: Aria2Task) =>
+      h(TaskRowActions, {
+        gid: row.gid,
+        status: row.status,
+        operating: operatingTasks.value.has(row.gid),
+        showOpenLocation: props.taskType === 'stopped',
+        task: row,
+        onUnpause: unpauseTask,
+        onRetry: retryTask,
+        onPause: pauseTask,
+        'onOpen-location': (task: Aria2Task) => openTaskLocation(task),
+        onRemove: removeTask,
+        'onView-detail': viewTaskDetail
+      })
+  }
+])
+
+// 行点击选择任务
+function rowProps(row: Aria2Task) {
+  return {
+    onClick: () => handleRowSelect(row)
+  }
+}
+
 // ── 单任务操作 ──
 
 async function pauseTask(gid: string) {
@@ -343,22 +404,11 @@ async function pauseTask(gid: string) {
   operatingTasks.value.add(gid)
 
   try {
-    // 乐观更新
-    const task = filteredTasks.value.find(t => t.gid === gid)
-    if (task) {
-      task.status = 'paused'
-      task.downloadSpeed = '0'
-    }
-
     await taskStore.pauseTask(gid, true)
-    ElMessage.success(t('task.taskPaused'))
-
-    setTimeout(async () => {
-      await taskStore.loadAllTasks()
-    }, 1000)
+    message.success(t('task.taskPaused'))
   } catch (error: unknown) {
     console.error('暂停任务失败:', error)
-    ElMessage.error(t('task.pauseFailed', { error: (error as Error).message || error }))
+    message.error(t('task.pauseFailed', { error: (error as Error).message || error }))
     await taskStore.loadAllTasks()
   } finally {
     operatingTasks.value.delete(gid)
@@ -371,21 +421,11 @@ async function unpauseTask(gid: string) {
   operatingTasks.value.add(gid)
 
   try {
-    // 乐观更新
-    const task = filteredTasks.value.find(t => t.gid === gid)
-    if (task) {
-      task.status = 'active'
-    }
-
     await taskStore.unpauseTask(gid)
-    ElMessage.success(t('task.taskStarted'))
-
-    setTimeout(async () => {
-      await taskStore.loadAllTasks()
-    }, 1000)
+    message.success(t('task.taskStarted'))
   } catch (error: unknown) {
     console.error('开始任务失败:', error)
-    ElMessage.error(t('task.startFailed', { error: (error as Error).message || error }))
+    message.error(t('task.startFailed', { error: (error as Error).message || error }))
     await taskStore.loadAllTasks()
   } finally {
     operatingTasks.value.delete(gid)
@@ -398,18 +438,12 @@ async function retryTask(gid: string) {
   operatingTasks.value.add(gid)
 
   try {
-    // 乐观更新
-    const task = filteredTasks.value.find(t => t.gid === gid)
-    if (task) {
-      task.status = 'active'
-    }
-
     await taskStore.retryErrorTask(gid)
-    ElMessage.success(t('task.taskRetried'))
+    message.success(t('task.taskRetried'))
     await taskStore.loadAllTasks()
   } catch (error: unknown) {
     console.error('重试任务失败:', error)
-    ElMessage.error(t('task.retryFailed', { error: (error as Error).message || error }))
+    message.error(t('task.retryFailed', { error: (error as Error).message || error }))
     await taskStore.loadAllTasks()
   } finally {
     operatingTasks.value.delete(gid)
@@ -420,7 +454,7 @@ async function removeTask(gid: string) {
   try {
     const task = filteredTasks.value.find(t => t.gid === gid)
     if (!task) {
-      ElMessage.error(t('task.taskNotExistShort'))
+      message.error(t('task.taskNotExistShort'))
       return
     }
 
@@ -440,29 +474,31 @@ async function removeTask(gid: string) {
       showBatchDeleteDialog.value = true
     } else {
       // 使用简单确认对话框
-      await ElMessageBox.confirm(
-        t('delete.confirmSingle'),
-        t('delete.title'),
-        { confirmButtonText: t('delete.confirm'), cancelButtonText: t('common.cancel'), type: 'warning' }
-      )
+      const confirmed = await dialog.warning({
+        title: t('delete.title'),
+        content: t('delete.confirmSingle'),
+        positiveText: t('delete.confirm'),
+        negativeText: t('common.cancel')
+      })
+      if (confirmed !== true) return
 
       if (props.taskType === 'stopped') {
         const result = await completedTaskDeleteService.deleteCompletedTask(task, false)
         await taskStore.loadAllTasks()
         if (result.success) {
-          ElMessage.success(t('delete.taskDeleted'))
+          message.success(t('delete.taskDeleted'))
         } else {
-          ElMessage.error(t('task.deleteFailed', { error: result.errors.join(', ') }))
+          message.error(t('task.deleteFailed', { error: result.errors.join(', ') }))
         }
       } else {
         await taskStore.removeTask(gid, false, false)
-        ElMessage.success(t('delete.taskDeleted'))
+        message.success(t('delete.taskDeleted'))
       }
     }
   } catch (error: unknown) {
     if (error !== 'cancel') {
       console.error('删除任务失败:', error)
-      ElMessage.error(t('task.deleteTaskFailed'))
+      message.error(t('task.deleteTaskFailed'))
     }
   }
 }
@@ -472,20 +508,20 @@ function handleRowSelect(row: Aria2Task) {
   toggleTask(row)
 }
 
-// 查看任务详情
+// 查看任务详情（侧边抽屉）
 function viewTaskDetail(gid: string) {
-  router.push(`/task/${gid}`)
+  uiStore.openTaskDetail(gid)
 }
 
 // 打开任务位置
 async function openTaskLocation(task: Aria2Task) {
   if (!window.electronAPI) {
-    ElMessage.warning(t('task.desktopOnly'))
+    message.warning(t('task.desktopOnly'))
     return
   }
 
   if (!task.dir) {
-    ElMessage.warning(t('task.noDirInfo'))
+    message.warning(t('task.noDirInfo'))
     return
   }
 
@@ -498,14 +534,14 @@ async function openTaskLocation(task: Aria2Task) {
         if (firstFile.path) {
           result = await window.electronAPI.openInExplorer(firstFile.path)
           if (result?.success) {
-            ElMessage.success(t('task.openedLocation'))
+            message.success(t('task.openedLocation'))
             return
           }
         }
       }
       result = await window.electronAPI.openInExplorer(task.dir)
       if (result?.success) {
-        ElMessage.success(t('task.openedDir'))
+        message.success(t('task.openedDir'))
         return
       }
     }
@@ -515,7 +551,7 @@ async function openTaskLocation(task: Aria2Task) {
       if (firstFile.path) {
         result = await window.electronAPI.showItemInFolder(firstFile.path)
         if (result?.success) {
-          ElMessage.success(t('task.openedLocation'))
+          message.success(t('task.openedLocation'))
           return
         }
       }
@@ -523,13 +559,13 @@ async function openTaskLocation(task: Aria2Task) {
 
     result = await window.electronAPI.openPath(task.dir)
     if (result?.success) {
-      ElMessage.success(t('task.openedDir'))
+      message.success(t('task.openedDir'))
     } else {
-      ElMessage.error(t('task.openDirFailed', { error: result?.error || t('common.unknown') }))
+      message.error(t('task.openDirFailed', { error: result?.error || t('common.unknown') }))
     }
   } catch (error) {
     console.error('Failed to open task location:', error)
-    ElMessage.error(t('task.openLocationFailed'))
+    message.error(t('task.openLocationFailed'))
   }
 }
 
@@ -542,7 +578,7 @@ async function batchStart() {
     )
 
     if (startableTasks.length === 0) {
-      ElMessage.warning(t('task.noStartableTasks'))
+      message.warning(t('task.noStartableTasks'))
       return
     }
 
@@ -555,11 +591,11 @@ async function batchStart() {
     }
 
     await taskStore.loadAllTasks()
-    ElMessage.success(t('task.startedCount', { count: startableTasks.length }))
+    message.success(t('task.startedCount', { count: startableTasks.length }))
     clearSelection()
   } catch (error) {
     console.error('开始任务失败:', error)
-    ElMessage.error(t('task.startFailed', { error: '' }))
+    message.error(t('task.startFailed', { error: '' }))
   }
 }
 
@@ -570,7 +606,7 @@ async function batchPause() {
     )
 
     if (pausableTasks.length === 0) {
-      ElMessage.warning(t('task.noPausableTasks'))
+      message.warning(t('task.noPausableTasks'))
       return
     }
 
@@ -578,18 +614,18 @@ async function batchPause() {
       await taskStore.pauseTask(task.gid, true)
     }
 
-    ElMessage.success(t('task.pausedCount', { count: pausableTasks.length }))
+    message.success(t('task.pausedCount', { count: pausableTasks.length }))
     clearSelection()
   } catch (error) {
     console.error('暂停任务失败:', error)
-    ElMessage.error(t('task.pauseFailed', { error: '' }))
+    message.error(t('task.pauseFailed', { error: '' }))
   }
 }
 
 async function batchDelete() {
   try {
     if (selectedCount.value === 0) {
-      ElMessage.warning(t('task.selectTasksFirst'))
+      message.warning(t('task.selectTasksFirst'))
       return
     }
 
@@ -610,17 +646,19 @@ async function batchDelete() {
       tasksToDelete.value = [...selectedTasks.value]
       showBatchDeleteDialog.value = true
     } else {
-      await ElMessageBox.confirm(
-        t('delete.confirmBatch', { count: selectedCount.value }),
-        t('delete.title'),
-        { confirmButtonText: t('delete.confirm'), cancelButtonText: t('common.cancel'), type: 'warning' }
-      )
+      const confirmed = await dialog.warning({
+        title: t('delete.title'),
+        content: t('delete.confirmBatch', { count: selectedCount.value }),
+        positiveText: t('delete.confirm'),
+        negativeText: t('common.cancel')
+      })
+      if (confirmed !== true) return
       await handleBatchDeleteConfirm(false)
     }
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除任务失败:', error)
-      ElMessage.error(t('task.deleteTaskFailed'))
+      message.error(t('task.deleteTaskFailed'))
     }
   }
 }
@@ -637,15 +675,15 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
       await taskStore.loadAllTasks()
 
       if (result.successfulTasks === result.totalTasks) {
-        let message = t('task.deletedCount', { count: result.successfulTasks })
+        let messageText = t('task.deletedCount', { count: result.successfulTasks })
         if (deleteFiles && result.totalFilesDeleted > 0) {
-          message += ` + ${result.totalFilesDeleted} files`
+          messageText += ` + ${t('task.filesDeletedCount', { count: result.totalFilesDeleted })}`
         }
-        ElMessage.success(message)
+        message.success(messageText)
       } else {
-        ElMessage.warning(t('task.deletedPartial', { success: result.successfulTasks, total: result.totalTasks }))
+        message.warning(t('task.deletedPartial', { success: result.successfulTasks, total: result.totalTasks }))
         if (result.errors.length > 0) {
-          result.errors.slice(0, 3).forEach(error => ElMessage.error(error))
+          result.errors.slice(0, 3).forEach(error => message.error(error))
         }
       }
     } else {
@@ -660,12 +698,12 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
       }
 
       if (successCount === tasks.length) {
-        const message = deleteFiles
+        const messageText = deleteFiles
           ? t('task.deletedCountWithFiles', { count: successCount })
           : t('task.deletedCount', { count: successCount })
-        ElMessage.success(message)
+        message.success(messageText)
       } else {
-        ElMessage.warning(t('task.deletedPartial', { success: successCount, total: tasks.length }))
+        message.warning(t('task.deletedPartial', { success: successCount, total: tasks.length }))
       }
     }
 
@@ -673,34 +711,19 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
     tasksToDelete.value = []
   } catch (error) {
     console.error('删除任务失败:', error)
-    ElMessage.error('删除任务失败')
+    message.error(t('task.deleteTaskFailed'))
   }
-}
-
-// 全选功能
-function selectAllTasks() {
-  if (filteredTasks.value.length === 0) {
-    ElMessage.warning(t('task.noSelectableTasks'))
-    return
-  }
-  selectAll(filteredTasks.value)
-  ElMessage.success(t('task.selectedCount', { count: filteredTasks.value.length }))
-}
-
-// 搜索处理函数
-function handleSearch(_value: string) {
-  // 搜索功能通过 computed 属性 filteredTasks 自动处理
 }
 
 // 监听任务数据变化，更新选中任务的数据
+// （filteredTasks 是每次返回新数组的 computed，浅层监听即可，deep 会每秒递归比较全量任务属性）
 watch(
-  () => filteredTasks.value,
+  filteredTasks,
   (newTasks) => {
     updateSelectedTasksData(newTasks)
     const existingGids = newTasks.map(task => task.gid)
     cleanupNonExistentTasks(existingGids)
-  },
-  { deep: true }
+  }
 )
 </script>
 
@@ -732,45 +755,11 @@ watch(
 .task-list-content {
   flex: 1;
   overflow: auto;
-}
-
-.task-table :deep(.el-table__row) {
-  cursor: pointer;
-}
-
-/* 表格行和单元格需要有背景色 */
-.task-table :deep(.el-table__body tr),
-.task-table :deep(.el-table__body tr > td) {
-  background-color: var(--bg-primary) !important;
-  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-/* 固定列需要有背景色 */
-.task-table :deep(.el-table__fixed-right),
-.task-table :deep(.el-table__fixed-left) {
-  background-color: var(--bg-primary) !important;
-}
-
-.task-table :deep(.el-table__fixed-right .el-table__fixed-body-wrapper),
-.task-table :deep(.el-table__fixed-left .el-table__fixed-body-wrapper),
-.task-table :deep(.el-table__fixed-right .el-table__body-wrapper),
-.task-table :deep(.el-table__fixed-left .el-table__body-wrapper) {
-  background-color: var(--bg-primary) !important;
-}
-
-.task-table :deep(.el-table__fixed-right .el-table__body tr),
-.task-table :deep(.el-table__fixed-right .el-table__body tr > td),
-.task-table :deep(.el-table__fixed-left .el-table__body tr),
-.task-table :deep(.el-table__fixed-left .el-table__body tr > td) {
-  background-color: var(--bg-primary) !important;
-  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-/* 悬浮效果 */
-.task-table :deep(.el-table__body-wrapper .el-table__body tbody tr:hover td),
-.task-table :deep(.el-table__fixed-body-wrapper .el-table__body tbody tr:hover td) {
-  background-color: var(--bg-hover) !important;
-  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  box-shadow: var(--shadow-light);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .task-actions {
@@ -791,17 +780,13 @@ watch(
   display: flex;
   gap: 12px;
   flex: 1;
+  align-items: center;
 }
 
 .action-right {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.search-box {
-  display: flex;
-  align-items: center;
 }
 
 .action-divider {

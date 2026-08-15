@@ -1,66 +1,68 @@
 <template>
-  <el-dialog
-    v-model="visible"
+  <n-modal
+    v-model:show="visible"
     :title="t('connection.title')"
-    width="500px"
-    :close-on-click-modal="false"
+    preset="card"
+    style="width: 500px"
+    :bordered="false"
+    :mask-closable="false"
   >
-    <el-form
+    <n-form
       ref="formRef"
       :model="form"
       :rules="rules"
-      label-width="100px"
+      label-placement="left"
+      :label-width="100"
     >
-      <el-form-item :label="t('connection.protocol')" prop="protocol">
-        <el-select v-model="form.protocol" style="width: 100%">
-          <el-option label="HTTP" value="http" />
-          <el-option label="HTTPS" value="https" />
-          <el-option label="WebSocket" value="ws" />
-          <el-option label="WebSocket Secure" value="wss" />
-        </el-select>
-      </el-form-item>
-      <el-form-item :label="t('connection.host')" prop="host">
-        <el-input v-model="form.host" :placeholder="t('connection.hostPlaceholder')" />
-      </el-form-item>
-      <el-form-item :label="t('connection.port')" prop="port">
-        <el-input-number
-          v-model="form.port"
+      <n-form-item :label="t('connection.protocol')" path="protocol">
+        <n-select v-model:value="form.protocol" :options="protocolOptions" style="width: 100%" />
+      </n-form-item>
+      <n-form-item :label="t('connection.host')" path="host">
+        <n-input v-model:value="form.host" :placeholder="t('connection.hostPlaceholder')" />
+      </n-form-item>
+      <n-form-item :label="t('connection.port')" path="port">
+        <n-input-number
+          v-model:value="form.port"
           :min="1"
           :max="65535"
           style="width: 100%"
         />
-      </el-form-item>
-      <el-form-item :label="t('connection.path')" prop="path">
-        <el-input v-model="form.path" :placeholder="t('connection.pathPlaceholder')" />
-      </el-form-item>
-      <el-form-item :label="t('connection.secret')" prop="secret">
-        <el-input
-          v-model="form.secret"
+      </n-form-item>
+      <n-form-item :label="t('connection.path')" path="path">
+        <n-input v-model:value="form.path" :placeholder="t('connection.pathPlaceholder')" />
+      </n-form-item>
+      <n-form-item :label="t('connection.secret')" path="secret">
+        <n-input
+          v-model:value="form.secret"
           type="password"
           :placeholder="t('connection.secretPlaceholder')"
-          show-password
+          show-password-on="click"
         />
-      </el-form-item>
-    </el-form>
+      </n-form-item>
+    </n-form>
+
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="visible = false">{{ t('common.cancel') }}</el-button>
-        <el-button
-          type="primary"
-          :loading="connecting"
-          @click="handleConnect"
-        >
-          {{ connecting ? t('connection.connectingText') : t('connection.connect') }}
-        </el-button>
+        <n-space justify="end">
+          <n-button @click="visible = false">{{ t('common.cancel') }}</n-button>
+          <n-button
+            type="primary"
+            :loading="connecting"
+            @click="handleConnect"
+          >
+            {{ connecting ? t('connection.connectingText') : t('connection.connect') }}
+          </n-button>
+        </n-space>
       </div>
     </template>
-  </el-dialog>
+  </n-modal>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { message } from '@/utils/feedback'
+import type { FormInst, FormRules } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import type { Aria2Config } from '@/types/aria2'
 
@@ -77,10 +79,27 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const connectionStore = useConnectionStore()
-const formRef = ref<FormInstance>()
+const formRef = ref<FormInst>()
 const connecting = ref(false)
 
-const visible = ref(props.modelValue)
+const protocolOptions = [
+  { label: 'HTTP', value: 'http' },
+  { label: 'HTTPS', value: 'https' },
+  { label: 'WebSocket', value: 'ws' },
+  { label: 'WebSocket Secure', value: 'wss' }
+]
+
+// v-model 转发：打开时加载当前连接配置
+const visible = computed({
+  get: () => props.modelValue,
+  set: (value: boolean) => {
+    if (value) {
+      Object.assign(form, connectionStore.config)
+    }
+    emit('update:modelValue', value)
+  }
+})
+
 const form = reactive<Aria2Config>({
   protocol: 'http',
   host: 'localhost',
@@ -91,27 +110,13 @@ const form = reactive<Aria2Config>({
 
 const rules = computed<FormRules>(() => ({
   host: [
-    { required: true, message: t('connection.requireHost'), trigger: 'blur' }
+    { required: true, message: () => t('connection.requireHost'), trigger: 'blur' }
   ],
   port: [
-    { required: true, message: t('connection.requirePort'), trigger: 'blur' },
-    { type: 'number', min: 1, max: 65535, message: t('connection.portRange'), trigger: 'blur' }
+    { required: true, type: 'number', message: () => t('connection.requirePort'), trigger: 'blur' },
+    { type: 'number', min: 1, max: 65535, message: () => t('connection.portRange'), trigger: 'blur' }
   ]
 }))
-
-// 监听props变化
-watch(() => props.modelValue, (newVal) => {
-  visible.value = newVal
-  if (newVal) {
-    // 打开对话框时，加载当前配置
-    Object.assign(form, connectionStore.config)
-  }
-})
-
-// 监听visible变化
-watch(visible, (newVal) => {
-  emit('update:modelValue', newVal)
-})
 
 async function handleConnect() {
   if (!formRef.value) return
@@ -123,11 +128,11 @@ async function handleConnect() {
 
     await connectionStore.connect(form)
 
-    ElMessage.success(t('connection.connectSuccess'))
+    message.success(t('connection.connectSuccess'))
     visible.value = false
   } catch (error) {
     console.error('Connection failed:', error)
-    ElMessage.error(error instanceof Error ? error.message : t('connection.connectionFailed'))
+    message.error(error instanceof Error ? error.message : t('connection.connectionFailed'))
   } finally {
     connecting.value = false
   }

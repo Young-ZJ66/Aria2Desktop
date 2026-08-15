@@ -1,73 +1,98 @@
 <template>
-  <el-card class="info-card">
-    <el-table v-if="peers.length" :data="peers" style="width: 100%">
-      <el-table-column type="index" label="序号" width="60" />
-      <el-table-column label="IP 地址" width="150">
-        <template #default="{ row }">
-          {{ row.ip }}
-        </template>
-      </el-table-column>
-      <el-table-column label="端口" width="80">
-        <template #default="{ row }">
-          {{ row.port }}
-        </template>
-      </el-table-column>
-      <el-table-column label="客户端" width="200">
-        <template #default="{ row }">
-          {{ row.peerId || '未知' }}
-        </template>
-      </el-table-column>
-      <el-table-column label="下载速度" width="120">
-        <template #default="{ row }">
-          {{ formatSpeed(row.downloadSpeed || '0') }}
-        </template>
-      </el-table-column>
-      <el-table-column label="上传速度" width="120">
-        <template #default="{ row }">
-          {{ formatSpeed(row.uploadSpeed || '0') }}
-        </template>
-      </el-table-column>
-      <el-table-column label="进度" width="100">
-        <template #default="{ row }">
-          {{ (parseFloat(row.bitfield || '0') * 100).toFixed(1) }}%
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" width="100">
-        <template #default="{ row }">
-          <el-tag :type="getPeerStatusType(row.amChoking, row.peerChoking)" size="small">
-            {{ getPeerStatusText(row.amChoking, row.peerChoking) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-    </el-table>
+  <n-card class="info-card" size="small">
+    <n-data-table
+      v-if="peers.length"
+      :columns="columns"
+      :data="peers"
+      :bordered="false"
+      :scroll-x="1000"
+    />
 
-    <el-empty v-else :description="t('common.none')" />
-  </el-card>
+    <n-empty v-else :description="t('common.none')" />
+  </n-card>
 </template>
 
 <script setup lang="ts">
+import { computed, h } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { NTag, type DataTableColumns } from 'naive-ui'
+import type { Aria2Peer } from '@/types/aria2'
 import { formatSpeed } from '@/utils/taskFormatters'
 
 interface Props {
   peers: unknown[]
 }
 
-const { t } = useI18n()
 defineProps<Props>()
+const { t } = useI18n()
 
-function getPeerStatusType(amChoking: boolean, peerChoking: boolean): string {
+const columns = computed<DataTableColumns<any>>(() => [
+  {
+    key: 'index',
+    title: t('taskDetail.index'),
+    width: 60,
+    render: (_row, index) => index + 1
+  },
+  {
+    key: 'ip',
+    title: t('taskPeer.ip'),
+    width: 150,
+    render: (row: Aria2Peer) => row.ip
+  },
+  {
+    key: 'port',
+    title: t('taskPeer.port'),
+    width: 80,
+    render: (row: Aria2Peer) => row.port
+  },
+  {
+    key: 'client',
+    title: t('taskPeer.client'),
+    width: 200,
+    render: (row: Aria2Peer) => row.peerId || t('taskPeer.unknown')
+  },
+  {
+    key: 'downloadSpeed',
+    title: t('taskPeer.downloadSpeed'),
+    width: 120,
+    render: (row: Aria2Peer) => formatSpeed(row.downloadSpeed || '0')
+  },
+  {
+    key: 'uploadSpeed',
+    title: t('taskPeer.uploadSpeed'),
+    width: 120,
+    render: (row: Aria2Peer) => formatSpeed(row.uploadSpeed || '0')
+  },
+  {
+    key: 'progress',
+    title: t('taskPeer.progress'),
+    width: 100,
+    render: (row: Aria2Peer) => `${(parseFloat(row.bitfield || '0') * 100).toFixed(1)}%`
+  },
+  {
+    key: 'status',
+    title: t('taskPeer.status'),
+    width: 100,
+    render: (row: Aria2Peer) =>
+      h(NTag, {
+        type: getPeerStatusType(row.amChoking === 'true', row.peerChoking === 'true'),
+        size: 'small'
+      }, { default: () => getPeerStatusText(row.amChoking === 'true', row.peerChoking === 'true') })
+  }
+])
+
+function getPeerStatusType(amChoking: boolean, peerChoking: boolean): 'success' | 'warning' | 'error' {
   if (!amChoking && !peerChoking) return 'success'
-  if (amChoking && peerChoking) return 'danger'
+  if (amChoking && peerChoking) return 'error'
   return 'warning'
 }
 
 function getPeerStatusText(amChoking: boolean, peerChoking: boolean): string {
-  if (!amChoking && !peerChoking) return '正常'
-  if (amChoking && peerChoking) return '阻塞'
-  if (amChoking) return '我方阻塞'
-  if (peerChoking) return '对方阻塞'
-  return '未知'
+  if (!amChoking && !peerChoking) return t('taskPeer.normal')
+  if (amChoking && peerChoking) return t('taskPeer.bothChoked')
+  if (amChoking) return t('taskPeer.amChoking')
+  if (peerChoking) return t('taskPeer.peerChoking')
+  return t('taskPeer.unknown')
 }
 </script>
 

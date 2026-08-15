@@ -4,6 +4,7 @@
  */
 
 import type { Aria2Task } from '@/types/aria2'
+import { getLocale } from '@/i18n'
 import {
   formatSpeed as utilFormatSpeed,
   formatTime,
@@ -15,11 +16,11 @@ import {
  */
 export function formatSize(bytes: string | number): string {
   const size = typeof bytes === 'string' ? parseInt(bytes) : bytes
-  if (size === 0) return '0 B'
+  if (!Number.isFinite(size) || size <= 0) return '0 B'
 
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(size) / Math.log(k))
+  const i = Math.min(Math.floor(Math.log(size) / Math.log(k)), sizes.length - 1)
 
   return parseFloat((size / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
@@ -72,23 +73,8 @@ export function getStatusType(status: string): string {
     case 'waiting': return 'warning'
     case 'paused': return 'info'
     case 'complete': return 'success'
-    case 'error': return 'danger'
+    case 'error': return 'error'
     default: return ''
-  }
-}
-
-/**
- * 获取状态显示文本
- */
-export function getStatusText(status: string): string {
-  switch (status) {
-    case 'active': return '下载中'
-    case 'waiting': return '等待中'
-    case 'paused': return '已暂停'
-    case 'complete': return '已完成'
-    case 'error': return '错误'
-    case 'removed': return '已删除'
-    default: return status
   }
 }
 
@@ -120,6 +106,7 @@ export function getFileName(path: string): string {
  * 格式化完成时间为友好显示
  */
 export function formatCompleteTime(timestamp: number): string {
+  const locale = getLocale()
   const date = new Date(timestamp)
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -127,7 +114,7 @@ export function formatCompleteTime(timestamp: number): string {
 
   // 如果是今天，只显示时间
   if (taskDate.getTime() === today.getTime()) {
-    return date.toLocaleTimeString('zh-CN', {
+    return date.toLocaleTimeString(locale, {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit'
@@ -137,7 +124,7 @@ export function formatCompleteTime(timestamp: number): string {
   // 如果是昨天
   const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
   if (taskDate.getTime() === yesterday.getTime()) {
-    return '昨天 ' + date.toLocaleTimeString('zh-CN', {
+    return (locale === 'zh-CN' ? '昨天 ' : 'Yesterday ') + date.toLocaleTimeString(locale, {
       hour: '2-digit',
       minute: '2-digit'
     })
@@ -145,17 +132,17 @@ export function formatCompleteTime(timestamp: number): string {
 
   // 如果是今年，显示月日和时间
   if (date.getFullYear() === now.getFullYear()) {
-    return date.toLocaleDateString('zh-CN', {
+    return date.toLocaleDateString(locale, {
       month: '2-digit',
       day: '2-digit'
-    }) + ' ' + date.toLocaleTimeString('zh-CN', {
+    }) + ' ' + date.toLocaleTimeString(locale, {
       hour: '2-digit',
       minute: '2-digit'
     })
   }
 
   // 其他情况显示完整日期和时间
-  return date.toLocaleDateString('zh-CN') + ' ' + date.toLocaleTimeString('zh-CN', {
+  return date.toLocaleDateString(locale) + ' ' + date.toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit'
   })

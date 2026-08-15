@@ -1,15 +1,17 @@
 <template>
-  <el-dialog
-    v-model="visible"
+  <n-modal
+    v-model:show="visible"
     :title="t('delete.title')"
-    width="500px"
-    :before-close="handleClose"
+    preset="card"
+    style="width: 500px"
+    :bordered="false"
+    :on-after-leave="resetState"
   >
     <div class="delete-dialog-content">
       <div class="warning-icon">
-        <el-icon size="48" color="#f56c6c">
-          <WarningFilled />
-        </el-icon>
+        <n-icon size="48" color="#e88080">
+          <AlertCircleOutline />
+        </n-icon>
       </div>
 
       <div class="delete-message">
@@ -20,12 +22,12 @@
 
       <!-- 文件删除选项 -->
       <div v-if="showFileDeleteOption" class="file-delete-option">
-        <el-divider />
+        <n-divider />
         <div class="option-section">
           <div style="margin-top: 16px;">
-            <el-checkbox v-model="deleteFiles" :disabled="fileList.length === 0">
+            <n-checkbox v-model:checked="deleteFiles" :disabled="fileList.length === 0">
               {{ t('delete.deleteFiles') }}
-            </el-checkbox>
+            </n-checkbox>
           </div>
         </div>
       </div>
@@ -33,23 +35,25 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="handleClose">{{ t('common.cancel') }}</el-button>
-        <el-button
-          type="danger"
-          :loading="deleting"
-          @click="handleConfirm"
-        >
-          {{ deleteFiles ? t('delete.deleteTaskAndFiles') : t('delete.confirm') }}
-        </el-button>
+        <n-space justify="end">
+          <n-button @click="handleClose">{{ t('common.cancel') }}</n-button>
+          <n-button
+            type="error"
+            :loading="deleting"
+            @click="handleConfirm"
+          >
+            {{ deleteFiles ? t('delete.deleteTaskAndFiles') : t('delete.confirm') }}
+          </n-button>
+        </n-space>
       </div>
     </template>
-  </el-dialog>
+  </n-modal>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { WarningFilled } from '@element-plus/icons-vue'
+import { AlertCircleOutline } from '@vicons/ionicons5'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
 import type { Aria2Task } from '@/types/aria2'
 
@@ -87,37 +91,17 @@ const showFileDeleteOption = computed(() => {
 // 获取所有任务的文件列表
 const fileList = computed(() => {
   const files: string[] = []
-  console.warn('DeleteTaskDialog - Analyzing tasks for file deletion:', {
-    taskType: props.taskType,
-    taskCount: props.tasks.length,
-    tasks: props.tasks
-  })
 
-  props.tasks.forEach((task, index) => {
-    console.warn(`Task ${index} (${task.gid}):`, {
-      status: task.status,
-      files: task.files,
-      filesLength: task.files?.length || 0,
-      dir: task.dir
-    })
-
+  props.tasks.forEach((task) => {
     if (props.taskType === 'stopped') {
       // 已完成任务使用专门的服务获取文件路径
       const taskFiles = completedTaskDeleteService.getTaskFilePaths(task)
       files.push(...taskFiles)
-      console.warn(`  Completed task ${task.gid} files:`, taskFiles)
     } else {
       // 其他任务使用原有逻辑，但也包含.aria2文件
       if (task.files && task.files.length > 0) {
         const taskFiles: string[] = []
-        task.files.forEach((file, fileIndex) => {
-          console.warn(`  File ${fileIndex}:`, {
-            path: file.path,
-            selected: file.selected,
-            length: file.length,
-            completedLength: file.completedLength
-          })
-
+        task.files.forEach((file) => {
           if (file.path && file.path.trim()) {
             taskFiles.push(file.path)
           }
@@ -129,14 +113,10 @@ const fileList = computed(() => {
           .map(path => path + '.aria2')
 
         files.push(...taskFiles, ...aria2Files)
-        console.warn(`  Task ${task.gid} files (including .aria2):`, [...taskFiles, ...aria2Files])
-      } else {
-        console.warn(`  Task ${task.gid} has no files or empty files array`)
       }
     }
   })
 
-  console.warn('DeleteTaskDialog - Final file list:', files)
   return files
 })
 
@@ -147,6 +127,11 @@ watch(visible, (newVisible) => {
     deleting.value = false
   }
 })
+
+function resetState() {
+  deleteFiles.value = false
+  deleting.value = false
+}
 
 function handleClose() {
   if (!deleting.value) {
@@ -204,60 +189,7 @@ async function handleConfirm() {
   font-size: 16px;
 }
 
-.delete-options {
-  width: 100%;
-}
-
-.option-item {
-  width: 100%;
-  margin-bottom: 15px;
-  padding: 15px;
-  border: 1px solid var(--border-base);
-  border-radius: 8px;
-  transition: all 0.3s;
-}
-
-.option-item:hover {
-  border-color: var(--color-primary);
-  background-color: var(--bg-hover);
-}
-
-.option-item.is-checked {
-  border-color: var(--color-primary);
-  background-color: var(--bg-hover);
-}
-
-.option-content {
-  margin-left: 10px;
-}
-
-.option-title {
-  font-weight: 500;
-  color: var(--text-primary);
-  margin-bottom: 5px;
-}
-
-.option-description {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
 .dialog-footer {
   text-align: right;
-}
-
-:deep(.el-radio) {
-  width: 100%;
-  margin-right: 0;
-}
-
-:deep(.el-radio__input) {
-  align-self: flex-start;
-  margin-top: 2px;
-}
-
-:deep(.el-radio__label) {
-  width: 100%;
-  padding-left: 10px;
 }
 </style>

@@ -9,10 +9,10 @@
       @click.stop="$emit('unpause', gid)"
     >
       <div v-if="operating" class="loading-spinner" />
-      <CustomIcon v-else name="start" size="medium" />
+      <n-icon v-else class="action-icon"><PlayOutline /></n-icon>
     </button>
 
-    <!-- 重试按钮 - 错误状态 -->
+    <!-- 重试按钮 - 错误状态（与开始按钮使用不同图标） -->
     <button
       v-else-if="status === 'error'"
       :title="t('task.retryDownload')"
@@ -21,7 +21,7 @@
       @click.stop="$emit('retry', gid)"
     >
       <div v-if="operating" class="loading-spinner" />
-      <CustomIcon v-else name="start" size="medium" />
+      <n-icon v-else class="action-icon"><RefreshOutline /></n-icon>
     </button>
 
     <!-- 暂停按钮 - 活跃状态 -->
@@ -33,7 +33,7 @@
       @click.stop="$emit('pause', gid)"
     >
       <div v-if="operating" class="loading-spinner" />
-      <CustomIcon v-else name="pause" size="medium" />
+      <n-icon v-else class="action-icon"><PauseOutline /></n-icon>
     </button>
 
     <!-- 打开位置按钮 - 仅已完成任务页面 -->
@@ -43,7 +43,7 @@
       class="task-action-btn"
       @click.stop="$emit('open-location', task)"
     >
-      <CustomIcon name="open" size="medium" />
+      <n-icon class="action-icon"><FolderOpenOutline /></n-icon>
     </button>
 
     <!-- 删除按钮 -->
@@ -52,7 +52,7 @@
       class="task-action-btn"
       @click.stop="$emit('remove', gid)"
     >
-      <CustomIcon name="delete" size="medium" />
+      <n-icon class="action-icon"><TrashOutline /></n-icon>
     </button>
 
     <!-- 详情按钮 -->
@@ -61,14 +61,21 @@
       class="task-action-btn"
       @click.stop="$emit('view-detail', gid)"
     >
-      <CustomIcon name="detail" size="medium" />
+      <n-icon class="action-icon"><EyeOutline /></n-icon>
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import CustomIcon from '@/components/CustomIcon.vue'
+import {
+  PlayOutline,
+  RefreshOutline,
+  PauseOutline,
+  FolderOpenOutline,
+  TrashOutline,
+  EyeOutline
+} from '@vicons/ionicons5'
 import type { Aria2Task } from '@/types/aria2'
 
 interface Props {
@@ -120,8 +127,8 @@ defineEmits<Emits>()
   background: var(--bg-tertiary);
 }
 
-.task-action-btn:hover .custom-icon {
-  filter: brightness(0) saturate(100%) invert(58%) sepia(96%) saturate(1458%) hue-rotate(204deg) brightness(97%) contrast(100%);
+.task-action-btn:hover .action-icon {
+  color: var(--color-primary);
 }
 
 .task-action-btn:focus {
@@ -129,8 +136,14 @@ defineEmits<Emits>()
   background: var(--bg-tertiary);
 }
 
-.task-action-btn:focus .custom-icon {
-  filter: brightness(0) saturate(100%) invert(58%) sepia(96%) saturate(1458%) hue-rotate(204deg) brightness(97%) contrast(100%);
+.task-action-btn:focus .action-icon {
+  color: var(--color-primary);
+}
+
+.action-icon {
+  font-size: 18px;
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
 }
 
 .task-action-btn:disabled {

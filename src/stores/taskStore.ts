@@ -4,7 +4,10 @@ import { useConnectionStore } from './connectionStore'
 import { taskTimeService } from '@/services/taskTimeService'
 import { taskPersistenceService } from '@/services/taskPersistenceService'
 import { sessionManager } from '@/services/sessionManager'
+import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
+import { getTaskName } from '@/utils/taskUtils'
 import type { Aria2Task, Aria2Option } from '@/types/aria2'
+import type { Aria2ClientEvent } from '@/services/aria2Client'
 
 export const useTaskStore = defineStore('task', () => {
   const connectionStore = useConnectionStore()
@@ -13,7 +16,6 @@ export const useTaskStore = defineStore('task', () => {
   const activeTasks = ref<Aria2Task[]>([])
   const waitingTasks = ref<Aria2Task[]>([])
   const stoppedTasks = ref<Aria2Task[]>([])
-  const selectedTaskGids = ref<Set<string>>(new Set())
 
   // 计算属性
   const allTasks = computed(() => [
@@ -36,11 +38,14 @@ export const useTaskStore = defineStore('task', () => {
     stoppedTasks.value.filter(task => task.status === 'error')
   )
 
-  const hasSelectedTasks = computed(() => selectedTaskGids.value.size > 0)
-
   // 操作方法
+  let isLoading = false
+
   async function loadAllTasks() {
     if (!connectionStore.service) return
+    // 并发保护：轮询与 WS 事件同时触发时跳过后续调用，避免竞态
+    if (isLoading) return
+    isLoading = true
 
     try {
       const previousStopped = new Set(stoppedTasks.value.map(task => task.gid))
@@ -52,64 +57,38 @@ export const useTaskStore = defineStore('task', () => {
         connectionStore.service.tellStopped(0, 1000)
       ])
 
-      // 记录新的活动任务
+      // 记录新出现的活动任务的添加时间
       active.forEach(task => {
         if (!previousActive.has(task.gid)) {
-          const fileName = getTaskName(task)
-          taskTimeService.recordTaskAdd(task.gid, fileName)
+          taskTimeService.recordTaskAdd(task.gid, getTaskName(task))
         }
       })
 
-      // 详细的停止任务处理逻辑
+      // 持久化已完成任务（合并记录时间与持久化逻辑）
       stopped.forEach(task => {
-        if (!previousStopped.has(task.gid) && task.status === 'complete') {
-          const fileName = getTaskName(task)
-          const existingCompleteTime = taskTimeService.getCompleteTime(task.gid)
-          if (!existingCompleteTime) {
-            taskTimeService.recordTaskComplete(task.gid, fileName)
-          }
+        if (task.status !== 'complete') return
+        if (taskPersistenceService.isTaskPersisted(task.gid)) return
 
-          if (!taskPersistenceService.isTaskPersisted(task.gid)) {
-            const completeTime = taskTimeService.getCompleteTime(task.gid) || Date.now()
-            taskPersistenceService.persistCompletedTask(task, completeTime)
-          }
+        const isNew = !previousStopped.has(task.gid)
+        if (isNew && !taskTimeService.getCompleteTime(task.gid)) {
+          taskTimeService.recordTaskComplete(task.gid, getTaskName(task))
         }
+        // 新完成任务用记录时间/当前时间；启动时已存在的老任务估算为 24 小时前
+        const completeTime = taskTimeService.getCompleteTime(task.gid)
+          ?? (isNew ? Date.now() : Date.now() - 24 * 60 * 60 * 1000)
+        taskPersistenceService.persistCompletedTask(task, completeTime)
       })
 
-      // 同步现有已完成任务
-      stopped.forEach(task => {
-        if (task.status === 'complete' && !taskPersistenceService.isTaskPersisted(task.gid)) {
-          const existingCompleteTime = taskTimeService.getCompleteTime(task.gid)
-          if (existingCompleteTime) {
-            taskPersistenceService.persistCompletedTask(task, existingCompleteTime)
-          } else {
-            const estimatedTime = Date.now() - (24 * 60 * 60 * 1000)
-            taskPersistenceService.persistCompletedTask(task, estimatedTime)
-          }
-        }
-      })
-
-      const errorTasksList = stopped.filter(task => task.status === 'error')
-      const actuallyStoppedTasks = stopped.filter(task => task.status !== 'error')
-      const mergedStoppedTasks = taskPersistenceService.mergeWithAria2Tasks(actuallyStoppedTasks)
-
-      activeTasks.value = [...active, ...errorTasksList]
+      activeTasks.value = active
       waitingTasks.value = waiting
-      stoppedTasks.value = mergedStoppedTasks
+      // error/complete 任务统一保留在 stoppedTasks，由对应 computed 过滤
+      stoppedTasks.value = taskPersistenceService.mergeWithAria2Tasks(stopped)
 
     } catch (error) {
       console.error('Failed to load tasks:', error)
+    } finally {
+      isLoading = false
     }
-  }
-
-  function getTaskName(task: Aria2Task): string {
-    if (task.bittorrent?.info?.name) return task.bittorrent.info.name
-    if (task.files && task.files.length > 0) {
-      const file = task.files[0]
-      const path = file.path
-      return path.split('/').pop() || path.split('\\').pop() || 'Unknown'
-    }
-    return `Task ${task.gid}`
   }
 
   async function addUri(uris: string[], options?: Aria2Option) {
@@ -184,15 +163,21 @@ export const useTaskStore = defineStore('task', () => {
   async function removeTask(gid: string, force = false, deleteFiles = false) {
     if (!connectionStore.service) throw new Error('Not connected')
 
+    // 仅存在于本地持久化中的任务（Aria2 已不持有），统一走删除服务处理文件删除
     const isPersistedTask = taskPersistenceService.isTaskPersisted(gid)
     if (isPersistedTask) {
-      taskPersistenceService.removePersistedTask(gid)
-      taskTimeService.removeTaskTime(gid)
+      const persisted = taskPersistenceService.getPersistedTask(gid)
+      if (persisted && deleteFiles) {
+        await completedTaskDeleteService.deleteCompletedTask(persisted, true)
+      } else {
+        taskPersistenceService.removePersistedTask(gid)
+        taskTimeService.removeTaskTime(gid)
+      }
       await loadAllTasks()
       return true
     }
 
-    // 验证任务是否存在的逻辑...
+    // 验证任务是否存在
     let taskExists = false
     try {
       await connectionStore.service.tellStatus(gid)
@@ -201,18 +186,13 @@ export const useTaskStore = defineStore('task', () => {
       taskExists = false
     }
 
-    // 文件删除逻辑
+    // 收集要删除的文件路径（统一使用删除服务的路径处理逻辑）
     let taskFiles: string[] = []
     if (deleteFiles && window.electronAPI) {
       try {
-        // 我们需要先找到任务以获取文件
-        // 由于 `loadAllTasks` 更新本地状态，我们可以在 stores 中查找
         const task = [...activeTasks.value, ...waitingTasks.value, ...stoppedTasks.value].find(t => t.gid === gid)
-        if (task && task.files) {
-          taskFiles = task.files.map(f => f.path).filter(p => p && p !== '')
-          // 添加 .aria2 文件
-          const aria2Files = taskFiles.map(p => p + '.aria2')
-          taskFiles = [...taskFiles, ...aria2Files]
+        if (task) {
+          taskFiles = completedTaskDeleteService.getTaskFilePaths(task)
         }
       } catch (error) {
         console.warn('Failed to get files for deletion:', error)
@@ -306,38 +286,21 @@ export const useTaskStore = defineStore('task', () => {
     await loadAllTasks()
   }
 
-  // 选择操作
-  function selectTask(gid: string) { selectedTaskGids.value.add(gid) }
-  function unselectTask(gid: string) { selectedTaskGids.value.delete(gid) }
-  function toggleTaskSelection(gid: string) {
-    if (selectedTaskGids.value.has(gid)) selectedTaskGids.value.delete(gid)
-    else selectedTaskGids.value.add(gid)
-  }
+  // 监听器：service 变化时先移除旧监听器，避免重连后叠加刷新
+  const downloadEvents: Aria2ClientEvent[] = [
+    'downloadStart',
+    'downloadPause',
+    'downloadStop',
+    'downloadComplete',
+    'downloadError'
+  ]
 
-  async function pauseSelectedTasks() {
-    if (!connectionStore.service || selectedTaskGids.value.size === 0) return
-    await Promise.all(Array.from(selectedTaskGids.value).map(gid => pauseTask(gid, true).catch(console.error)))
-  }
-
-  async function unpauseSelectedTasks() {
-    if (!connectionStore.service || selectedTaskGids.value.size === 0) return
-    await Promise.all(Array.from(selectedTaskGids.value).map(gid => unpauseTask(gid).catch(console.error)))
-  }
-
-  async function removeSelectedTasks(force = false, deleteFiles = false) {
-    if (!connectionStore.service || selectedTaskGids.value.size === 0) return
-    await Promise.all(Array.from(selectedTaskGids.value).map(gid => removeTask(gid, force, deleteFiles).catch(console.error)))
-    selectedTaskGids.value.clear()
-  }
-
-  // 监听器
-  watch(() => connectionStore.service, (service) => {
+  watch(() => connectionStore.service, (service, oldService) => {
+    if (oldService) {
+      downloadEvents.forEach(evt => oldService.off(evt, loadAllTasks))
+    }
     if (service) {
-      service.on('downloadStart', loadAllTasks)
-      service.on('downloadPause', loadAllTasks)
-      service.on('downloadStop', loadAllTasks)
-      service.on('downloadComplete', loadAllTasks)
-      service.on('downloadError', loadAllTasks)
+      downloadEvents.forEach(evt => service.on(evt, loadAllTasks))
     }
   })
 
@@ -345,13 +308,11 @@ export const useTaskStore = defineStore('task', () => {
     activeTasks,
     waitingTasks,
     stoppedTasks,
-    selectedTaskGids,
     allTasks,
     totalTasks,
     downloadingTasks,
     completedTasks,
     errorTasks,
-    hasSelectedTasks,
     loadAllTasks,
     addUri,
     addTorrent,
@@ -361,12 +322,6 @@ export const useTaskStore = defineStore('task', () => {
     unpauseTask,
     retryErrorTask,
     pauseAllTasks,
-    unpauseAllTasks,
-    selectTask,
-    unselectTask,
-    toggleTaskSelection,
-    pauseSelectedTasks,
-    unpauseSelectedTasks,
-    removeSelectedTasks
+    unpauseAllTasks
   }
 })

@@ -3,13 +3,14 @@
     <div class="footer-left">
       <div class="global-stats">
         <span class="stat-item">
-          <el-icon><Download /></el-icon>
-          {{ formatSpeed(globalStat.downloadSpeed) }}/s
+          <n-icon :size="14"><DownloadOutline /></n-icon>
+          {{ formatSpeed(globalStat.downloadSpeed) }}
         </span>
         <span class="stat-item">
-          <el-icon><Upload /></el-icon>
-          {{ formatSpeed(globalStat.uploadSpeed) }}/s
+          <n-icon :size="14"><CloudUploadOutline /></n-icon>
+          {{ formatSpeed(globalStat.uploadSpeed) }}
         </span>
+        <n-divider vertical />
         <span class="stat-item">
           {{ t('footer.active') }}: {{ globalStat.numActive }}
         </span>
@@ -21,17 +22,6 @@
         </span>
       </div>
     </div>
-
-    <div class="footer-right">
-      <div class="connection-status">
-        <el-icon
-          :class="connectionStatusClass"
-        >
-          <component :is="connectionIcon" />
-        </el-icon>
-        <span>{{ connectionStatusText }}</span>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -39,61 +29,26 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useStatsStore } from '@/stores/statsStore'
-import { useConnectionStore } from '@/stores/connectionStore'
-import {
-  Download,
-  Upload,
-  Connection,
-  WarningFilled,
-  CircleCheckFilled
-} from '@element-plus/icons-vue'
+import { formatSpeed } from '@/utils/taskFormatters'
+import { DownloadOutline, CloudUploadOutline } from '@vicons/ionicons5'
 
 const statsStore = useStatsStore()
-const connectionStore = useConnectionStore()
 const { t } = useI18n()
 
 const globalStat = computed(() => statsStore.globalStat)
-const isConnected = computed(() => connectionStore.isConnected)
-const isConnecting = computed(() => connectionStore.isConnecting)
-
-const connectionStatusText = computed(() => {
-  if (isConnecting.value) return t('header.connecting')
-  return isConnected.value ? t('header.connected') : t('header.disconnected')
-})
-
-const connectionStatusClass = computed(() => {
-  if (isConnecting.value) return 'status-connecting'
-  return isConnected.value ? 'status-connected' : 'status-disconnected'
-})
-
-const connectionIcon = computed(() => {
-  if (isConnecting.value) return Connection
-  return isConnected.value ? CircleCheckFilled : WarningFilled
-})
-
-function formatSpeed(speed: string): string {
-  const bytes = parseInt(speed)
-  if (bytes === 0) return '0 B'
-
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
-}
 </script>
 
 <style scoped>
 .app-footer {
   height: 40px;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border-top: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
   font-size: 12px;
-  color: var(--text-primary);
+  color: var(--text-regular);
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
@@ -103,36 +58,13 @@ function formatSpeed(speed: string): string {
 
 .global-stats {
   display: flex;
+  align-items: center;
   gap: 16px;
 }
 
 .stat-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--text-regular);
-}
-
-.footer-right {
-  flex: 0 0 auto;
-}
-
-.connection-status {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-regular);
-}
-
-.status-connected {
-  color: var(--color-success);
-}
-
-.status-connecting {
-  color: var(--color-warning);
-}
-
-.status-disconnected {
-  color: var(--color-danger);
 }
 </style>

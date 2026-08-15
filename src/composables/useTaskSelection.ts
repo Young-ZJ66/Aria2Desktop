@@ -1,7 +1,7 @@
 import { ref, computed, reactive } from 'vue'
 import type { Aria2Task } from '@/types/aria2'
 
-// 全局选择状态，独立于任务数据
+// 全局选择状态（模块级单例，所有使用该 composable 的组件共享同一份状态）
 const selectedTaskGids = ref<Set<string>>(new Set())
 const selectedTasksData = reactive<Map<string, Aria2Task>>(new Map())
 
@@ -28,13 +28,11 @@ export function useTaskSelection() {
   function selectTask(task: Aria2Task) {
     selectedTaskGids.value.add(task.gid)
     selectedTasksData.set(task.gid, { ...task })
-    console.warn('Task selected:', task.gid, 'Total selected:', selectedTaskGids.value.size)
   }
 
   function unselectTask(gid: string) {
     selectedTaskGids.value.delete(gid)
     selectedTasksData.delete(gid)
-    console.warn('Task unselected:', gid, 'Total selected:', selectedTaskGids.value.size)
   }
 
   function toggleTask(task: Aria2Task) {
@@ -46,7 +44,6 @@ export function useTaskSelection() {
   }
 
   function clearSelection() {
-    console.warn('Clearing all selection')
     selectedTaskGids.value.clear()
     selectedTasksData.clear()
   }
@@ -89,15 +86,11 @@ export function useTaskSelection() {
     })
 
     toRemove.forEach(gid => unselectTask(gid))
-
-    if (toRemove.length > 0) {
-      console.warn('Cleaned up non-existent selected tasks:', toRemove)
-    }
   }
 
   return {
     // 状态
-    selectedTaskGids: selectedTaskGids.value,
+    selectedTaskGids,
     selectedTasks,
     selectedCount,
     hasSelection,

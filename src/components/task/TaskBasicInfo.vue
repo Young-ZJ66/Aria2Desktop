@@ -1,115 +1,123 @@
 <template>
   <div>
     <!-- 任务信息卡片 -->
-    <el-card class="info-card">
+    <n-card class="info-card" size="small">
       <div class="info-section">
-        <el-descriptions :column="2" border class="task-descriptions">
-          <el-descriptions-item :label="t('task.gid')">
+        <n-descriptions :column="2" bordered label-placement="left" class="task-descriptions">
+          <n-descriptions-item :label="t('task.gid')">
             <div class="field-with-action">
               <span>{{ task.gid }}</span>
-              <el-button size="small" text title="复制 GID" @click="copyGid">
-                <el-icon><CopyDocument /></el-icon>
-              </el-button>
+              <n-button size="tiny" quaternary circle :title="t('taskDetail.copyGid')" @click="copyGid">
+                <template #icon>
+                  <n-icon><CopyOutline /></n-icon>
+                </template>
+              </n-button>
             </div>
-          </el-descriptions-item>
-          <el-descriptions-item :label="t('task.status')">
-            <el-tag :type="getStatusType(task.status)">
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('task.status')">
+            <n-tag :type="(getStatusType(task.status) as any) || 'default'">
               {{ t('status.' + task.status) }}
-            </el-tag>
-          </el-descriptions-item>
+            </n-tag>
+          </n-descriptions-item>
 
-          <el-descriptions-item v-if="task.files?.length" :label="t('task.fileName')">
+          <n-descriptions-item v-if="task.files?.length" :label="t('task.fileName')">
             <span>{{ getFileName(task.files[0].path) }}</span>
-          </el-descriptions-item>
+          </n-descriptions-item>
 
-          <el-descriptions-item :label="t('task.size')">{{ formatSize(task.totalLength) }}</el-descriptions-item>
-          <el-descriptions-item label="已下载">{{ formatSize(task.completedLength) }}</el-descriptions-item>
-          <el-descriptions-item :label="t('task.progress')">
-            <el-progress
+          <n-descriptions-item :label="t('task.size')">{{ formatSize(task.totalLength) }}</n-descriptions-item>
+          <n-descriptions-item :label="t('taskDetail.downloaded')">{{ formatSize(task.completedLength) }}</n-descriptions-item>
+          <n-descriptions-item :label="t('task.progress')">
+            <n-progress
+              type="line"
               :percentage="getProgress(task)"
-              :status="task.status === 'complete' ? 'success' : undefined"
+              :status="task.status === 'complete' ? 'success' : 'default'"
+              :height="8"
               style="width: 200px"
             />
-          </el-descriptions-item>
-          <el-descriptions-item :label="t('task.remainingTime')">{{ formatRemainingTime(task) }}</el-descriptions-item>
-          <el-descriptions-item :label="t('task.downloadSpeed')">{{ formatSpeed(task.downloadSpeed) }}</el-descriptions-item>
-          <el-descriptions-item label="分片数">{{ task.numPieces || 0 }}</el-descriptions-item>
-          <el-descriptions-item label="分片长度">{{ formatSize(task.pieceLength || '0') }}</el-descriptions-item>
+          </n-descriptions-item>
+          <n-descriptions-item :label="t('task.remainingTime')">{{ formatRemainingTime(task) }}</n-descriptions-item>
+          <n-descriptions-item :label="t('task.downloadSpeed')">{{ formatSpeed(task.downloadSpeed) }}</n-descriptions-item>
+          <n-descriptions-item :label="t('taskDetail.numPieces')">{{ task.numPieces || 0 }}</n-descriptions-item>
+          <n-descriptions-item :label="t('taskDetail.pieceLength')">{{ formatSize(task.pieceLength || '0') }}</n-descriptions-item>
 
-          <el-descriptions-item v-if="task.files?.length" label="文件路径" :span="2">
+          <n-descriptions-item v-if="task.files?.length" :label="t('taskDetail.filePath')" :span="2">
             <div class="path-with-action">
               <span>{{ task.files[0].path }}</span>
-              <el-button v-if="isElectron" size="small" text title="打开位置" style="margin-left: 8px;" @click="openFileInFolder(task.files[0].path)">
-                <el-icon><FolderOpened /></el-icon>
-              </el-button>
+              <n-button v-if="isElectron" size="tiny" quaternary circle :title="t('task.openLocation')" style="margin-left: 8px;" @click="openFileInFolder(task.files[0].path)">
+                <template #icon>
+                  <n-icon><FolderOpenOutline /></n-icon>
+                </template>
+              </n-button>
             </div>
-          </el-descriptions-item>
+          </n-descriptions-item>
 
-          <el-descriptions-item v-if="taskUris.length" label="下载链接" :span="2">
+          <n-descriptions-item v-if="taskUris.length" :label="t('taskDetail.downloadUrl')" :span="2">
             <div class="field-with-action">
               <div class="uri-content-full">
                 <span class="uri-text-full">{{ taskUris[0].uri }}</span>
               </div>
-              <el-button size="small" text title="复制链接" @click="copyUri(taskUris[0].uri)">
-                <el-icon><CopyDocument /></el-icon>
-              </el-button>
+              <n-button size="tiny" quaternary circle :title="t('taskDetail.copyLink')" @click="copyUri(taskUris[0].uri)">
+                <template #icon>
+                  <n-icon><CopyOutline /></n-icon>
+                </template>
+              </n-button>
             </div>
-          </el-descriptions-item>
+          </n-descriptions-item>
 
-          <el-descriptions-item v-if="task.errorCode && task.errorCode !== '0'" label="错误信息" :span="2">
-            <el-text type="danger">{{ task.errorMessage || task.errorCode }}</el-text>
-          </el-descriptions-item>
-        </el-descriptions>
+          <n-descriptions-item v-if="task.errorCode && task.errorCode !== '0'" :label="t('taskDetail.errorMessage')" :span="2">
+            <n-text type="error">{{ task.errorMessage || task.errorCode }}</n-text>
+          </n-descriptions-item>
+        </n-descriptions>
 
         <!-- 文件操作按钮 -->
         <div v-if="task.files?.length && task.status === 'complete'" class="file-actions">
-          <el-space>
-            <el-button v-if="isElectron" size="small" @click="openFile(task.files[0].path)">
-              <el-icon><Document /></el-icon>
-              {{ t('task.openLocation') }}
-            </el-button>
-          </el-space>
+          <n-button v-if="isElectron" size="small" @click="openFile(task.files[0].path)">
+            <template #icon>
+              <n-icon><DocumentTextOutline /></n-icon>
+            </template>
+            {{ t('task.openLocation') }}
+          </n-button>
         </div>
       </div>
-    </el-card>
+    </n-card>
 
     <!-- BitTorrent 信息 -->
-    <el-card v-if="task.bittorrent" class="info-card">
+    <n-card v-if="task.bittorrent" class="info-card" size="small">
       <template #header>
         <span>BitTorrent {{ t('common.info') }}</span>
       </template>
 
-      <el-descriptions :column="2" border>
-        <el-descriptions-item label="种子名称">{{ task.bittorrent.info?.name || t('common.unknown') }}</el-descriptions-item>
-        <el-descriptions-item label="创建者">{{ task.bittorrent.createdBy || t('common.unknown') }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ formatDate(task.bittorrent.creationDate) }}</el-descriptions-item>
-        <el-descriptions-item label="注释">{{ task.bittorrent.comment || t('common.none') }}</el-descriptions-item>
-        <el-descriptions-item label="模式">{{ task.bittorrent.mode || t('common.unknown') }}</el-descriptions-item>
-        <el-descriptions-item label="宣布列表">
+      <n-descriptions :column="2" bordered label-placement="left">
+        <n-descriptions-item :label="t('taskDetail.torrentName')">{{ task.bittorrent.info?.name || t('common.unknown') }}</n-descriptions-item>
+        <n-descriptions-item :label="t('taskDetail.createdBy')">{{ task.bittorrent.createdBy || t('common.unknown') }}</n-descriptions-item>
+        <n-descriptions-item :label="t('taskDetail.creationDate')">{{ formatDate(task.bittorrent.creationDate) }}</n-descriptions-item>
+        <n-descriptions-item :label="t('taskDetail.comment')">{{ task.bittorrent.comment || t('common.none') }}</n-descriptions-item>
+        <n-descriptions-item :label="t('taskDetail.mode')">{{ task.bittorrent.mode || t('common.unknown') }}</n-descriptions-item>
+        <n-descriptions-item :label="t('taskDetail.announceList')">
           <div v-if="task.bittorrent.announceList?.length">
-            <el-tag
+            <n-tag
               v-for="(announce, index) in task.bittorrent.announceList.slice(0, 3)"
               :key="index"
               size="small"
               style="margin: 2px;"
             >
               {{ announce[0] }}
-            </el-tag>
+            </n-tag>
             <span v-if="task.bittorrent.announceList.length > 3">
-              等 {{ task.bittorrent.announceList.length }} 个
+              {{ t('taskDetail.andMore', { count: task.bittorrent.announceList.length }) }}
             </span>
           </div>
           <span v-else>{{ t('common.none') }}</span>
-        </el-descriptions-item>
-      </el-descriptions>
-    </el-card>
+        </n-descriptions-item>
+      </n-descriptions>
+    </n-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { CopyDocument, FolderOpened, Document } from '@element-plus/icons-vue'
+import { CopyOutline, FolderOpenOutline, DocumentTextOutline } from '@vicons/ionicons5'
+import { message } from '@/utils/feedback'
 import type { Aria2Task, Aria2Uri } from '@/types/aria2'
 import {
   formatSize,
@@ -132,13 +140,13 @@ const { t } = useI18n()
 function copyGid() {
   if (props.task?.gid) {
     navigator.clipboard.writeText(props.task.gid)
-    ElMessage.success(t('common.copied'))
+    message.success(t('common.copied'))
   }
 }
 
 function copyUri(uri: string) {
   navigator.clipboard.writeText(uri)
-  ElMessage.success(t('common.copied'))
+  message.success(t('common.copied'))
 }
 
 function formatDate(timestamp: string | number | undefined): string {
@@ -150,7 +158,7 @@ function formatDate(timestamp: string | number | undefined): string {
 
 async function openFileInFolder(filePath: string) {
   if (!window.electronAPI) {
-    ElMessage.warning(t('task.desktopOnly'))
+    message.warning(t('task.desktopOnly'))
     return
   }
 
@@ -158,39 +166,39 @@ async function openFileInFolder(filePath: string) {
     if (window.electronAPI.openInExplorer) {
       const result = await window.electronAPI.openInExplorer(filePath)
       if (result?.success) {
-        ElMessage.success(t('task.openedLocation'))
+        message.success(t('task.openedLocation'))
         return
       }
     }
 
     const result = await window.electronAPI.showItemInFolder(filePath)
     if (result?.success) {
-      ElMessage.success(t('task.openedLocation'))
+      message.success(t('task.openedLocation'))
     } else {
-      ElMessage.error(t('task.openDirFailed', { error: result?.error || t('common.unknown') }))
+      message.error(t('task.openDirFailed', { error: result?.error || t('common.unknown') }))
     }
   } catch (error) {
     console.error('Failed to open file in folder:', error)
-    ElMessage.error(t('task.openLocationFailed'))
+    message.error(t('task.openLocationFailed'))
   }
 }
 
 async function openFile(filePath: string) {
   if (!window.electronAPI) {
-    ElMessage.warning(t('task.desktopOnly'))
+    message.warning(t('task.desktopOnly'))
     return
   }
 
   try {
     const result = await window.electronAPI.openPath(filePath)
     if (result?.success) {
-      ElMessage.success(t('task.openedLocation'))
+      message.success(t('task.openedLocation'))
     } else {
-      ElMessage.error(t('task.openDirFailed', { error: result?.error || t('common.unknown') }))
+      message.error(t('task.openDirFailed', { error: result?.error || t('common.unknown') }))
     }
   } catch (error) {
     console.error('Failed to open file:', error)
-    ElMessage.error('打开文件失败')
+    message.error(t('taskDetail.openFileFailed'))
   }
 }
 </script>
@@ -216,17 +224,12 @@ async function openFile(filePath: string) {
   border-top: 1px solid var(--border-light);
 }
 
-.task-descriptions :deep(.el-descriptions__label) {
+.task-descriptions :deep(.n-descriptions-table-label) {
   min-width: 120px !important;
   width: 120px !important;
   white-space: nowrap !important;
   text-align: left !important;
   padding-right: 16px !important;
-}
-
-.task-descriptions :deep(.el-descriptions__content) {
-  min-width: 0;
-  flex: 1;
 }
 
 .field-with-action {
@@ -247,30 +250,6 @@ async function openFile(filePath: string) {
 .path-with-action span {
   word-break: break-all;
   line-height: 1.5;
-}
-
-.path-with-action .el-button {
-  flex-shrink: 0;
-  padding: 4px;
-  min-width: auto;
-  height: auto;
-}
-
-.path-with-action .el-button .el-icon {
-  margin: 0;
-  font-size: 14px;
-}
-
-.field-with-action .el-button {
-  flex-shrink: 0;
-  padding: 4px;
-  min-width: auto;
-  height: auto;
-}
-
-.field-with-action .el-button .el-icon {
-  margin: 0;
-  font-size: 14px;
 }
 
 .field-with-action .uri-content-full {

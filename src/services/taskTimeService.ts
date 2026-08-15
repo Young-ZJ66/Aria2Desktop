@@ -149,7 +149,11 @@ class TaskTimeService {
 // 创建单例实例
 export const taskTimeService = new TaskTimeService()
 
-// 定期清理过期记录
-setInterval(() => {
+// 定期清理过期记录（保存引用，可通过 stopTimeCleanupTimer 停止）
+const timeCleanupTimer = setInterval(() => {
   taskTimeService.cleanupOldRecords()
 }, 24 * 60 * 60 * 1000) // 每24小时清理一次
+
+export function stopTimeCleanupTimer() {
+  clearInterval(timeCleanupTimer)
+}

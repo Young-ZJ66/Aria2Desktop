@@ -1,7 +1,7 @@
 <template>
-  <el-checkbox
-    :model-value="isSelected"
-    @change="handleChange"
+  <n-checkbox
+    :checked="isSelected"
+    @update:checked="handleChange"
     @click.stop
   />
 </template>
@@ -23,8 +23,7 @@ const { isTaskSelected, toggleTask } = useTaskSelection()
 const isSelected = computed(() => isTaskSelected(props.task.gid))
 
 // 处理勾选变化
-function handleChange(checked: boolean) {
-  console.warn('Checkbox changed for task:', props.task.gid, 'checked:', checked)
+function handleChange() {
   toggleTask(props.task)
 }
 </script>

@@ -1,39 +1,39 @@
 <template>
-  <el-card class="info-card">
+  <n-card class="info-card" size="small">
     <div v-if="task.numPieces && parseInt(task.numPieces) > 0">
       <div class="pieces-info">
-        <el-descriptions :column="3" border>
-          <el-descriptions-item label="总区块数">{{ task.numPieces }}</el-descriptions-item>
-          <el-descriptions-item label="区块大小">{{ formatSize(task.pieceLength || '0') }}</el-descriptions-item>
-          <el-descriptions-item label="完成区块">{{ getCompletedPieces() }}</el-descriptions-item>
-        </el-descriptions>
+        <n-descriptions :column="3" bordered label-placement="left">
+          <n-descriptions-item :label="t('taskPeer.totalPieces')">{{ task.numPieces }}</n-descriptions-item>
+          <n-descriptions-item :label="t('taskPeer.pieceSize')">{{ formatSize(task.pieceLength || '0') }}</n-descriptions-item>
+          <n-descriptions-item :label="t('taskPeer.completedPieces')">{{ getCompletedPieces() }}</n-descriptions-item>
+        </n-descriptions>
       </div>
 
       <div class="pieces-visual" style="margin-top: 20px;">
-        <h4>区块完成状态</h4>
+        <h4>{{ t('taskPeer.pieceStatus') }}</h4>
         <div class="pieces-grid">
           <div
             v-for="(piece, index) in getPiecesStatus()"
             :key="index"
             :class="['piece-block', piece ? 'completed' : 'pending']"
-            :title="`区块 ${index}: ${piece ? '已完成' : '未完成'}`"
+            :title="`区块 ${index}: ${piece ? t('taskPeer.pieceDone') : t('taskPeer.piecePending')}`"
           />
         </div>
         <div class="pieces-legend">
           <span class="legend-item">
             <span class="legend-color completed" />
-            {{ t('status.complete') }}
+            {{ t('taskPeer.pieceDone') }}
           </span>
           <span class="legend-item">
             <span class="legend-color pending" />
-            {{ t('task.waiting') }}
+            {{ t('taskPeer.piecePending') }}
           </span>
         </div>
       </div>
     </div>
 
-    <el-empty v-else :description="t('common.none')" />
-  </el-card>
+    <n-empty v-else :description="t('common.none')" />
+  </n-card>
 </template>
 
 <script setup lang="ts">

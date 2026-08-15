@@ -8,14 +8,15 @@ export interface FilterOptions {
   sortOrder: 'asc' | 'desc'
 }
 
-// 获取任务名称
+// 获取任务名称（BT 任务优先显示种子名，否则取第一个文件的文件名）
 export function getTaskName(task: Aria2Task): string {
+  if (task.bittorrent?.info?.name) return task.bittorrent.info.name
   if (task.files && task.files.length > 0) {
-    const fileName = task.files[0].path.split('/').pop() || task.files[0].path
-    return fileName
-  }
-  if (task.bittorrent?.info?.name) {
-    return task.bittorrent.info.name
+    const path = task.files[0].path || ''
+    if (path) {
+      const trimmed = path.replace(/[\\/]+$/, '')
+      return trimmed.split('/').pop() || trimmed.split('\\').pop() || task.gid
+    }
   }
   return task.gid
 }
@@ -51,11 +52,11 @@ export function getTaskRemainingTime(task: Aria2Task): number {
 
 // 格式化文件大小
 export function formatSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
 
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
 
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
@@ -138,8 +139,8 @@ export function filterBySize(tasks: Aria2Task[], sizeFilter: string): Aria2Task[
 // 任务排序
 export function sortTasks(tasks: Aria2Task[], sortBy: string, sortOrder: 'asc' | 'desc'): Aria2Task[] {
   const sorted = [...tasks].sort((a, b) => {
-    let aValue: string | number
-    let bValue: string | number
+    let aValue: string | number | bigint
+    let bValue: string | number | bigint
 
     switch (sortBy) {
       case 'name':
@@ -164,9 +165,9 @@ export function sortTasks(tasks: Aria2Task[], sortBy: string, sortOrder: 'asc' |
         break
       case 'addTime':
       default:
-        // 使用 GID 作为添加时间的近似值（GID 通常是递增的）
-        aValue = a.gid
-        bValue = b.gid
+        // 使用 GID 作为添加时间的近似值（GID 是 16 位十六进制递增值，BigInt 避免精度丢失）
+        aValue = BigInt(`0x${a.gid}`)
+        bValue = BigInt(`0x${b.gid}`)
         break
     }
 
