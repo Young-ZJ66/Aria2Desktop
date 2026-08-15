@@ -19,14 +19,14 @@
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-pattern .gitignore"
   },
   "dependencies": {
-    "electron-store": "^8.2.0"
+    "@vicons/ionicons5": "^0.13.0",
+    "electron-store": "^8.2.0",
+    "naive-ui": "^2.44.1"
   },
   "devDependencies": {
-    "@element-plus/icons-vue": "^2.1.0",
     "@eslint/js": "^10.0.1",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^26.2.0",
-    "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/eslint-config-typescript": "^14.9.0",
     "axios": "^1.19.0",
@@ -36,24 +36,22 @@
     "echarts": "^6.1.0",
     "electron": "^43.4.0",
     "electron-builder": "^26.15.7",
-    "element-plus": "^2.4.2",
     "eslint": "^10.8.1",
     "eslint-plugin-vue": "^10.10.0",
     "file-saver": "^2.0.5",
-    "pinia": "^2.1.7",
+    "pinia": "^3.0.4",
     "typescript": "^6.0.3",
     "vite": "^8.2.1",
-    "vue": "^3.3.8",
+    "vue": "^3.5.13",
     "vue-echarts": "^8.1.0",
     "vue-i18n": "^11.4.8",
     "vue-router": "^4.2.5",
-    "wait-on": "^7.2.0",
-    "ws": "^8.21.3"
+    "wait-on": "^7.2.0"
   },
   "build": {
     "appId": "com.aria2desktop.app",
     "productName": "Aria2Desktop",
-    "icon": "build/Aria2.ico",
+    "icon": "build/Icon.ico",
     "compression": "maximum",
     "directories": {
       "output": "release",
@@ -79,13 +77,13 @@
         "to": "aria2c.exe"
       },
       {
-        "from": "build/Aria2.ico",
-        "to": "Aria2.ico"
+        "from": "build/Icon.ico",
+        "to": "Icon.ico"
       }
     ],
     "win": {
       "target": "nsis",
-      "icon": "build/Aria2.ico",
+      "icon": "build/Icon.ico",
       "signAndEditExecutable": true,
       "artifactName": "Aria2Desktop-${version}-Setup.${ext}",
       "requestedExecutionLevel": "asInvoker",
@@ -97,9 +95,9 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "allowElevation": true,
-      "installerIcon": "build/Aria2.ico",
-      "uninstallerIcon": "build/Aria2.ico",
-      "installerHeaderIcon": "build/Aria2.ico",
+      "installerIcon": "build/Icon.ico",
+      "uninstallerIcon": "build/Icon.ico",
+      "installerHeaderIcon": "build/Icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Aria2 Desktop",

@@ -28,7 +28,6 @@ export default withVueTs(
       'eslint_output.txt',
       'src/types/*.d.ts',
       'src/i18n/types.d.ts',
-      'src/utils/resourceManager.js',
       'scripts/**'
     ]
   },
