@@ -1,0 +1,545 @@
+<template>
+  <SettingsPage
+    :title="t('nav.downloadSettings')"
+    :description="t('settings.download.description')"
+    :show-connect-alert="true"
+    :connected="connectionStore.isConnected"
+    :show-actions="true"
+    :saving="saving"
+    :disabled="!connectionStore.isConnected"
+    @save="saveSettings"
+    @reload="loadSettings"
+    @reset="resetToDefaults"
+  >
+    <n-spin :show="loading">
+      <n-form
+        ref="formRef"
+        :model="settings"
+        :rules="rules"
+        label-placement="left"
+        :label-width="180"
+        label-align="left"
+        :show-feedback="false"
+        :disabled="!connectionStore.isConnected"
+      >
+        <!-- 目录与会话 -->
+        <n-card :title="t('settings.download.dirAndSession')" class="setting-group">
+
+        <n-form-item path="dir">
+          <template #label>
+            <TipLabel :label="t('settings.download.dir')" :tip="t('settings.download.dirTip')" />
+          </template>
+          <n-input
+            v-model:value="settings.dir"
+            :placeholder="t('settings.download.dirPlaceholder')"
+          >
+            <template #suffix>
+              <n-button text :disabled="!isElectron" @click="selectDirectory">
+                <template #icon>
+                  <n-icon><FolderOutline /></n-icon>
+                </template>
+              </n-button>
+            </template>
+          </n-input>
+        </n-form-item>
+
+        <n-form-item path="saveSession">
+          <template #label>
+            <TipLabel :label="t('settings.download.saveSession')" :tip="t('settings.download.saveSessionTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.saveSession" />
+        </n-form-item>
+
+        <n-form-item path="saveSessionInterval">
+          <template #label>
+            <TipLabel :label="t('settings.download.saveSessionInterval')" :tip="t('settings.download.saveSessionIntervalTip')" />
+          </template>
+          <n-input-number
+            v-model:value="settings.saveSessionInterval"
+            :min="60"
+            :max="3600"
+            :disabled="!settings.saveSession"
+          />
+        </n-form-item>
+
+        </n-card>
+
+        <!-- 并发与分片 -->
+        <n-card :title="t('settings.download.concurrency')" class="setting-group">
+
+        <n-form-item path="maxConcurrentDownloads">
+          <template #label>
+            <TipLabel :label="t('settings.download.maxConcurrentDownloads')" :tip="t('settings.download.maxConcurrentDownloadsTip')" />
+          </template>
+          <n-input-number
+            v-model:value="settings.maxConcurrentDownloads"
+            :min="1"
+            :max="16"
+          />
+        </n-form-item>
+
+        <n-form-item path="maxConnectionPerServer">
+          <template #label>
+            <TipLabel :label="t('settings.download.maxConnectionPerServer')" :tip="t('settings.download.maxConnectionPerServerTip')" />
+          </template>
+          <n-input-number
+            v-model:value="settings.maxConnectionPerServer"
+            :min="1"
+            :max="16"
+          />
+        </n-form-item>
+
+        <n-form-item path="split">
+          <template #label>
+            <TipLabel :label="t('settings.download.split')" :tip="t('settings.download.splitTip')" />
+          </template>
+          <n-input-number
+            v-model:value="settings.split"
+            :min="1"
+            :max="64"
+          />
+        </n-form-item>
+
+        <n-form-item path="minSplitSize">
+          <template #label>
+            <TipLabel :label="t('settings.download.minSplitSize')" :tip="t('settings.download.minSplitSizeTip')" />
+          </template>
+          <n-select
+            v-model:value="settings.minSplitSize"
+            :options="minSplitSizeOptions"
+          />
+        </n-form-item>
+
+        </n-card>
+
+        <!-- 速度限制 -->
+        <n-card :title="t('settings.download.speedLimit')" class="setting-group">
+
+        <n-form-item path="maxOverallDownloadLimit">
+          <template #label>
+            <TipLabel :label="t('settings.download.maxOverallDownloadLimit')" :tip="t('settings.download.maxOverallDownloadLimitTip')" />
+          </template>
+          <n-input-number
+            v-model:value="settings.maxOverallDownloadLimit"
+            :min="0"
+          />
+        </n-form-item>
+
+        <n-form-item path="maxOverallUploadLimit">
+          <template #label>
+            <TipLabel :label="t('settings.download.maxOverallUploadLimit')" :tip="t('settings.download.maxOverallUploadLimitTip')" />
+          </template>
+          <n-input-number
+            v-model:value="settings.maxOverallUploadLimit"
+            :min="0"
+          />
+        </n-form-item>
+
+        <n-form-item path="maxDownloadLimit">
+          <template #label>
+            <TipLabel :label="t('settings.download.maxDownloadLimit')" :tip="t('settings.download.maxDownloadLimitTip')" />
+          </template>
+          <n-input-number
+            v-model:value="settings.maxDownloadLimit"
+            :min="0"
+          />
+        </n-form-item>
+
+        <n-form-item path="maxUploadLimit">
+          <template #label>
+            <TipLabel :label="t('settings.download.maxUploadLimit')" :tip="t('settings.download.maxUploadLimitTip')" />
+          </template>
+          <n-input-number
+            v-model:value="settings.maxUploadLimit"
+            :min="0"
+          />
+        </n-form-item>
+
+        </n-card>
+
+        <!-- 磁盘与存储 -->
+        <n-card :title="t('settings.download.diskAndMemory')" class="setting-group">
+
+        <n-form-item path="diskCache">
+          <template #label>
+            <TipLabel :label="t('settings.download.diskCache')" :tip="t('settings.download.diskCacheTip')" />
+          </template>
+          <n-input-number
+            v-model:value="settings.diskCache"
+            :min="0"
+            :max="1024"
+          />
+        </n-form-item>
+
+        <n-form-item path="fileAllocation">
+          <template #label>
+            <TipLabel :label="t('settings.download.fileAllocation')" :tip="t('settings.download.fileAllocationTip')" />
+          </template>
+          <n-select
+            v-model:value="settings.fileAllocation"
+            :options="fileAllocationOptions"
+          />
+        </n-form-item>
+
+        <n-form-item path="maxDownloadResult">
+          <template #label>
+            <TipLabel :label="t('settings.download.maxDownloadResult')" :tip="t('settings.download.maxDownloadResultTip')" />
+          </template>
+          <n-input-number
+            v-model:value="settings.maxDownloadResult"
+            :min="0"
+            :max="10000"
+          />
+        </n-form-item>
+
+        </n-card>
+
+        <!-- 下载行为 -->
+        <n-card :title="t('settings.download.behavior')" class="setting-group">
+
+        <n-form-item path="continue">
+          <template #label>
+            <TipLabel :label="t('settings.download.continue')" :tip="t('settings.download.continueTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.continue" />
+        </n-form-item>
+
+        <n-form-item path="realtimeChunkChecksum">
+          <template #label>
+            <TipLabel :label="t('settings.download.realtimeChunkChecksum')" :tip="t('settings.download.realtimeChunkChecksumTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.realtimeChunkChecksum" />
+        </n-form-item>
+
+        <n-form-item path="uriSelector">
+          <template #label>
+            <TipLabel :label="t('settings.download.uriSelector')" :tip="t('settings.download.uriSelectorTip')" />
+          </template>
+          <n-select
+            v-model:value="settings.uriSelector"
+            :options="uriSelectorOptions"
+          />
+        </n-form-item>
+
+        <n-form-item path="streamPieceSelector">
+          <template #label>
+            <TipLabel :label="t('settings.download.streamPieceSelector')" :tip="t('settings.download.streamPieceSelectorTip')" />
+          </template>
+          <n-select
+            v-model:value="settings.streamPieceSelector"
+            :options="streamPieceSelectorOptions"
+          />
+        </n-form-item>
+
+        <n-form-item path="allowOverwrite">
+          <template #label>
+            <TipLabel :label="t('settings.download.allowOverwrite')" :tip="t('settings.download.allowOverwriteTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.allowOverwrite" />
+        </n-form-item>
+
+        <n-form-item path="autoFileRenaming">
+          <template #label>
+            <TipLabel :label="t('settings.download.autoFileRenaming')" :tip="t('settings.download.autoFileRenamingTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.autoFileRenaming" />
+        </n-form-item>
+
+        <n-form-item path="remoteTime">
+          <template #label>
+            <TipLabel :label="t('settings.download.remoteTime')" :tip="t('settings.download.remoteTimeTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.remoteTime" />
+        </n-form-item>
+
+        <n-form-item path="reuseUri">
+          <template #label>
+            <TipLabel :label="t('settings.download.reuseUri')" :tip="t('settings.download.reuseUriTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.reuseUri" />
+        </n-form-item>
+        </n-card>
+      </n-form>
+    </n-spin>
+  </SettingsPage>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { NIcon } from 'naive-ui'
+import { FolderOutline } from '@vicons/ionicons5'
+import { message, dialog } from '@/utils/feedback'
+import type { FormRules, FormInst } from 'naive-ui'
+
+import SettingsPage from '@/components/settings/SettingsPage.vue'
+import TipLabel from '@/components/settings/TipLabel.vue'
+import AppSwitch from '@/components/AppSwitch.vue'
+import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
+import { useConnectionStore } from '@/stores/connectionStore'
+import { useStatsStore } from '@/stores/statsStore'
+
+const connectionStore = useConnectionStore()
+const statsStore = useStatsStore()
+const { t } = useI18n()
+const formRef = ref<FormInst | null>(null)
+const loading = ref(false)
+const saving = ref(false)
+
+const isElectron = computed(() => !!window.electronAPI)
+
+// 表单数据
+const settings = reactive({
+  dir: '',
+  maxConcurrentDownloads: 5,
+  maxConnectionPerServer: 5,
+  split: 5,
+  minSplitSize: '20M',
+  continue: true,
+  saveSession: true,
+  saveSessionInterval: 60,
+  maxOverallDownloadLimit: 0,
+  maxOverallUploadLimit: 0,
+  maxDownloadLimit: 0,
+  maxUploadLimit: 0,
+  diskCache: 16,
+  fileAllocation: 'prealloc',
+  maxDownloadResult: 1000,
+  realtimeChunkChecksum: true,
+  uriSelector: 'feedback',
+  streamPieceSelector: 'default',
+  allowOverwrite: false,
+  autoFileRenaming: true,
+  remoteTime: false,
+  reuseUri: true
+})
+
+// 选项
+const minSplitSizeOptions = [
+  { label: '1M', value: '1M' },
+  { label: '5M', value: '5M' },
+  { label: '10M', value: '10M' },
+  { label: '20M', value: '20M' },
+  { label: '50M', value: '50M' },
+  { label: '100M', value: '100M' }
+]
+
+const fileAllocationOptions = [
+  { label: t('settings.download.fileAllocNone'), value: 'none' },
+  { label: t('settings.download.fileAllocPrealloc'), value: 'prealloc' },
+  { label: t('settings.download.fileAllocFalloc'), value: 'falloc' }
+]
+
+const uriSelectorOptions = [
+  { label: t('settings.download.uriFeedback'), value: 'feedback' },
+  { label: t('settings.download.uriInorder'), value: 'inorder' },
+  { label: t('settings.download.uriAdaptive'), value: 'adaptive' }
+]
+
+const streamPieceSelectorOptions = [
+  { label: t('settings.download.pieceDefault'), value: 'default' },
+  { label: t('settings.download.pieceInorder'), value: 'inorder' },
+  { label: t('settings.download.pieceRandom'), value: 'random' },
+  { label: t('settings.download.pieceGeom'), value: 'geom' }
+]
+
+// 表单验证规则
+const rules: FormRules = {
+  maxConcurrentDownloads: [
+    { type: 'number', min: 1, max: 16, message: () => t('settings.valueRange', { min: 1, max: 16 }), trigger: 'blur' }
+  ],
+  maxConnectionPerServer: [
+    { type: 'number', min: 1, max: 16, message: () => t('settings.valueRange', { min: 1, max: 16 }), trigger: 'blur' }
+  ],
+  saveSessionInterval: [
+    { type: 'number', min: 60, max: 3600, message: () => t('settings.valueRange', { min: 60, max: 3600 }), trigger: 'blur' }
+  ],
+  diskCache: [
+    { type: 'number', min: 0, max: 1024, message: () => t('settings.valueRange', { min: 0, max: 1024 }), trigger: 'blur' }
+  ],
+  maxDownloadResult: [
+    { type: 'number', min: 0, max: 10000, message: () => t('settings.valueRange', { min: 0, max: 10000 }), trigger: 'blur' }
+  ]
+}
+
+onMounted(() => {
+  if (connectionStore.isConnected) {
+    loadSettings()
+  }
+})
+
+async function loadSettings() {
+  if (!connectionStore.isConnected) {
+    message.warning(t('settings.connectFirst'))
+    return
+  }
+
+  loading.value = true
+  try {
+    const options = await statsStore.getGlobalOptions()
+
+    if (options && typeof options === 'object') {
+      settings.dir = options.dir || ''
+
+      // 并发与分片
+      settings.maxConcurrentDownloads = parseInt(options['max-concurrent-downloads'] || '5')
+      settings.maxConnectionPerServer = parseInt(options['max-connection-per-server'] || '5')
+      settings.split = parseInt(options.split || '5')
+      // min-split-size 可能是字节数（如 "20971520"）或带单位（如 "20M"），统一转为可选项（aria2 默认 20M）
+      const minSplitValue = `${parseSizeToUnit(options['min-split-size'] || '20M', 'M')}M`
+      settings.minSplitSize = minSplitValue
+      // 若 aria2 返回值不在预设选项中，动态加入，避免下拉框空白
+      if (!minSplitSizeOptions.some((o) => o.value === minSplitValue)) {
+        minSplitSizeOptions.push({ label: minSplitValue, value: minSplitValue })
+      }
+
+      // 会话
+      settings.continue = options.continue === 'true'
+      settings.saveSession = options['save-session'] !== 'false'
+      settings.saveSessionInterval = parseInt(options['save-session-interval'] || '60')
+
+      // 速度限制（aria2 返回字节数或带单位，统一转为 KB/s）
+      settings.maxOverallDownloadLimit = parseSizeToUnit(options['max-overall-download-limit'] || '0', 'K')
+      settings.maxOverallUploadLimit = parseSizeToUnit(options['max-overall-upload-limit'] || '0', 'K')
+      settings.maxDownloadLimit = parseSizeToUnit(options['max-download-limit'] || '0', 'K')
+      settings.maxUploadLimit = parseSizeToUnit(options['max-upload-limit'] || '0', 'K')
+
+      // 磁盘与存储
+      settings.diskCache = parseSizeToUnit(options['disk-cache'] || '16M', 'M')
+      settings.fileAllocation = options['file-allocation'] || 'prealloc'
+      settings.maxDownloadResult = parseInt(options['max-download-result'] || '1000')
+
+      // 下载行为
+      settings.realtimeChunkChecksum = options['realtime-chunk-checksum'] !== 'false'
+      settings.uriSelector = options['uri-selector'] || 'feedback'
+      settings.streamPieceSelector = options['stream-piece-selector'] || 'default'
+      settings.allowOverwrite = options['allow-overwrite'] === 'true'
+      settings.autoFileRenaming = options['auto-file-renaming'] !== 'false'
+      settings.remoteTime = options['remote-time'] === 'true'
+      settings.reuseUri = options['reuse-uri'] !== 'false'
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
+    message.error(t('settings.download.loadFailed', { error: errorMessage }))
+    console.error('Failed to load settings:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function saveSettings() {
+  if (!formRef.value) return
+
+  try {
+    await formRef.value.validate()
+  } catch (errors) {
+    const msg = Array.isArray(errors) && errors[0]?.message ? errors[0].message : t('settings.saveFailedShort')
+    message.error(msg)
+    return
+  }
+
+  if (!connectionStore.isConnected) {
+    message.warning(t('settings.connectFirst'))
+    return
+  }
+
+  saving.value = true
+  try {
+    const options: Record<string, string> = {
+      'dir': settings.dir,
+      'max-concurrent-downloads': settings.maxConcurrentDownloads.toString(),
+      'max-connection-per-server': settings.maxConnectionPerServer.toString(),
+      'split': settings.split.toString(),
+      'min-split-size': settings.minSplitSize,
+      'continue': settings.continue.toString(),
+      'save-session': settings.saveSession.toString(),
+      'save-session-interval': settings.saveSessionInterval.toString(),
+      'max-overall-download-limit': formatSizeWithUnit(settings.maxOverallDownloadLimit, 'K'),
+      'max-overall-upload-limit': formatSizeWithUnit(settings.maxOverallUploadLimit, 'K'),
+      'max-download-limit': formatSizeWithUnit(settings.maxDownloadLimit, 'K'),
+      'max-upload-limit': formatSizeWithUnit(settings.maxUploadLimit, 'K'),
+      'disk-cache': formatSizeWithUnit(settings.diskCache, 'M'),
+      'file-allocation': settings.fileAllocation,
+      'max-download-result': settings.maxDownloadResult.toString(),
+      'realtime-chunk-checksum': settings.realtimeChunkChecksum ? 'true' : 'false',
+      'uri-selector': settings.uriSelector,
+      'stream-piece-selector': settings.streamPieceSelector,
+      'allow-overwrite': settings.allowOverwrite ? 'true' : 'false',
+      'auto-file-renaming': settings.autoFileRenaming ? 'true' : 'false',
+      'remote-time': settings.remoteTime ? 'true' : 'false',
+      'reuse-uri': settings.reuseUri ? 'true' : 'false'
+    }
+
+    await statsStore.changeGlobalOptions(options)
+    message.success(t('settings.saved'))
+  } catch (error) {
+    message.error(t('settings.saveFailedShort'))
+    console.error('Failed to save settings:', error)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function resetToDefaults() {
+  const confirmed = await dialog.warning({
+    title: t('settings.restoreConfirmTitle'),
+    content: t('settings.restoreConfirm'),
+    positiveText: t('common.ok'),
+    negativeText: t('common.cancel')
+  })
+  if (confirmed !== true) return
+
+  Object.assign(settings, {
+    dir: '',
+    maxConcurrentDownloads: 5,
+    maxConnectionPerServer: 5,
+    split: 5,
+    minSplitSize: '20M',
+    continue: true,
+    saveSession: true,
+    saveSessionInterval: 60,
+    maxOverallDownloadLimit: '0',
+    maxOverallUploadLimit: '0',
+    maxDownloadLimit: '0',
+    maxUploadLimit: '0',
+    diskCache: 16,
+    fileAllocation: 'prealloc',
+    maxDownloadResult: 1000,
+    realtimeChunkChecksum: true,
+    uriSelector: 'feedback',
+    streamPieceSelector: 'default',
+    allowOverwrite: false,
+    autoFileRenaming: true,
+    remoteTime: false,
+    reuseUri: true
+  })
+
+  message.success(t('settings.restored'))
+}
+
+async function selectDirectory() {
+  if (!window.electronAPI) {
+    message.warning(t('task.desktopOnly'))
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.showOpenDialog({
+      properties: ['openDirectory'],
+      title: t('settings.download.selectDirTitle')
+    })
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      settings.dir = result.filePaths[0]
+    }
+  } catch (_error) {
+    message.error(t('settings.download.selectDirFailed'))
+  }
+}
+</script>
+
+<style scoped>
+.setting-group {
+  margin-bottom: 16px;
+}
+</style>

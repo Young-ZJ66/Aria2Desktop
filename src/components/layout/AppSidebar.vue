@@ -1,147 +1,285 @@
 <template>
   <div class="app-sidebar">
-    <div class="sidebar-header">
-      <h3>{{ t('app.downloadManager') }}</h3>
+    <div class="sidebar-brand">
+      <img :src="appIcon" alt="Aria2" class="brand-logo" />
+      <div class="brand-name">
+        <span class="brand-title">Aria2</span>
+        <span class="brand-subtitle">{{ t('app.downloadManager') }}</span>
+      </div>
     </div>
 
-    <el-menu
-      :default-active="$route.path"
-      router
-      class="sidebar-menu"
-    >
-      <el-menu-item index="/downloading">
-        <el-icon><Download /></el-icon>
-        <span>{{ t('nav.downloading') }} ({{ activeAndWaitingCount }})</span>
-      </el-menu-item>
-
-      <el-menu-item index="/completed">
-        <el-icon><Check /></el-icon>
-        <span>{{ t('nav.completed') }} ({{ stoppedTasks.length }})</span>
-      </el-menu-item>
-    </el-menu>
-
-    <div class="sidebar-divider" />
-
-    <div class="sidebar-header">
-      <h3>{{ t('app.settings') }}</h3>
+    <div class="sidebar-scroll">
+      <n-menu
+        :value="activeKey"
+        :options="menuOptions"
+        :indent="20"
+        :collapsed="false"
+        @update:value="handleMenuSelect"
+      />
     </div>
 
-    <el-menu
-      :default-active="$route.path"
-      router
-      class="sidebar-menu"
-    >
-      <el-menu-item index="/settings/general">
-        <el-icon><Setting /></el-icon>
-        <span>{{ t('nav.generalSettings') }}</span>
-      </el-menu-item>
+    <div class="sidebar-footer">
+      <!-- 左下角操作行：设置 / 主题切换 / GitHub -->
+      <div class="footer-actions">
+        <button
+          class="footer-btn"
+          :title="t('app.settings')"
+          @click="uiStore.openSettings()"
+        >
+          <n-icon :size="16"><SettingsOutline /></n-icon>
+        </button>
+        <button
+          class="footer-btn"
+          :title="t('app.toggleTheme')"
+          @click="toggleTheme"
+        >
+          <n-icon :size="16"><SunnyOutline v-if="isDark" /><MoonOutline v-else /></n-icon>
+        </button>
+        <a
+          class="footer-btn"
+          :href="githubUrl"
+          target="_blank"
+          rel="noreferrer"
+          :title="t('app.githubRepo')"
+        >
+          <n-icon :size="16"><LogoGithub /></n-icon>
+        </a>
+      </div>
 
-      <el-sub-menu index="/settings/aria2">
-        <template #title>
-          <el-icon><Tools /></el-icon>
-          <span>{{ t('nav.aria2Settings') }}</span>
-        </template>
-
-        <el-menu-item index="/settings/aria2/local-service">{{ t('nav.localService') }}</el-menu-item>
-        <el-menu-item index="/settings/aria2/basic">{{ t('nav.basicSettings') }}</el-menu-item>
-        <el-menu-item index="/settings/aria2/connection">{{ t('nav.connectionSettings') }}</el-menu-item>
-        <el-menu-item index="/settings/aria2/http">{{ t('nav.httpSettings') }}</el-menu-item>
-        <el-menu-item index="/settings/aria2/ftp-sftp">{{ t('nav.ftpSftpSettings') }}</el-menu-item>
-        <el-menu-item index="/settings/aria2/bt">{{ t('nav.btSettings') }}</el-menu-item>
-        <el-menu-item index="/settings/aria2/metalink">{{ t('nav.metalinkSettings') }}</el-menu-item>
-        <el-menu-item index="/settings/aria2/performance">{{ t('nav.performanceSettings') }}</el-menu-item>
-        <el-menu-item index="/settings/aria2/security">{{ t('nav.securitySettings') }}</el-menu-item>
-        <el-menu-item index="/settings/aria2/advanced">{{ t('nav.advancedSettings') }}</el-menu-item>
-        <el-menu-item index="/settings/aria2/rpc">{{ t('nav.rpcSettings') }}</el-menu-item>
-      </el-sub-menu>
-
-      <el-menu-item index="/status">
-        <el-icon><Monitor /></el-icon>
-        <span>{{ t('nav.aria2Status') }}</span>
-      </el-menu-item>
-    </el-menu>
+      <!-- 左下角：连接状态（点击打开连接弹窗） -->
+      <button
+        class="footer-btn footer-btn-connection"
+        :title="t('header.connection')"
+        @click="connectionStore.showConnectionDialog = true"
+      >
+        <n-icon :size="16" :class="connectionStatusClass">
+          <CloudDoneOutline v-if="isConnected" />
+          <CloudOfflineOutline v-else-if="!isConnecting" />
+          <SyncOutline v-else />
+        </n-icon>
+        <span class="status-text" :class="connectionStatusClass">
+          {{ connectionStatusText }}
+        </span>
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, h } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useTaskStore } from '@/stores/taskStore'
+import { NIcon, NMenu, type MenuOption } from 'naive-ui'
 import {
-  Download,
-  Check,
-  Setting,
-  Tools,
-  Monitor
-} from '@element-plus/icons-vue'
+  DownloadOutline,
+  CheckmarkDoneOutline,
+  CloudDoneOutline,
+  CloudOfflineOutline,
+  SyncOutline,
+  SettingsOutline,
+  SunnyOutline,
+  MoonOutline,
+  LogoGithub
+} from '@vicons/ionicons5'
+import { useTaskStore } from '@/stores/taskStore'
+import { useUiStore } from '@/stores/uiStore'
+import { useConnectionStore } from '@/stores/connectionStore'
+import { useSettingsStore } from '@/stores/settingsStore'
+import appIcon from '@/../build/Icon.ico'
 
+const GITHUB_URL = 'https://github.com/Young-ZJ66/Aria2Desktop'
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const taskStore = useTaskStore()
+const uiStore = useUiStore()
+const connectionStore = useConnectionStore()
+const settingsStore = useSettingsStore()
 
-const activeTasks = computed(() => taskStore.activeTasks)
-const waitingTasks = computed(() => taskStore.waitingTasks)
-const stoppedTasks = computed(() => taskStore.stoppedTasks)
+function renderIcon(icon: Component) {
+  return () => h(NIcon, null, { default: () => h(icon) })
+}
 
-// 合并正在下载和等待中的任务数量
+const activeKey = computed(() => route.path)
+
+// 下载任务计数包含失败/错误任务（错误任务归入下载任务列表）
 const activeAndWaitingCount = computed(() =>
-  activeTasks.value.length + waitingTasks.value.length
+  taskStore.activeTasks.length + taskStore.waitingTasks.length +
+  taskStore.stoppedTasks.filter(task => task.status === 'error').length
 )
-</script>
+const stoppedCount = computed(() =>
+  taskStore.stoppedTasks.filter(task => task.status !== 'error').length
+)
 
+const menuOptions = computed<MenuOption[]>(() => [
+  {
+    label: () => `${t('nav.downloading')} (${activeAndWaitingCount.value})`,
+    key: '/downloading',
+    icon: renderIcon(DownloadOutline)
+  },
+  {
+    label: () => `${t('nav.completed')} (${stoppedCount.value})`,
+    key: '/completed',
+    icon: renderIcon(CheckmarkDoneOutline)
+  },
+  {
+    label: t('nav.aria2Status'),
+    key: '/status',
+    icon: renderIcon(CloudDoneOutline)
+  }
+])
+
+function handleMenuSelect(key: string) {
+  if (key.startsWith('/')) {
+    router.push(key)
+  }
+}
+
+const isConnected = computed(() => connectionStore.isConnected)
+const isConnecting = computed(() => connectionStore.isConnecting)
+const isDark = computed(() => {
+  const theme = settingsStore.settings.theme
+  return theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+})
+const githubUrl = GITHUB_URL
+
+async function toggleTheme() {
+  const current = settingsStore.settings.theme
+  const next = current === 'dark' ? 'light' : 'dark'
+  await settingsStore.updateSetting('theme', next)
+  settingsStore.applyTheme()
+}
+
+const connectionStatusClass = computed(() => {
+  if (connectionStore.isConnecting) return 'status-connecting'
+  return connectionStore.isConnected ? 'status-connected' : 'status-disconnected'
+})
+
+const connectionStatusText = computed(() => {
+  if (connectionStore.isConnecting) return t('header.connecting')
+  return connectionStore.isConnected ? t('header.connected') : t('header.disconnected')
+})
+</script>
 
 <style scoped>
 .app-sidebar {
-  width: 250px;
+  width: 232px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   background: var(--bg-primary);
   border-right: 1px solid var(--border-light);
-  height: 100%;
-  overflow-y: auto;
   transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-.sidebar-header {
-  padding: 16px;
-  border-bottom: 1px solid var(--border-light);
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px;
 }
 
-.sidebar-header h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-regular);
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
-.sidebar-menu {
-  border: none;
-  background-color: var(--bg-primary);
+.brand-name {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
 }
 
-.sidebar-divider {
-  height: 1px;
-  background: var(--border-light);
-  margin: 8px 0;
-}
-
-:deep(.el-menu-item) {
-  height: 40px;
-  line-height: 40px;
-  color: var(--text-regular);
-  background-color: var(--bg-primary);
-}
-
-:deep(.el-menu-item:hover) {
-  background-color: var(--bg-tertiary);
+.brand-title {
+  font-size: 17px;
+  font-weight: 700;
   color: var(--text-primary);
 }
 
-:deep(.el-menu-item.is-active) {
-  background-color: var(--color-primary);
-  color: #ffffff;
+.brand-subtitle {
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
-:deep(.el-sub-menu .el-menu-item) {
-  height: 36px;
-  line-height: 36px;
-  padding-left: 50px !important;
+.sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 8px;
+}
+
+:deep(.n-menu-item-content) {
+  border-radius: 8px;
+}
+
+:deep(.n-menu-item-content.is-active) {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+:deep(.n-menu-group-header) {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sidebar-footer {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.footer-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text-regular);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.footer-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.footer-btn-connection {
+  flex: 1;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.status-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-connected {
+  color: var(--color-success);
+}
+
+.status-disconnected {
+  color: var(--text-secondary);
+}
+
+.status-connecting {
+  color: var(--color-warning);
 }
 </style>
