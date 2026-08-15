@@ -15,7 +15,10 @@ export interface AppSettings {
   aria2?: {
     host?: string
     port?: number
-    rpcSecret?: string
+    secret?: string
+    protocol?: string
+    path?: string
+    autoStart?: boolean
     downloadDir?: string
     [key: string]: unknown
   }

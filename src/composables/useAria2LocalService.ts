@@ -1,5 +1,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { message } from '@/utils/feedback'
+import { useI18n } from 'vue-i18n'
 
 export interface Aria2ProcessInfo {
   isRunning: boolean
@@ -33,6 +34,8 @@ export interface Aria2LocalConfig {
 }
 
 export function useAria2LocalService() {
+  const { t } = useI18n()
+
   const processInfo = ref<Aria2ProcessInfo>({
     isRunning: false,
     pid: null,
@@ -77,12 +80,12 @@ export function useAria2LocalService() {
   // 启动 Aria2
   async function start(): Promise<boolean> {
     if (!isElectronAvailable.value) {
-      ElMessage.error('Electron 环境不可用')
+      message.error(t('localService.electronUnavailable'))
       return false
     }
 
     if (isStarting.value) {
-      ElMessage.warning('Aria2 正在启动中，请稍候')
+      message.warning(t('localService.startingWait'))
       return false
     }
 
@@ -96,12 +99,12 @@ export function useAria2LocalService() {
         await getStatus()
         return true
       } else {
-        ElMessage.error(`启动 Aria2 失败: ${result.error}`)
+        message.error(t('localService.startFailed', { error: result.error }))
         return false
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      ElMessage.error(`启动 Aria2 失败: ${errorMessage}`)
+      message.error(t('localService.startFailed', { error: errorMessage }))
       console.error('启动 Aria2 失败:', error)
       return false
     } finally {
@@ -112,12 +115,12 @@ export function useAria2LocalService() {
   // 停止 Aria2
   async function stop(): Promise<boolean> {
     if (!isElectronAvailable.value) {
-      ElMessage.error('Electron 环境不可用')
+      message.error(t('localService.electronUnavailable'))
       return false
     }
 
     if (isStopping.value) {
-      ElMessage.warning('Aria2 正在停止中，请稍候')
+      message.warning(t('localService.stoppingWait'))
       return false
     }
 
@@ -127,16 +130,16 @@ export function useAria2LocalService() {
       const result = await window.electronAPI.aria2.stop()
 
       if (result.success) {
-        ElMessage.success('Aria2 已停止')
+        message.success(t('localService.serviceStopped'))
         await getStatus()
         return true
       } else {
-        ElMessage.error(`停止 Aria2 失败: ${result.error}`)
+        message.error(t('localService.stopFailed', { error: result.error }))
         return false
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      ElMessage.error(`停止 Aria2 失败: ${errorMessage}`)
+      message.error(t('localService.stopFailed', { error: errorMessage }))
       console.error('停止 Aria2 失败:', error)
       return false
     } finally {
@@ -147,12 +150,12 @@ export function useAria2LocalService() {
   // 重启 Aria2
   async function restart(): Promise<boolean> {
     if (!isElectronAvailable.value) {
-      ElMessage.error('Electron 环境不可用')
+      message.error(t('localService.electronUnavailable'))
       return false
     }
 
     if (isStarting.value || isStopping.value) {
-      ElMessage.warning('Aria2 正在操作中，请稍候')
+      message.warning(t('localService.operatingWait'))
       return false
     }
 
@@ -162,16 +165,16 @@ export function useAria2LocalService() {
       const result = await window.electronAPI.aria2.restart()
 
       if (result.success) {
-        ElMessage.success('Aria2 重启成功')
+        message.success(t('localService.restartSuccess'))
         await getStatus()
         return true
       } else {
-        ElMessage.error(`重启 Aria2 失败: ${result.error}`)
+        message.error(t('localService.restartFailed', { error: result.error }))
         return false
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      ElMessage.error(`重启 Aria2 失败: ${errorMessage}`)
+      message.error(t('localService.restartFailed', { error: errorMessage }))
       console.error('重启 Aria2 失败:', error)
       return false
     } finally {
@@ -182,7 +185,7 @@ export function useAria2LocalService() {
   // 更新配置
   async function updateConfig(config: Aria2LocalConfig): Promise<boolean> {
     if (!isElectronAvailable.value) {
-      ElMessage.error('Electron 环境不可用')
+      message.error(t('localService.electronUnavailable'))
       return false
     }
 
@@ -205,12 +208,12 @@ export function useAria2LocalService() {
         console.warn('配置更新成功，状态已刷新') // {{ AURA: Add - 调试日志 }}
         return true
       } else {
-        ElMessage.error(`更新 Aria2 配置失败: ${result.error}`)
+        message.error(t('localService.updateConfigFailed', { error: result.error }))
         return false
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      ElMessage.error(`更新 Aria2 配置失败: ${errorMessage}`)
+      message.error(t('localService.updateConfigFailed', { error: errorMessage }))
       console.error('更新 Aria2 配置失败:', error)
       return false
     }

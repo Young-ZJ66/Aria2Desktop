@@ -45,7 +45,7 @@ console.log('Config file path:', store.path)
 
 const windowController = new WindowController(store)
 const trayController = new TrayController(windowController)
-const aria2Controller = new Aria2Controller(store)
+const aria2Controller = new Aria2Controller(store, windowController)
 const ipcController = new IpcController(windowController, trayController, aria2Controller, store)
 
 // 创建 AppLifecycle 协调器
@@ -123,9 +123,8 @@ if (!gotTheLock) {
     }
   })
 
-  // 处理信号
+  // 处理信号：直接触发 quit，由 before-quit 执行优雅关闭
   process.on('SIGINT', () => {
-    (app as unknown as { isQuiting?: boolean }).isQuiting = true
     app.quit()
   })
 }

@@ -100,6 +100,24 @@ save-session-interval=60
   }
 
   /**
+     * 注释掉指定配置项（保留原行内容，仅加 # 前缀）
+     * 用于禁用某个配置而不丢失其值
+     */
+  public commentConfigValue(key: string): void {
+    this.configContent.delete(key)
+    for (let i = 0; i < this.rawLines.length; i++) {
+      const trimmed = this.rawLines[i].trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const [k, ...valueParts] = trimmed.split('=')
+      if (k && k.trim() === key && valueParts.length > 0) {
+        this.rawLines[i] = `#${trimmed}`
+        break
+      }
+    }
+    this.saveConfig()
+  }
+
+  /**
      * 保存配置：保留原始文件结构（注释、空行），仅更新已修改的键值对
      * 新增的键值对追加到文件末尾
      */

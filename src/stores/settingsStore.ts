@@ -15,6 +15,11 @@ export const useSettingsStore = defineStore('settings', () => {
   const theme = computed(() => settings.value.theme)
   const language = computed(() => settings.value.language)
 
+  // 监听设置变化（store 实例只创建一次，避免重复注册监听器）
+  settingsService.onSettingsChange((newSettings) => {
+    settings.value = newSettings
+  })
+
   // 初始化
   async function initialize() {
     isLoading.value = true
@@ -23,11 +28,6 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       await settingsService.loadSettings()
       settings.value = settingsService.getSettings()
-
-      // 监听设置变化
-      settingsService.onSettingsChange((newSettings) => {
-        settings.value = newSettings
-      })
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载设置失败'
     } finally {
@@ -130,6 +130,16 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  // 系统主题变化监听器（稳定引用，避免重复注册导致泄漏）
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  const handleSystemThemeChange = () => {
+    if (settings.value.theme === 'auto') {
+      applyTheme()
+    }
+  }
+
+  let mediaListenerRegistered = false
+
   // 应用主题
   async function applyTheme() {
     const theme = settings.value.theme
@@ -148,19 +158,10 @@ export const useSettingsStore = defineStore('settings', () => {
       }
     }
 
-    // 如果是自动模式，监听系统主题变化
-    if (theme === 'auto') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      const handleChange = () => {
-        if (settings.value.theme === 'auto') {
-          applyTheme()
-        }
-      }
-
-      // 移除之前的监听器（如果存在）
-      mediaQuery.removeEventListener('change', handleChange)
-      // 添加新的监听器
-      mediaQuery.addEventListener('change', handleChange)
+    // 自动模式下监听系统主题变化（只注册一次）
+    if (theme === 'auto' && !mediaListenerRegistered) {
+      mediaQuery.addEventListener('change', handleSystemThemeChange)
+      mediaListenerRegistered = true
     }
   }
 

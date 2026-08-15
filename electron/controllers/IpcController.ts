@@ -135,7 +135,12 @@ export class IpcController {
       // 获取允许删除文件的根目录（下载目录）
       const settings = this.store.get('settings', {}) as AppSettings
       const allowedDir = settings?.aria2?.downloadDir || settings?.download?.defaultDir || ''
-      const normalizedAllowedDir = allowedDir ? path.resolve(allowedDir) : ''
+      // 未配置下载目录时拒绝所有删除操作，防止任意路径被删
+      if (!allowedDir) {
+        console.warn('[IpcController] Blocked deletion: download dir not configured')
+        return { success: false, error: 'Download dir not configured' }
+      }
+      const normalizedAllowedDir = path.resolve(allowedDir)
 
       const results: unknown[] = []
       for (const p of filePaths) {
@@ -143,7 +148,7 @@ export class IpcController {
           const normalized = path.resolve(path.normalize(p))
 
           // 校验文件路径是否在允许的下载目录范围内
-          if (normalizedAllowedDir && !normalized.startsWith(normalizedAllowedDir + path.sep) && normalized !== normalizedAllowedDir) {
+          if (!normalized.startsWith(normalizedAllowedDir + path.sep) && normalized !== normalizedAllowedDir) {
             console.warn(`[IpcController] Blocked deletion of path outside download dir: ${normalized}`)
             results.push({ path: p, success: false, error: 'Path outside allowed directory' })
             continue

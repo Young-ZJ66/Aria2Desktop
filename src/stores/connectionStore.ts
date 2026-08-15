@@ -8,6 +8,8 @@ export const useConnectionStore = defineStore('connection', () => {
   const isConnected = ref(false)
   const isConnecting = ref(false)
   const connectionError = ref<string | null>(null)
+  // 全局连接对话框显示状态（对话框实例只挂载在 App.vue，避免多处实例）
+  const showConnectionDialog = ref(false)
 
   const config = ref<Aria2Config>({
     host: 'localhost',
@@ -49,7 +51,6 @@ export const useConnectionStore = defineStore('connection', () => {
 
       try {
         await service.value.connect()
-        console.warn('WebSocket connection established')
       } catch (wsError) {
         console.warn('WebSocket connection failed, will use HTTP:', wsError)
       }
@@ -85,6 +86,7 @@ export const useConnectionStore = defineStore('connection', () => {
     isConnected,
     isConnecting,
     connectionError,
+    showConnectionDialog,
     config,
     connect,
     disconnect,

@@ -1,57 +1,67 @@
-// Electron API 类型定义
+// Electron API 类型定义（与 electron/preload.ts 暴露的接口对齐，唯一声明处）
 export interface ElectronAPI {
   // 应用信息
   getAppVersion: () => Promise<string>
 
   // 数据存储
-  getStoreValue: (key: string) => Promise<any>
-  setStoreValue: (key: string, value: any) => Promise<void>
+  getStoreValue: (key: string) => Promise<unknown>
+  setStoreValue: (key: string, value: unknown) => Promise<{ success: boolean; error?: string }>
 
   // 文件对话框
-  showSaveDialog: (options: any) => Promise<any>
-  showOpenDialog: (options: any) => Promise<any>
+  showSaveDialog: (options: unknown) => Promise<{ canceled: boolean; filePath?: string }>
+  showOpenDialog: (options: unknown) => Promise<{ canceled: boolean; filePaths: string[] }>
 
   // 文件系统操作
-  showItemInFolder: (path: string) => Promise<any>
-  openPath: (path: string) => Promise<any>
-  openInExplorer: (path: string) => Promise<any>
-  deleteFiles: (paths: string[]) => Promise<any>
+  showItemInFolder: (path: string) => Promise<{ success: boolean; error?: string }>
+  openPath: (path: string) => Promise<{ success: boolean; error?: string }>
+  openInExplorer: (path: string) => Promise<{ success: boolean; error?: string }>
+  deleteFiles: (paths: string[]) => Promise<{
+    success: boolean
+    error?: string
+    results?: Array<{ path: string; success: boolean; error?: string }>
+  }>
 
   // 托盘控制
-  setTrayEnabled: (enabled: boolean) => Promise<void>
+  setTrayEnabled: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
 
-  // {{ AURA: Add - 窗口主题设置方法 }}
-  setWindowTheme: (isDark: boolean) => Promise<void>
-
-  // 通用消息发送
-  send: (channel: string, ...args: any[]) => void
+  // 窗口主题设置
+  setWindowTheme: (isDark: boolean) => Promise<{ success: boolean; error?: string }>
 
   // Aria2 进程管理
   aria2: {
-    start: () => Promise<any>
-    stop: () => Promise<any>
-    restart: () => Promise<any>
-    getStatus: () => Promise<any>
-    updateConfig: (config: any) => Promise<any>
+    start: () => Promise<{ success: boolean; error?: string }>
+    stop: () => Promise<{ success: boolean; error?: string }>
+    restart: () => Promise<{ success: boolean; error?: string }>
+    getStatus: () => Promise<{
+      isRunning: boolean
+      pid: number | null
+      retryCount: number
+      config: Record<string, unknown> | null
+      error?: string
+    }>
+    updateConfig: (config: unknown) => Promise<{ success: boolean; error?: string }>
   }
 
   // 会话管理
-  saveSession: () => Promise<any>
+  saveSession: () => Promise<{ success: boolean; error?: string }>
 
   // 平台信息
   platform: string
+
+  // 通知主进程渲染进程已就绪
+  notifyAppReady: () => void
 
   // 窗口控制
   minimize: () => void
   maximize: () => void
   close: () => void
 
-  // Config hot-reload
-  onConfigChanged: (callback: (data: { key: string; value: any }) => void) => void
+  // 配置热重载（返回取消订阅函数）
+  onConfigChanged: (callback: (data: { key: string; value: unknown }) => void) => () => void
 }
 
 declare global {
   interface Window {
-    electronAPI: ElectronAPI
+    electronAPI?: ElectronAPI
   }
 }

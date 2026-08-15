@@ -21,11 +21,10 @@ export class Aria2ProcessManager {
   private config: Required<Aria2ProcessConfig>
   private isStarting = false
   private isStopping = false
-  private isRestarting = false  // {{ AURA: Add - 添加重启状态标志防止竞态条件 }}
   private retryCount = 0
   private maxRetries = 3
   private restartTimer: NodeJS.Timeout | null = null
-  private configUpdateLock = false  // {{ AURA: Add - 配置更新锁 }}
+  private pendingRestartTimer: NodeJS.Timeout | null = null
   private resourceManager: ResourceManager
   private configManager: Aria2ConfigManager
 
@@ -49,10 +48,6 @@ export class Aria2ProcessManager {
       rpcAllowOriginAll: config.rpcAllowOriginAll ?? true,
       autoStart: config.autoStart ?? true
     }
-  }
-
-  private generateSecret(): string {
-    return Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2)
   }
 
   private ensureDownloadDirectory(): void {
@@ -114,29 +109,45 @@ export class Aria2ProcessManager {
 
       // 等待进程启动 - 简化检测逻辑，只检查进程是否运行
       await new Promise<void>((resolve, reject) => {
+        const proc = this.process
+        if (!proc) {
+          reject(new Error('Aria2 进程未创建'))
+          return
+        }
+
         const timeout = setTimeout(() => {
+          cleanup()
           reject(new Error('Aria2 启动超时'))
         }, 10000) // 10秒超时
 
-        // 监听进程错误和退出
-        this.process?.on('error', (error) => {
-          clearTimeout(timeout)
-          reject(error)
-        })
+        // 简单延迟后认为启动成功
+        const successTimer = setTimeout(() => {
+          cleanup()
+          resolve()
+        }, 3000)
 
-        this.process?.on('exit', (code) => {
-          clearTimeout(timeout)
+        const onError = (error: Error) => {
+          cleanup()
+          reject(error)
+        }
+
+        const onExit = (code: number | null) => {
+          cleanup()
           if (code !== 0 && code !== null) {
             reject(new Error(`Aria2 进程异常退出，代码: ${code}`))
           }
-        })
+        }
 
-        // 简单延迟后认为启动成功
-        setTimeout(() => {
+        // 启动完成后移除临时监听器，避免泄漏（常驻监听由 setupProcessHandlers 注册）
+        const cleanup = () => {
           clearTimeout(timeout)
-          console.log('Aria2 进程启动成功')
-          resolve()
-        }, 3000) // 3秒后认为启动成功
+          clearTimeout(successTimer)
+          proc.removeListener('error', onError)
+          proc.removeListener('exit', onExit)
+        }
+
+        proc.on('error', onError)
+        proc.on('exit', onExit)
       })
 
       console.log('Aria2 进程启动成功, PID:', this.process?.pid)
@@ -199,7 +210,10 @@ export class Aria2ProcessManager {
 
     this.process.on('error', (error) => {
       console.error('Aria2 进程错误:', error)
-      this.handleProcessExit(null, 'error')
+      // spawn 失败（如可执行文件不存在）时 exit 不会触发，此处清理进程引用
+      if (!this.process?.pid) {
+        this.process = null
+      }
     })
 
     this.process.on('exit', (code, signal) => {
@@ -211,16 +225,16 @@ export class Aria2ProcessManager {
   private handleProcessExit(code: number | null, signal: string | null): void {
     this.process = null
 
-    // 如果是正常退出或者手动停止，不重启
-    if (code === 0 || signal === 'SIGTERM' || signal === 'SIGKILL') {
+    // 手动停止、正常退出或被信号终止时，不自动重启
+    if (this.isStopping || code === 0 || signal === 'SIGTERM' || signal === 'SIGKILL') {
       console.log('Aria2 进程正常退出')
       return
     }
 
-    // 如果启用了自动重启且重试次数未超限
-    if (this.config.autoStart && this.retryCount < this.maxRetries) {
+    // 异常退出时自动重启（与 autoStart 无关，重试次数限制）
+    if (this.retryCount < this.maxRetries) {
       this.retryCount++
-      console.log(`Aria2 进程异常退出，${3}秒后尝试第${this.retryCount}次重启`)
+      console.log(`Aria2 进程异常退出，3秒后尝试第${this.retryCount}次重启`)
 
       this.restartTimer = setTimeout(() => {
         this.start().catch(error => {
@@ -238,11 +252,17 @@ export class Aria2ProcessManager {
       this.restartTimer = null
     }
 
+    if (this.pendingRestartTimer) {
+      clearTimeout(this.pendingRestartTimer)
+      this.pendingRestartTimer = null
+    }
+
     if (!this.process || this.process.killed) {
       console.log('Aria2 进程未运行')
       return true
     }
 
+    this.isStopping = true
     try {
       console.log('正在停止 Aria2 进程...')
 
@@ -272,6 +292,8 @@ export class Aria2ProcessManager {
     } catch (error) {
       console.error('停止 Aria2 进程失败:', error)
       return false
+    } finally {
+      this.isStopping = false
     }
   }
 
@@ -311,8 +333,8 @@ export class Aria2ProcessManager {
         if (newConfig.secret && newConfig.secret.trim() !== '') {
           configUpdates['rpc-secret'] = newConfig.secret
         } else {
-          // 如果密钥为空，需要注释掉该行
-          this.configManager.setConfigValue('#rpc-secret', '')
+          // 如果密钥为空，注释掉配置文件中的 rpc-secret 行
+          this.configManager.commentConfigValue('rpc-secret')
         }
       }
 
@@ -344,8 +366,9 @@ export class Aria2ProcessManager {
     const needsRestart = this.checkIfRestartNeeded(oldConfig, this.config)
     if (needsRestart && this.isRunning()) {
       console.log('检测到需要重启的配置变更，将自动重启 Aria2 服务')
-      // 增加延迟并确保配置文件完全写入
-      setTimeout(async () => {
+      // 保存定时器引用，stop() 时可取消，避免退出后复活子进程
+      this.pendingRestartTimer = setTimeout(async () => {
+        this.pendingRestartTimer = null
         try {
           // 等待配置文件写入完成
           await this.waitForConfigFileSync()

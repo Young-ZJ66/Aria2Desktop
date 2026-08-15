@@ -27,9 +27,10 @@ export class ResourceManager {
       ? path.dirname(process.execPath)
       : process.cwd()
 
-    // Aria2 可执行文件路径
-    this.executablePath = path.join(appDir, 'resources', 'aria2c.exe')
-    console.log('Looking for aria2c.exe at:', this.executablePath)
+    // Aria2 可执行文件路径（跨平台：Windows 为 .exe，其他平台无后缀）
+    const executableName = process.platform === 'win32' ? 'aria2c.exe' : 'aria2c'
+    this.executablePath = path.join(appDir, 'resources', executableName)
+    console.log('Looking for aria2 executable at:', this.executablePath)
 
     // 配置文件路径 - 使用 data/aria2 目录
     const configDir = path.join(appDir, 'data', 'aria2')

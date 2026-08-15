@@ -6,16 +6,32 @@ import type {
   Aria2RpcNotification
 } from '@/types/aria2'
 
+/** 客户端事件类型 */
+export type Aria2ClientEvent =
+  | 'connected'
+  | 'disconnected'
+  | 'error'
+  | 'notification'
+  | 'downloadStart'
+  | 'downloadPause'
+  | 'downloadStop'
+  | 'downloadComplete'
+  | 'downloadError'
+  | 'btDownloadComplete'
+
+type Aria2EventListener = (...args: unknown[]) => void
+
 export class Aria2Client {
   private config: Aria2Config
   private httpClient: AxiosInstance
   private wsClient: WebSocket | null = null
   private requestId = 0
-  private pendingRequests = new Map<string | number, {
+  private pendingRequests = new Map<number, {
     resolve: (value: unknown) => void
     reject: (reason: unknown) => void
+    timer: ReturnType<typeof setTimeout>
   }>()
-  private eventListeners = new Map<string, Function[]>()
+  private eventListeners = new Map<string, Aria2EventListener[]>()
 
   constructor(config: Aria2Config) {
     this.config = config
@@ -56,17 +72,9 @@ export class Aria2Client {
   async callHttp<T = unknown>(method: string, params: unknown[] = []): Promise<T> {
     const request = this.buildRpcRequest(method, params)
 
-    console.warn('Aria2 RPC Request:', {
-      method,
-      params,
-      url: this.httpClient.defaults.baseURL
-    })
-
     try {
       const response = await this.httpClient.post('', request)
       const rpcResponse: Aria2RpcResponse<T> = response.data
-
-      console.warn('Aria2 RPC Response:', rpcResponse)
 
       if (rpcResponse.error) {
         console.error('Aria2 RPC Error:', rpcResponse.error)
@@ -75,7 +83,6 @@ export class Aria2Client {
 
       return rpcResponse.result as T
     } catch (error) {
-      console.error('Aria2 HTTP Error:', error)
       if (axios.isAxiosError(error)) {
         throw new Error(`HTTP Error: ${error.message}`)
       }
@@ -85,14 +92,30 @@ export class Aria2Client {
 
   // WebSocket连接
   async connectWebSocket(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const wsUrl = `${this.config.protocol === 'https' ? 'wss' : 'ws'}://${this.config.host}:${this.config.port}${this.config.path || '/jsonrpc'}`
+    // wss 用于 https/wss 协议，其余用 ws
+    const wsProto = this.config.protocol === 'https' || this.config.protocol === 'wss' ? 'wss' : 'ws'
+    const wsUrl = `${wsProto}://${this.config.host}:${this.config.port}${this.config.path || '/jsonrpc'}`
 
+    return new Promise((resolve, reject) => {
       this.wsClient = new WebSocket(wsUrl)
+
+      const connectTimeout = setTimeout(() => {
+        this.wsClient?.close()
+        reject(new Error('WebSocket connection timeout'))
+      }, 10000)
+
+      let settled = false
+      const settle = (err?: Error) => {
+        if (settled) return
+        settled = true
+        clearTimeout(connectTimeout)
+        if (err) reject(err)
+        else resolve()
+      }
 
       this.wsClient.onopen = () => {
         this.emit('connected')
-        resolve()
+        settle()
       }
 
       this.wsClient.onmessage = (event) => {
@@ -107,21 +130,35 @@ export class Aria2Client {
       this.wsClient.onclose = () => {
         this.emit('disconnected')
         this.wsClient = null
+        // 连接建立后断开：reject 所有在途请求，避免调用方挂起
+        this.rejectAllPending('WebSocket connection closed')
+        // 连接阶段断开（未触发 onerror 的场景），确保 Promise settle
+        settle(new Error('WebSocket connection closed'))
       }
 
       this.wsClient.onerror = (error) => {
         this.emit('error', error)
-        reject(error)
+        settle(new Error('WebSocket connection error'))
       }
     })
+  }
+
+  /** 拒绝并清理所有在途请求 */
+  private rejectAllPending(reason: string) {
+    for (const [id, pending] of this.pendingRequests) {
+      clearTimeout(pending.timer)
+      this.pendingRequests.delete(id)
+      pending.reject(new Error(reason))
+    }
   }
 
   private handleWebSocketMessage(data: Aria2RpcResponse | Aria2RpcNotification) {
     // 处理RPC响应
     if ('id' in data && data.id !== undefined) {
-      const pending = this.pendingRequests.get(data.id)
+      const pending = this.pendingRequests.get(Number(data.id))
       if (pending) {
-        this.pendingRequests.delete(data.id)
+        clearTimeout(pending.timer)
+        this.pendingRequests.delete(Number(data.id))
         if (data.error) {
           pending.reject(new Error(`Aria2 RPC Error: ${data.error.message}`))
         } else {
@@ -165,17 +202,21 @@ export class Aria2Client {
 
     return new Promise((resolve, reject) => {
       const request = this.buildRpcRequest(method, params)
-      this.pendingRequests.set(request.id, { resolve: resolve as (value: unknown) => void, reject })
 
-      this.wsClient!.send(JSON.stringify(request))
-
-      // 设置超时
-      setTimeout(() => {
-        if (this.pendingRequests.has(request.id)) {
-          this.pendingRequests.delete(request.id)
+      const timer = setTimeout(() => {
+        if (this.pendingRequests.has(request.id as number)) {
+          this.pendingRequests.delete(request.id as number)
           reject(new Error('Request timeout'))
         }
       }, 10000)
+
+      this.pendingRequests.set(request.id as number, {
+        resolve: resolve as (value: unknown) => void,
+        reject,
+        timer
+      })
+
+      this.wsClient!.send(JSON.stringify(request))
     })
   }
 
@@ -189,14 +230,14 @@ export class Aria2Client {
   }
 
   // 事件监听
-  on(event: string, listener: Function) {
+  on(event: Aria2ClientEvent, listener: Aria2EventListener) {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, [])
     }
     this.eventListeners.get(event)!.push(listener)
   }
 
-  off(event: string, listener: Function) {
+  off(event: Aria2ClientEvent, listener: Aria2EventListener) {
     const listeners = this.eventListeners.get(event)
     if (listeners) {
       const index = listeners.indexOf(listener)
@@ -206,7 +247,7 @@ export class Aria2Client {
     }
   }
 
-  private emit(event: string, ...args: unknown[]) {
+  private emit(event: Aria2ClientEvent, ...args: unknown[]) {
     const listeners = this.eventListeners.get(event)
     if (listeners) {
       listeners.forEach(listener => listener(...args))
@@ -216,10 +257,13 @@ export class Aria2Client {
   // 断开连接
   disconnect() {
     if (this.wsClient) {
+      // 移除事件回调，避免 close 时重复触发 disconnected/rejectAllPending
+      this.wsClient.onclose = null
+      this.wsClient.onerror = null
       this.wsClient.close()
       this.wsClient = null
     }
-    this.pendingRequests.clear()
+    this.rejectAllPending('Client disconnected')
   }
 
   // 检查连接状态
@@ -227,9 +271,16 @@ export class Aria2Client {
     return this.wsClient?.readyState === WebSocket.OPEN
   }
 
-  // 更新配置
+  // 更新配置（重建 HTTP 客户端并断开旧 WS，重连由调用方决定）
   updateConfig(config: Partial<Aria2Config>) {
+    const protocolChanged = config.host !== undefined || config.port !== undefined ||
+      config.protocol !== undefined || config.path !== undefined
+
     this.config = { ...this.config, ...config }
     this.httpClient = this.createHttpClient()
+
+    if (protocolChanged && this.wsClient) {
+      this.disconnect()
+    }
   }
 }

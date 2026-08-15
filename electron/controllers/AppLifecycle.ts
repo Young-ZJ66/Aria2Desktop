@@ -15,6 +15,9 @@ export enum AppStatus {
     SHUTTING_DOWN = 'shutting_down'
 }
 
+/** 用户在错误对话框中选择退出时抛出的标记错误 */
+class UserCancelledError extends Error {}
+
 /**
  * AppLifecycle - 集中式应用生命周期管理
  * 协调初始化、就绪状态和优雅关闭
@@ -82,6 +85,10 @@ export class AppLifecycle extends EventEmitter {
       this.windowController.show()
 
     } catch (error) {
+      // 用户主动选择退出时不重复广播错误
+      if (error instanceof UserCancelledError) {
+        throw error
+      }
       console.error('[AppLifecycle] Initialization failed:', error)
       this.status = AppStatus.ERROR
       this.emit('error', error)
@@ -112,7 +119,7 @@ export class AppLifecycle extends EventEmitter {
 
       if (result.response === 1) {
         // 用户选择退出
-        throw new Error('User cancelled due to Aria2 startup failure')
+        throw new UserCancelledError('User cancelled due to Aria2 startup failure')
       }
 
       // 用户选择继续 - 发出警告但不抛出异常

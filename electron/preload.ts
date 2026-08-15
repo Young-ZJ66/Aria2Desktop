@@ -39,19 +39,21 @@ const electronAPI = {
   // 平台信息
   platform: process.platform,
 
+  // 通知主进程渲染进程已就绪
+  notifyAppReady: () => ipcRenderer.send('app-ready'),
+
   // 窗口控制
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
 
-  // 配置热重载
+  // 配置热重载（返回取消订阅函数）
   onConfigChanged: (callback: (data: { key: string; value: unknown }) => void) => {
-    ipcRenderer.on('config:changed', (_event, data) => callback(data))
-  },
-
-  // 通用消息发送
-  send: (channel: string, ...args: unknown[]) => {
-    ipcRenderer.send(channel, ...args)
+    const listener = (_event: Electron.IpcRendererEvent, data: { key: string; value: unknown }) => callback(data)
+    ipcRenderer.on('config:changed', listener)
+    return () => {
+      ipcRenderer.removeListener('config:changed', listener)
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-import { Aria2Client } from './aria2Client'
+import { Aria2Client, type Aria2ClientEvent, type Aria2EventListener } from './aria2Client'
 import type {
   Aria2Config,
   Aria2Task,
@@ -37,11 +37,11 @@ export class Aria2Service {
   }
 
   // 事件监听
-  on(event: string, listener: Function): void {
+  on(event: Aria2ClientEvent, listener: Aria2EventListener): void {
     this.client.on(event, listener)
   }
 
-  off(event: string, listener: Function): void {
+  off(event: Aria2ClientEvent, listener: Aria2EventListener): void {
     this.client.off(event, listener)
   }
 
@@ -145,20 +145,18 @@ export class Aria2Service {
   }
 
   // 获取已停止任务列表
+  // 注意：aria2 不提供 creationTime/startTime/endTime 等时间字段，
+  // 任务的添加/完成时间由本地 taskTimeService 记录
   async tellStopped(offset: number, num: number, keys?: string[]): Promise<Aria2Task[]> {
     const params: unknown[] = [offset, num]
-    // 如果没有指定字段，获取所有可能的字段包括时间信息
     if (keys) {
       params.push(keys)
     } else {
-      // 请求所有可能的字段，包括时间相关字段
       params.push([
         'gid', 'status', 'totalLength', 'completedLength', 'uploadLength',
         'downloadSpeed', 'uploadSpeed', 'dir', 'files', 'numSeeders',
         'connections', 'errorCode', 'errorMessage', 'followedBy', 'following',
-        'belongsTo', 'bitfield', 'verifiedLength', 'verifyIntegrityPending',
-        // 尝试获取时间相关字段
-        'creationTime', 'completionTime', 'startTime', 'endTime'
+        'belongsTo', 'bitfield', 'verifiedLength', 'verifyIntegrityPending'
       ])
     }
 

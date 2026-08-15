@@ -18,37 +18,30 @@ export class TrayController {
     console.log('Creating tray with icon:', iconPath)
 
     try {
-      this.tray = new Tray(iconPath)
+      // 图标路径不存在时回退到空图像，避免 Tray 构造抛错
+      this.tray = new Tray(iconPath ?? nativeImage.createEmpty())
       this.setupContextMenu()
       this.setupEventHandlers()
       this.tray.setToolTip('Aria2 Desktop')
     } catch (error) {
       console.error('Failed to create tray:', error)
-      // 回退到空图像
-      try {
-        this.tray = new Tray(nativeImage.createEmpty())
-        this.setupContextMenu()
-        this.setupEventHandlers()
-      } catch (e) {
-        console.error('Failed to create fallback tray:', e)
-      }
     }
   }
 
-  private getIconPath(): string {
+  private getIconPath(): string | null {
     if (process.env.NODE_ENV === 'development') {
-      return join(process.cwd(), 'build/Aria2.ico')
+      return join(process.cwd(), 'build/Icon.ico')
     }
 
     const possiblePaths = [
-      join(process.resourcesPath, 'build', 'Aria2.ico'),
-      join(process.resourcesPath, 'app.asar.unpacked', 'build', 'Aria2.ico'),
-      join(process.resourcesPath, 'Aria2.ico'),
-      join(__dirname, '../../build/Aria2.ico'),
-      join(__dirname, '../../../build/Aria2.ico')
+      join(process.resourcesPath, 'build', 'Icon.ico'),
+      join(process.resourcesPath, 'app.asar.unpacked', 'build', 'Icon.ico'),
+      join(process.resourcesPath, 'Icon.ico'),
+      join(__dirname, '../../build/Icon.ico'),
+      join(__dirname, '../../../build/Icon.ico')
     ]
 
-    return possiblePaths.find(path => fs.existsSync(path)) || possiblePaths[0]
+    return possiblePaths.find(p => fs.existsSync(p)) || null
   }
 
   private setupContextMenu() {
