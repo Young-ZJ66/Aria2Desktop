@@ -81,8 +81,9 @@
           <template #label>
             <TipLabel :label="t('settings.network.lowestSpeedLimit')" :tip="t('settings.network.lowestSpeedLimitTip')" />
           </template>
-          <n-input
+          <n-input-number
             v-model:value="form.lowestSpeedLimit"
+            :min="0"
             :placeholder="t('settings.network.noLimit')"
             :disabled="!connectionStore.isConnected"
           />
@@ -95,6 +96,17 @@
           <n-input
             v-model:value="form.noProxy"
             placeholder="localhost,127.0.0.1,*.local"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.network.interface')" :tip="t('settings.network.interfaceTip')" />
+          </template>
+          <n-input
+            v-model:value="form.interface"
+            :placeholder="t('settings.network.interfacePlaceholder')"
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
@@ -151,6 +163,30 @@
 
         <n-form-item>
           <template #label>
+            <TipLabel :label="t('settings.network.httpProxyUser')" />
+          </template>
+          <n-input
+            v-model:value="form.httpProxyUser"
+            :placeholder="t('settings.network.httpProxyUserPlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.network.httpProxyPasswd')" />
+          </template>
+          <n-input
+            v-model:value="form.httpProxyPasswd"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('settings.network.httpProxyPasswdPlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
             <TipLabel :label="t('settings.network.httpsProxy')" :tip="t('settings.network.httpsProxyTip')" />
           </template>
           <n-input
@@ -162,11 +198,59 @@
 
         <n-form-item>
           <template #label>
+            <TipLabel :label="t('settings.network.httpsProxyUser')" />
+          </template>
+          <n-input
+            v-model:value="form.httpsProxyUser"
+            :placeholder="t('settings.network.httpsProxyUserPlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.network.httpsProxyPasswd')" />
+          </template>
+          <n-input
+            v-model:value="form.httpsProxyPasswd"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('settings.network.httpsProxyPasswdPlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
             <TipLabel :label="t('settings.network.ftpProxy')" :tip="t('settings.network.ftpProxyTip')" />
           </template>
           <n-input
             v-model:value="form.ftpProxy"
             placeholder="ftp://proxy.example.com:21"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.network.ftpProxyUser')" />
+          </template>
+          <n-input
+            v-model:value="form.ftpProxyUser"
+            :placeholder="t('settings.network.ftpProxyUserPlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.network.ftpProxyPasswd')" />
+          </template>
+          <n-input
+            v-model:value="form.ftpProxyPasswd"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('settings.network.ftpProxyPasswdPlaceholder')"
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
@@ -195,6 +279,72 @@
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.network.serverStatOf')" :tip="t('settings.network.serverStatOfTip')" />
+          </template>
+          <n-input
+            v-model:value="form.serverStatOf"
+            :placeholder="t('settings.network.serverStatOfPlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.network.serverStatIf')" :tip="t('settings.network.serverStatIfTip')" />
+          </template>
+          <n-input
+            v-model:value="form.serverStatIf"
+            :placeholder="t('settings.network.serverStatIfPlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.network.serverStatTimeout')" :tip="t('settings.network.serverStatTimeoutTip')" />
+          </template>
+          <n-input-number
+            v-model:value="form.serverStatTimeout"
+            :min="0"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.network.asyncDns')" :tip="t('settings.network.asyncDnsTip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.asyncDns"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.network.asyncDnsServer')" :tip="t('settings.network.asyncDnsServerTip')" />
+          </template>
+          <n-input
+            v-model:value="form.asyncDnsServer"
+            :placeholder="t('settings.network.asyncDnsServerPlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.network.socketRecvBufferSize')" :tip="t('settings.network.socketRecvBufferSizeTip')" />
+          </template>
+          <n-input-number
+            v-model:value="form.socketRecvBufferSize"
+            :min="0"
+            :placeholder="t('settings.network.socketRecvBufferSizePlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
       </n-form>
     </n-card>
   </SettingsPage>
@@ -209,6 +359,7 @@ import { useStatsStore } from '@/stores/statsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
+import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
@@ -227,16 +378,29 @@ const form = reactive({
   maxTries: 5,
   retryWait: 0,
   maxFileNotFound: 0,
-  lowestSpeedLimit: '0',
+  lowestSpeedLimit: 0,
   noProxy: '',
+  interface: '',
   allProxy: '',
   allProxyUser: '',
   allProxyPasswd: '',
   httpProxy: '',
+  httpProxyUser: '',
+  httpProxyPasswd: '',
   httpsProxy: '',
+  httpsProxyUser: '',
+  httpsProxyPasswd: '',
   ftpProxy: '',
+  ftpProxyUser: '',
+  ftpProxyPasswd: '',
   proxyMethod: 'get',
-  disableIpv6: false
+  disableIpv6: false,
+  serverStatOf: '',
+  serverStatIf: '',
+  serverStatTimeout: 86400,
+  asyncDns: true,
+  asyncDnsServer: '',
+  socketRecvBufferSize: 0
 })
 
 onMounted(() => {
@@ -260,16 +424,29 @@ async function loadSettings() {
       form.maxTries = parseInt(options['max-tries'] || '5')
       form.retryWait = parseInt(options['retry-wait'] || '0')
       form.maxFileNotFound = parseInt(options['max-file-not-found'] || '0')
-      form.lowestSpeedLimit = options['lowest-speed-limit'] || '0'
+      form.lowestSpeedLimit = parseSizeToUnit(options['lowest-speed-limit'] || '0', 'K')
       form.noProxy = options['no-proxy'] || ''
+      form.interface = options['interface'] || ''
       form.allProxy = options['all-proxy'] || ''
       form.allProxyUser = options['all-proxy-user'] || ''
       form.allProxyPasswd = options['all-proxy-passwd'] || ''
       form.httpProxy = options['http-proxy'] || ''
+      form.httpProxyUser = options['http-proxy-user'] || ''
+      form.httpProxyPasswd = options['http-proxy-passwd'] || ''
       form.httpsProxy = options['https-proxy'] || ''
+      form.httpsProxyUser = options['https-proxy-user'] || ''
+      form.httpsProxyPasswd = options['https-proxy-passwd'] || ''
       form.ftpProxy = options['ftp-proxy'] || ''
+      form.ftpProxyUser = options['ftp-proxy-user'] || ''
+      form.ftpProxyPasswd = options['ftp-proxy-passwd'] || ''
       form.proxyMethod = options['proxy-method'] || 'get'
       form.disableIpv6 = options['disable-ipv6'] === 'true'
+      form.serverStatOf = options['server-stat-of'] || ''
+      form.serverStatIf = options['server-stat-if'] || ''
+      form.serverStatTimeout = parseInt(options['server-stat-timeout'] || '86400')
+      form.asyncDns = options['async-dns'] !== 'false'
+      form.asyncDnsServer = options['async-dns-server'] || ''
+      form.socketRecvBufferSize = parseSizeToUnit(options['socket-recv-buffer-size'] || '0', 'K')
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
@@ -296,18 +473,31 @@ async function handleSave() {
       'max-tries': form.maxTries.toString(),
       'retry-wait': form.retryWait.toString(),
       'max-file-not-found': form.maxFileNotFound.toString(),
-      'lowest-speed-limit': form.lowestSpeedLimit,
+      'lowest-speed-limit': formatSizeWithUnit(form.lowestSpeedLimit, 'K'),
       'proxy-method': form.proxyMethod,
-      'disable-ipv6': form.disableIpv6 ? 'true' : 'false'
+      'disable-ipv6': form.disableIpv6 ? 'true' : 'false',
+      'server-stat-timeout': form.serverStatTimeout.toString(),
+      'async-dns': form.asyncDns ? 'true' : 'false',
+      'socket-recv-buffer-size': formatSizeWithUnit(form.socketRecvBufferSize, 'K')
     }
 
     if (form.noProxy) options['no-proxy'] = form.noProxy
+    if (form.interface) options['interface'] = form.interface
     if (form.allProxy) options['all-proxy'] = form.allProxy
     if (form.allProxyUser) options['all-proxy-user'] = form.allProxyUser
     if (form.allProxyPasswd) options['all-proxy-passwd'] = form.allProxyPasswd
     if (form.httpProxy) options['http-proxy'] = form.httpProxy
+    if (form.httpProxyUser) options['http-proxy-user'] = form.httpProxyUser
+    if (form.httpProxyPasswd) options['http-proxy-passwd'] = form.httpProxyPasswd
     if (form.httpsProxy) options['https-proxy'] = form.httpsProxy
+    if (form.httpsProxyUser) options['https-proxy-user'] = form.httpsProxyUser
+    if (form.httpsProxyPasswd) options['https-proxy-passwd'] = form.httpsProxyPasswd
     if (form.ftpProxy) options['ftp-proxy'] = form.ftpProxy
+    if (form.ftpProxyUser) options['ftp-proxy-user'] = form.ftpProxyUser
+    if (form.ftpProxyPasswd) options['ftp-proxy-passwd'] = form.ftpProxyPasswd
+    if (form.serverStatOf) options['server-stat-of'] = form.serverStatOf
+    if (form.serverStatIf) options['server-stat-if'] = form.serverStatIf
+    if (form.asyncDnsServer) options['async-dns-server'] = form.asyncDnsServer
 
     await statsStore.changeGlobalOptions(options)
     message.success(t('settings.saved'))
@@ -332,16 +522,29 @@ function handleReset() {
         maxTries: 5,
         retryWait: 0,
         maxFileNotFound: 0,
-        lowestSpeedLimit: '0',
+        lowestSpeedLimit: 0,
         noProxy: '',
+        interface: '',
         allProxy: '',
         allProxyUser: '',
         allProxyPasswd: '',
         httpProxy: '',
+        httpProxyUser: '',
+        httpProxyPasswd: '',
         httpsProxy: '',
+        httpsProxyUser: '',
+        httpsProxyPasswd: '',
         ftpProxy: '',
+        ftpProxyUser: '',
+        ftpProxyPasswd: '',
         proxyMethod: 'get',
-        disableIpv6: false
+        disableIpv6: false,
+        serverStatOf: '',
+        serverStatIf: '',
+        serverStatTimeout: 86400,
+        asyncDns: true,
+        asyncDnsServer: '',
+        socketRecvBufferSize: 0
       })
       message.success(t('settings.restored'))
     }

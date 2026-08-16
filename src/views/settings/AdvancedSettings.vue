@@ -33,6 +33,18 @@
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.advanced.maxMmapLimit')" :tip="t('settings.advanced.maxMmapLimitTip')" />
+          </template>
+          <n-input-number
+            v-model:value="form.maxMmapLimit"
+            :min="0"
+            :placeholder="t('settings.advanced.maxMmapLimitPlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
       </n-form>
     </n-card>
 
@@ -102,72 +114,6 @@
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
-      </n-form>
-    </n-card>
-
-    <n-card :title="t('settings.advanced.groupDownload')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-        <n-form-item>
-          <template #label>
-            <TipLabel :label="t('settings.advanced.alwaysResume')" :tip="t('settings.advanced.alwaysResumeTip')" />
-          </template>
-          <AppSwitch
-            v-model:value="form.alwaysResume"
-            :disabled="!connectionStore.isConnected"
-          />
-        </n-form-item>
-
-        <n-form-item>
-          <template #label>
-            <TipLabel :label="t('settings.advanced.allowPieceLengthChange')" :tip="t('settings.advanced.allowPieceLengthChangeTip')" />
-          </template>
-          <AppSwitch
-            v-model:value="form.allowPieceLengthChange"
-            :disabled="!connectionStore.isConnected"
-          />
-        </n-form-item>
-
-        <n-form-item>
-          <template #label>
-            <TipLabel :label="t('settings.advanced.forceSequential')" :tip="t('settings.advanced.forceSequentialTip')" />
-          </template>
-          <AppSwitch
-            v-model:value="form.forceSequential"
-            :disabled="!connectionStore.isConnected"
-          />
-        </n-form-item>
-
-        <n-form-item>
-          <template #label>
-            <TipLabel :label="t('settings.advanced.parameterizedUri')" :tip="t('settings.advanced.parameterizedUriTip')" />
-          </template>
-          <AppSwitch
-            v-model:value="form.parameterizedUri"
-            :disabled="!connectionStore.isConnected"
-          />
-        </n-form-item>
-
-        <n-form-item>
-          <template #label>
-            <TipLabel :label="t('settings.advanced.pieceLength')" :tip="t('settings.advanced.pieceLengthTip')" />
-          </template>
-          <n-input-number
-            v-model:value="form.pieceLength"
-            :min="1"
-            :max="1024"
-            :disabled="!connectionStore.isConnected"
-          />
-        </n-form-item>
-
-        <n-form-item>
-          <template #label>
-            <TipLabel :label="t('settings.advanced.removeControlFile')" :tip="t('settings.advanced.removeControlFileTip')" />
-          </template>
-          <AppSwitch
-            v-model:value="form.removeControlFile"
-            :disabled="!connectionStore.isConnected"
-          />
-        </n-form-item>
 
         <n-form-item>
           <template #label>
@@ -175,40 +121,6 @@
           </template>
           <AppSwitch
             v-model:value="form.humanReadable"
-            :disabled="!connectionStore.isConnected"
-          />
-        </n-form-item>
-      </n-form>
-    </n-card>
-
-    <n-card :title="t('settings.advanced.groupSystem')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-        <n-form-item>
-          <template #label>
-            <TipLabel :label="t('settings.advanced.asyncDns')" :tip="t('settings.advanced.asyncDnsTip')" />
-          </template>
-          <AppSwitch
-            v-model:value="form.asyncDns"
-            :disabled="!connectionStore.isConnected"
-          />
-        </n-form-item>
-
-        <n-form-item>
-          <template #label>
-            <TipLabel :label="t('settings.advanced.enableHttpPipelining')" :tip="t('settings.advanced.enableHttpPipeliningTip')" />
-          </template>
-          <AppSwitch
-            v-model:value="form.enableHttpPipelining"
-            :disabled="!connectionStore.isConnected"
-          />
-        </n-form-item>
-
-        <n-form-item>
-          <template #label>
-            <TipLabel :label="t('settings.advanced.checkIntegrity')" :tip="t('settings.advanced.checkIntegrityTip')" />
-          </template>
-          <AppSwitch
-            v-model:value="form.checkIntegrity"
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
@@ -254,21 +166,13 @@ const logLevelOptions = [
 const form = reactive({
   eventPoll: 'epoll',
   enableMmap: false,
+  maxMmapLimit: 0,
   log: '',
   logLevel: 'warn',
   consoleLogLevel: 'notice',
   summaryInterval: 60,
   enableColor: true,
-  alwaysResume: true,
-  allowPieceLengthChange: false,
-  forceSequential: false,
-  parameterizedUri: false,
-  pieceLength: 1,
-  removeControlFile: false,
-  humanReadable: true,
-  asyncDns: true,
-  enableHttpPipelining: false,
-  checkIntegrity: false
+  humanReadable: true
 })
 
 onMounted(() => {
@@ -289,23 +193,13 @@ async function loadSettings() {
     if (options && typeof options === 'object') {
       form.eventPoll = options['event-poll'] || 'epoll'
       form.enableMmap = options['enable-mmap'] === 'true'
+      form.maxMmapLimit = parseSizeToUnit(options['max-mmap-limit'] || '0', 'G')
       form.log = options['log'] || ''
       form.logLevel = options['log-level'] || 'warn'
       form.consoleLogLevel = options['console-log-level'] || 'notice'
       form.summaryInterval = parseInt(options['summary-interval'] || '60')
       form.enableColor = options['enable-color'] !== 'false'
-      form.alwaysResume = options['always-resume'] !== 'false'
-      form.allowPieceLengthChange = options['allow-piece-length-change'] === 'true'
-      form.forceSequential = options['force-sequential'] === 'true'
-      form.parameterizedUri = options['parameterized-uri'] === 'true'
-      // piece-length 可能是字节数（如 "1048576"）或带单位（如 "1M"），统一转为 MB
-      const pieceLengthValue = options['piece-length'] || '1M'
-      form.pieceLength = parseSizeToUnit(pieceLengthValue, 'M')
-      form.removeControlFile = options['remove-control-file'] === 'true'
       form.humanReadable = options['human-readable'] !== 'false'
-      form.asyncDns = options['async-dns'] !== 'false'
-      form.enableHttpPipelining = options['enable-http-pipelining'] === 'true'
-      form.checkIntegrity = options['check-integrity'] === 'true'
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
@@ -333,19 +227,12 @@ async function handleSave() {
       'console-log-level': form.consoleLogLevel,
       'summary-interval': form.summaryInterval.toString(),
       'enable-color': form.enableColor ? 'true' : 'false',
-      'always-resume': form.alwaysResume ? 'true' : 'false',
-      'allow-piece-length-change': form.allowPieceLengthChange ? 'true' : 'false',
-      'force-sequential': form.forceSequential ? 'true' : 'false',
-      'parameterized-uri': form.parameterizedUri ? 'true' : 'false',
-      'piece-length': formatSizeWithUnit(form.pieceLength, 'M'),
-      'remove-control-file': form.removeControlFile ? 'true' : 'false',
-      'human-readable': form.humanReadable ? 'true' : 'false',
-      'async-dns': form.asyncDns ? 'true' : 'false',
-      'enable-http-pipelining': form.enableHttpPipelining ? 'true' : 'false',
-      'check-integrity': form.checkIntegrity ? 'true' : 'false'
+      'human-readable': form.humanReadable ? 'true' : 'false'
     }
 
     if (form.log) options['log'] = form.log
+    // 始终发送 max-mmap-limit（含 0=不限制），否则 aria2 会保留旧值导致"设 0 不生效"
+    options['max-mmap-limit'] = formatSizeWithUnit(form.maxMmapLimit, 'G')
 
     await statsStore.changeGlobalOptions(options)
     message.success(t('settings.saved'))
@@ -367,21 +254,13 @@ function handleReset() {
       Object.assign(form, {
         eventPoll: 'epoll',
         enableMmap: false,
+        maxMmapLimit: 0,
         log: '',
         logLevel: 'warn',
         consoleLogLevel: 'notice',
         summaryInterval: 60,
         enableColor: true,
-        alwaysResume: true,
-        allowPieceLengthChange: false,
-        forceSequential: false,
-        parameterizedUri: false,
-        pieceLength: 1,
-        removeControlFile: false,
-        humanReadable: true,
-        asyncDns: true,
-        enableHttpPipelining: false,
-        checkIntegrity: false
+        humanReadable: true
       })
       message.success(t('settings.restored'))
     }

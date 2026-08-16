@@ -78,8 +78,49 @@
           <n-input
             v-model:value="form.header"
             type="textarea"
-            :rows="4"
+            :autosize="{ minRows: 4, maxRows: 8 }"
             :placeholder="t('settings.protocol.headerPlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.protocol.referer')" :tip="t('settings.protocol.refererTip')" />
+          </template>
+          <n-input
+            v-model:value="form.referer"
+            :placeholder="t('settings.protocol.refererPlaceholder')"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.protocol.enableHttpKeepAlive')" :tip="t('settings.protocol.enableHttpKeepAliveTip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.enableHttpKeepAlive"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.protocol.enableHttpPipelining')" :tip="t('settings.protocol.enableHttpPipeliningTip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.enableHttpPipelining"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.protocol.contentDispositionDefaultUtf8')" :tip="t('settings.protocol.contentDispositionDefaultUtf8Tip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.contentDispositionDefaultUtf8"
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
@@ -94,6 +135,17 @@
           </template>
           <AppSwitch
             v-model:value="form.checkCertificate"
+            :disabled="!connectionStore.isConnected"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.protocol.minTlsVersion')" :tip="t('settings.protocol.minTlsVersionTip')" />
+          </template>
+          <n-select
+            v-model:value="form.minTlsVersion"
+            :options="minTlsVersionOptions"
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
@@ -246,6 +298,14 @@ const ftpTypeOptions = [
   { label: 'ascii', value: 'ascii' }
 ]
 
+const minTlsVersionOptions = [
+  { label: t('settings.protocol.tlsAuto'), value: '' },
+  { label: 'TLSv1', value: 'TLSv1' },
+  { label: 'TLSv1.1', value: 'TLSv1.1' },
+  { label: 'TLSv1.2', value: 'TLSv1.2' },
+  { label: 'TLSv1.3', value: 'TLSv1.3' }
+]
+
 const form = reactive({
   httpUser: '',
   httpPasswd: '',
@@ -253,7 +313,12 @@ const form = reactive({
   httpAcceptGzip: false,
   httpNoCache: false,
   header: '',
+  referer: '',
+  enableHttpKeepAlive: true,
+  enableHttpPipelining: false,
+  contentDispositionDefaultUtf8: false,
   checkCertificate: true,
+  minTlsVersion: '',
   caCertificate: '',
   certificate: '',
   privateKey: '',
@@ -286,7 +351,12 @@ async function loadSettings() {
       form.httpAcceptGzip = options['http-accept-gzip'] === 'true'
       form.httpNoCache = options['http-no-cache'] === 'true'
       form.header = options['header'] || ''
+      form.referer = options['referer'] || ''
+      form.enableHttpKeepAlive = options['enable-http-keep-alive'] !== 'false'
+      form.enableHttpPipelining = options['enable-http-pipelining'] === 'true'
+      form.contentDispositionDefaultUtf8 = options['content-disposition-default-utf8'] === 'true'
       form.checkCertificate = options['check-certificate'] !== 'false'
+      form.minTlsVersion = options['min-tls-version'] || ''
       form.caCertificate = options['ca-certificate'] || ''
       form.certificate = options['certificate'] || ''
       form.privateKey = options['private-key'] || ''
@@ -319,6 +389,9 @@ async function handleSave() {
       'http-auth-challenge': form.httpAuthChallenge ? 'true' : 'false',
       'http-accept-gzip': form.httpAcceptGzip ? 'true' : 'false',
       'http-no-cache': form.httpNoCache ? 'true' : 'false',
+      'enable-http-keep-alive': form.enableHttpKeepAlive ? 'true' : 'false',
+      'enable-http-pipelining': form.enableHttpPipelining ? 'true' : 'false',
+      'content-disposition-default-utf8': form.contentDispositionDefaultUtf8 ? 'true' : 'false',
       'check-certificate': form.checkCertificate ? 'true' : 'false',
       'ftp-type': form.ftpType,
       'ftp-pasv': form.ftpPasv ? 'true' : 'false',
@@ -328,6 +401,8 @@ async function handleSave() {
     if (form.httpUser) options['http-user'] = form.httpUser
     if (form.httpPasswd) options['http-passwd'] = form.httpPasswd
     if (form.header) options['header'] = form.header
+    if (form.referer) options['referer'] = form.referer
+    if (form.minTlsVersion) options['min-tls-version'] = form.minTlsVersion
     if (form.caCertificate) options['ca-certificate'] = form.caCertificate
     if (form.certificate) options['certificate'] = form.certificate
     if (form.privateKey) options['private-key'] = form.privateKey
@@ -358,7 +433,12 @@ function handleReset() {
         httpAcceptGzip: false,
         httpNoCache: false,
         header: '',
+        referer: '',
+        enableHttpKeepAlive: true,
+        enableHttpPipelining: false,
+        contentDispositionDefaultUtf8: false,
         checkCertificate: true,
+        minTlsVersion: '',
         caCertificate: '',
         certificate: '',
         privateKey: '',

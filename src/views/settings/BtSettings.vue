@@ -40,7 +40,14 @@
             <template #label>
               <TipLabel :label="t('settings.bt.dhtFilePath')" :tip="t('settings.bt.dhtFilePathTip')" />
             </template>
-            <n-input v-model:value="settings.dhtFilePath" :placeholder="t('settings.bt.dhtFilePathPlaceholder')" clearable />
+            <n-input-group>
+              <n-input v-model:value="settings.dhtFilePath" :placeholder="t('settings.bt.dhtFilePathPlaceholder')" clearable />
+              <n-button @click="selectDhtFile('dhtFilePath')">
+                <template #icon>
+                  <n-icon><FolderOpenOutline /></n-icon>
+                </template>
+              </n-button>
+            </n-input-group>
           </n-form-item>
 
           <n-form-item>
@@ -55,6 +62,41 @@
               <TipLabel :label="t('settings.bt.btExternalIp')" :tip="t('settings.bt.btExternalIpTip')" />
             </template>
             <n-input v-model:value="settings.btExternalIp" :placeholder="t('settings.bt.btExternalIpPlaceholder')" clearable />
+          </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.dhtEntryPoint')" :tip="t('settings.bt.dhtEntryPointTip')" />
+            </template>
+            <n-input v-model:value="settings.dhtEntryPoint" :placeholder="t('settings.bt.dhtEntryPointPlaceholder')" clearable />
+          </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.dhtEntryPoint6')" :tip="t('settings.bt.dhtEntryPoint6Tip')" />
+            </template>
+            <n-input v-model:value="settings.dhtEntryPoint6" :placeholder="t('settings.bt.dhtEntryPoint6Placeholder')" clearable />
+          </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.dhtFilePath6')" :tip="t('settings.bt.dhtFilePath6Tip')" />
+            </template>
+            <n-input-group>
+              <n-input v-model:value="settings.dhtFilePath6" :placeholder="t('settings.bt.dhtFilePath6Placeholder')" clearable />
+              <n-button @click="selectDhtFile('dhtFilePath6')">
+                <template #icon>
+                  <n-icon><FolderOpenOutline /></n-icon>
+                </template>
+              </n-button>
+            </n-input-group>
+          </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.dhtMessageTimeout')" :tip="t('settings.bt.dhtMessageTimeoutTip')" />
+            </template>
+            <n-input-number v-model:value="settings.dhtMessageTimeout" :min="1" :max="60" />
           </n-form-item>
         </n-form>
       </n-card>
@@ -74,6 +116,20 @@
               <TipLabel :label="t('settings.bt.btMaxPeers')" :tip="t('settings.bt.btMaxPeersTip')" />
             </template>
             <n-input-number v-model:value="settings.btMaxPeers" :min="1" :max="1000" />
+          </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.btMaxOpenFiles')" :tip="t('settings.bt.btMaxOpenFilesTip')" />
+            </template>
+            <n-input-number v-model:value="settings.btMaxOpenFiles" :min="0" :max="10000" />
+          </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.btForceEncryption')" :tip="t('settings.bt.btForceEncryptionTip')" />
+            </template>
+            <AppSwitch v-model:value="settings.btForceEncryption" />
           </n-form-item>
 
           <n-form-item>
@@ -118,6 +174,18 @@
               type="textarea"
               :autosize="{ minRows: 4, maxRows: 8 }"
               :placeholder="t('settings.bt.btTrackerPlaceholder')"
+            />
+          </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.btExcludeTracker')" :tip="t('settings.bt.btExcludeTrackerTip')" />
+            </template>
+            <n-input
+              v-model:value="settings.btExcludeTracker"
+              type="textarea"
+              :autosize="{ minRows: 4, maxRows: 8 }"
+              :placeholder="t('settings.bt.btExcludeTrackerPlaceholder')"
             />
           </n-form-item>
 
@@ -184,6 +252,20 @@
 
           <n-form-item>
             <template #label>
+              <TipLabel :label="t('settings.bt.btDetachSeedOnly')" :tip="t('settings.bt.btDetachSeedOnlyTip')" />
+            </template>
+            <AppSwitch v-model:value="settings.btDetachSeedOnly" />
+          </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.maxPieceLength')" :tip="t('settings.bt.maxPieceLengthTip')" />
+            </template>
+            <n-input-number v-model:value="settings.maxPieceLength" :min="0" :placeholder="t('settings.bt.maxPieceLengthPlaceholder')" />
+          </n-form-item>
+
+          <n-form-item>
+            <template #label>
               <TipLabel :label="t('settings.bt.btSeedUnverified')" :tip="t('settings.bt.btSeedUnverifiedTip')" />
             </template>
             <AppSwitch v-model:value="settings.btSeedUnverified" />
@@ -228,6 +310,39 @@
             </template>
             <AppSwitch v-model:value="settings.btRemoveUnselectedFile" />
           </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.pieceLength')" :tip="t('settings.bt.pieceLengthTip')" />
+            </template>
+            <n-input-number v-model:value="settings.pieceLength" :min="1" :max="1024" />
+          </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.allowPieceLengthChange')" :tip="t('settings.bt.allowPieceLengthChangeTip')" />
+            </template>
+            <AppSwitch v-model:value="settings.allowPieceLengthChange" />
+          </n-form-item>
+        </n-form>
+      </n-card>
+
+      <!-- 客户端标识 -->
+      <n-card :title="t('settings.bt.groupClient')" class="setting-group">
+        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.peerIdPrefix')" :tip="t('settings.bt.peerIdPrefixTip')" />
+            </template>
+            <n-input v-model:value="settings.peerIdPrefix" :placeholder="t('settings.bt.peerIdPrefixPlaceholder')" clearable />
+          </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.bt.peerAgent')" :tip="t('settings.bt.peerAgentTip')" />
+            </template>
+            <n-input v-model:value="settings.peerAgent" :placeholder="t('settings.bt.peerAgentPlaceholder')" clearable />
+          </n-form-item>
         </n-form>
       </n-card>
     </n-spin>
@@ -237,12 +352,15 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { NIcon } from 'naive-ui'
+import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message, dialog } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
+import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
@@ -268,15 +386,22 @@ const settings = reactive({
   enableDht6: true,
   dhtListenPort: 6881,
   dhtFilePath: '',
+  dhtEntryPoint: '',
+  dhtEntryPoint6: '',
+  dhtFilePath6: '',
+  dhtMessageTimeout: 10,
   btEnableLpd: false,
   btExternalIp: '',
   listenPort: 6881,
   btMaxPeers: 55,
+  btMaxOpenFiles: 100,
   btRequestPeerSpeedLimit: '0',
+  btForceEncryption: false,
   enablePeerExchange: true,
   btRequireCrypto: false,
   btMinCryptoLevel: 'plain',
   btTracker: '',
+  btExcludeTracker: '',
   btTrackerConnectTimeout: 60,
   btTrackerInterval: 0,
   btTrackerTimeout: 60,
@@ -285,12 +410,18 @@ const settings = reactive({
   btStopTimeout: 0,
   btPrioritizePiece: false,
   btHashCheckSeed: true,
+  btDetachSeedOnly: false,
+  maxPieceLength: 0,
   btSeedUnverified: false,
   btSaveMetadata: false,
   btLoadSavedMetadata: false,
   btMetadataOnly: false,
   btRemoveUnselectedFile: false,
-  followTorrent: 'true'
+  followTorrent: 'true',
+  pieceLength: 1,
+  allowPieceLengthChange: false,
+  peerIdPrefix: '',
+  peerAgent: ''
 })
 
 onMounted(() => {
@@ -313,15 +444,22 @@ async function loadSettings() {
       settings.enableDht6 = options['enable-dht6'] !== 'false'
       settings.dhtListenPort = parseInt(options['dht-listen-port'] || '6881')
       settings.dhtFilePath = options['dht-file-path'] || ''
+      settings.dhtEntryPoint = options['dht-entry-point'] || ''
+      settings.dhtEntryPoint6 = options['dht-entry-point6'] || ''
+      settings.dhtFilePath6 = options['dht-file-path6'] || ''
+      settings.dhtMessageTimeout = parseInt(options['dht-message-timeout'] || '10')
       settings.btEnableLpd = options['bt-enable-lpd'] === 'true'
       settings.btExternalIp = options['bt-external-ip'] || ''
       settings.listenPort = parseInt(options['listen-port'] || '6881')
       settings.btMaxPeers = parseInt(options['bt-max-peers'] || '55')
+      settings.btMaxOpenFiles = parseInt(options['bt-max-open-files'] || '100')
       settings.btRequestPeerSpeedLimit = parseInt(options['bt-request-peer-speed-limit'] || '0')
+      settings.btForceEncryption = options['bt-force-encryption'] === 'true'
       settings.enablePeerExchange = options['enable-peer-exchange'] !== 'false'
       settings.btRequireCrypto = options['bt-require-crypto'] === 'true'
       settings.btMinCryptoLevel = options['bt-min-crypto-level'] || 'plain'
       settings.btTracker = options['bt-tracker'] || ''
+      settings.btExcludeTracker = options['bt-exclude-tracker'] || ''
       settings.btTrackerConnectTimeout = parseInt(options['bt-tracker-connect-timeout'] || '60')
       settings.btTrackerInterval = parseInt(options['bt-tracker-interval'] || '0')
       settings.btTrackerTimeout = parseInt(options['bt-tracker-timeout'] || '60')
@@ -330,12 +468,19 @@ async function loadSettings() {
       settings.btStopTimeout = parseInt(options['bt-stop-timeout'] || '0')
       settings.btPrioritizePiece = options['bt-prioritize-piece'] === 'true'
       settings.btHashCheckSeed = options['bt-hash-check-seed'] !== 'false'
+      settings.btDetachSeedOnly = options['bt-detach-seed-only'] === 'true'
+      settings.maxPieceLength = parseSizeToUnit(options['max-piece-length'] || '0', 'M')
       settings.btSeedUnverified = options['bt-seed-unverified'] === 'true'
       settings.btSaveMetadata = options['bt-save-metadata'] === 'true'
       settings.btLoadSavedMetadata = options['bt-load-saved-metadata'] === 'true'
       settings.btMetadataOnly = options['bt-metadata-only'] === 'true'
       settings.btRemoveUnselectedFile = options['bt-remove-unselected-file'] === 'true'
       settings.followTorrent = options['follow-torrent'] || 'true'
+      const pieceLengthVal = options['piece-length'] || '1M'
+      settings.pieceLength = parseSizeToUnit(pieceLengthVal, 'M')
+      settings.allowPieceLengthChange = options['allow-piece-length-change'] === 'true'
+      settings.peerIdPrefix = options['peer-id-prefix'] || ''
+      settings.peerAgent = options['peer-agent'] || ''
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
@@ -362,10 +507,13 @@ async function handleSave() {
       'enable-dht': settings.enableDht ? 'true' : 'false',
       'enable-dht6': settings.enableDht6 ? 'true' : 'false',
       'dht-listen-port': settings.dhtListenPort.toString(),
+      'dht-message-timeout': settings.dhtMessageTimeout.toString(),
       'bt-enable-lpd': settings.btEnableLpd ? 'true' : 'false',
       'listen-port': settings.listenPort.toString(),
       'bt-max-peers': settings.btMaxPeers.toString(),
+      'bt-max-open-files': settings.btMaxOpenFiles.toString(),
       'bt-request-peer-speed-limit': settings.btRequestPeerSpeedLimit.toString(),
+      'bt-force-encryption': settings.btForceEncryption ? 'true' : 'false',
       'enable-peer-exchange': settings.enablePeerExchange ? 'true' : 'false',
       'bt-require-crypto': settings.btRequireCrypto ? 'true' : 'false',
       'bt-min-crypto-level': settings.btMinCryptoLevel,
@@ -377,17 +525,28 @@ async function handleSave() {
       'bt-stop-timeout': settings.btStopTimeout.toString(),
       'bt-prioritize-piece': settings.btPrioritizePiece ? 'true' : 'false',
       'bt-hash-check-seed': settings.btHashCheckSeed ? 'true' : 'false',
+      'bt-detach-seed-only': settings.btDetachSeedOnly ? 'true' : 'false',
       'bt-seed-unverified': settings.btSeedUnverified ? 'true' : 'false',
       'bt-save-metadata': settings.btSaveMetadata ? 'true' : 'false',
       'bt-load-saved-metadata': settings.btLoadSavedMetadata ? 'true' : 'false',
       'bt-metadata-only': settings.btMetadataOnly ? 'true' : 'false',
       'bt-remove-unselected-file': settings.btRemoveUnselectedFile ? 'true' : 'false',
-      'follow-torrent': settings.followTorrent
+      'follow-torrent': settings.followTorrent,
+      'piece-length': formatSizeWithUnit(settings.pieceLength, 'M'),
+      'allow-piece-length-change': settings.allowPieceLengthChange ? 'true' : 'false'
     }
 
     if (settings.dhtFilePath) options['dht-file-path'] = settings.dhtFilePath
+    if (settings.dhtEntryPoint) options['dht-entry-point'] = settings.dhtEntryPoint
+    if (settings.dhtEntryPoint6) options['dht-entry-point6'] = settings.dhtEntryPoint6
+    if (settings.dhtFilePath6) options['dht-file-path6'] = settings.dhtFilePath6
     if (settings.btExternalIp) options['bt-external-ip'] = settings.btExternalIp
     if (settings.btTracker) options['bt-tracker'] = settings.btTracker
+    if (settings.btExcludeTracker) options['bt-exclude-tracker'] = settings.btExcludeTracker
+    // 始终发送 max-piece-length（含 0=自动选择），否则 aria2 会保留旧值导致"设 0 不生效"
+    options['max-piece-length'] = formatSizeWithUnit(settings.maxPieceLength, 'M')
+    if (settings.peerIdPrefix) options['peer-id-prefix'] = settings.peerIdPrefix
+    if (settings.peerAgent) options['peer-agent'] = settings.peerAgent
 
     await statsStore.changeGlobalOptions(options)
     message.success(t('settings.saved'))
@@ -410,15 +569,22 @@ function handleReset() {
       settings.enableDht6 = true
       settings.dhtListenPort = 6881
       settings.dhtFilePath = ''
+      settings.dhtEntryPoint = ''
+      settings.dhtEntryPoint6 = ''
+      settings.dhtFilePath6 = ''
+      settings.dhtMessageTimeout = 10
       settings.btEnableLpd = false
       settings.btExternalIp = ''
       settings.listenPort = 6881
       settings.btMaxPeers = 55
+      settings.btMaxOpenFiles = 100
       settings.btRequestPeerSpeedLimit = 0
+      settings.btForceEncryption = false
       settings.enablePeerExchange = true
       settings.btRequireCrypto = false
       settings.btMinCryptoLevel = 'plain'
       settings.btTracker = ''
+      settings.btExcludeTracker = ''
       settings.btTrackerConnectTimeout = 60
       settings.btTrackerInterval = 0
       settings.btTrackerTimeout = 60
@@ -427,16 +593,45 @@ function handleReset() {
       settings.btStopTimeout = 0
       settings.btPrioritizePiece = false
       settings.btHashCheckSeed = true
+      settings.btDetachSeedOnly = false
+      settings.maxPieceLength = 0
       settings.btSeedUnverified = false
       settings.btSaveMetadata = false
       settings.btLoadSavedMetadata = false
       settings.btMetadataOnly = false
       settings.btRemoveUnselectedFile = false
       settings.followTorrent = 'true'
+      settings.pieceLength = 1
+      settings.allowPieceLengthChange = false
+      settings.peerIdPrefix = ''
+      settings.peerAgent = ''
 
       message.success(t('settings.restored'))
     }
   })
+}
+
+// 选择 DHT 路由表文件
+async function selectDhtFile(field: 'dhtFilePath' | 'dhtFilePath6') {
+  if (!window.electronAPI) {
+    message.warning(t('task.desktopOnly'))
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.showOpenDialog({
+      properties: ['openFile'],
+      title: field === 'dhtFilePath'
+        ? t('settings.bt.dhtFilePathDialog')
+        : t('settings.bt.dhtFilePath6Dialog')
+    })
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      settings[field] = result.filePaths[0]
+    }
+  } catch (_error) {
+    message.error(t('settings.selectFileFailed'))
+  }
 }
 </script>
 

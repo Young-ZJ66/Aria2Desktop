@@ -258,6 +258,90 @@
           </template>
           <AppSwitch v-model:value="settings.reuseUri" />
         </n-form-item>
+
+        <n-form-item path="alwaysResume">
+          <template #label>
+            <TipLabel :label="t('settings.download.alwaysResume')" :tip="t('settings.download.alwaysResumeTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.alwaysResume" />
+        </n-form-item>
+
+        <n-form-item path="maxResumeFailureTries">
+          <template #label>
+            <TipLabel :label="t('settings.download.maxResumeFailureTries')" :tip="t('settings.download.maxResumeFailureTriesTip')" />
+          </template>
+          <n-input-number v-model:value="settings.maxResumeFailureTries" :min="0" :max="1000" />
+        </n-form-item>
+
+        <n-form-item path="conditionalGet">
+          <template #label>
+            <TipLabel :label="t('settings.download.conditionalGet')" :tip="t('settings.download.conditionalGetTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.conditionalGet" />
+        </n-form-item>
+
+        <n-form-item path="forceSequential">
+          <template #label>
+            <TipLabel :label="t('settings.download.forceSequential')" :tip="t('settings.download.forceSequentialTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.forceSequential" />
+        </n-form-item>
+
+        <n-form-item path="parameterizedUri">
+          <template #label>
+            <TipLabel :label="t('settings.download.parameterizedUri')" :tip="t('settings.download.parameterizedUriTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.parameterizedUri" />
+        </n-form-item>
+
+        <n-form-item path="removeControlFile">
+          <template #label>
+            <TipLabel :label="t('settings.download.removeControlFile')" :tip="t('settings.download.removeControlFileTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.removeControlFile" />
+        </n-form-item>
+
+        <n-form-item path="checkIntegrity">
+          <template #label>
+            <TipLabel :label="t('settings.download.checkIntegrity')" :tip="t('settings.download.checkIntegrityTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.checkIntegrity" />
+        </n-form-item>
+
+        <n-form-item path="optimizeConcurrentDownloads">
+          <template #label>
+            <TipLabel :label="t('settings.download.optimizeConcurrentDownloads')" :tip="t('settings.download.optimizeConcurrentDownloadsTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.optimizeConcurrentDownloads" />
+        </n-form-item>
+
+        <n-form-item path="autoSaveInterval">
+          <template #label>
+            <TipLabel :label="t('settings.download.autoSaveInterval')" :tip="t('settings.download.autoSaveIntervalTip')" />
+          </template>
+          <n-input-number v-model:value="settings.autoSaveInterval" :min="0" :max="3600" />
+        </n-form-item>
+
+        <n-form-item path="noFileAllocationLimit">
+          <template #label>
+            <TipLabel :label="t('settings.download.noFileAllocationLimit')" :tip="t('settings.download.noFileAllocationLimitTip')" />
+          </template>
+          <n-input-number v-model:value="settings.noFileAllocationLimit" :min="0" :placeholder="t('settings.download.noFileAllocationLimitPlaceholder')" />
+        </n-form-item>
+
+        <n-form-item path="downloadResult">
+          <template #label>
+            <TipLabel :label="t('settings.download.downloadResult')" :tip="t('settings.download.downloadResultTip')" />
+          </template>
+          <n-select v-model:value="settings.downloadResult" :options="downloadResultOptions" />
+        </n-form-item>
+
+        <n-form-item path="keepUnfinishedDownloadResult">
+          <template #label>
+            <TipLabel :label="t('settings.download.keepUnfinishedDownloadResult')" :tip="t('settings.download.keepUnfinishedDownloadResultTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.keepUnfinishedDownloadResult" />
+        </n-form-item>
         </n-card>
       </n-form>
     </n-spin>
@@ -311,7 +395,19 @@ const settings = reactive({
   allowOverwrite: false,
   autoFileRenaming: true,
   remoteTime: false,
-  reuseUri: true
+  reuseUri: true,
+  alwaysResume: true,
+  maxResumeFailureTries: 0,
+  conditionalGet: false,
+  forceSequential: false,
+  parameterizedUri: false,
+  removeControlFile: false,
+  checkIntegrity: false,
+  optimizeConcurrentDownloads: false,
+  autoSaveInterval: 0,
+  noFileAllocationLimit: 0,
+  downloadResult: 'default',
+  keepUnfinishedDownloadResult: true
 })
 
 // 选项
@@ -341,6 +437,12 @@ const streamPieceSelectorOptions = [
   { label: t('settings.download.pieceInorder'), value: 'inorder' },
   { label: t('settings.download.pieceRandom'), value: 'random' },
   { label: t('settings.download.pieceGeom'), value: 'geom' }
+]
+
+const downloadResultOptions = [
+  { label: 'default', value: 'default' },
+  { label: 'full', value: 'full' },
+  { label: 'hide', value: 'hide' }
 ]
 
 // 表单验证规则
@@ -417,6 +519,18 @@ async function loadSettings() {
       settings.autoFileRenaming = options['auto-file-renaming'] !== 'false'
       settings.remoteTime = options['remote-time'] === 'true'
       settings.reuseUri = options['reuse-uri'] !== 'false'
+      settings.alwaysResume = options['always-resume'] !== 'false'
+      settings.maxResumeFailureTries = parseInt(options['max-resume-failure-tries'] || '0')
+      settings.conditionalGet = options['conditional-get'] === 'true'
+      settings.forceSequential = options['force-sequential'] === 'true'
+      settings.parameterizedUri = options['parameterized-uri'] === 'true'
+      settings.removeControlFile = options['remove-control-file'] === 'true'
+      settings.checkIntegrity = options['check-integrity'] === 'true'
+      settings.optimizeConcurrentDownloads = options['optimize-concurrent-downloads'] === 'true'
+      settings.autoSaveInterval = parseInt(options['auto-save-interval'] || '0')
+      settings.noFileAllocationLimit = parseSizeToUnit(options['no-file-allocation-limit'] || '0', 'M')
+      settings.downloadResult = options['download-result'] || 'default'
+      settings.keepUnfinishedDownloadResult = options['keep-unfinished-download-result'] !== 'false'
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
@@ -467,8 +581,22 @@ async function saveSettings() {
       'allow-overwrite': settings.allowOverwrite ? 'true' : 'false',
       'auto-file-renaming': settings.autoFileRenaming ? 'true' : 'false',
       'remote-time': settings.remoteTime ? 'true' : 'false',
-      'reuse-uri': settings.reuseUri ? 'true' : 'false'
+      'reuse-uri': settings.reuseUri ? 'true' : 'false',
+      'always-resume': settings.alwaysResume ? 'true' : 'false',
+      'max-resume-failure-tries': settings.maxResumeFailureTries.toString(),
+      'conditional-get': settings.conditionalGet ? 'true' : 'false',
+      'force-sequential': settings.forceSequential ? 'true' : 'false',
+      'parameterized-uri': settings.parameterizedUri ? 'true' : 'false',
+      'remove-control-file': settings.removeControlFile ? 'true' : 'false',
+      'check-integrity': settings.checkIntegrity ? 'true' : 'false',
+      'optimize-concurrent-downloads': settings.optimizeConcurrentDownloads ? 'true' : 'false',
+      'auto-save-interval': settings.autoSaveInterval.toString(),
+      'download-result': settings.downloadResult,
+      'keep-unfinished-download-result': settings.keepUnfinishedDownloadResult ? 'true' : 'false'
     }
+
+    // 始终发送 no-file-allocation-limit（含 0=总是预分配），否则 aria2 会保留旧值导致"设 0 不生效"
+    options['no-file-allocation-limit'] = formatSizeWithUnit(settings.noFileAllocationLimit, 'M')
 
     await statsStore.changeGlobalOptions(options)
     message.success(t('settings.saved'))
@@ -511,7 +639,19 @@ async function resetToDefaults() {
     allowOverwrite: false,
     autoFileRenaming: true,
     remoteTime: false,
-    reuseUri: true
+    reuseUri: true,
+    alwaysResume: true,
+    maxResumeFailureTries: 0,
+    conditionalGet: false,
+    forceSequential: false,
+    parameterizedUri: false,
+    removeControlFile: false,
+    checkIntegrity: false,
+    optimizeConcurrentDownloads: false,
+    autoSaveInterval: 0,
+    noFileAllocationLimit: 0,
+    downloadResult: 'default',
+    keepUnfinishedDownloadResult: true
   })
 
   message.success(t('settings.restored'))

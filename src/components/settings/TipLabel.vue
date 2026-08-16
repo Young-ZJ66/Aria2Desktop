@@ -47,7 +47,7 @@ defineProps<{
   max-width: 320px;
   font-size: 12px;
   line-height: 1.7;
-  white-space: normal;
+  white-space: pre-line;
   word-break: break-word;
 }
 </style>

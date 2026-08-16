@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-page">
+  <div ref="pageRef" class="settings-page">
     <div class="settings-header">
       <h2>{{ title }}</h2>
       <p v-if="description" class="settings-description">{{ description }}</p>
@@ -17,7 +17,7 @@
 
     <slot />
 
-    <div v-if="showActions" class="settings-actions">
+    <div v-if="showActions" ref="actionsRef" class="settings-actions">
       <n-space>
         <n-button type="primary" :loading="saving" :disabled="disabled" @click="$emit('save')">
           {{ t('settings.save') }}
@@ -35,13 +35,40 @@
         </n-tooltip>
       </n-space>
     </div>
+
+    <!-- 悬浮操作按钮：仅当页面内容超出滚动区域、未到达底部时显示 -->
+    <div class="float-actions-anchor">
+      <transition name="float-actions">
+        <div v-if="showActions && showFloatActions" class="float-actions-bar">
+          <div class="float-actions-bar__inner">
+            <n-space>
+              <n-button type="primary" :loading="saving" :disabled="disabled" @click="$emit('save')">
+                {{ t('settings.save') }}
+              </n-button>
+              <n-button :disabled="disabled" @click="$emit('reload')">
+                {{ t('settings.reload') }}
+              </n-button>
+              <n-tooltip trigger="hover">
+                <template #trigger>
+                  <n-button :disabled="disabled" @click="$emit('reset')">
+                    {{ t('settings.restoreDefaults') }}
+                  </n-button>
+                </template>
+                {{ t('settings.restoreDefaultsTip') }}
+              </n-tooltip>
+            </n-space>
+          </div>
+        </div>
+      </transition>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-defineProps<{
+const props = defineProps<{
   title: string
   description?: string
   showConnectAlert?: boolean
@@ -58,6 +85,42 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const pageRef = ref<HTMLElement | null>(null)
+const actionsRef = ref<HTMLElement | null>(null)
+const showFloatActions = ref(false)
+let scrollContainer: HTMLElement | null = null
+let actionsObserver: IntersectionObserver | null = null
+
+// 向上查找最近的滚动容器（兼容路由页面与设置对话框两种承载方式）
+function findScrollContainer(el: HTMLElement): HTMLElement | null {
+  let node = el.parentElement
+  while (node) {
+    const style = getComputedStyle(node)
+    if (/(auto|scroll|overlay)/.test(style.overflowY)) return node
+    node = node.parentElement
+  }
+  return null
+}
+
+onMounted(() => {
+  if (props.showActions && pageRef.value && actionsRef.value) {
+    scrollContainer = findScrollContainer(pageRef.value)
+    if (scrollContainer) {
+      // 底部操作按钮不可见时显示悬浮栏；一旦按钮进入视口（含到达底部）立即隐藏，避免下滑闪烁
+      actionsObserver = new IntersectionObserver(([entry]) => {
+        const scrollable = scrollContainer.scrollHeight > scrollContainer.clientHeight + 4
+        showFloatActions.value = scrollable && !entry.isIntersecting
+      }, { root: scrollContainer, threshold: 0 })
+      actionsObserver.observe(actionsRef.value)
+    }
+  }
+})
+
+onBeforeUnmount(() => {
+  actionsObserver?.disconnect()
+  actionsObserver = null
+})
 </script>
 
 <style scoped>
@@ -97,6 +160,43 @@ const { t } = useI18n()
   border-top: 1px solid var(--border-light);
   display: flex;
   justify-content: center;
+}
+
+/* 悬浮操作按钮栏：零高度锚点吸附在滚动区底部，按钮在锚点内绝对定位。
+   这样到达底部时悬浮栏只会就地淡出，而不会被推到操作按钮下方造成闪烁 */
+.float-actions-anchor {
+  position: sticky;
+  bottom: 16px;
+  height: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.float-actions-bar {
+  position: absolute;
+  bottom: 0;
+  pointer-events: auto;
+  padding: 12px 0 2px;
+}
+
+.float-actions-bar__inner {
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+}
+
+.float-actions-enter-active,
+.float-actions-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.float-actions-enter-from,
+.float-actions-leave-to {
+  opacity: 0;
 }
 </style>
 

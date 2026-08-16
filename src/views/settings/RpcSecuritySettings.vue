@@ -49,6 +49,13 @@
             </template>
             <AppSwitch v-model:value="settings.rpcSaveUploadMetadata" />
           </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.rpc.pauseMetadata')" :tip="t('settings.rpc.pauseMetadataTip')" />
+            </template>
+            <AppSwitch v-model:value="settings.pauseMetadata" />
+          </n-form-item>
         </n-form>
       </n-card>
 
@@ -74,6 +81,13 @@
             </template>
             <AppSwitch v-model:value="settings.rpcAllowOriginAll" />
           </n-form-item>
+
+          <n-form-item>
+            <template #label>
+              <TipLabel :label="t('settings.rpc.forceSave')" :tip="t('settings.rpc.forceSaveTip')" />
+            </template>
+            <AppSwitch v-model:value="settings.forceSave" />
+          </n-form-item>
         </n-form>
       </n-card>
 
@@ -84,47 +98,28 @@
             <template #label>
               <TipLabel :label="t('settings.rpc.rpcCertificate')" :tip="t('settings.rpc.rpcCertificateTip')" />
             </template>
-            <n-input v-model:value="settings.rpcCertificate" :placeholder="t('settings.rpc.rpcCertificatePlaceholder')" clearable />
+            <n-input-group>
+              <n-input v-model:value="settings.rpcCertificate" :placeholder="t('settings.rpc.rpcCertificatePlaceholder')" clearable />
+              <n-button @click="selectFile('rpcCertificate', t('settings.rpc.rpcCertificateDialog'))">
+                <template #icon>
+                  <n-icon><FolderOpenOutline /></n-icon>
+                </template>
+              </n-button>
+            </n-input-group>
           </n-form-item>
 
           <n-form-item>
             <template #label>
               <TipLabel :label="t('settings.rpc.rpcPrivateKey')" :tip="t('settings.rpc.rpcPrivateKeyTip')" />
             </template>
-            <n-input v-model:value="settings.rpcPrivateKey" :placeholder="t('settings.rpc.rpcPrivateKeyPlaceholder')" clearable />
-          </n-form-item>
-        </n-form>
-      </n-card>
-
-      <!-- 文件安全 -->
-      <n-card :title="t('settings.rpc.groupFileSecurity')" class="setting-group">
-        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.allowOverwrite')" :tip="t('settings.rpc.allowOverwriteTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.allowOverwrite" />
-          </n-form-item>
-
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.autoFileRenaming')" :tip="t('settings.rpc.autoFileRenamingTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.autoFileRenaming" />
-          </n-form-item>
-
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.forceSave')" :tip="t('settings.rpc.forceSaveTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.forceSave" />
-          </n-form-item>
-
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.checkIntegrity')" :tip="t('settings.rpc.checkIntegrityTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.checkIntegrity" />
+            <n-input-group>
+              <n-input v-model:value="settings.rpcPrivateKey" :placeholder="t('settings.rpc.rpcPrivateKeyPlaceholder')" clearable />
+              <n-button @click="selectFile('rpcPrivateKey', t('settings.rpc.rpcPrivateKeyDialog'))">
+                <template #icon>
+                  <n-icon><FolderOpenOutline /></n-icon>
+                </template>
+              </n-button>
+            </n-input-group>
           </n-form-item>
         </n-form>
       </n-card>
@@ -135,6 +130,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { NIcon } from 'naive-ui'
+import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message, dialog } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
@@ -160,10 +157,8 @@ const settings = reactive({
   rpcSaveUploadMetadata: true,
   rpcCertificate: '',
   rpcPrivateKey: '',
-  allowOverwrite: false,
-  autoFileRenaming: true,
   forceSave: false,
-  checkIntegrity: false
+  pauseMetadata: false
 })
 
 onMounted(() => {
@@ -191,10 +186,8 @@ async function loadSettings() {
       settings.rpcSaveUploadMetadata = options['rpc-save-upload-metadata'] !== 'false'
       settings.rpcCertificate = options['rpc-certificate'] || ''
       settings.rpcPrivateKey = options['rpc-private-key'] || ''
-      settings.allowOverwrite = options['allow-overwrite'] === 'true'
-      settings.autoFileRenaming = options['auto-file-renaming'] !== 'false'
       settings.forceSave = options['force-save'] === 'true'
-      settings.checkIntegrity = options['check-integrity'] === 'true'
+      settings.pauseMetadata = options['pause-metadata'] === 'true'
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
@@ -224,10 +217,8 @@ async function handleSave() {
       'rpc-allow-origin-all': settings.rpcAllowOriginAll ? 'true' : 'false',
       'rpc-max-request-size': formatSizeWithUnit(settings.rpcMaxRequestSize, 'M'),
       'rpc-save-upload-metadata': settings.rpcSaveUploadMetadata ? 'true' : 'false',
-      'allow-overwrite': settings.allowOverwrite ? 'true' : 'false',
-      'auto-file-renaming': settings.autoFileRenaming ? 'true' : 'false',
       'force-save': settings.forceSave ? 'true' : 'false',
-      'check-integrity': settings.checkIntegrity ? 'true' : 'false'
+      'pause-metadata': settings.pauseMetadata ? 'true' : 'false'
     }
 
     if (settings.rpcSecret) options['rpc-secret'] = settings.rpcSecret
@@ -260,14 +251,33 @@ function handleReset() {
       settings.rpcSaveUploadMetadata = true
       settings.rpcCertificate = ''
       settings.rpcPrivateKey = ''
-      settings.allowOverwrite = false
-      settings.autoFileRenaming = true
       settings.forceSave = false
-      settings.checkIntegrity = false
+      settings.pauseMetadata = false
 
       message.success(t('settings.restored'))
     }
   })
+}
+
+// 选择证书/私钥文件
+async function selectFile(field: 'rpcCertificate' | 'rpcPrivateKey', title: string) {
+  if (!window.electronAPI) {
+    message.warning(t('task.desktopOnly'))
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.showOpenDialog({
+      properties: ['openFile'],
+      title
+    })
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      settings[field] = result.filePaths[0]
+    }
+  } catch (_error) {
+    message.error(t('settings.selectFileFailed'))
+  }
 }
 </script>
 

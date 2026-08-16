@@ -3,86 +3,90 @@
     :title="t('generalSettings.title')"
     :description="t('generalSettings.description')"
   >
-    <n-form
-      :model="form"
-      label-placement="left"
-      :label-width="180"
-      label-align="left"
-      :show-feedback="false"
-      class="general-form"
-    >
-      <n-form-item>
-        <template #label>
-          <TipLabel :label="t('generalSettings.language')" />
-        </template>
-        <n-select
-          v-model:value="form.language"
-          :options="languageOptions"
-          @update:value="handleLanguageChange"
-        />
-      </n-form-item>
+    <!-- 通用设置 -->
+    <n-card :title="t('generalSettings.groupGeneral')" class="setting-group">
+      <n-form
+        :model="form"
+        label-placement="left"
+        :label-width="180"
+        label-align="left"
+        :show-feedback="false"
+        class="general-form"
+      >
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('generalSettings.language')" />
+          </template>
+          <n-select
+            v-model:value="form.language"
+            :options="languageOptions"
+            @update:value="handleLanguageChange"
+          />
+        </n-form-item>
 
-      <n-form-item>
-        <template #label>
-          <TipLabel :label="t('generalSettings.theme')" />
-        </template>
-        <n-select
-          v-model:value="form.theme"
-          :options="themeOptions"
-          @update:value="handleThemeChange"
-        />
-      </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('generalSettings.theme')" />
+          </template>
+          <n-select
+            v-model:value="form.theme"
+            :options="themeOptions"
+            @update:value="handleThemeChange"
+          />
+        </n-form-item>
 
-      <n-form-item>
-        <template #label>
-          <TipLabel :label="t('generalSettings.refreshInterval')" :tip="t('generalSettings.refreshIntervalTip')" />
-        </template>
-        <n-select
-          v-model:value="form.refreshInterval"
-          :options="refreshIntervalOptions"
-          @update:value="handleRefreshIntervalChange"
-        />
-      </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('generalSettings.refreshInterval')" :tip="t('generalSettings.refreshIntervalTip')" />
+          </template>
+          <n-select
+            v-model:value="form.refreshInterval"
+            :options="refreshIntervalOptions"
+            @update:value="handleRefreshIntervalChange"
+          />
+        </n-form-item>
 
-      <n-form-item>
-        <template #label>
-          <TipLabel :label="t('generalSettings.autoConnect')" :tip="t('generalSettings.autoConnectTip')" />
-        </template>
-        <AppSwitch
-          v-model:value="form.autoConnect"
-          @update:value="handleAutoConnectChange"
-        />
-      </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('generalSettings.autoConnect')" :tip="t('generalSettings.autoConnectTip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.autoConnect"
+            @update:value="handleAutoConnectChange"
+          />
+        </n-form-item>
 
-      <n-form-item>
-        <template #label>
-          <TipLabel :label="t('generalSettings.minimizeToTray')" :tip="t('generalSettings.minimizeToTrayTip')" />
-        </template>
-        <AppSwitch
-          v-model:value="form.minimizeToTray"
-          @update:value="handleTraySettingChange"
-        />
-      </n-form-item>
-    </n-form>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('generalSettings.minimizeToTray')" :tip="t('generalSettings.minimizeToTrayTip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.minimizeToTray"
+            @update:value="handleTraySettingChange"
+          />
+        </n-form-item>
+      </n-form>
+    </n-card>
 
-    <n-divider />
-
-    <n-space>
-      <n-tooltip trigger="hover">
-        <template #trigger>
-          <n-button :disabled="settingsStore.isLoading" @click="resetSettings">
-            {{ t('generalSettings.resetSettings') }}
-          </n-button>
-        </template>
-        {{ t('generalSettings.resetSettingsTip') }}
-      </n-tooltip>
-      <n-button @click="exportSettings">
-        {{ t('generalSettings.exportSettings') }}
-      </n-button>
-      <n-button @click="showImportDialog = true">
-        {{ t('generalSettings.importSettings') }}
-      </n-button>
-    </n-space>
+    <!-- 重置与备份 -->
+    <n-card :title="t('generalSettings.groupResetBackup')" class="setting-group">
+      <div class="backup-actions">
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button :disabled="settingsStore.isLoading" @click="resetSettings">
+              {{ t('generalSettings.resetSettings') }}
+            </n-button>
+          </template>
+          {{ t('generalSettings.resetSettingsTip') }}
+        </n-tooltip>
+        <n-button @click="exportSettings">
+          {{ t('generalSettings.backupSettings') }}
+        </n-button>
+        <n-button @click="openImportDialog">
+          {{ t('generalSettings.importSettings') }}
+        </n-button>
+      </div>
+    </n-card>
 
     <!-- 导入设置对话框 -->
     <n-modal
@@ -93,6 +97,21 @@
     >
       <n-form>
         <n-form-item :label="t('generalSettings.settingsFile')">
+          <n-input-group>
+            <n-input
+              :value="selectedFileName"
+              :placeholder="t('generalSettings.selectFilePlaceholder')"
+              readonly
+            />
+            <n-button @click="selectImportFile">
+              <template #icon>
+                <n-icon><FolderOpenOutline /></n-icon>
+              </template>
+              {{ t('generalSettings.selectFile') }}
+            </n-button>
+          </n-input-group>
+        </n-form-item>
+        <n-form-item :label="t('generalSettings.fileContent')">
           <n-input
             v-model:value="importText"
             type="textarea"
@@ -111,12 +130,23 @@
         </n-space>
       </template>
     </n-modal>
+
+    <!-- 隐藏的文件选择器 -->
+    <input
+      ref="fileInputRef"
+      type="file"
+      accept=".json,application/json"
+      class="hidden-file-input"
+      @change="handleFileSelected"
+    />
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { NIcon } from 'naive-ui'
+import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message, dialog } from '@/utils/feedback'
 
 import SettingsPage from '@/components/settings/SettingsPage.vue'
@@ -130,6 +160,8 @@ const { t } = useI18n()
 const importing = ref(false)
 const showImportDialog = ref(false)
 const importText = ref('')
+const selectedFileName = ref('')
+const fileInputRef = ref<HTMLInputElement | null>(null)
 
 // 表单数据
 const form = reactive({
@@ -266,6 +298,34 @@ function exportSettings() {
   }
 }
 
+// 打开导入对话框（清空上一次选择）
+function openImportDialog() {
+  selectedFileName.value = ''
+  importText.value = ''
+  showImportDialog.value = true
+}
+
+// 触发文件选择
+function selectImportFile() {
+  fileInputRef.value?.click()
+}
+
+// 读取选中的设置文件内容
+function handleFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    importText.value = String(reader.result ?? '')
+    selectedFileName.value = file.name
+  }
+  reader.readAsText(file)
+  // 允许重复选择同一个文件
+  input.value = ''
+}
+
 async function importSettings() {
   if (!importText.value.trim()) {
     message.warning(t('generalSettings.importEmpty'))
@@ -358,7 +418,20 @@ async function handleTraySettingChange() {
 </script>
 
 <style scoped>
+.setting-group {
+  margin-bottom: 16px;
+}
+
 .general-form {
   max-width: 720px;
+}
+
+.backup-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.hidden-file-input {
+  display: none;
 }
 </style>
