@@ -30,7 +30,7 @@ const electronAPI = {
 
   // 自动更新
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
-  openUpdateInstaller: () => ipcRenderer.invoke('open-update-installer'),
+  restartAndInstall: () => ipcRenderer.invoke('restart-and-install'),
   onUpdateStatus: (callback: (status: unknown) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, status: unknown) => callback(status)
     ipcRenderer.on('update:status', listener)

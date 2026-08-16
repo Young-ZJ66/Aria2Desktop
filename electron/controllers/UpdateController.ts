@@ -1,29 +1,25 @@
-import { app, BrowserWindow, net, shell } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as https from 'https'
+import { URL } from 'url'
 
-// GitHub Releases API（公开仓库可直接访问，无需 token）
+// 仓库信息与版本查询入口
 const GITHUB_REPO = 'Young-ZJ66/Aria2Desktop'
-const GITHUB_API_LATEST = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
-
-interface GitHubAsset {
-  name: string
-  browser_download_url: string
-}
-
-interface GitHubRelease {
-  tag_name: string
-  assets: GitHubAsset[]
-}
+// releases.atom 订阅源：普通网页接口，不受 GitHub API 配额（403 限流）影响
+const RELEASES_ATOM_URL = `https://github.com/${GITHUB_REPO}/releases.atom`
+const MAX_REDIRECTS = 5
 
 /**
- * UpdateController - 通过 GitHub Releases API 检查更新：
- * 1. 拉取最新 Release 的版本号并比对本地版本
- * 2. 发现新版本后下载对应架构的安装包（带进度推送）
- * 3. 启动安装程序，交由用户完成安装
+ * UpdateController - 检查更新流程：
+ * 1. 通过 releases.atom 订阅源获取最新版本号（普通网页接口，不受 API 限流影响）并比对本地版本
+ * 2. 发现新版本后按命名规则构造安装包下载地址并下载（带进度推送）
+ * 3. 点击"重启更新"后启动安装程序并退出应用，完成安装后自动重启新版
  *
- * 不依赖 latest.yml / blockmap，不使用 electron-updater
- * 状态通过 webContents.send('update:status', ...) 推送给渲染进程
+ * 网络请求统一使用 Node 原生 https（手动跟随重定向），
+ * 避免 Electron net.fetch（Chromium 网络栈）流式下载大文件时偶发的连接中断。
+ * 不依赖 latest.yml / blockmap / GitHub API，不使用 electron-updater。
+ * 状态通过 webContents.send('update:status', ...) 推送给渲染进程。
  */
 export class UpdateController {
   private getWindow: () => BrowserWindow | null
@@ -41,14 +37,14 @@ export class UpdateController {
     }
   }
 
-  /** 检查更新；发现新版本时自动下载并启动安装程序 */
+  /** 检查更新；发现新版本时自动下载安装包 */
   async checkForUpdates(): Promise<{ success: boolean; error?: string }> {
     if (!app.isPackaged) {
       return { success: false, error: 'Development mode does not support auto update' }
     }
     try {
-      const release = await this.fetchLatestRelease()
-      const latestVersion = release.tag_name.replace(/^v/i, '')
+      const tag = await this.fetchLatestVersionTag()
+      const latestVersion = tag.replace(/^v/i, '')
       const currentVersion = app.getVersion()
 
       // 当前已是最新版本
@@ -57,82 +53,116 @@ export class UpdateController {
         return { success: true }
       }
 
-      // 查找与当前架构匹配的安装包
-      const asset = this.findInstallerAsset(release.assets, process.arch)
-      if (!asset) {
-        this.sendToRenderer({ state: 'error', error: 'No matching installer asset found' })
-        return { success: true }
-      }
+      // 按版本与架构构造安装包下载地址（命名规则与打包产物一致）
+      const downloadUrl = this.buildInstallerUrl(latestVersion)
 
       this.sendToRenderer({ state: 'available', version: latestVersion })
-      await this.downloadInstaller(asset.browser_download_url, latestVersion)
+      await this.downloadInstaller(downloadUrl, latestVersion)
       this.sendToRenderer({ state: 'downloaded', version: latestVersion })
-
-      // 打开安装程序，交由用户完成安装
-      await shell.openPath(this.downloadedPath)
       return { success: true }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   }
 
-  /** 重新打开已下载的安装程序（用户可再次执行安装） */
-  async openInstaller(): Promise<{ success: boolean; error?: string }> {
+  /** 重启更新：启动安装程序并退出应用，安装完成（runAfterFinish）后自动重启新版 */
+  async restartAndInstall(): Promise<{ success: boolean; error?: string }> {
     if (!this.downloadedPath || !fs.existsSync(this.downloadedPath)) {
       return { success: false, error: 'Installer not downloaded' }
     }
     try {
-      await shell.openPath(this.downloadedPath)
+      const errMsg = await shell.openPath(this.downloadedPath)
+      if (errMsg) {
+        return { success: false, error: errMsg }
+      }
+      // 稍作延迟确保安装程序已启动，再退出应用
+      setTimeout(() => app.quit(), 1500)
       return { success: true }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   }
 
-  /** 请求 GitHub Releases API 获取最新版本信息 */
-  private async fetchLatestRelease(): Promise<GitHubRelease> {
-    const response = await net.fetch(GITHUB_API_LATEST, {
-      headers: { 'User-Agent': 'Aria2Desktop-Update' }
+  /** 请求 releases.atom 订阅源，提取最新 Release 的 tag（如 v1.0.1） */
+  private fetchLatestVersionTag(): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      const req = https.request(this.buildRequestOptions(RELEASES_ATOM_URL), (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (chunk: Buffer) => chunks.push(chunk))
+        res.on('end', () => {
+          if (!res.statusCode || res.statusCode >= 400) {
+            reject(new Error(`Failed to fetch release feed: ${res.statusCode}`))
+            return
+          }
+          const body = Buffer.concat(chunks).toString('utf-8')
+          // 匹配第一个 release tag，如 https://github.com/.../releases/tag/v1.0.1
+          const match = /releases\/tag\/([^\/<"']+)/.exec(body)
+          if (!match) {
+            reject(new Error('No release tag found'))
+            return
+          }
+          resolve(match[1])
+        })
+        res.on('error', reject)
+      })
+      req.on('error', reject)
+      req.end()
     })
-    if (!response.ok) {
-      throw new Error(`GitHub API request failed: ${response.status}`)
-    }
-    return (await response.json()) as GitHubRelease
   }
 
-  /** 按当前架构匹配安装包资产 */
-  private findInstallerAsset(assets: GitHubAsset[], arch: string): GitHubAsset | undefined {
-    const suffixMap: Record<string, string> = {
-      x64: '-x64-Setup.exe',
-      ia32: '-x86-Setup.exe',
-      arm64: '-arm64-Setup.exe'
-    }
-    const suffix = suffixMap[arch] || '-x64-Setup.exe'
-    return assets.find((a) => a.name.endsWith(suffix)) || assets.find((a) => /-Setup\.exe$/i.test(a.name))
+  /** 按版本与当前架构构造安装包下载地址（命名规则与打包产物保持一致） */
+  private buildInstallerUrl(version: string): string {
+    const archSuffix = process.arch === 'ia32' ? 'x86' : process.arch === 'arm64' ? 'arm64' : 'x64'
+    const fileName = `Aria2Desktop-${version}-${archSuffix}-Setup.exe`
+    return `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${fileName}`
   }
 
   /** 流式下载安装包到临时目录，并推送下载进度 */
-  private async downloadInstaller(url: string, version: string): Promise<void> {
-    const response = await net.fetch(url, {
-      headers: { 'User-Agent': 'Aria2Desktop-Update' }
+  private downloadInstaller(url: string, version: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      // 每次下载使用唯一文件名，避免覆盖仍被占用（如安装器运行中/杀软扫描）的旧文件
+      const filePath = path.join(app.getPath('temp'), `Aria2Desktop-${version}-${Date.now()}-Setup.exe`)
+      this.downloadWithRedirects(url, filePath, 0, resolve, reject)
     })
-    if (!response.ok || !response.body) {
-      throw new Error(`Download failed: ${response.status}`)
+  }
+
+  /** 递归处理重定向并写盘（GitHub 资产下载会 302 到 CDN） */
+  private downloadWithRedirects(
+    url: string,
+    filePath: string,
+    redirectCount: number,
+    resolve: () => void,
+    reject: (reason?: unknown) => void
+  ): void {
+    if (redirectCount > MAX_REDIRECTS) {
+      reject(new Error('Too many redirects'))
+      return
     }
 
-    const total = Number(response.headers.get('content-length') || 0)
-    const filePath = path.join(app.getPath('temp'), `Aria2Desktop-${version}-Setup.exe`)
-    const fileStream = fs.createWriteStream(filePath)
-    const reader = response.body.getReader()
-    let received = 0
+    const req = https.request(this.buildRequestOptions(url), (res) => {
+      // 手动跟随重定向
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume()
+        const nextUrl = new URL(res.headers.location, url).toString()
+        this.downloadWithRedirects(nextUrl, filePath, redirectCount + 1, resolve, reject)
+        return
+      }
 
-    try {
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        received += value.byteLength
-        if (!fileStream.write(Buffer.from(value))) {
-          await new Promise<void>((resolve) => fileStream.once('drain', () => resolve()))
+      if (!res.statusCode || res.statusCode >= 400) {
+        res.resume()
+        reject(new Error(`Download failed: ${res.statusCode}`))
+        return
+      }
+
+      const total = Number(res.headers['content-length'] || 0)
+      const fileStream = fs.createWriteStream(filePath)
+      let received = 0
+
+      res.on('data', (chunk: Buffer) => {
+        received += chunk.length
+        if (!fileStream.write(chunk)) {
+          res.pause()
+          fileStream.once('drain', () => res.resume())
         }
         if (total > 0) {
           this.sendToRenderer({
@@ -142,15 +172,37 @@ export class UpdateController {
             total
           })
         }
-      }
-      await new Promise<void>((resolve, reject) => {
-        fileStream.end((err?: Error | null) => (err ? reject(err) : resolve()))
       })
-    } finally {
-      reader.releaseLock()
-    }
 
-    this.downloadedPath = filePath
+      res.on('end', () => {
+        fileStream.end(() => {
+          this.downloadedPath = filePath
+          resolve()
+        })
+      })
+
+      res.on('error', (err) => {
+        fileStream.destroy()
+        reject(err)
+      })
+    })
+
+    // 30 秒内无数据视为超时，避免长时间无响应
+    req.setTimeout(30000, () => req.destroy(new Error('Download timed out')))
+    req.on('error', reject)
+    req.end()
+  }
+
+  /** 构造 https 请求选项 */
+  private buildRequestOptions(url: string): https.RequestOptions {
+    const parsed = new URL(url)
+    return {
+      hostname: parsed.hostname,
+      port: parsed.port || 443,
+      path: parsed.pathname + parsed.search,
+      method: 'GET',
+      headers: { 'User-Agent': 'Aria2Desktop-Update' }
+    }
   }
 
   /** 简单的语义化版本比较：a > b 返回 1，a < b 返回 -1，相等返回 0 */

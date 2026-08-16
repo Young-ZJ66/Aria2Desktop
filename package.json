@@ -1,6 +1,6 @@
 {
   "name": "aria2-desktop",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "集成 Aria2 引擎的现代化桌面下载管理器",
   "main": "dist/electron/electron/main.js",
   "author": "Your Name",

@@ -815,11 +815,12 @@
     "updateAvailable": "New version {version} found, downloading...",
     "updateNotAvailable": "You are up to date",
     "updateDownloading": "Downloading update {percent}%",
-    "updateDownloaded": "Update downloaded, launching installer",
+    "updateDownloaded": "Update downloaded, restart to update",
     "updateError": "Failed to check for updates: {error}",
-    "installNow": "Open Installer",
+    "restartToUpdate": "Restart to Update",
     "updateCheckDone": "Check complete",
-    "updateCheckTooltip": "Check for new Aria2Desktop releases"
+    "updateCheckTooltip": "Check for new Aria2Desktop releases",
+    "currentVersion": "Current version: {version}"
   },
   "aria2Basic": {
     "title": "Aria2 Basic Settings",

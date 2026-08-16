@@ -59,7 +59,7 @@
         :data="filteredTasks"
         :row-key="(row: Aria2Task) => row.gid"
         :row-props="rowProps"
-        :scroll-x="1200"
+        :scroll-x="filteredTasks.length > 0 ? 1200 : undefined"
         :bordered="false"
         class="task-table"
       >
@@ -796,6 +796,14 @@ watch(
   border-radius: 8px;
   box-shadow: var(--shadow-light);
   transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* 空状态铺满列表区域并居中，避免空列表时横向滚动条残留在中间 */
+.task-list-content :deep(.n-data-table-empty) {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .task-actions {

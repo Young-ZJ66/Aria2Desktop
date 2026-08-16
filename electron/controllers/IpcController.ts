@@ -51,7 +51,7 @@ export class IpcController {
   }
 
   private registerAppHandlers() {
-    ipcMain.handle('get-app-version', () => process.env.npm_package_version || '1.0.0')
+    ipcMain.handle('get-app-version', () => app.getVersion())
 
     // 开机自启：查询当前是否已启用（仅 Windows 支持）
     ipcMain.handle('get-auto-launch', (event) => {
@@ -84,10 +84,10 @@ export class IpcController {
       return await this.updateController.checkForUpdates()
     })
 
-    // 自动更新：重新打开已下载的安装程序
-    ipcMain.handle('open-update-installer', async (event) => {
+    // 自动更新：重启更新（启动安装程序并退出应用）
+    ipcMain.handle('restart-and-install', async (event) => {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
-      return await this.updateController.openInstaller()
+      return await this.updateController.restartAndInstall()
     })
 
     ipcMain.handle('set-tray-enabled', (event, enabled: boolean) => {

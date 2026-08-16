@@ -84,23 +84,15 @@
           <div class="update-control">
             <n-button
               size="small"
+              :type="updateState === 'downloaded' ? 'primary' : 'default'"
               :loading="updating"
               :disabled="!isElectronAvailable || updateState === 'downloading'"
-              @click="checkForUpdates"
+              @click="handleUpdateAction"
             >
               <template #icon>
                 <n-icon><RefreshOutline /></n-icon>
               </template>
-              {{ t('generalSettings.checkForUpdates') }}
-            </n-button>
-            <n-button
-              v-if="updateState === 'downloaded'"
-              size="small"
-              type="primary"
-              class="app-action-btn"
-              @click="installUpdate"
-            >
-              {{ t('generalSettings.installNow') }}
+              {{ updateState === 'downloaded' ? t('generalSettings.restartToUpdate') : t('generalSettings.checkForUpdates') }}
             </n-button>
             <n-tag
               v-if="updateState && updateState !== 'idle' && updateState !== 'error'"
@@ -111,6 +103,9 @@
             >
               {{ updateStatusText }}
             </n-tag>
+          </div>
+          <div class="current-version">
+            {{ t('generalSettings.currentVersion', { version: currentVersion || '—' }) }}
           </div>
         </n-form-item>
       </n-form>
@@ -236,6 +231,7 @@ const updating = ref(false)
 const updateState = ref<'idle' | UpdateStatus['state']>('idle')
 const updateVersion = ref('')
 const updatePercent = ref(0)
+const currentVersion = ref('')
 
 const updateTagType = computed<'info' | 'success' | 'warning'>(() => {
   switch (updateState.value) {
@@ -318,6 +314,15 @@ let unsubscribeUpdateStatus: (() => void) | null = null
 
 onMounted(async () => {
   await settingsStore.initialize()
+
+  // 获取当前应用版本
+  if (window.electronAPI?.getAppVersion) {
+    try {
+      currentVersion.value = await window.electronAPI.getAppVersion()
+    } catch (error) {
+      console.warn('Failed to get app version:', error)
+    }
+  }
 
   // 同步系统实际的开机自启状态，避免设置与系统不一致
   if (window.electronAPI?.getAutoLaunch) {
@@ -590,9 +595,18 @@ async function checkForUpdates() {
   }
 }
 
-// 打开已下载的安装程序执行安装
-async function installUpdate() {
-  const result = await window.electronAPI?.openUpdateInstaller?.()
+// 更新动作：下载完成后按钮变为"重启更新"
+function handleUpdateAction() {
+  if (updateState.value === 'downloaded') {
+    restartAndInstall()
+  } else {
+    checkForUpdates()
+  }
+}
+
+// 重启更新：启动安装程序并退出应用
+async function restartAndInstall() {
+  const result = await window.electronAPI?.restartAndInstall?.()
   if (result && !result.success) {
     message.error(t('generalSettings.updateError', { error: result.error || t('settings.unknownError') }))
   }
@@ -618,6 +632,13 @@ async function installUpdate() {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.current-version {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-tertiary, #999);
+  user-select: text;
 }
 
 .hidden-file-input {
