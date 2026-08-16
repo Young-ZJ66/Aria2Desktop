@@ -17,14 +17,14 @@
 
 ## 项目简介
 
-**Aria2 Desktop** 是一款基于 **Electron + Vue 3** 构建的桌面端 Aria2 下载管理器，灵感来源于 [AriaNg](https://github.com/mayswind/AriaNg)。它将 Aria2 引擎与可视化管理界面集成于一体，提供从引擎启停、任务调度到参数配置的一站式下载管理体验。
+**Aria2 Desktop** 是一款基于 **Electron + Vue 3** 构建的桌面端 Aria2 下载管理器。它将 Aria2 引擎与可视化管理界面集成于一体，提供从引擎启停、任务调度到参数配置的一站式下载管理体验。
 
 ### 项目愿景
 
 - **引擎内置**: 内置 Aria2 可执行文件，无需额外安装和命令行操作
 - **可视化管理**: 实时监控下载速度、进度、连接数，支持任务的暂停/恢复/删除等操作
 - **全协议支持**: HTTP/HTTPS、FTP、BitTorrent、磁力链接、Metalink 全覆盖
-- **现代界面**: 基于 Vue 3 + Element Plus 的响应式 UI，支持深色/浅色主题切换
+- **现代界面**: 基于 Vue 3 + Naive UI 的响应式界面，支持深色/浅色主题切换
 - **深度配置**: 涵盖 RPC、BT、HTTP、FTP/SFTP、Metalink、安全等全维度 Aria2 参数配置
 
 ## 功能特性
@@ -59,13 +59,13 @@
 |--------|------|------|
 | **Electron** | 43.x | 跨平台桌面应用框架 |
 | **Vue.js** | 3.x | 响应式前端界面 |
-| **Element Plus** | 2.x | UI 组件库 |
+| **Naive UI** | 2.x | UI 组件库 |
 | **TypeScript** | 6.x | 类型安全开发 |
 | **Vite** | 8.x | 前端构建工具 |
 | **ECharts** | 6.x | 数据可视化图表 |
-| **Pinia** | 2.x | 状态管理 |
+| **Pinia** | 3.x | 状态管理 |
 | **vue-i18n** | 11.x | 国际化支持 |
-| **Aria2** | 1.36+ | 下载引擎核心 |
+| **Aria2** | 1.37.0 | 下载引擎核心 |
 
 ## 快速开始
 
@@ -155,10 +155,10 @@ aria2-desktop/
 感谢以下开源项目为本项目提供的支持：
 
 - [AriaNg](https://github.com/mayswind/AriaNg) - 现代化的 Aria2 Web 前端
-- [Aria2](https://aria2.github.io/) - 强大的命令行下载工具
+- [Aria2](https://github.com/aria2/aria2) - 强大的命令行下载工具
 - [Electron](https://www.electronjs.org/) - 跨平台桌面应用开发框架
 - [Vue.js](https://vuejs.org/) - 渐进式 JavaScript 框架
-- [Element Plus](https://element-plus.org/) - 基于 Vue.js 的组件库
+- [Naive UI](https://www.naiveui.com/) - 基于 Vue.js 的组件库
 - [ECharts](https://echarts.apache.org/) - 数据可视化图表库
 - [Vite](https://vite.dev/) - 下一代前端构建工具
 
