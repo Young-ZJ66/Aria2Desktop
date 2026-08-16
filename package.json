@@ -15,6 +15,9 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
+    "dist:win64": "npm run build && node scripts/prepare-aria2c.mjs x64 && electron-builder --win --x64 --config.win.target=nsis --config.win.artifactName=\"Aria2Desktop-${version}-x64-Setup.${ext}\" && electron-builder --win --x64 --config.win.target=zip --config.win.artifactName=\"Aria2Desktop-${version}-x64-portable.${ext}\"",
+    "dist:win32": "npm run build && node scripts/prepare-aria2c.mjs x86 && electron-builder --win --ia32 --config.win.target=nsis --config.win.artifactName=\"Aria2Desktop-${version}-x86-Setup.${ext}\" && electron-builder --win --ia32 --config.win.target=zip --config.win.artifactName=\"Aria2Desktop-${version}-x86-portable.${ext}\"",
+    "dist:win-all": "npm run dist:win64 && npm run dist:win32",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-pattern .gitignore"
   },
@@ -53,7 +56,7 @@
     "appId": "com.aria2desktop.app",
     "productName": "Aria2Desktop",
     "icon": "build/Icon.ico",
-    "compression": "maximum",
+    "compression": "normal",
     "publish": [
       {
         "provider": "github",
@@ -93,7 +96,7 @@
       "target": "nsis",
       "icon": "build/Icon.ico",
       "signAndEditExecutable": true,
-      "artifactName": "Aria2Desktop-${version}-Setup.${ext}",
+      "artifactName": "Aria2Desktop-${version}-${arch}-Setup.${ext}",
       "requestedExecutionLevel": "asInvoker",
       "signtoolOptions": {
         "publisherName": "Aria2 Desktop Team"

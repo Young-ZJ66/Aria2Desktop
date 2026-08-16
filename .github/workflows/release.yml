@@ -1,0 +1,52 @@
+name: 构建并发布
+
+# 推送版本 tag（v1.0.0、v1.0.1 等）时自动构建并发布 Release
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建 Windows (${{ matrix.suffix }})
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - electron_arch: x64   # electron-builder 架构参数（固定值）
+            res_arch: x64        # prepare 脚本参数，对应 resources/aria2c-x64.exe
+            suffix: x64          # 安装包后缀
+          - electron_arch: ia32  # electron-builder 对 32 位使用 ia32（固定值，不可改）
+            res_arch: x86        # 对应 resources/aria2c-x86.exe
+            suffix: x86
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      # aria2 已随仓库提交，按目标架构就地复制即可，无需联网下载
+      - name: 准备对应架构的 aria2c
+        run: node scripts/prepare-aria2c.mjs ${{ matrix.res_arch }}
+
+      # 前端构建 + 主进程编译 + 打包发布（--publish always 自动上传到 GitHub Release）
+      # 每个架构依次产出 NSIS 安装包和 zip 便携版
+      - name: 构建并发布
+        shell: pwsh
+        run: |
+          npm run build
+          npx electron-builder --win --publish always --${{ matrix.electron_arch }} --config.win.target=nsis --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-Setup.${ext}'
+          npx electron-builder --win --publish always --${{ matrix.electron_arch }} --config.win.target=zip --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-portable.${ext}'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

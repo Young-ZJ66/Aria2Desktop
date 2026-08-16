@@ -12,3 +12,5 @@ dist
 *.log
 .env
 .env.*
+# 构建时由 prepare-aria2c.mjs 按架构生成的副本
+resources/aria2c.exe
