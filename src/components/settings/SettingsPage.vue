@@ -15,7 +15,9 @@
       {{ t('settings.notConnectedDesc') }}
     </n-alert>
 
-    <slot />
+    <n-spin :show="loading">
+      <slot />
+    </n-spin>
 
     <div v-if="showActions" ref="actionsRef" class="settings-actions">
       <n-space>
@@ -75,6 +77,7 @@ const props = defineProps<{
   connected?: boolean
   showActions?: boolean
   saving?: boolean
+  loading?: boolean
   disabled?: boolean
 }>()
 

@@ -143,7 +143,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon } from 'naive-ui'
 import { FolderOpenOutline } from '@vicons/ionicons5'
@@ -183,18 +183,19 @@ const languageOptions = [
   { label: 'English', value: 'en-US' }
 ]
 
-const themeOptions = [
+// 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
+const themeOptions = computed(() => [
   { label: t('generalSettings.themeLight'), value: 'light' },
   { label: t('generalSettings.themeDark'), value: 'dark' },
   { label: t('generalSettings.themeAuto'), value: 'auto' }
-]
+])
 
-const refreshIntervalOptions = [
+const refreshIntervalOptions = computed(() => [
   { label: t('generalSettings.refreshInterval1s'), value: 1000 },
   { label: t('generalSettings.refreshInterval2s'), value: 2000 },
   { label: t('generalSettings.refreshInterval5s'), value: 5000 },
   { label: t('generalSettings.refreshInterval10s'), value: 10000 }
-]
+])
 
 // 监听设置变化
 watch(() => settingsStore.settings, (newSettings) => {
@@ -247,34 +248,34 @@ async function handleAutoConnectChange() {
 }
 
 async function resetSettings() {
-  const confirmed = await dialog.warning({
+  dialog.warning({
     title: t('generalSettings.resetConfirmTitle'),
     content: t('generalSettings.resetConfirmMsg'),
     positiveText: t('generalSettings.resetConfirmBtn'),
-    negativeText: t('common.cancel')
-  })
-  if (confirmed !== true) return
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        // 重置设置到默认值
+        await settingsStore.resetSettings()
 
-  try {
-    // 重置设置到默认值
-    await settingsStore.resetSettings()
+        // 重新加载表单数据
+        loadFormData()
 
-    // 重新加载表单数据
-    loadFormData()
+        // 应用主题（因为主题可能被重置了）
+        settingsStore.applyTheme()
 
-    // 应用主题（因为主题可能被重置了）
-    settingsStore.applyTheme()
+        // 控制托盘（根据重置后的设置）
+        if (window.electronAPI?.setTrayEnabled) {
+          await window.electronAPI.setTrayEnabled(settingsStore.settings.minimizeToTray)
+        }
 
-    // 控制托盘（根据重置后的设置）
-    if (window.electronAPI?.setTrayEnabled) {
-      await window.electronAPI.setTrayEnabled(settingsStore.settings.minimizeToTray)
+        message.success(t('generalSettings.resetDone'))
+      } catch (error) {
+        console.error('Reset settings error:', error)
+        message.error(t('generalSettings.resetFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
+      }
     }
-
-    message.success(t('generalSettings.resetDone'))
-  } catch (error) {
-    console.error('Reset settings error:', error)
-    message.error(t('generalSettings.resetFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
-  }
+  })
 }
 
 function exportSettings() {

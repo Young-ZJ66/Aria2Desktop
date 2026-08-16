@@ -15,6 +15,7 @@
         placement="left"
         animated
         size="medium"
+        display-directive="show:lazy"
         pane-style="padding: 0 16px 0 20px;"
       >
         <n-tab-pane name="general" :tab="t('nav.generalSettings')">

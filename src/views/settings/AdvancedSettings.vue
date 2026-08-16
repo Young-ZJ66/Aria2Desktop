@@ -6,9 +6,10 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
-    @reload="handleReload"
+    @reload="loadSettings"
     @reset="handleReset"
   >
     <n-card :title="t('settings.advanced.groupEventMemory')" class="setting-group">
@@ -130,22 +131,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FolderOpenOutline } from '@vicons/ionicons5'
-import { message, dialog } from '@/utils/feedback'
+import { message } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
-import { useStatsStore } from '@/stores/statsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
+import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
-const statsStore = useStatsStore()
-
-const saving = ref(false)
 
 const eventPollOptions = [
   { label: 'epoll', value: 'epoll' },
@@ -175,97 +173,54 @@ const form = reactive({
   humanReadable: true
 })
 
-onMounted(() => {
-  if (connectionStore.isConnected) {
-    loadSettings()
+function applyOptionsToSettings(options: Aria2Option) {
+  form.eventPoll = options['event-poll'] || 'epoll'
+  form.enableMmap = options['enable-mmap'] === 'true'
+  form.maxMmapLimit = parseSizeToUnit(options['max-mmap-limit'] || '0', 'G')
+  form.log = options['log'] || ''
+  form.logLevel = options['log-level'] || 'warn'
+  form.consoleLogLevel = options['console-log-level'] || 'notice'
+  form.summaryInterval = parseInt(options['summary-interval'] || '60')
+  form.enableColor = options['enable-color'] !== 'false'
+  form.humanReadable = options['human-readable'] !== 'false'
+}
+
+function toOptions(): Record<string, string> {
+  const options: Record<string, string> = {
+    'event-poll': form.eventPoll,
+    'enable-mmap': form.enableMmap ? 'true' : 'false',
+    'log-level': form.logLevel,
+    'console-log-level': form.consoleLogLevel,
+    'summary-interval': form.summaryInterval.toString(),
+    'enable-color': form.enableColor ? 'true' : 'false',
+    'human-readable': form.humanReadable ? 'true' : 'false'
   }
+
+  if (form.log) options['log'] = form.log
+  // 始终发送 max-mmap-limit（含 0=不限制），否则 aria2 会保留旧值导致"设 0 不生效"
+  options['max-mmap-limit'] = formatSizeWithUnit(form.maxMmapLimit, 'G')
+  return options
+}
+
+function defaults() {
+  return {
+    eventPoll: 'epoll',
+    enableMmap: false,
+    maxMmapLimit: 0,
+    log: '',
+    logLevel: 'warn',
+    consoleLogLevel: 'notice',
+    summaryInterval: 60,
+    enableColor: true,
+    humanReadable: true
+  }
+}
+
+const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(form, {
+  applyOptions: applyOptionsToSettings,
+  toOptions,
+  defaults
 })
-
-async function loadSettings() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  try {
-    const options = await statsStore.getGlobalOptions()
-
-    if (options && typeof options === 'object') {
-      form.eventPoll = options['event-poll'] || 'epoll'
-      form.enableMmap = options['enable-mmap'] === 'true'
-      form.maxMmapLimit = parseSizeToUnit(options['max-mmap-limit'] || '0', 'G')
-      form.log = options['log'] || ''
-      form.logLevel = options['log-level'] || 'warn'
-      form.consoleLogLevel = options['console-log-level'] || 'notice'
-      form.summaryInterval = parseInt(options['summary-interval'] || '60')
-      form.enableColor = options['enable-color'] !== 'false'
-      form.humanReadable = options['human-readable'] !== 'false'
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
-    message.error(t('settings.loadFailed', { error: errorMessage }))
-    console.error('Failed to load advanced settings:', error)
-  }
-}
-
-function handleReload() {
-  loadSettings()
-}
-
-async function handleSave() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  saving.value = true
-  try {
-    const options: Record<string, string> = {
-      'event-poll': form.eventPoll,
-      'enable-mmap': form.enableMmap ? 'true' : 'false',
-      'log-level': form.logLevel,
-      'console-log-level': form.consoleLogLevel,
-      'summary-interval': form.summaryInterval.toString(),
-      'enable-color': form.enableColor ? 'true' : 'false',
-      'human-readable': form.humanReadable ? 'true' : 'false'
-    }
-
-    if (form.log) options['log'] = form.log
-    // 始终发送 max-mmap-limit（含 0=不限制），否则 aria2 会保留旧值导致"设 0 不生效"
-    options['max-mmap-limit'] = formatSizeWithUnit(form.maxMmapLimit, 'G')
-
-    await statsStore.changeGlobalOptions(options)
-    message.success(t('settings.saved'))
-  } catch (error) {
-    message.error(t('settings.saveFailedShort'))
-    console.error('Failed to save advanced settings:', error)
-  } finally {
-    saving.value = false
-  }
-}
-
-function handleReset() {
-  dialog.warning({
-    title: t('settings.restoreConfirmTitle'),
-    content: t('settings.restoreConfirm'),
-    positiveText: t('common.ok'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: () => {
-      Object.assign(form, {
-        eventPoll: 'epoll',
-        enableMmap: false,
-        maxMmapLimit: 0,
-        log: '',
-        logLevel: 'warn',
-        consoleLogLevel: 'notice',
-        summaryInterval: 60,
-        enableColor: true,
-        humanReadable: true
-      })
-      message.success(t('settings.restored'))
-    }
-  })
-}
 
 // 选择日志文件
 async function selectLogFile() {

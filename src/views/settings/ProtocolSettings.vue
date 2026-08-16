@@ -6,9 +6,10 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
-    @reload="handleReload"
+    @reload="loadSettings"
     @reset="handleReset"
   >
     <n-card :title="t('settings.protocol.groupHttpAuth')" class="setting-group">
@@ -277,34 +278,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FolderOpenOutline } from '@vicons/ionicons5'
-import { message, dialog } from '@/utils/feedback'
+import { message } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
-import { useStatsStore } from '@/stores/statsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
+import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
-const statsStore = useStatsStore()
-
-const saving = ref(false)
 
 const ftpTypeOptions = [
   { label: 'binary', value: 'binary' },
   { label: 'ascii', value: 'ascii' }
 ]
 
-const minTlsVersionOptions = [
+// 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
+const minTlsVersionOptions = computed(() => [
   { label: t('settings.protocol.tlsAuto'), value: '' },
   { label: 'TLSv1', value: 'TLSv1' },
   { label: 'TLSv1.1', value: 'TLSv1.1' },
   { label: 'TLSv1.2', value: 'TLSv1.2' },
   { label: 'TLSv1.3', value: 'TLSv1.3' }
-]
+])
 
 const form = reactive({
   httpUser: '',
@@ -329,129 +328,86 @@ const form = reactive({
   ftpReuseConnection: true
 })
 
-onMounted(() => {
-  if (connectionStore.isConnected) {
-    loadSettings()
+function applyOptionsToSettings(options: Aria2Option) {
+  form.httpUser = options['http-user'] || ''
+  form.httpPasswd = options['http-passwd'] || ''
+  form.httpAuthChallenge = options['http-auth-challenge'] === 'true'
+  form.httpAcceptGzip = options['http-accept-gzip'] === 'true'
+  form.httpNoCache = options['http-no-cache'] === 'true'
+  form.header = options['header'] || ''
+  form.referer = options['referer'] || ''
+  form.enableHttpKeepAlive = options['enable-http-keep-alive'] !== 'false'
+  form.enableHttpPipelining = options['enable-http-pipelining'] === 'true'
+  form.contentDispositionDefaultUtf8 = options['content-disposition-default-utf8'] === 'true'
+  form.checkCertificate = options['check-certificate'] !== 'false'
+  form.minTlsVersion = options['min-tls-version'] || ''
+  form.caCertificate = options['ca-certificate'] || ''
+  form.certificate = options['certificate'] || ''
+  form.privateKey = options['private-key'] || ''
+  form.ftpUser = options['ftp-user'] || ''
+  form.ftpPasswd = options['ftp-passwd'] || ''
+  form.ftpType = options['ftp-type'] || 'binary'
+  form.ftpPasv = options['ftp-pasv'] !== 'false'
+  form.ftpReuseConnection = options['ftp-reuse-connection'] !== 'false'
+}
+
+function toOptions(): Record<string, string> {
+  const options: Record<string, string> = {
+    'http-auth-challenge': form.httpAuthChallenge ? 'true' : 'false',
+    'http-accept-gzip': form.httpAcceptGzip ? 'true' : 'false',
+    'http-no-cache': form.httpNoCache ? 'true' : 'false',
+    'enable-http-keep-alive': form.enableHttpKeepAlive ? 'true' : 'false',
+    'enable-http-pipelining': form.enableHttpPipelining ? 'true' : 'false',
+    'content-disposition-default-utf8': form.contentDispositionDefaultUtf8 ? 'true' : 'false',
+    'check-certificate': form.checkCertificate ? 'true' : 'false',
+    'ftp-type': form.ftpType,
+    'ftp-pasv': form.ftpPasv ? 'true' : 'false',
+    'ftp-reuse-connection': form.ftpReuseConnection ? 'true' : 'false'
   }
+
+  if (form.httpUser) options['http-user'] = form.httpUser
+  if (form.httpPasswd) options['http-passwd'] = form.httpPasswd
+  if (form.header) options['header'] = form.header
+  if (form.referer) options['referer'] = form.referer
+  if (form.minTlsVersion) options['min-tls-version'] = form.minTlsVersion
+  if (form.caCertificate) options['ca-certificate'] = form.caCertificate
+  if (form.certificate) options['certificate'] = form.certificate
+  if (form.privateKey) options['private-key'] = form.privateKey
+  if (form.ftpUser) options['ftp-user'] = form.ftpUser
+  if (form.ftpPasswd) options['ftp-passwd'] = form.ftpPasswd
+  return options
+}
+
+function defaults() {
+  return {
+    httpUser: '',
+    httpPasswd: '',
+    httpAuthChallenge: false,
+    httpAcceptGzip: false,
+    httpNoCache: false,
+    header: '',
+    referer: '',
+    enableHttpKeepAlive: true,
+    enableHttpPipelining: false,
+    contentDispositionDefaultUtf8: false,
+    checkCertificate: true,
+    minTlsVersion: '',
+    caCertificate: '',
+    certificate: '',
+    privateKey: '',
+    ftpUser: '',
+    ftpPasswd: '',
+    ftpType: 'binary',
+    ftpPasv: true,
+    ftpReuseConnection: true
+  }
+}
+
+const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(form, {
+  applyOptions: applyOptionsToSettings,
+  toOptions,
+  defaults
 })
-
-async function loadSettings() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  try {
-    const options = await statsStore.getGlobalOptions()
-
-    if (options && typeof options === 'object') {
-      form.httpUser = options['http-user'] || ''
-      form.httpPasswd = options['http-passwd'] || ''
-      form.httpAuthChallenge = options['http-auth-challenge'] === 'true'
-      form.httpAcceptGzip = options['http-accept-gzip'] === 'true'
-      form.httpNoCache = options['http-no-cache'] === 'true'
-      form.header = options['header'] || ''
-      form.referer = options['referer'] || ''
-      form.enableHttpKeepAlive = options['enable-http-keep-alive'] !== 'false'
-      form.enableHttpPipelining = options['enable-http-pipelining'] === 'true'
-      form.contentDispositionDefaultUtf8 = options['content-disposition-default-utf8'] === 'true'
-      form.checkCertificate = options['check-certificate'] !== 'false'
-      form.minTlsVersion = options['min-tls-version'] || ''
-      form.caCertificate = options['ca-certificate'] || ''
-      form.certificate = options['certificate'] || ''
-      form.privateKey = options['private-key'] || ''
-      form.ftpUser = options['ftp-user'] || ''
-      form.ftpPasswd = options['ftp-passwd'] || ''
-      form.ftpType = options['ftp-type'] || 'binary'
-      form.ftpPasv = options['ftp-pasv'] !== 'false'
-      form.ftpReuseConnection = options['ftp-reuse-connection'] !== 'false'
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
-    message.error(t('settings.loadFailed', { error: errorMessage }))
-    console.error('Failed to load protocol settings:', error)
-  }
-}
-
-function handleReload() {
-  loadSettings()
-}
-
-async function handleSave() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  saving.value = true
-  try {
-    const options: Record<string, string> = {
-      'http-auth-challenge': form.httpAuthChallenge ? 'true' : 'false',
-      'http-accept-gzip': form.httpAcceptGzip ? 'true' : 'false',
-      'http-no-cache': form.httpNoCache ? 'true' : 'false',
-      'enable-http-keep-alive': form.enableHttpKeepAlive ? 'true' : 'false',
-      'enable-http-pipelining': form.enableHttpPipelining ? 'true' : 'false',
-      'content-disposition-default-utf8': form.contentDispositionDefaultUtf8 ? 'true' : 'false',
-      'check-certificate': form.checkCertificate ? 'true' : 'false',
-      'ftp-type': form.ftpType,
-      'ftp-pasv': form.ftpPasv ? 'true' : 'false',
-      'ftp-reuse-connection': form.ftpReuseConnection ? 'true' : 'false'
-    }
-
-    if (form.httpUser) options['http-user'] = form.httpUser
-    if (form.httpPasswd) options['http-passwd'] = form.httpPasswd
-    if (form.header) options['header'] = form.header
-    if (form.referer) options['referer'] = form.referer
-    if (form.minTlsVersion) options['min-tls-version'] = form.minTlsVersion
-    if (form.caCertificate) options['ca-certificate'] = form.caCertificate
-    if (form.certificate) options['certificate'] = form.certificate
-    if (form.privateKey) options['private-key'] = form.privateKey
-    if (form.ftpUser) options['ftp-user'] = form.ftpUser
-    if (form.ftpPasswd) options['ftp-passwd'] = form.ftpPasswd
-
-    await statsStore.changeGlobalOptions(options)
-    message.success(t('settings.saved'))
-  } catch (error) {
-    message.error(t('settings.saveFailedShort'))
-    console.error('Failed to save protocol settings:', error)
-  } finally {
-    saving.value = false
-  }
-}
-
-function handleReset() {
-  dialog.warning({
-    title: t('settings.restoreConfirmTitle'),
-    content: t('settings.restoreConfirm'),
-    positiveText: t('common.ok'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: () => {
-      Object.assign(form, {
-        httpUser: '',
-        httpPasswd: '',
-        httpAuthChallenge: false,
-        httpAcceptGzip: false,
-        httpNoCache: false,
-        header: '',
-        referer: '',
-        enableHttpKeepAlive: true,
-        enableHttpPipelining: false,
-        contentDispositionDefaultUtf8: false,
-        checkCertificate: true,
-        minTlsVersion: '',
-        caCertificate: '',
-        certificate: '',
-        privateKey: '',
-        ftpUser: '',
-        ftpPasswd: '',
-        ftpType: 'binary',
-        ftpPasv: true,
-        ftpReuseConnection: true
-      })
-      message.success(t('settings.restored'))
-    }
-  })
-}
 
 // 选择证书文件
 async function selectFile(field: 'caCertificate' | 'certificate' | 'privateKey', title: string) {

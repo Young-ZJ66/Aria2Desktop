@@ -45,8 +45,12 @@ export const useStatsStore = defineStore('stats', () => {
     }
   }
 
-  async function getGlobalOptions() {
+  async function getGlobalOptions(force = false) {
     if (!connectionStore.service) throw new Error('Not connected')
+    // 已缓存时直接返回，避免切换设置页重复请求导致闪烁
+    if (!force && Object.keys(globalOptions.value).length > 0) {
+      return globalOptions.value
+    }
     try {
       const options = await connectionStore.service.getGlobalOption()
       globalOptions.value = options
@@ -69,6 +73,10 @@ export const useStatsStore = defineStore('stats', () => {
     }
   }
 
+  function clearGlobalOptions() {
+    globalOptions.value = {}
+  }
+
   return {
     globalStat,
     version,
@@ -77,6 +85,7 @@ export const useStatsStore = defineStore('stats', () => {
     loadGlobalStat,
     loadGlobalOptions,
     getGlobalOptions,
-    changeGlobalOptions
+    changeGlobalOptions,
+    clearGlobalOptions
   }
 })

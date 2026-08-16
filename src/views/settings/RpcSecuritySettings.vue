@@ -6,12 +6,12 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
-    @reload="handleReload"
+    @reload="loadSettings"
     @reset="handleReset"
   >
-    <n-spin :show="loading">
       <!-- RPC 服务 -->
       <n-card :title="t('settings.rpc.groupService')" class="setting-group">
         <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
@@ -123,29 +123,24 @@
           </n-form-item>
         </n-form>
       </n-card>
-    </n-spin>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon } from 'naive-ui'
 import { FolderOpenOutline } from '@vicons/ionicons5'
-import { message, dialog } from '@/utils/feedback'
+import { message } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
-import { useStatsStore } from '@/stores/statsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
+import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
-const statsStore = useStatsStore()
-
-const loading = ref(false)
-const saving = ref(false)
 
 const settings = reactive({
   enableRpc: true,
@@ -161,103 +156,59 @@ const settings = reactive({
   pauseMetadata: false
 })
 
-onMounted(() => {
-  if (connectionStore.isConnected) {
-    loadSettings()
+function applyOptionsToSettings(options: Aria2Option) {
+  settings.enableRpc = options['enable-rpc'] !== 'false'
+  settings.rpcListenPort = parseInt(options['rpc-listen-port'] || '6800')
+  settings.rpcListenAll = options['rpc-listen-all'] === 'true'
+  settings.rpcSecret = options['rpc-secret'] || ''
+  settings.rpcAllowOriginAll = options['rpc-allow-origin-all'] === 'true'
+  settings.rpcMaxRequestSize = parseSizeToUnit(options['rpc-max-request-size'] || '2M', 'M')
+  settings.rpcSaveUploadMetadata = options['rpc-save-upload-metadata'] !== 'false'
+  settings.rpcCertificate = options['rpc-certificate'] || ''
+  settings.rpcPrivateKey = options['rpc-private-key'] || ''
+  settings.forceSave = options['force-save'] === 'true'
+  settings.pauseMetadata = options['pause-metadata'] === 'true'
+}
+
+function toOptions(): Record<string, string> {
+  const options: Record<string, string> = {
+    'enable-rpc': settings.enableRpc ? 'true' : 'false',
+    'rpc-listen-port': settings.rpcListenPort.toString(),
+    'rpc-listen-all': settings.rpcListenAll ? 'true' : 'false',
+    'rpc-allow-origin-all': settings.rpcAllowOriginAll ? 'true' : 'false',
+    'rpc-max-request-size': formatSizeWithUnit(settings.rpcMaxRequestSize, 'M'),
+    'rpc-save-upload-metadata': settings.rpcSaveUploadMetadata ? 'true' : 'false',
+    'force-save': settings.forceSave ? 'true' : 'false',
+    'pause-metadata': settings.pauseMetadata ? 'true' : 'false'
   }
+
+  if (settings.rpcSecret) options['rpc-secret'] = settings.rpcSecret
+  if (settings.rpcCertificate) options['rpc-certificate'] = settings.rpcCertificate
+  if (settings.rpcPrivateKey) options['rpc-private-key'] = settings.rpcPrivateKey
+  return options
+}
+
+function defaults() {
+  return {
+    enableRpc: true,
+    rpcListenPort: 6800,
+    rpcListenAll: false,
+    rpcSecret: '',
+    rpcAllowOriginAll: false,
+    rpcMaxRequestSize: 2,
+    rpcSaveUploadMetadata: true,
+    rpcCertificate: '',
+    rpcPrivateKey: '',
+    forceSave: false,
+    pauseMetadata: false
+  }
+}
+
+const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
+  applyOptions: applyOptionsToSettings,
+  toOptions,
+  defaults
 })
-
-async function loadSettings() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  loading.value = true
-  try {
-    const options = await statsStore.getGlobalOptions()
-    if (options) {
-      settings.enableRpc = options['enable-rpc'] !== 'false'
-      settings.rpcListenPort = parseInt(options['rpc-listen-port'] || '6800')
-      settings.rpcListenAll = options['rpc-listen-all'] === 'true'
-      settings.rpcSecret = options['rpc-secret'] || ''
-      settings.rpcAllowOriginAll = options['rpc-allow-origin-all'] === 'true'
-      settings.rpcMaxRequestSize = parseSizeToUnit(options['rpc-max-request-size'] || '2M', 'M')
-      settings.rpcSaveUploadMetadata = options['rpc-save-upload-metadata'] !== 'false'
-      settings.rpcCertificate = options['rpc-certificate'] || ''
-      settings.rpcPrivateKey = options['rpc-private-key'] || ''
-      settings.forceSave = options['force-save'] === 'true'
-      settings.pauseMetadata = options['pause-metadata'] === 'true'
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
-    message.error(t('settings.loadFailed', { error: errorMessage }))
-    console.error('Failed to load RPC/Security settings:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
-function handleReload() {
-  loadSettings()
-}
-
-async function handleSave() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  saving.value = true
-  try {
-    const options: Record<string, string> = {
-      'enable-rpc': settings.enableRpc ? 'true' : 'false',
-      'rpc-listen-port': settings.rpcListenPort.toString(),
-      'rpc-listen-all': settings.rpcListenAll ? 'true' : 'false',
-      'rpc-allow-origin-all': settings.rpcAllowOriginAll ? 'true' : 'false',
-      'rpc-max-request-size': formatSizeWithUnit(settings.rpcMaxRequestSize, 'M'),
-      'rpc-save-upload-metadata': settings.rpcSaveUploadMetadata ? 'true' : 'false',
-      'force-save': settings.forceSave ? 'true' : 'false',
-      'pause-metadata': settings.pauseMetadata ? 'true' : 'false'
-    }
-
-    if (settings.rpcSecret) options['rpc-secret'] = settings.rpcSecret
-    if (settings.rpcCertificate) options['rpc-certificate'] = settings.rpcCertificate
-    if (settings.rpcPrivateKey) options['rpc-private-key'] = settings.rpcPrivateKey
-
-    await statsStore.changeGlobalOptions(options)
-    message.success(t('settings.saved'))
-  } catch (error) {
-    message.error(t('settings.saveFailedShort'))
-    console.error('Failed to save RPC/Security settings:', error)
-  } finally {
-    saving.value = false
-  }
-}
-
-function handleReset() {
-  dialog.warning({
-    title: t('settings.restoreConfirmTitle'),
-    content: t('settings.restoreConfirm'),
-    positiveText: t('common.ok'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: () => {
-      settings.enableRpc = true
-      settings.rpcListenPort = 6800
-      settings.rpcListenAll = false
-      settings.rpcSecret = ''
-      settings.rpcAllowOriginAll = false
-      settings.rpcMaxRequestSize = 2
-      settings.rpcSaveUploadMetadata = true
-      settings.rpcCertificate = ''
-      settings.rpcPrivateKey = ''
-      settings.forceSave = false
-      settings.pauseMetadata = false
-
-      message.success(t('settings.restored'))
-    }
-  })
-}
 
 // 选择证书/私钥文件
 async function selectFile(field: 'rpcCertificate' | 'rpcPrivateKey', title: string) {

@@ -6,12 +6,12 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
-    @reload="handleReload"
+    @reload="loadSettings"
     @reset="handleReset"
   >
-    <n-spin :show="loading">
       <!-- DHT 与网络 -->
       <n-card :title="t('settings.bt.groupDht')" class="setting-group">
         <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
@@ -345,29 +345,24 @@
           </n-form-item>
         </n-form>
       </n-card>
-    </n-spin>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon } from 'naive-ui'
 import { FolderOpenOutline } from '@vicons/ionicons5'
-import { message, dialog } from '@/utils/feedback'
+import { message } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
-import { useStatsStore } from '@/stores/statsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
+import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
-const statsStore = useStatsStore()
-
-const loading = ref(false)
-const saving = ref(false)
 
 const cryptoLevelOptions = [
   { label: 'plain', value: 'plain' },
@@ -380,7 +375,6 @@ const followTorrentOptions = [
   { label: 'mem', value: 'mem' }
 ]
 
-// BitTorrent 设置
 const settings = reactive({
   enableDht: true,
   enableDht6: true,
@@ -395,7 +389,7 @@ const settings = reactive({
   listenPort: 6881,
   btMaxPeers: 55,
   btMaxOpenFiles: 100,
-  btRequestPeerSpeedLimit: '0',
+  btRequestPeerSpeedLimit: 0,
   btForceEncryption: false,
   enablePeerExchange: true,
   btRequireCrypto: false,
@@ -424,192 +418,147 @@ const settings = reactive({
   peerAgent: ''
 })
 
-onMounted(() => {
-  if (connectionStore.isConnected) {
-    loadSettings()
+function applyOptionsToSettings(options: Aria2Option) {
+  settings.enableDht = options['enable-dht'] !== 'false'
+  settings.enableDht6 = options['enable-dht6'] !== 'false'
+  settings.dhtListenPort = parseInt(options['dht-listen-port'] || '6881')
+  settings.dhtFilePath = options['dht-file-path'] || ''
+  settings.dhtEntryPoint = options['dht-entry-point'] || ''
+  settings.dhtEntryPoint6 = options['dht-entry-point6'] || ''
+  settings.dhtFilePath6 = options['dht-file-path6'] || ''
+  settings.dhtMessageTimeout = parseInt(options['dht-message-timeout'] || '10')
+  settings.btEnableLpd = options['bt-enable-lpd'] === 'true'
+  settings.btExternalIp = options['bt-external-ip'] || ''
+  settings.listenPort = parseInt(options['listen-port'] || '6881')
+  settings.btMaxPeers = parseInt(options['bt-max-peers'] || '55')
+  settings.btMaxOpenFiles = parseInt(options['bt-max-open-files'] || '100')
+  settings.btRequestPeerSpeedLimit = parseInt(options['bt-request-peer-speed-limit'] || '0')
+  settings.btForceEncryption = options['bt-force-encryption'] === 'true'
+  settings.enablePeerExchange = options['enable-peer-exchange'] !== 'false'
+  settings.btRequireCrypto = options['bt-require-crypto'] === 'true'
+  settings.btMinCryptoLevel = options['bt-min-crypto-level'] || 'plain'
+  settings.btTracker = options['bt-tracker'] || ''
+  settings.btExcludeTracker = options['bt-exclude-tracker'] || ''
+  settings.btTrackerConnectTimeout = parseInt(options['bt-tracker-connect-timeout'] || '60')
+  settings.btTrackerInterval = parseInt(options['bt-tracker-interval'] || '0')
+  settings.btTrackerTimeout = parseInt(options['bt-tracker-timeout'] || '60')
+  settings.seedRatio = parseFloat(options['seed-ratio'] || '1.0')
+  settings.seedTime = parseInt(options['seed-time'] || '0')
+  settings.btStopTimeout = parseInt(options['bt-stop-timeout'] || '0')
+  settings.btPrioritizePiece = options['bt-prioritize-piece'] === 'true'
+  settings.btHashCheckSeed = options['bt-hash-check-seed'] !== 'false'
+  settings.btDetachSeedOnly = options['bt-detach-seed-only'] === 'true'
+  settings.maxPieceLength = parseSizeToUnit(options['max-piece-length'] || '0', 'M')
+  settings.btSeedUnverified = options['bt-seed-unverified'] === 'true'
+  settings.btSaveMetadata = options['bt-save-metadata'] === 'true'
+  settings.btLoadSavedMetadata = options['bt-load-saved-metadata'] === 'true'
+  settings.btMetadataOnly = options['bt-metadata-only'] === 'true'
+  settings.btRemoveUnselectedFile = options['bt-remove-unselected-file'] === 'true'
+  settings.followTorrent = options['follow-torrent'] || 'true'
+  const pieceLengthVal = options['piece-length'] || '1M'
+  settings.pieceLength = parseSizeToUnit(pieceLengthVal, 'M')
+  settings.allowPieceLengthChange = options['allow-piece-length-change'] === 'true'
+  settings.peerIdPrefix = options['peer-id-prefix'] || ''
+  settings.peerAgent = options['peer-agent'] || ''
+}
+
+function toOptions(): Record<string, string> {
+  const options: Record<string, string> = {
+    'enable-dht': settings.enableDht ? 'true' : 'false',
+    'enable-dht6': settings.enableDht6 ? 'true' : 'false',
+    'dht-listen-port': settings.dhtListenPort.toString(),
+    'dht-message-timeout': settings.dhtMessageTimeout.toString(),
+    'bt-enable-lpd': settings.btEnableLpd ? 'true' : 'false',
+    'listen-port': settings.listenPort.toString(),
+    'bt-max-peers': settings.btMaxPeers.toString(),
+    'bt-max-open-files': settings.btMaxOpenFiles.toString(),
+    'bt-request-peer-speed-limit': settings.btRequestPeerSpeedLimit.toString(),
+    'bt-force-encryption': settings.btForceEncryption ? 'true' : 'false',
+    'enable-peer-exchange': settings.enablePeerExchange ? 'true' : 'false',
+    'bt-require-crypto': settings.btRequireCrypto ? 'true' : 'false',
+    'bt-min-crypto-level': settings.btMinCryptoLevel,
+    'bt-tracker-connect-timeout': settings.btTrackerConnectTimeout.toString(),
+    'bt-tracker-interval': settings.btTrackerInterval.toString(),
+    'bt-tracker-timeout': settings.btTrackerTimeout.toString(),
+    'seed-ratio': settings.seedRatio.toString(),
+    'seed-time': settings.seedTime.toString(),
+    'bt-stop-timeout': settings.btStopTimeout.toString(),
+    'bt-prioritize-piece': settings.btPrioritizePiece ? 'true' : 'false',
+    'bt-hash-check-seed': settings.btHashCheckSeed ? 'true' : 'false',
+    'bt-detach-seed-only': settings.btDetachSeedOnly ? 'true' : 'false',
+    'bt-seed-unverified': settings.btSeedUnverified ? 'true' : 'false',
+    'bt-save-metadata': settings.btSaveMetadata ? 'true' : 'false',
+    'bt-load-saved-metadata': settings.btLoadSavedMetadata ? 'true' : 'false',
+    'bt-metadata-only': settings.btMetadataOnly ? 'true' : 'false',
+    'bt-remove-unselected-file': settings.btRemoveUnselectedFile ? 'true' : 'false',
+    'follow-torrent': settings.followTorrent,
+    'piece-length': formatSizeWithUnit(settings.pieceLength, 'M'),
+    'allow-piece-length-change': settings.allowPieceLengthChange ? 'true' : 'false'
   }
+
+  if (settings.dhtFilePath) options['dht-file-path'] = settings.dhtFilePath
+  if (settings.dhtEntryPoint) options['dht-entry-point'] = settings.dhtEntryPoint
+  if (settings.dhtEntryPoint6) options['dht-entry-point6'] = settings.dhtEntryPoint6
+  if (settings.dhtFilePath6) options['dht-file-path6'] = settings.dhtFilePath6
+  if (settings.btExternalIp) options['bt-external-ip'] = settings.btExternalIp
+  if (settings.btTracker) options['bt-tracker'] = settings.btTracker
+  if (settings.btExcludeTracker) options['bt-exclude-tracker'] = settings.btExcludeTracker
+  options['max-piece-length'] = formatSizeWithUnit(settings.maxPieceLength, 'M')
+  if (settings.peerIdPrefix) options['peer-id-prefix'] = settings.peerIdPrefix
+  if (settings.peerAgent) options['peer-agent'] = settings.peerAgent
+  return options
+}
+
+function defaults() {
+  return {
+    enableDht: true,
+    enableDht6: true,
+    dhtListenPort: 6881,
+    dhtFilePath: '',
+    dhtEntryPoint: '',
+    dhtEntryPoint6: '',
+    dhtFilePath6: '',
+    dhtMessageTimeout: 10,
+    btEnableLpd: false,
+    btExternalIp: '',
+    listenPort: 6881,
+    btMaxPeers: 55,
+    btMaxOpenFiles: 100,
+    btRequestPeerSpeedLimit: 0,
+    btForceEncryption: false,
+    enablePeerExchange: true,
+    btRequireCrypto: false,
+    btMinCryptoLevel: 'plain',
+    btTracker: '',
+    btExcludeTracker: '',
+    btTrackerConnectTimeout: 60,
+    btTrackerInterval: 0,
+    btTrackerTimeout: 60,
+    seedRatio: 1.0,
+    seedTime: 0,
+    btStopTimeout: 0,
+    btPrioritizePiece: false,
+    btHashCheckSeed: true,
+    btDetachSeedOnly: false,
+    maxPieceLength: 0,
+    btSeedUnverified: false,
+    btSaveMetadata: false,
+    btLoadSavedMetadata: false,
+    btMetadataOnly: false,
+    btRemoveUnselectedFile: false,
+    followTorrent: 'true',
+    pieceLength: 1,
+    allowPieceLengthChange: false,
+    peerIdPrefix: '',
+    peerAgent: ''
+  }
+}
+
+const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
+  applyOptions: applyOptionsToSettings,
+  toOptions,
+  defaults
 })
-
-async function loadSettings() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  loading.value = true
-  try {
-    const options = await statsStore.getGlobalOptions()
-    if (options) {
-      settings.enableDht = options['enable-dht'] !== 'false'
-      settings.enableDht6 = options['enable-dht6'] !== 'false'
-      settings.dhtListenPort = parseInt(options['dht-listen-port'] || '6881')
-      settings.dhtFilePath = options['dht-file-path'] || ''
-      settings.dhtEntryPoint = options['dht-entry-point'] || ''
-      settings.dhtEntryPoint6 = options['dht-entry-point6'] || ''
-      settings.dhtFilePath6 = options['dht-file-path6'] || ''
-      settings.dhtMessageTimeout = parseInt(options['dht-message-timeout'] || '10')
-      settings.btEnableLpd = options['bt-enable-lpd'] === 'true'
-      settings.btExternalIp = options['bt-external-ip'] || ''
-      settings.listenPort = parseInt(options['listen-port'] || '6881')
-      settings.btMaxPeers = parseInt(options['bt-max-peers'] || '55')
-      settings.btMaxOpenFiles = parseInt(options['bt-max-open-files'] || '100')
-      settings.btRequestPeerSpeedLimit = parseInt(options['bt-request-peer-speed-limit'] || '0')
-      settings.btForceEncryption = options['bt-force-encryption'] === 'true'
-      settings.enablePeerExchange = options['enable-peer-exchange'] !== 'false'
-      settings.btRequireCrypto = options['bt-require-crypto'] === 'true'
-      settings.btMinCryptoLevel = options['bt-min-crypto-level'] || 'plain'
-      settings.btTracker = options['bt-tracker'] || ''
-      settings.btExcludeTracker = options['bt-exclude-tracker'] || ''
-      settings.btTrackerConnectTimeout = parseInt(options['bt-tracker-connect-timeout'] || '60')
-      settings.btTrackerInterval = parseInt(options['bt-tracker-interval'] || '0')
-      settings.btTrackerTimeout = parseInt(options['bt-tracker-timeout'] || '60')
-      settings.seedRatio = parseFloat(options['seed-ratio'] || '1.0')
-      settings.seedTime = parseInt(options['seed-time'] || '0')
-      settings.btStopTimeout = parseInt(options['bt-stop-timeout'] || '0')
-      settings.btPrioritizePiece = options['bt-prioritize-piece'] === 'true'
-      settings.btHashCheckSeed = options['bt-hash-check-seed'] !== 'false'
-      settings.btDetachSeedOnly = options['bt-detach-seed-only'] === 'true'
-      settings.maxPieceLength = parseSizeToUnit(options['max-piece-length'] || '0', 'M')
-      settings.btSeedUnverified = options['bt-seed-unverified'] === 'true'
-      settings.btSaveMetadata = options['bt-save-metadata'] === 'true'
-      settings.btLoadSavedMetadata = options['bt-load-saved-metadata'] === 'true'
-      settings.btMetadataOnly = options['bt-metadata-only'] === 'true'
-      settings.btRemoveUnselectedFile = options['bt-remove-unselected-file'] === 'true'
-      settings.followTorrent = options['follow-torrent'] || 'true'
-      const pieceLengthVal = options['piece-length'] || '1M'
-      settings.pieceLength = parseSizeToUnit(pieceLengthVal, 'M')
-      settings.allowPieceLengthChange = options['allow-piece-length-change'] === 'true'
-      settings.peerIdPrefix = options['peer-id-prefix'] || ''
-      settings.peerAgent = options['peer-agent'] || ''
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
-    message.error(t('settings.loadFailed', { error: errorMessage }))
-    console.error('Failed to load BT settings:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
-function handleReload() {
-  loadSettings()
-}
-
-async function handleSave() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  saving.value = true
-  try {
-    const options: Record<string, string> = {
-      'enable-dht': settings.enableDht ? 'true' : 'false',
-      'enable-dht6': settings.enableDht6 ? 'true' : 'false',
-      'dht-listen-port': settings.dhtListenPort.toString(),
-      'dht-message-timeout': settings.dhtMessageTimeout.toString(),
-      'bt-enable-lpd': settings.btEnableLpd ? 'true' : 'false',
-      'listen-port': settings.listenPort.toString(),
-      'bt-max-peers': settings.btMaxPeers.toString(),
-      'bt-max-open-files': settings.btMaxOpenFiles.toString(),
-      'bt-request-peer-speed-limit': settings.btRequestPeerSpeedLimit.toString(),
-      'bt-force-encryption': settings.btForceEncryption ? 'true' : 'false',
-      'enable-peer-exchange': settings.enablePeerExchange ? 'true' : 'false',
-      'bt-require-crypto': settings.btRequireCrypto ? 'true' : 'false',
-      'bt-min-crypto-level': settings.btMinCryptoLevel,
-      'bt-tracker-connect-timeout': settings.btTrackerConnectTimeout.toString(),
-      'bt-tracker-interval': settings.btTrackerInterval.toString(),
-      'bt-tracker-timeout': settings.btTrackerTimeout.toString(),
-      'seed-ratio': settings.seedRatio.toString(),
-      'seed-time': settings.seedTime.toString(),
-      'bt-stop-timeout': settings.btStopTimeout.toString(),
-      'bt-prioritize-piece': settings.btPrioritizePiece ? 'true' : 'false',
-      'bt-hash-check-seed': settings.btHashCheckSeed ? 'true' : 'false',
-      'bt-detach-seed-only': settings.btDetachSeedOnly ? 'true' : 'false',
-      'bt-seed-unverified': settings.btSeedUnverified ? 'true' : 'false',
-      'bt-save-metadata': settings.btSaveMetadata ? 'true' : 'false',
-      'bt-load-saved-metadata': settings.btLoadSavedMetadata ? 'true' : 'false',
-      'bt-metadata-only': settings.btMetadataOnly ? 'true' : 'false',
-      'bt-remove-unselected-file': settings.btRemoveUnselectedFile ? 'true' : 'false',
-      'follow-torrent': settings.followTorrent,
-      'piece-length': formatSizeWithUnit(settings.pieceLength, 'M'),
-      'allow-piece-length-change': settings.allowPieceLengthChange ? 'true' : 'false'
-    }
-
-    if (settings.dhtFilePath) options['dht-file-path'] = settings.dhtFilePath
-    if (settings.dhtEntryPoint) options['dht-entry-point'] = settings.dhtEntryPoint
-    if (settings.dhtEntryPoint6) options['dht-entry-point6'] = settings.dhtEntryPoint6
-    if (settings.dhtFilePath6) options['dht-file-path6'] = settings.dhtFilePath6
-    if (settings.btExternalIp) options['bt-external-ip'] = settings.btExternalIp
-    if (settings.btTracker) options['bt-tracker'] = settings.btTracker
-    if (settings.btExcludeTracker) options['bt-exclude-tracker'] = settings.btExcludeTracker
-    // 始终发送 max-piece-length（含 0=自动选择），否则 aria2 会保留旧值导致"设 0 不生效"
-    options['max-piece-length'] = formatSizeWithUnit(settings.maxPieceLength, 'M')
-    if (settings.peerIdPrefix) options['peer-id-prefix'] = settings.peerIdPrefix
-    if (settings.peerAgent) options['peer-agent'] = settings.peerAgent
-
-    await statsStore.changeGlobalOptions(options)
-    message.success(t('settings.saved'))
-  } catch (error) {
-    message.error(t('settings.saveFailedShort'))
-    console.error('Failed to save BT settings:', error)
-  } finally {
-    saving.value = false
-  }
-}
-
-function handleReset() {
-  dialog.warning({
-    title: t('settings.restoreConfirmTitle'),
-    content: t('settings.restoreConfirm'),
-    positiveText: t('common.ok'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: () => {
-      settings.enableDht = true
-      settings.enableDht6 = true
-      settings.dhtListenPort = 6881
-      settings.dhtFilePath = ''
-      settings.dhtEntryPoint = ''
-      settings.dhtEntryPoint6 = ''
-      settings.dhtFilePath6 = ''
-      settings.dhtMessageTimeout = 10
-      settings.btEnableLpd = false
-      settings.btExternalIp = ''
-      settings.listenPort = 6881
-      settings.btMaxPeers = 55
-      settings.btMaxOpenFiles = 100
-      settings.btRequestPeerSpeedLimit = 0
-      settings.btForceEncryption = false
-      settings.enablePeerExchange = true
-      settings.btRequireCrypto = false
-      settings.btMinCryptoLevel = 'plain'
-      settings.btTracker = ''
-      settings.btExcludeTracker = ''
-      settings.btTrackerConnectTimeout = 60
-      settings.btTrackerInterval = 0
-      settings.btTrackerTimeout = 60
-      settings.seedRatio = 1.0
-      settings.seedTime = 0
-      settings.btStopTimeout = 0
-      settings.btPrioritizePiece = false
-      settings.btHashCheckSeed = true
-      settings.btDetachSeedOnly = false
-      settings.maxPieceLength = 0
-      settings.btSeedUnverified = false
-      settings.btSaveMetadata = false
-      settings.btLoadSavedMetadata = false
-      settings.btMetadataOnly = false
-      settings.btRemoveUnselectedFile = false
-      settings.followTorrent = 'true'
-      settings.pieceLength = 1
-      settings.allowPieceLengthChange = false
-      settings.peerIdPrefix = ''
-      settings.peerAgent = ''
-
-      message.success(t('settings.restored'))
-    }
-  })
-}
 
 // 选择 DHT 路由表文件
 async function selectDhtFile(field: 'dhtFilePath' | 'dhtFilePath6') {

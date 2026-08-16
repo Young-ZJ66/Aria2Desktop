@@ -6,12 +6,12 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
-    @reload="handleReload"
+    @reload="loadSettings"
     @reset="handleReset"
   >
-    <n-spin :show="loading">
       <n-card :title="t('settings.metalink.groupBasic')" class="setting-group">
         <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
           <n-form-item>
@@ -83,26 +83,20 @@
           </n-form-item>
         </n-form>
       </n-card>
-    </n-spin>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { message, dialog } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
-import { useStatsStore } from '@/stores/statsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
+import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
-const statsStore = useStatsStore()
-
-const loading = ref(false)
-const saving = ref(false)
 
 const followMetalinkOptions = [
   { label: 'true', value: 'true' },
@@ -122,97 +116,53 @@ const settings = reactive({
   metalinkBaseUri: ''
 })
 
-onMounted(() => {
-  if (connectionStore.isConnected) {
-    loadSettings()
+function applyOptionsToSettings(options: Aria2Option) {
+  settings.followMetalink = options['follow-metalink'] || 'true'
+  settings.metalinkPreferredProtocol = options['metalink-preferred-protocol'] || 'https,http,ftp'
+  settings.metalinkEnableUniqueProtocol = options['metalink-enable-unique-protocol'] !== 'false'
+  settings.metalinkServers = options['metalink-servers'] || ''
+  settings.metalinkLanguage = options['metalink-language'] || 'zh-CN,en-US'
+  settings.metalinkLocation = options['metalink-location'] || 'CN,US'
+  settings.metalinkOs = options['metalink-os'] || 'linux,windows'
+  settings.metalinkVersion = options['metalink-version'] || ''
+  settings.metalinkBaseUri = options['metalink-base-uri'] || ''
+}
+
+function toOptions(): Record<string, string> {
+  const options: Record<string, string> = {
+    'follow-metalink': settings.followMetalink,
+    'metalink-preferred-protocol': settings.metalinkPreferredProtocol,
+    'metalink-enable-unique-protocol': settings.metalinkEnableUniqueProtocol ? 'true' : 'false',
+    'metalink-language': settings.metalinkLanguage,
+    'metalink-location': settings.metalinkLocation,
+    'metalink-os': settings.metalinkOs
   }
+
+  if (settings.metalinkServers) options['metalink-servers'] = settings.metalinkServers
+  if (settings.metalinkVersion) options['metalink-version'] = settings.metalinkVersion
+  if (settings.metalinkBaseUri) options['metalink-base-uri'] = settings.metalinkBaseUri
+  return options
+}
+
+function defaults() {
+  return {
+    followMetalink: 'true',
+    metalinkPreferredProtocol: 'https,http,ftp',
+    metalinkEnableUniqueProtocol: true,
+    metalinkServers: '',
+    metalinkLanguage: 'zh-CN,en-US',
+    metalinkLocation: 'CN,US',
+    metalinkOs: 'linux,windows',
+    metalinkVersion: '',
+    metalinkBaseUri: ''
+  }
+}
+
+const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
+  applyOptions: applyOptionsToSettings,
+  toOptions,
+  defaults
 })
-
-async function loadSettings() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  loading.value = true
-  try {
-    const options = await statsStore.getGlobalOptions()
-    if (options) {
-      settings.followMetalink = options['follow-metalink'] || 'true'
-      settings.metalinkPreferredProtocol = options['metalink-preferred-protocol'] || 'https,http,ftp'
-      settings.metalinkEnableUniqueProtocol = options['metalink-enable-unique-protocol'] !== 'false'
-      settings.metalinkServers = options['metalink-servers'] || ''
-      settings.metalinkLanguage = options['metalink-language'] || 'zh-CN,en-US'
-      settings.metalinkLocation = options['metalink-location'] || 'CN,US'
-      settings.metalinkOs = options['metalink-os'] || 'linux,windows'
-      settings.metalinkVersion = options['metalink-version'] || ''
-      settings.metalinkBaseUri = options['metalink-base-uri'] || ''
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
-    message.error(t('settings.loadFailed', { error: errorMessage }))
-    console.error('Failed to load Metalink settings:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
-function handleReload() {
-  loadSettings()
-}
-
-async function handleSave() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  saving.value = true
-  try {
-    const options: Record<string, string> = {
-      'follow-metalink': settings.followMetalink,
-      'metalink-preferred-protocol': settings.metalinkPreferredProtocol,
-      'metalink-enable-unique-protocol': settings.metalinkEnableUniqueProtocol ? 'true' : 'false',
-      'metalink-language': settings.metalinkLanguage,
-      'metalink-location': settings.metalinkLocation,
-      'metalink-os': settings.metalinkOs
-    }
-
-    if (settings.metalinkServers) options['metalink-servers'] = settings.metalinkServers
-    if (settings.metalinkVersion) options['metalink-version'] = settings.metalinkVersion
-    if (settings.metalinkBaseUri) options['metalink-base-uri'] = settings.metalinkBaseUri
-
-    await statsStore.changeGlobalOptions(options)
-    message.success(t('settings.saved'))
-  } catch (error) {
-    message.error(t('settings.saveFailedShort'))
-    console.error('Failed to save Metalink settings:', error)
-  } finally {
-    saving.value = false
-  }
-}
-
-function handleReset() {
-  dialog.warning({
-    title: t('settings.restoreConfirmTitle'),
-    content: t('settings.restoreConfirm'),
-    positiveText: t('common.ok'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: () => {
-      settings.followMetalink = 'true'
-      settings.metalinkPreferredProtocol = 'https,http,ftp'
-      settings.metalinkEnableUniqueProtocol = true
-      settings.metalinkServers = ''
-      settings.metalinkLanguage = 'zh-CN,en-US'
-      settings.metalinkLocation = 'CN,US'
-      settings.metalinkOs = 'linux,windows'
-      settings.metalinkVersion = ''
-      settings.metalinkBaseUri = ''
-
-      message.success(t('settings.restored'))
-    }
-  })
-}
 </script>
 
 <style scoped>

@@ -6,9 +6,10 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
-    @reload="handleReload"
+    @reload="loadSettings"
     @reset="handleReset"
   >
     <n-card :title="t('settings.network.groupTimeoutRetry')" class="setting-group">
@@ -351,21 +352,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { message, dialog } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
-import { useStatsStore } from '@/stores/statsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
+import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
-const statsStore = useStatsStore()
-
-const saving = ref(false)
 
 const proxyMethodOptions = [
   { label: 'get', value: 'get' },
@@ -403,153 +400,110 @@ const form = reactive({
   socketRecvBufferSize: 0
 })
 
-onMounted(() => {
-  if (connectionStore.isConnected) {
-    loadSettings()
+function applyOptionsToSettings(options: Aria2Option) {
+  form.timeout = parseInt(options['timeout'] || '60')
+  form.connectTimeout = parseInt(options['connect-timeout'] || '60')
+  form.maxTries = parseInt(options['max-tries'] || '5')
+  form.retryWait = parseInt(options['retry-wait'] || '0')
+  form.maxFileNotFound = parseInt(options['max-file-not-found'] || '0')
+  form.lowestSpeedLimit = parseSizeToUnit(options['lowest-speed-limit'] || '0', 'K')
+  form.noProxy = options['no-proxy'] || ''
+  form.interface = options['interface'] || ''
+  form.allProxy = options['all-proxy'] || ''
+  form.allProxyUser = options['all-proxy-user'] || ''
+  form.allProxyPasswd = options['all-proxy-passwd'] || ''
+  form.httpProxy = options['http-proxy'] || ''
+  form.httpProxyUser = options['http-proxy-user'] || ''
+  form.httpProxyPasswd = options['http-proxy-passwd'] || ''
+  form.httpsProxy = options['https-proxy'] || ''
+  form.httpsProxyUser = options['https-proxy-user'] || ''
+  form.httpsProxyPasswd = options['https-proxy-passwd'] || ''
+  form.ftpProxy = options['ftp-proxy'] || ''
+  form.ftpProxyUser = options['ftp-proxy-user'] || ''
+  form.ftpProxyPasswd = options['ftp-proxy-passwd'] || ''
+  form.proxyMethod = options['proxy-method'] || 'get'
+  form.disableIpv6 = options['disable-ipv6'] === 'true'
+  form.serverStatOf = options['server-stat-of'] || ''
+  form.serverStatIf = options['server-stat-if'] || ''
+  form.serverStatTimeout = parseInt(options['server-stat-timeout'] || '86400')
+  form.asyncDns = options['async-dns'] !== 'false'
+  form.asyncDnsServer = options['async-dns-server'] || ''
+  form.socketRecvBufferSize = parseSizeToUnit(options['socket-recv-buffer-size'] || '0', 'K')
+}
+
+function toOptions(): Record<string, string> {
+  const options: Record<string, string> = {
+    'timeout': form.timeout.toString(),
+    'connect-timeout': form.connectTimeout.toString(),
+    'max-tries': form.maxTries.toString(),
+    'retry-wait': form.retryWait.toString(),
+    'max-file-not-found': form.maxFileNotFound.toString(),
+    'lowest-speed-limit': formatSizeWithUnit(form.lowestSpeedLimit, 'K'),
+    'proxy-method': form.proxyMethod,
+    'disable-ipv6': form.disableIpv6 ? 'true' : 'false',
+    'server-stat-timeout': form.serverStatTimeout.toString(),
+    'async-dns': form.asyncDns ? 'true' : 'false',
+    'socket-recv-buffer-size': formatSizeWithUnit(form.socketRecvBufferSize, 'K')
   }
+
+  if (form.noProxy) options['no-proxy'] = form.noProxy
+  if (form.interface) options['interface'] = form.interface
+  if (form.allProxy) options['all-proxy'] = form.allProxy
+  if (form.allProxyUser) options['all-proxy-user'] = form.allProxyUser
+  if (form.allProxyPasswd) options['all-proxy-passwd'] = form.allProxyPasswd
+  if (form.httpProxy) options['http-proxy'] = form.httpProxy
+  if (form.httpProxyUser) options['http-proxy-user'] = form.httpProxyUser
+  if (form.httpProxyPasswd) options['http-proxy-passwd'] = form.httpProxyPasswd
+  if (form.httpsProxy) options['https-proxy'] = form.httpsProxy
+  if (form.httpsProxyUser) options['https-proxy-user'] = form.httpsProxyUser
+  if (form.httpsProxyPasswd) options['https-proxy-passwd'] = form.httpsProxyPasswd
+  if (form.ftpProxy) options['ftp-proxy'] = form.ftpProxy
+  if (form.ftpProxyUser) options['ftp-proxy-user'] = form.ftpProxyUser
+  if (form.ftpProxyPasswd) options['ftp-proxy-passwd'] = form.ftpProxyPasswd
+  if (form.serverStatOf) options['server-stat-of'] = form.serverStatOf
+  if (form.serverStatIf) options['server-stat-if'] = form.serverStatIf
+  if (form.asyncDnsServer) options['async-dns-server'] = form.asyncDnsServer
+  return options
+}
+
+function defaults() {
+  return {
+    timeout: 60,
+    connectTimeout: 60,
+    maxTries: 5,
+    retryWait: 0,
+    maxFileNotFound: 0,
+    lowestSpeedLimit: 0,
+    noProxy: '',
+    interface: '',
+    allProxy: '',
+    allProxyUser: '',
+    allProxyPasswd: '',
+    httpProxy: '',
+    httpProxyUser: '',
+    httpProxyPasswd: '',
+    httpsProxy: '',
+    httpsProxyUser: '',
+    httpsProxyPasswd: '',
+    ftpProxy: '',
+    ftpProxyUser: '',
+    ftpProxyPasswd: '',
+    proxyMethod: 'get',
+    disableIpv6: false,
+    serverStatOf: '',
+    serverStatIf: '',
+    serverStatTimeout: 86400,
+    asyncDns: true,
+    asyncDnsServer: '',
+    socketRecvBufferSize: 0
+  }
+}
+
+const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(form, {
+  applyOptions: applyOptionsToSettings,
+  toOptions,
+  defaults
 })
-
-async function loadSettings() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  try {
-    const options = await statsStore.getGlobalOptions()
-
-    if (options && typeof options === 'object') {
-      form.timeout = parseInt(options['timeout'] || '60')
-      form.connectTimeout = parseInt(options['connect-timeout'] || '60')
-      form.maxTries = parseInt(options['max-tries'] || '5')
-      form.retryWait = parseInt(options['retry-wait'] || '0')
-      form.maxFileNotFound = parseInt(options['max-file-not-found'] || '0')
-      form.lowestSpeedLimit = parseSizeToUnit(options['lowest-speed-limit'] || '0', 'K')
-      form.noProxy = options['no-proxy'] || ''
-      form.interface = options['interface'] || ''
-      form.allProxy = options['all-proxy'] || ''
-      form.allProxyUser = options['all-proxy-user'] || ''
-      form.allProxyPasswd = options['all-proxy-passwd'] || ''
-      form.httpProxy = options['http-proxy'] || ''
-      form.httpProxyUser = options['http-proxy-user'] || ''
-      form.httpProxyPasswd = options['http-proxy-passwd'] || ''
-      form.httpsProxy = options['https-proxy'] || ''
-      form.httpsProxyUser = options['https-proxy-user'] || ''
-      form.httpsProxyPasswd = options['https-proxy-passwd'] || ''
-      form.ftpProxy = options['ftp-proxy'] || ''
-      form.ftpProxyUser = options['ftp-proxy-user'] || ''
-      form.ftpProxyPasswd = options['ftp-proxy-passwd'] || ''
-      form.proxyMethod = options['proxy-method'] || 'get'
-      form.disableIpv6 = options['disable-ipv6'] === 'true'
-      form.serverStatOf = options['server-stat-of'] || ''
-      form.serverStatIf = options['server-stat-if'] || ''
-      form.serverStatTimeout = parseInt(options['server-stat-timeout'] || '86400')
-      form.asyncDns = options['async-dns'] !== 'false'
-      form.asyncDnsServer = options['async-dns-server'] || ''
-      form.socketRecvBufferSize = parseSizeToUnit(options['socket-recv-buffer-size'] || '0', 'K')
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
-    message.error(t('settings.loadFailed', { error: errorMessage }))
-    console.error('Failed to load network settings:', error)
-  }
-}
-
-function handleReload() {
-  loadSettings()
-}
-
-async function handleSave() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  saving.value = true
-  try {
-    const options: Record<string, string> = {
-      'timeout': form.timeout.toString(),
-      'connect-timeout': form.connectTimeout.toString(),
-      'max-tries': form.maxTries.toString(),
-      'retry-wait': form.retryWait.toString(),
-      'max-file-not-found': form.maxFileNotFound.toString(),
-      'lowest-speed-limit': formatSizeWithUnit(form.lowestSpeedLimit, 'K'),
-      'proxy-method': form.proxyMethod,
-      'disable-ipv6': form.disableIpv6 ? 'true' : 'false',
-      'server-stat-timeout': form.serverStatTimeout.toString(),
-      'async-dns': form.asyncDns ? 'true' : 'false',
-      'socket-recv-buffer-size': formatSizeWithUnit(form.socketRecvBufferSize, 'K')
-    }
-
-    if (form.noProxy) options['no-proxy'] = form.noProxy
-    if (form.interface) options['interface'] = form.interface
-    if (form.allProxy) options['all-proxy'] = form.allProxy
-    if (form.allProxyUser) options['all-proxy-user'] = form.allProxyUser
-    if (form.allProxyPasswd) options['all-proxy-passwd'] = form.allProxyPasswd
-    if (form.httpProxy) options['http-proxy'] = form.httpProxy
-    if (form.httpProxyUser) options['http-proxy-user'] = form.httpProxyUser
-    if (form.httpProxyPasswd) options['http-proxy-passwd'] = form.httpProxyPasswd
-    if (form.httpsProxy) options['https-proxy'] = form.httpsProxy
-    if (form.httpsProxyUser) options['https-proxy-user'] = form.httpsProxyUser
-    if (form.httpsProxyPasswd) options['https-proxy-passwd'] = form.httpsProxyPasswd
-    if (form.ftpProxy) options['ftp-proxy'] = form.ftpProxy
-    if (form.ftpProxyUser) options['ftp-proxy-user'] = form.ftpProxyUser
-    if (form.ftpProxyPasswd) options['ftp-proxy-passwd'] = form.ftpProxyPasswd
-    if (form.serverStatOf) options['server-stat-of'] = form.serverStatOf
-    if (form.serverStatIf) options['server-stat-if'] = form.serverStatIf
-    if (form.asyncDnsServer) options['async-dns-server'] = form.asyncDnsServer
-
-    await statsStore.changeGlobalOptions(options)
-    message.success(t('settings.saved'))
-  } catch (error) {
-    message.error(t('settings.saveFailedShort'))
-    console.error('Failed to save network settings:', error)
-  } finally {
-    saving.value = false
-  }
-}
-
-function handleReset() {
-  dialog.warning({
-    title: t('settings.restoreConfirmTitle'),
-    content: t('settings.restoreConfirm'),
-    positiveText: t('common.ok'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: () => {
-      Object.assign(form, {
-        timeout: 60,
-        connectTimeout: 60,
-        maxTries: 5,
-        retryWait: 0,
-        maxFileNotFound: 0,
-        lowestSpeedLimit: 0,
-        noProxy: '',
-        interface: '',
-        allProxy: '',
-        allProxyUser: '',
-        allProxyPasswd: '',
-        httpProxy: '',
-        httpProxyUser: '',
-        httpProxyPasswd: '',
-        httpsProxy: '',
-        httpsProxyUser: '',
-        httpsProxyPasswd: '',
-        ftpProxy: '',
-        ftpProxyUser: '',
-        ftpProxyPasswd: '',
-        proxyMethod: 'get',
-        disableIpv6: false,
-        serverStatOf: '',
-        serverStatIf: '',
-        serverStatTimeout: 86400,
-        asyncDns: true,
-        asyncDnsServer: '',
-        socketRecvBufferSize: 0
-      })
-      message.success(t('settings.restored'))
-    }
-  })
-}
 </script>
 
 <style scoped>

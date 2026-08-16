@@ -6,12 +6,12 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :loading="loading"
     :disabled="!connectionStore.isConnected"
-    @save="saveSettings"
+    @save="handleSave"
     @reload="loadSettings"
-    @reset="resetToDefaults"
+    @reset="handleReset"
   >
-    <n-spin :show="loading">
       <n-form
         ref="formRef"
         :model="settings"
@@ -344,16 +344,15 @@
         </n-form-item>
         </n-card>
       </n-form>
-    </n-spin>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon } from 'naive-ui'
 import { FolderOutline } from '@vicons/ionicons5'
-import { message, dialog } from '@/utils/feedback'
+import { message } from '@/utils/feedback'
 import type { FormRules, FormInst } from 'naive-ui'
 
 import SettingsPage from '@/components/settings/SettingsPage.vue'
@@ -361,14 +360,11 @@ import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
 import { useConnectionStore } from '@/stores/connectionStore'
-import { useStatsStore } from '@/stores/statsStore'
+import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const connectionStore = useConnectionStore()
-const statsStore = useStatsStore()
 const { t } = useI18n()
 const formRef = ref<FormInst | null>(null)
-const loading = ref(false)
-const saving = ref(false)
 
 const isElectron = computed(() => !!window.electronAPI)
 
@@ -420,24 +416,25 @@ const minSplitSizeOptions = [
   { label: '100M', value: '100M' }
 ]
 
-const fileAllocationOptions = [
+// 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
+const fileAllocationOptions = computed(() => [
   { label: t('settings.download.fileAllocNone'), value: 'none' },
   { label: t('settings.download.fileAllocPrealloc'), value: 'prealloc' },
   { label: t('settings.download.fileAllocFalloc'), value: 'falloc' }
-]
+])
 
-const uriSelectorOptions = [
+const uriSelectorOptions = computed(() => [
   { label: t('settings.download.uriFeedback'), value: 'feedback' },
   { label: t('settings.download.uriInorder'), value: 'inorder' },
   { label: t('settings.download.uriAdaptive'), value: 'adaptive' }
-]
+])
 
-const streamPieceSelectorOptions = [
+const streamPieceSelectorOptions = computed(() => [
   { label: t('settings.download.pieceDefault'), value: 'default' },
   { label: t('settings.download.pieceInorder'), value: 'inorder' },
   { label: t('settings.download.pieceRandom'), value: 'random' },
   { label: t('settings.download.pieceGeom'), value: 'geom' }
-]
+])
 
 const downloadResultOptions = [
   { label: 'default', value: 'default' },
@@ -464,160 +461,89 @@ const rules: FormRules = {
   ]
 }
 
-onMounted(() => {
-  if (connectionStore.isConnected) {
-    loadSettings()
+function applyOptionsToSettings(options: Aria2Option) {
+  settings.dir = options.dir || ''
+  settings.maxConcurrentDownloads = parseInt(options['max-concurrent-downloads'] || '5')
+  settings.maxConnectionPerServer = parseInt(options['max-connection-per-server'] || '5')
+  settings.split = parseInt(options.split || '5')
+  const minSplitValue = `${parseSizeToUnit(options['min-split-size'] || '20M', 'M')}M`
+  settings.minSplitSize = minSplitValue
+  if (!minSplitSizeOptions.some((o) => o.value === minSplitValue)) {
+    minSplitSizeOptions.push({ label: minSplitValue, value: minSplitValue })
   }
-})
-
-async function loadSettings() {
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  loading.value = true
-  try {
-    const options = await statsStore.getGlobalOptions()
-
-    if (options && typeof options === 'object') {
-      settings.dir = options.dir || ''
-
-      // 并发与分片
-      settings.maxConcurrentDownloads = parseInt(options['max-concurrent-downloads'] || '5')
-      settings.maxConnectionPerServer = parseInt(options['max-connection-per-server'] || '5')
-      settings.split = parseInt(options.split || '5')
-      // min-split-size 可能是字节数（如 "20971520"）或带单位（如 "20M"），统一转为可选项（aria2 默认 20M）
-      const minSplitValue = `${parseSizeToUnit(options['min-split-size'] || '20M', 'M')}M`
-      settings.minSplitSize = minSplitValue
-      // 若 aria2 返回值不在预设选项中，动态加入，避免下拉框空白
-      if (!minSplitSizeOptions.some((o) => o.value === minSplitValue)) {
-        minSplitSizeOptions.push({ label: minSplitValue, value: minSplitValue })
-      }
-
-      // 会话
-      settings.continue = options.continue === 'true'
-      settings.saveSession = options['save-session'] !== 'false'
-      settings.saveSessionInterval = parseInt(options['save-session-interval'] || '60')
-
-      // 速度限制（aria2 返回字节数或带单位，统一转为 KB/s）
-      settings.maxOverallDownloadLimit = parseSizeToUnit(options['max-overall-download-limit'] || '0', 'K')
-      settings.maxOverallUploadLimit = parseSizeToUnit(options['max-overall-upload-limit'] || '0', 'K')
-      settings.maxDownloadLimit = parseSizeToUnit(options['max-download-limit'] || '0', 'K')
-      settings.maxUploadLimit = parseSizeToUnit(options['max-upload-limit'] || '0', 'K')
-
-      // 磁盘与存储
-      settings.diskCache = parseSizeToUnit(options['disk-cache'] || '16M', 'M')
-      settings.fileAllocation = options['file-allocation'] || 'prealloc'
-      settings.maxDownloadResult = parseInt(options['max-download-result'] || '1000')
-
-      // 下载行为
-      settings.realtimeChunkChecksum = options['realtime-chunk-checksum'] !== 'false'
-      settings.uriSelector = options['uri-selector'] || 'feedback'
-      settings.streamPieceSelector = options['stream-piece-selector'] || 'default'
-      settings.allowOverwrite = options['allow-overwrite'] === 'true'
-      settings.autoFileRenaming = options['auto-file-renaming'] !== 'false'
-      settings.remoteTime = options['remote-time'] === 'true'
-      settings.reuseUri = options['reuse-uri'] !== 'false'
-      settings.alwaysResume = options['always-resume'] !== 'false'
-      settings.maxResumeFailureTries = parseInt(options['max-resume-failure-tries'] || '0')
-      settings.conditionalGet = options['conditional-get'] === 'true'
-      settings.forceSequential = options['force-sequential'] === 'true'
-      settings.parameterizedUri = options['parameterized-uri'] === 'true'
-      settings.removeControlFile = options['remove-control-file'] === 'true'
-      settings.checkIntegrity = options['check-integrity'] === 'true'
-      settings.optimizeConcurrentDownloads = options['optimize-concurrent-downloads'] === 'true'
-      settings.autoSaveInterval = parseInt(options['auto-save-interval'] || '0')
-      settings.noFileAllocationLimit = parseSizeToUnit(options['no-file-allocation-limit'] || '0', 'M')
-      settings.downloadResult = options['download-result'] || 'default'
-      settings.keepUnfinishedDownloadResult = options['keep-unfinished-download-result'] !== 'false'
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
-    message.error(t('settings.download.loadFailed', { error: errorMessage }))
-    console.error('Failed to load settings:', error)
-  } finally {
-    loading.value = false
-  }
+  settings.continue = options.continue === 'true'
+  settings.saveSession = options['save-session'] !== 'false'
+  settings.saveSessionInterval = parseInt(options['save-session-interval'] || '60')
+  settings.maxOverallDownloadLimit = parseSizeToUnit(options['max-overall-download-limit'] || '0', 'K')
+  settings.maxOverallUploadLimit = parseSizeToUnit(options['max-overall-upload-limit'] || '0', 'K')
+  settings.maxDownloadLimit = parseSizeToUnit(options['max-download-limit'] || '0', 'K')
+  settings.maxUploadLimit = parseSizeToUnit(options['max-upload-limit'] || '0', 'K')
+  settings.diskCache = parseSizeToUnit(options['disk-cache'] || '16M', 'M')
+  settings.fileAllocation = options['file-allocation'] || 'prealloc'
+  settings.maxDownloadResult = parseInt(options['max-download-result'] || '1000')
+  settings.realtimeChunkChecksum = options['realtime-chunk-checksum'] !== 'false'
+  settings.uriSelector = options['uri-selector'] || 'feedback'
+  settings.streamPieceSelector = options['stream-piece-selector'] || 'default'
+  settings.allowOverwrite = options['allow-overwrite'] === 'true'
+  settings.autoFileRenaming = options['auto-file-renaming'] !== 'false'
+  settings.remoteTime = options['remote-time'] === 'true'
+  settings.reuseUri = options['reuse-uri'] !== 'false'
+  settings.alwaysResume = options['always-resume'] !== 'false'
+  settings.maxResumeFailureTries = parseInt(options['max-resume-failure-tries'] || '0')
+  settings.conditionalGet = options['conditional-get'] === 'true'
+  settings.forceSequential = options['force-sequential'] === 'true'
+  settings.parameterizedUri = options['parameterized-uri'] === 'true'
+  settings.removeControlFile = options['remove-control-file'] === 'true'
+  settings.checkIntegrity = options['check-integrity'] === 'true'
+  settings.optimizeConcurrentDownloads = options['optimize-concurrent-downloads'] === 'true'
+  settings.autoSaveInterval = parseInt(options['auto-save-interval'] || '0')
+  settings.noFileAllocationLimit = parseSizeToUnit(options['no-file-allocation-limit'] || '0', 'M')
+  settings.downloadResult = options['download-result'] || 'default'
+  settings.keepUnfinishedDownloadResult = options['keep-unfinished-download-result'] !== 'false'
 }
 
-async function saveSettings() {
-  if (!formRef.value) return
-
-  try {
-    await formRef.value.validate()
-  } catch (errors) {
-    const msg = Array.isArray(errors) && errors[0]?.message ? errors[0].message : t('settings.saveFailedShort')
-    message.error(msg)
-    return
+function toOptions(): Record<string, string> {
+  const options: Record<string, string> = {
+    'dir': settings.dir,
+    'max-concurrent-downloads': settings.maxConcurrentDownloads.toString(),
+    'max-connection-per-server': settings.maxConnectionPerServer.toString(),
+    'split': settings.split.toString(),
+    'min-split-size': settings.minSplitSize,
+    'continue': settings.continue.toString(),
+    'save-session': settings.saveSession.toString(),
+    'save-session-interval': settings.saveSessionInterval.toString(),
+    'max-overall-download-limit': formatSizeWithUnit(settings.maxOverallDownloadLimit, 'K'),
+    'max-overall-upload-limit': formatSizeWithUnit(settings.maxOverallUploadLimit, 'K'),
+    'max-download-limit': formatSizeWithUnit(settings.maxDownloadLimit, 'K'),
+    'max-upload-limit': formatSizeWithUnit(settings.maxUploadLimit, 'K'),
+    'disk-cache': formatSizeWithUnit(settings.diskCache, 'M'),
+    'file-allocation': settings.fileAllocation,
+    'max-download-result': settings.maxDownloadResult.toString(),
+    'realtime-chunk-checksum': settings.realtimeChunkChecksum ? 'true' : 'false',
+    'uri-selector': settings.uriSelector,
+    'stream-piece-selector': settings.streamPieceSelector,
+    'allow-overwrite': settings.allowOverwrite ? 'true' : 'false',
+    'auto-file-renaming': settings.autoFileRenaming ? 'true' : 'false',
+    'remote-time': settings.remoteTime ? 'true' : 'false',
+    'reuse-uri': settings.reuseUri ? 'true' : 'false',
+    'always-resume': settings.alwaysResume ? 'true' : 'false',
+    'max-resume-failure-tries': settings.maxResumeFailureTries.toString(),
+    'conditional-get': settings.conditionalGet ? 'true' : 'false',
+    'force-sequential': settings.forceSequential ? 'true' : 'false',
+    'parameterized-uri': settings.parameterizedUri ? 'true' : 'false',
+    'remove-control-file': settings.removeControlFile ? 'true' : 'false',
+    'check-integrity': settings.checkIntegrity ? 'true' : 'false',
+    'optimize-concurrent-downloads': settings.optimizeConcurrentDownloads ? 'true' : 'false',
+    'auto-save-interval': settings.autoSaveInterval.toString(),
+    'download-result': settings.downloadResult,
+    'keep-unfinished-download-result': settings.keepUnfinishedDownloadResult ? 'true' : 'false'
   }
-
-  if (!connectionStore.isConnected) {
-    message.warning(t('settings.connectFirst'))
-    return
-  }
-
-  saving.value = true
-  try {
-    const options: Record<string, string> = {
-      'dir': settings.dir,
-      'max-concurrent-downloads': settings.maxConcurrentDownloads.toString(),
-      'max-connection-per-server': settings.maxConnectionPerServer.toString(),
-      'split': settings.split.toString(),
-      'min-split-size': settings.minSplitSize,
-      'continue': settings.continue.toString(),
-      'save-session': settings.saveSession.toString(),
-      'save-session-interval': settings.saveSessionInterval.toString(),
-      'max-overall-download-limit': formatSizeWithUnit(settings.maxOverallDownloadLimit, 'K'),
-      'max-overall-upload-limit': formatSizeWithUnit(settings.maxOverallUploadLimit, 'K'),
-      'max-download-limit': formatSizeWithUnit(settings.maxDownloadLimit, 'K'),
-      'max-upload-limit': formatSizeWithUnit(settings.maxUploadLimit, 'K'),
-      'disk-cache': formatSizeWithUnit(settings.diskCache, 'M'),
-      'file-allocation': settings.fileAllocation,
-      'max-download-result': settings.maxDownloadResult.toString(),
-      'realtime-chunk-checksum': settings.realtimeChunkChecksum ? 'true' : 'false',
-      'uri-selector': settings.uriSelector,
-      'stream-piece-selector': settings.streamPieceSelector,
-      'allow-overwrite': settings.allowOverwrite ? 'true' : 'false',
-      'auto-file-renaming': settings.autoFileRenaming ? 'true' : 'false',
-      'remote-time': settings.remoteTime ? 'true' : 'false',
-      'reuse-uri': settings.reuseUri ? 'true' : 'false',
-      'always-resume': settings.alwaysResume ? 'true' : 'false',
-      'max-resume-failure-tries': settings.maxResumeFailureTries.toString(),
-      'conditional-get': settings.conditionalGet ? 'true' : 'false',
-      'force-sequential': settings.forceSequential ? 'true' : 'false',
-      'parameterized-uri': settings.parameterizedUri ? 'true' : 'false',
-      'remove-control-file': settings.removeControlFile ? 'true' : 'false',
-      'check-integrity': settings.checkIntegrity ? 'true' : 'false',
-      'optimize-concurrent-downloads': settings.optimizeConcurrentDownloads ? 'true' : 'false',
-      'auto-save-interval': settings.autoSaveInterval.toString(),
-      'download-result': settings.downloadResult,
-      'keep-unfinished-download-result': settings.keepUnfinishedDownloadResult ? 'true' : 'false'
-    }
-
-    // 始终发送 no-file-allocation-limit（含 0=总是预分配），否则 aria2 会保留旧值导致"设 0 不生效"
-    options['no-file-allocation-limit'] = formatSizeWithUnit(settings.noFileAllocationLimit, 'M')
-
-    await statsStore.changeGlobalOptions(options)
-    message.success(t('settings.saved'))
-  } catch (error) {
-    message.error(t('settings.saveFailedShort'))
-    console.error('Failed to save settings:', error)
-  } finally {
-    saving.value = false
-  }
+  options['no-file-allocation-limit'] = formatSizeWithUnit(settings.noFileAllocationLimit, 'M')
+  return options
 }
 
-async function resetToDefaults() {
-  const confirmed = await dialog.warning({
-    title: t('settings.restoreConfirmTitle'),
-    content: t('settings.restoreConfirm'),
-    positiveText: t('common.ok'),
-    negativeText: t('common.cancel')
-  })
-  if (confirmed !== true) return
-
-  Object.assign(settings, {
+function defaults() {
+  return {
     dir: '',
     maxConcurrentDownloads: 5,
     maxConnectionPerServer: 5,
@@ -626,10 +552,10 @@ async function resetToDefaults() {
     continue: true,
     saveSession: true,
     saveSessionInterval: 60,
-    maxOverallDownloadLimit: '0',
-    maxOverallUploadLimit: '0',
-    maxDownloadLimit: '0',
-    maxUploadLimit: '0',
+    maxOverallDownloadLimit: 0,
+    maxOverallUploadLimit: 0,
+    maxDownloadLimit: 0,
+    maxUploadLimit: 0,
     diskCache: 16,
     fileAllocation: 'prealloc',
     maxDownloadResult: 1000,
@@ -652,10 +578,28 @@ async function resetToDefaults() {
     noFileAllocationLimit: 0,
     downloadResult: 'default',
     keepUnfinishedDownloadResult: true
-  })
-
-  message.success(t('settings.restored'))
+  }
 }
+
+async function validate(): Promise<boolean> {
+  if (!formRef.value) return true
+  try {
+    await formRef.value.validate()
+    return true
+  } catch (errors) {
+    const msg = Array.isArray(errors) && errors[0]?.message ? errors[0].message : t('settings.saveFailedShort')
+    message.error(msg)
+    return false
+  }
+}
+
+const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
+  applyOptions: applyOptionsToSettings,
+  toOptions,
+  defaults,
+  validate,
+  loadErrorKey: 'settings.download.loadFailed'
+})
 
 async function selectDirectory() {
   if (!window.electronAPI) {
