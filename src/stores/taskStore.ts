@@ -177,15 +177,6 @@ export const useTaskStore = defineStore('task', () => {
       return true
     }
 
-    // 验证任务是否存在
-    let taskExists = false
-    try {
-      await connectionStore.service.tellStatus(gid)
-      taskExists = true
-    } catch {
-      taskExists = false
-    }
-
     // 收集要删除的文件路径（统一使用删除服务的路径处理逻辑）
     let taskFiles: string[] = []
     if (deleteFiles && window.electronAPI) {
@@ -199,28 +190,22 @@ export const useTaskStore = defineStore('task', () => {
       }
     }
 
-    if (taskExists) {
+    // 统一删除逻辑：先 forceRemove（如果任务还存在），再 removeDownloadResult
+    try {
+      // 尝试 forceRemove（对 active/waiting/paused 有效，error/complete 已不在活动列表会抛异常）
       try {
-        let taskStatus = 'unknown'
-        try {
-          const info = await connectionStore.service.tellStatus(gid, ['status'])
-          taskStatus = info.status
-        } catch { /* 忽略状态查询失败 */ }
-
-        if (taskStatus === 'error') {
-          try { await connectionStore.service.removeDownloadResult(gid) } catch {
-            try { await connectionStore.service.forceRemove(gid) } catch { /* 忽略强制删除失败 */ }
-          }
-        } else if (force || taskStatus === 'active' || taskStatus === 'waiting' || taskStatus === 'paused') {
-          await connectionStore.service.forceRemove(gid)
-        } else {
-          await connectionStore.service.remove(gid)
-        }
-
-        try { await connectionStore.service.removeDownloadResult(gid) } catch { /* 忽略结果删除失败 */ }
-      } catch (e) {
-        console.warn('Removal failed:', e)
+        await connectionStore.service.forceRemove(gid)
+      } catch {
+        // forceRemove 失败是预期的（任务已停止/错误），忽略
       }
+      // 无论 forceRemove 是否成功，都执行 removeDownloadResult 清理结果
+      try {
+        await connectionStore.service.removeDownloadResult(gid)
+      } catch {
+        // removeDownloadResult 也可能失败（任务已不存在），忽略
+      }
+    } catch (e) {
+      console.warn('Removal failed:', e)
     }
 
     if (deleteFiles && taskFiles.length > 0 && window.electronAPI && window.electronAPI.deleteFiles) {
@@ -286,6 +271,15 @@ export const useTaskStore = defineStore('task', () => {
     await loadAllTasks()
   }
 
+  // 清空前端缓存的所有任务（断开连接 / 切换服务器时调用）
+  function clearTasks() {
+    activeTasks.value = []
+    waitingTasks.value = []
+    stoppedTasks.value = []
+    taskPersistenceService.clearAllPersistedTasks()
+    taskTimeService.clearAll()
+  }
+
   // 监听器：service 变化时先移除旧监听器，避免重连后叠加刷新
   const downloadEvents: Aria2ClientEvent[] = [
     'downloadStart',
@@ -322,6 +316,7 @@ export const useTaskStore = defineStore('task', () => {
     unpauseTask,
     retryErrorTask,
     pauseAllTasks,
-    unpauseAllTasks
+    unpauseAllTasks,
+    clearTasks
   }
 })

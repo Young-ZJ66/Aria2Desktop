@@ -43,6 +43,7 @@
     "progress": "Progress",
     "status": "Status",
     "downloadSpeed": "Download Speed",
+    "uploadSpeed": "Upload Speed",
     "completeTime": "Completed Time",
     "remainingTime": "Remaining Time",
     "actions": "Actions",
@@ -137,6 +138,7 @@
     "mode": "Mode",
     "announceList": "Announce List",
     "andMore": "+ {count} more",
+    "uriStatus": "Status",
     "openFileFailed": "Failed to open file"
   },
   "taskPeer": {
@@ -615,7 +617,7 @@
       "peerAgentPlaceholder": "e.g., aria2/1.37.0",
       "groupClient": "Client Identity",
       "pieceLength": "BT Piece Size",
-      "pieceLengthTip": "Piece size of the BitTorrent file (MB), different from the min split size for HTTP/FTP downloads",
+      "pieceLengthTip": "Piece size of the BitTorrent file (MB)",
       "allowPieceLengthChange": "Allow BT Piece Size Change",
       "allowPieceLengthChangeTip": "Allow aria2 to auto-adjust BT piece size during download based on connections and file size to reduce memory usage"
     },
@@ -728,7 +730,7 @@
       "parameterizedUri": "Parameterized URI",
       "parameterizedUriTip": "Enable parameterized URI support",
       "pieceLength": "BT Piece Size",
-      "pieceLengthTip": "Piece size of the BitTorrent file (MB), different from the min split size for HTTP/FTP downloads",
+      "pieceLengthTip": "Piece size of the BitTorrent file (MB)",
       "removeControlFile": "Remove Control File",
       "removeControlFileTip": "Remove .aria2 control file after download",
       "humanReadable": "Human-Readable Numbers",
@@ -945,7 +947,19 @@
     "requireHost": "Please enter host address",
     "requirePort": "Please enter port number",
     "portRange": "Port must be between 1-65535",
-    "connectionFailed": "Connection failed"
+    "connectionFailed": "Connection failed",
+    "defaultProfileName": "Default",
+    "profileList": "Connection Profiles",
+    "back": "Back",
+    "newProfile": "New Profile",
+    "renameProfile": "Rename",
+    "deleteProfile": "Delete",
+    "deleteProfileTitle": "Delete Profile",
+    "confirmDeleteProfile": "Are you sure you want to delete profile \"{name}\"?",
+    "save": "Save",
+    "saved": "Profile saved",
+    "profileNamePlaceholder": "Enter a profile name",
+    "profileNameRequired": "Profile name is required"
   },
   "rpcSettings": {
     "title": "RPC Connection Settings",
@@ -989,7 +1003,7 @@
     "title": "Local Engine",
     "description": "Manage the built-in local Aria2 engine: start, stop, restart, and monitor status",
     "serviceStatus": "Service Status",
-    "runStatus": "Status:",
+    "runStatus": "Status",
     "running": "Running",
     "stopped": "Stopped",
     "errorLabel": "Error:",

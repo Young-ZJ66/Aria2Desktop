@@ -139,6 +139,14 @@ class TaskTimeService {
   }
 
   /**
+   * 清空所有任务时间记录（连接切换时使用）
+   */
+  clearAll() {
+    this.taskTimes.clear()
+    localStorage.removeItem(this.STORAGE_KEY)
+  }
+
+  /**
    * 获取所有任务时间记录（用于调试）
    */
   getAllRecords(): TaskTimeRecord[] {

@@ -7,7 +7,7 @@ export interface AppSettings {
   autoConnect: boolean
   minimizeToTray: boolean
 
-  // 连接设置
+  // 连接设置（保留兼容，实际使用 profiles）
   aria2: {
     host: string
     port: number
@@ -15,6 +15,20 @@ export interface AppSettings {
     secret: string
     path: string
   }
+
+  // 多连接配置预设
+  connectionProfiles: Array<{
+    id: string
+    name: string
+    config: {
+      host: string
+      port: number
+      protocol: 'http' | 'https' | 'ws' | 'wss'
+      secret: string
+      path: string
+    }
+  }>
+  activeProfileId: string
 
   // 界面设置
   ui: {
@@ -48,6 +62,21 @@ export const defaultSettings: AppSettings = {
     secret: '',
     path: '/jsonrpc'
   },
+
+  connectionProfiles: [
+    {
+      id: 'default',
+      name: '',
+      config: {
+        host: 'localhost',
+        port: 6800,
+        protocol: 'http',
+        secret: '',
+        path: '/jsonrpc'
+      }
+    }
+  ],
+  activeProfileId: 'default',
 
   ui: {
     showStatusBar: true,

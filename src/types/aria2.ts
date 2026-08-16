@@ -8,6 +8,13 @@ export interface Aria2Config {
   path?: string
 }
 
+// 命名连接配置预设（支持多个并存）
+export interface ConnectionProfile {
+  id: string
+  name: string
+  config: Aria2Config
+}
+
 export interface Aria2Task {
   gid: string
   status: 'active' | 'waiting' | 'paused' | 'error' | 'complete' | 'removed'

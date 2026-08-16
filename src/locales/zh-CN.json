@@ -43,6 +43,7 @@
     "progress": "进度",
     "status": "状态",
     "downloadSpeed": "下载速度",
+    "uploadSpeed": "上传速度",
     "completeTime": "完成时间",
     "remainingTime": "剩余时间",
     "actions": "操作",
@@ -137,6 +138,7 @@
     "mode": "模式",
     "announceList": "宣布列表",
     "andMore": "等 {count} 个",
+    "uriStatus": "状态",
     "openFileFailed": "打开文件失败"
   },
   "taskPeer": {
@@ -615,7 +617,7 @@
       "peerAgentPlaceholder": "如 aria2/1.37.0",
       "groupClient": "客户端标识",
       "pieceLength": "BT 分片大小",
-      "pieceLengthTip": "BitTorrent 种子的分片大小（MB），与 HTTP/FTP 下载的最小分片大小不同",
+      "pieceLengthTip": "BitTorrent 种子的分片大小（MB）",
       "allowPieceLengthChange": "允许 BT 分片大小变化",
       "allowPieceLengthChangeTip": "允许 aria2 在 BT 下载时根据连接数和文件大小自动调整分片大小，以减少内存占用"
     },
@@ -728,7 +730,7 @@
       "parameterizedUri": "参数化 URI",
       "parameterizedUriTip": "启用参数化 URI 支持",
       "pieceLength": "BT 分片大小",
-      "pieceLengthTip": "BitTorrent 种子的分片大小（MB），与 HTTP/FTP 下载的最小分片大小不同",
+      "pieceLengthTip": "BitTorrent 种子的分片大小（MB）",
       "removeControlFile": "删除控制文件",
       "removeControlFileTip": "下载完成后删除 .aria2 控制文件",
       "humanReadable": "可读数字",
@@ -945,7 +947,19 @@
     "requireHost": "请输入主机地址",
     "requirePort": "请输入端口号",
     "portRange": "端口号必须在1-65535之间",
-    "connectionFailed": "连接失败"
+    "connectionFailed": "连接失败",
+    "defaultProfileName": "默认",
+    "profileList": "连接配置",
+    "back": "返回",
+    "newProfile": "新建配置",
+    "renameProfile": "重命名",
+    "deleteProfile": "删除",
+    "deleteProfileTitle": "删除配置",
+    "confirmDeleteProfile": "确定要删除配置“{name}”吗？",
+    "save": "保存",
+    "saved": "配置已保存",
+    "profileNamePlaceholder": "请输入配置名称",
+    "profileNameRequired": "请输入配置名称"
   },
   "rpcSettings": {
     "title": "RPC 连接设置",
@@ -989,7 +1003,7 @@
     "title": "本地引擎",
     "description": "管理软件自带的本地 Aria2 引擎，支持启动、停止、重启和状态监控",
     "serviceStatus": "服务状态",
-    "runStatus": "运行状态：",
+    "runStatus": "运行状态",
     "running": "运行中",
     "stopped": "已停止",
     "errorLabel": "错误信息：",
