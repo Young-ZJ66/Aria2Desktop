@@ -15,7 +15,7 @@
 
       <n-button
         size="small"
-        type="warning"
+        type="info"
         :disabled="!canBatchPause"
         @click="$emit('batch-pause')"
       >
@@ -75,7 +75,35 @@ defineEmits<Emits>()
 .action-buttons-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+/* 统一现代化批量操作按钮：圆角、语义色光晕、悬停轻微浮起 */
+.action-buttons-group :deep(.n-button) {
+  height: 32px;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.action-buttons-group :deep(.n-button:hover:not([disabled])) {
+  transform: translateY(-1px);
+}
+
+.action-buttons-group :deep(.n-button:active:not([disabled])) {
+  transform: translateY(0);
+}
+
+.action-buttons-group :deep(.n-button--primary-type) {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+.action-buttons-group :deep(.n-button--error-type) {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-danger) 25%, transparent);
+}
+
+.action-buttons-group :deep(.n-button--info-type) {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-info) 22%, transparent);
 }
 
 .selected-count {

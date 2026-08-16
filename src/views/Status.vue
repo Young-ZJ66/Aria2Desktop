@@ -126,13 +126,13 @@ const trafficStats = computed(() => {
   return [
     {
       label: t('statusPage.downloadSpeed'),
-      value: `${formatSpeed(globalStat.value.downloadSpeed)}/s`,
+      value: formatSpeed(globalStat.value.downloadSpeed),
       icon: DownloadOutline,
       colorClass: 'download'
     },
     {
       label: t('statusPage.uploadSpeed'),
-      value: `${formatSpeed(globalStat.value.uploadSpeed)}/s`,
+      value: formatSpeed(globalStat.value.uploadSpeed),
       icon: CloudUploadOutline,
       colorClass: 'upload'
     },

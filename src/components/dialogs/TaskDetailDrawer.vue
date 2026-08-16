@@ -14,29 +14,30 @@
         </n-button>
       </template>
 
-      <div v-if="task" class="task-detail-content">
-        <!-- 标签页 -->
-        <n-tabs v-model:value="activeTab" type="line" animated>
-          <n-tab-pane :name="'basic'" :tab="t('taskDetail.basicInfo')">
-            <TaskBasicInfo
-              :task="task"
-              :task-uris="taskUris"
-              :is-electron="isElectron"
-            />
-          </n-tab-pane>
+      <n-spin :show="loading">
+        <div v-if="task" class="task-detail-content">
+          <!-- 标签页 -->
+          <n-tabs v-model:value="activeTab" type="line" animated>
+            <n-tab-pane :name="'basic'" :tab="t('taskDetail.basicInfo')">
+              <TaskBasicInfo
+                :task="task"
+                :task-uris="taskUris"
+                :is-electron="isElectron"
+              />
+            </n-tab-pane>
 
-          <n-tab-pane :name="'servers'" :tab="t('taskDetail.serverInfo')">
-            <TaskServerInfo :servers="taskServers" />
-          </n-tab-pane>
+            <n-tab-pane :name="'servers'" :tab="t('taskDetail.serverInfo')">
+              <TaskServerInfo :servers="taskServers" />
+            </n-tab-pane>
 
-          <n-tab-pane v-if="task.bittorrent" :name="'peers'" :tab="t('taskDetail.peerInfo', { count: taskPeers.length })">
-            <TaskPeerInfo :peers="taskPeers" />
-          </n-tab-pane>
+            <n-tab-pane v-if="task.bittorrent" :name="'peers'" :tab="t('taskDetail.peerInfo', { count: taskPeers.length })">
+              <TaskPeerInfo :peers="taskPeers" />
+            </n-tab-pane>
 
-          <n-tab-pane :name="'pieces'" :tab="t('taskDetail.piecesInfo')">
-            <TaskPiecesInfo :task="task" />
-          </n-tab-pane>
-        </n-tabs>
+            <n-tab-pane :name="'pieces'" :tab="t('taskDetail.piecesInfo')">
+              <TaskPiecesInfo :task="task" />
+            </n-tab-pane>
+          </n-tabs>
 
         <!-- URI 信息对话框 -->
         <n-modal
@@ -53,11 +54,12 @@
             :scroll-x="600"
           />
         </n-modal>
-      </div>
+        </div>
 
-      <div v-else class="loading">
-        <n-empty :description="t('task.taskNotExist')" />
-      </div>
+        <div v-else class="loading">
+          <n-empty :description="t('task.taskNotExist')" />
+        </div>
+      </n-spin>
     </n-drawer-content>
   </n-drawer>
 </template>
@@ -277,6 +279,14 @@ function getUriStatusText(status: string): string {
 <style scoped>
 .task-detail-content {
   padding: 8px 0;
+}
+
+.task-detail-content :deep(.n-tab-pane) {
+  padding-top: 16px;
+}
+
+.task-detail-content :deep(.n-tabs-nav) {
+  padding: 0 4px;
 }
 
 .loading {

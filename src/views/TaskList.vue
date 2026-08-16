@@ -18,7 +18,7 @@
     <!-- 操作栏 -->
     <div class="task-actions">
       <div class="action-left">
-        <n-button type="primary" @click="uiStore.openNewTask()">
+        <n-button type="primary" class="app-action-btn" @click="uiStore.openNewTask()">
           <template #icon>
             <n-icon><AddOutline /></n-icon>
           </template>
@@ -84,7 +84,7 @@
 import { computed, h, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon, NProgress, NTag, NCheckbox, type DataTableColumns } from 'naive-ui'
-import { AddOutline, SearchOutline, VideocamOutline, TimeOutline } from '@vicons/ionicons5'
+import { AddOutline, SearchOutline, VideocamOutline, MusicalNotesOutline, ImageOutline, ArchiveOutline, DocumentTextOutline, CodeSlashOutline, DocumentOutline } from '@vicons/ionicons5'
 import { message, dialog } from '@/utils/feedback'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -274,6 +274,39 @@ function getTaskName(task: Aria2Task): string {
   return utilGetTaskName(task)
 }
 
+// 获取文件类型图标（基于文件扩展名）
+function getFileTypeIcon(task: Aria2Task): any {
+  const name = getTaskName(task).toLowerCase()
+  const ext = name.split('.').pop() || ''
+
+  // 视频
+  if (['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'ts', 'm4v', '3gp'].includes(ext)) {
+    return VideocamOutline
+  }
+  // 音频
+  if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'opus'].includes(ext)) {
+    return MusicalNotesOutline
+  }
+  // 图片
+  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'psd'].includes(ext)) {
+    return ImageOutline
+  }
+  // 压缩包
+  if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'].includes(ext)) {
+    return ArchiveOutline
+  }
+  // 文档
+  if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv'].includes(ext)) {
+    return DocumentTextOutline
+  }
+  // 代码
+  if (['js', 'ts', 'py', 'java', 'cpp', 'c', 'h', 'css', 'html', 'vue', 'json', 'xml', 'yaml', 'yml', 'sh', 'bat', 'go', 'rs', 'php', 'rb'].includes(ext)) {
+    return CodeSlashOutline
+  }
+  // 默认
+  return DocumentOutline
+}
+
 // 格式化完成时间标签
 function formatCompleteTimeLabel(task: Aria2Task): string {
   const completeTime = taskTimeService.getCompleteTime(task.gid)
@@ -304,12 +337,17 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'name',
     title: t('task.fileName'),
-    minWidth: 220,
-    render: (row: Aria2Task) =>
-      h('div', { class: 'file-info' }, [
-        h('div', { class: 'file-name' }, getTaskName(row)),
-        row.dir ? h('div', { class: 'file-path' }, row.dir) : null
+    width: 280,
+    render: (row: Aria2Task) => {
+      const name = getTaskName(row)
+      return h('div', { class: 'file-info' }, [
+        h('div', { class: 'file-name-row' }, [
+          h('span', { class: 'file-name', title: name }, name),
+          h(NIcon, { class: 'file-type-icon', size: 14 }, { default: () => h(getFileTypeIcon(row)) })
+        ]),
+        row.dir ? h('div', { class: 'file-path', title: row.dir }, row.dir) : null
       ])
+    }
   },
   {
     key: 'size',
@@ -334,18 +372,8 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     key: 'status',
     title: t('task.status'),
     width: 130,
-    render: (row: Aria2Task) => {
-      const statusIcon =
-        row.status === 'active'
-          ? h(NIcon, { class: 'status-icon active' }, { default: () => h(VideocamOutline) })
-          : row.status === 'waiting'
-            ? h(NIcon, { class: 'status-icon waiting' }, { default: () => h(TimeOutline) })
-            : null
-      return h('div', { class: 'status-column' }, [
-        h(NTag, { type: (getStatusType(row.status) as 'primary' | 'warning' | 'info' | 'success' | 'error' | 'default') || 'default', size: 'small' }, { default: () => t('status.' + row.status) }),
-        statusIcon
-      ])
-    }
+    render: (row: Aria2Task) =>
+      h(NTag, { type: (getStatusType(row.status) as 'primary' | 'warning' | 'info' | 'success' | 'error' | 'default') || 'default', size: 'small' }, { default: () => t('status.' + row.status) })
   },
   {
     key: 'downloadSpeed',
@@ -474,26 +502,33 @@ async function removeTask(gid: string) {
       showBatchDeleteDialog.value = true
     } else {
       // 使用简单确认对话框
-      const confirmed = await dialog.warning({
+      dialog.warning({
         title: t('delete.title'),
         content: t('delete.confirmSingle'),
         positiveText: t('delete.confirm'),
-        negativeText: t('common.cancel')
-      })
-      if (confirmed !== true) return
-
-      if (props.taskType === 'stopped') {
-        const result = await completedTaskDeleteService.deleteCompletedTask(task, false)
-        await taskStore.loadAllTasks()
-        if (result.success) {
-          message.success(t('delete.taskDeleted'))
-        } else {
-          message.error(t('task.deleteFailed', { error: result.errors.join(', ') }))
+        negativeText: t('common.cancel'),
+        onPositiveClick: async () => {
+          try {
+            if (props.taskType === 'stopped') {
+              const result = await completedTaskDeleteService.deleteCompletedTask(task, false)
+              await taskStore.loadAllTasks()
+              if (result.success) {
+                message.success(t('delete.taskDeleted'))
+              } else {
+                message.error(t('task.deleteFailed', { error: result.errors.join(', ') }))
+              }
+            } else {
+              await taskStore.removeTask(gid, false, false)
+              message.success(t('delete.taskDeleted'))
+            }
+          } catch (error: unknown) {
+            if (error !== 'cancel') {
+              console.error('删除任务失败:', error)
+              message.error(t('task.deleteTaskFailed'))
+            }
+          }
         }
-      } else {
-        await taskStore.removeTask(gid, false, false)
-        message.success(t('delete.taskDeleted'))
-      }
+      })
     }
   } catch (error: unknown) {
     if (error !== 'cancel') {
@@ -646,14 +681,15 @@ async function batchDelete() {
       tasksToDelete.value = [...selectedTasks.value]
       showBatchDeleteDialog.value = true
     } else {
-      const confirmed = await dialog.warning({
+      dialog.warning({
         title: t('delete.title'),
         content: t('delete.confirmBatch', { count: selectedCount.value }),
         positiveText: t('delete.confirm'),
-        negativeText: t('common.cancel')
+        negativeText: t('common.cancel'),
+        onPositiveClick: async () => {
+          await handleBatchDeleteConfirm(false)
+        }
       })
-      if (confirmed !== true) return
-      await handleBatchDeleteConfirm(false)
     }
   } catch (error) {
     if (error !== 'cancel') {
@@ -794,48 +830,66 @@ watch(
   margin: 0 8px;
 }
 
-.file-info {
+/* DataTable 列 render 创建的节点不携带 scoped data-v，需用 :deep() 定位 */
+:deep(.file-info) {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.file-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-path {
-  font-size: 12px;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.status-column {
+:deep(.file-name-row) {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
 }
 
-.status-icon {
-  font-size: 14px;
+:deep(.file-name) {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  word-break: break-all;
+  line-height: 1.4;
 }
 
-.status-icon.active {
-  color: var(--color-success);
-  animation: pulse 2s infinite;
+:deep(.file-type-icon) {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  display: inline-flex;
 }
 
-.status-icon.waiting {
-  color: var(--color-warning);
+/* 下载路径使用等宽字体与弱化颜色，与文件名明显区分 */
+:deep(.file-path) {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+/* 统一现代化操作按钮：圆角、语义色光晕、悬停轻微浮起（与全局按钮风格一致） */
+:deep(.app-action-btn) {
+  height: 30px;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
+
+:deep(.app-action-btn:hover:not([disabled])) {
+  transform: translateY(-1px);
+}
+
+:deep(.app-action-btn:active:not([disabled])) {
+  transform: translateY(0);
+}
+
+:deep(.app-action-btn--primary-type) {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+
 </style>

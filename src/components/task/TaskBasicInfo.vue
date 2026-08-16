@@ -1,109 +1,125 @@
 <template>
   <div>
     <!-- 任务信息卡片 -->
-    <n-card class="info-card" size="small">
-      <div class="info-section">
-        <n-descriptions :column="2" bordered label-placement="left" class="task-descriptions">
-          <n-descriptions-item :label="t('task.gid')">
-            <div class="field-with-action">
-              <span>{{ task.gid }}</span>
-              <n-button size="tiny" quaternary circle :title="t('taskDetail.copyGid')" @click="copyGid">
-                <template #icon>
-                  <n-icon><CopyOutline /></n-icon>
-                </template>
-              </n-button>
-            </div>
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('task.status')">
-            <n-tag :type="(getStatusType(task.status) as any) || 'default'">
-              {{ t('status.' + task.status) }}
-            </n-tag>
-          </n-descriptions-item>
-
-          <n-descriptions-item v-if="task.files?.length" :label="t('task.fileName')">
-            <span>{{ getFileName(task.files[0].path) }}</span>
-          </n-descriptions-item>
-
-          <n-descriptions-item :label="t('task.size')">{{ formatSize(task.totalLength) }}</n-descriptions-item>
-          <n-descriptions-item :label="t('taskDetail.downloaded')">{{ formatSize(task.completedLength) }}</n-descriptions-item>
-          <n-descriptions-item :label="t('task.progress')">
-            <n-progress
-              type="line"
-              :percentage="getProgress(task)"
-              :status="task.status === 'complete' ? 'success' : 'default'"
-              :height="8"
-              style="width: 200px"
-            />
-          </n-descriptions-item>
-          <n-descriptions-item :label="t('task.remainingTime')">{{ formatRemainingTime(task) }}</n-descriptions-item>
-          <n-descriptions-item :label="t('task.downloadSpeed')">{{ formatSpeed(task.downloadSpeed) }}</n-descriptions-item>
-          <n-descriptions-item :label="t('taskDetail.numPieces')">{{ task.numPieces || 0 }}</n-descriptions-item>
-          <n-descriptions-item :label="t('taskDetail.pieceLength')">{{ formatSize(task.pieceLength || '0') }}</n-descriptions-item>
-
-          <n-descriptions-item v-if="task.files?.length" :label="t('taskDetail.filePath')" :span="2">
-            <div class="path-with-action">
-              <span>{{ task.files[0].path }}</span>
-              <n-button v-if="isElectron" size="tiny" quaternary circle :title="t('task.openLocation')" style="margin-left: 8px;" @click="openFileInFolder(task.files[0].path)">
-                <template #icon>
-                  <n-icon><FolderOpenOutline /></n-icon>
-                </template>
-              </n-button>
-            </div>
-          </n-descriptions-item>
-
-          <n-descriptions-item v-if="taskUris.length" :label="t('taskDetail.downloadUrl')" :span="2">
-            <div class="field-with-action">
-              <div class="uri-content-full">
-                <span class="uri-text-full">{{ taskUris[0].uri }}</span>
-              </div>
-              <n-button size="tiny" quaternary circle :title="t('taskDetail.copyLink')" @click="copyUri(taskUris[0].uri)">
-                <template #icon>
-                  <n-icon><CopyOutline /></n-icon>
-                </template>
-              </n-button>
-            </div>
-          </n-descriptions-item>
-
-          <n-descriptions-item v-if="task.errorCode && task.errorCode !== '0'" :label="t('taskDetail.errorMessage')" :span="2">
-            <n-text type="error">{{ task.errorMessage || task.errorCode }}</n-text>
-          </n-descriptions-item>
-        </n-descriptions>
-
-        <!-- 文件操作按钮 -->
-        <div v-if="task.files?.length && task.status === 'complete'" class="file-actions">
-          <n-button v-if="isElectron" size="small" @click="openFile(task.files[0].path)">
-            <template #icon>
-              <n-icon><DocumentTextOutline /></n-icon>
-            </template>
-            {{ t('task.openLocation') }}
-          </n-button>
+    <n-card class="info-card" size="small" :bordered="false">
+      <template #header>
+        <div class="card-header">
+          <span>{{ t('taskDetail.basicInfo') }}</span>
+          <n-tag v-if="task.status" :type="(getStatusType(task.status) as any) || 'default'" size="small">
+            {{ t('status.' + task.status) }}
+          </n-tag>
         </div>
+      </template>
+
+      <n-descriptions :column="2" label-placement="left" class="task-descriptions">
+        <n-descriptions-item :label="t('task.gid')">
+          <div class="field-with-action">
+            <span class="gid-text">{{ task.gid }}</span>
+            <n-button size="tiny" quaternary circle :title="t('taskDetail.copyGid')" @click="copyGid">
+              <template #icon>
+                <n-icon><CopyOutline /></n-icon>
+              </template>
+            </n-button>
+          </div>
+        </n-descriptions-item>
+
+        <n-descriptions-item v-if="task.files?.length" :label="t('task.fileName')">
+          <span class="file-name-text">{{ getFileName(task.files[0].path) }}</span>
+        </n-descriptions-item>
+
+        <n-descriptions-item :label="t('task.size')">{{ formatSize(task.totalLength) }}</n-descriptions-item>
+        <n-descriptions-item :label="t('taskDetail.downloaded')">{{ formatSize(task.completedLength) }}</n-descriptions-item>
+        <n-descriptions-item :label="t('task.downloadSpeed')">
+          <span v-if="Number(task.downloadSpeed) > 0" class="speed-download">{{ formatSpeed(task.downloadSpeed) }}</span>
+          <span v-else class="muted-value">--</span>
+        </n-descriptions-item>
+        <n-descriptions-item :label="t('task.uploadSpeed')">
+          <span v-if="Number(task.uploadSpeed) > 0" class="speed-upload">{{ formatSpeed(task.uploadSpeed) }}</span>
+          <span v-else class="muted-value">--</span>
+        </n-descriptions-item>
+        <n-descriptions-item :label="t('task.remainingTime')">{{ formatRemainingTime(task) }}</n-descriptions-item>
+        <n-descriptions-item :label="t('taskDetail.piecesInfo')">
+          {{ task.numPieces || 0 }} × {{ formatSize(task.pieceLength || '0') }}
+        </n-descriptions-item>
+
+        <!-- 进度条：占满整行 -->
+        <n-descriptions-item :label="t('task.progress')" :span="2">
+          <div class="progress-row">
+            <div class="progress-track">
+              <div
+                class="progress-fill"
+                :class="progressClass"
+                :style="{ width: progressPercent + '%' }"
+              />
+            </div>
+            <span class="progress-text">{{ progressPercent }}%</span>
+          </div>
+        </n-descriptions-item>
+
+        <n-descriptions-item v-if="task.files?.length" :label="t('taskDetail.filePath')" :span="2">
+          <div class="path-with-action">
+            <div class="mono-block">{{ task.files[0].path }}</div>
+            <n-button v-if="isElectron" size="tiny" quaternary circle :title="t('task.openLocation')" @click="openFileInFolder(task.files[0].path)">
+              <template #icon>
+                <n-icon><FolderOpenOutline /></n-icon>
+              </template>
+            </n-button>
+          </div>
+        </n-descriptions-item>
+
+        <n-descriptions-item v-if="taskUris.length" :label="t('taskDetail.downloadUrl')" :span="2">
+          <div class="path-with-action">
+            <div class="mono-block uri-text">{{ taskUris[0].uri }}</div>
+            <n-button size="tiny" quaternary circle :title="t('taskDetail.copyLink')" @click="copyUri(taskUris[0].uri)">
+              <template #icon>
+                <n-icon><CopyOutline /></n-icon>
+              </template>
+            </n-button>
+          </div>
+        </n-descriptions-item>
+
+        <n-descriptions-item v-if="task.errorCode && task.errorCode !== '0'" :label="t('taskDetail.errorMessage')" :span="2">
+          <n-text type="error">{{ task.errorMessage || task.errorCode }}</n-text>
+        </n-descriptions-item>
+      </n-descriptions>
+
+      <!-- 文件操作按钮 -->
+      <div v-if="task.files?.length && task.status === 'complete'" class="file-actions">
+        <n-button v-if="isElectron" size="small" type="primary" ghost @click="openFileInFolder(task.files[0].path)">
+          <template #icon>
+            <n-icon><FolderOpenOutline /></n-icon>
+          </template>
+          {{ t('task.openLocation') }}
+        </n-button>
       </div>
     </n-card>
 
     <!-- BitTorrent 信息 -->
-    <n-card v-if="task.bittorrent" class="info-card" size="small">
+    <n-card v-if="task.bittorrent" class="info-card" size="small" :bordered="false">
       <template #header>
-        <span>BitTorrent {{ t('common.info') }}</span>
+        <div class="card-header">
+          <span>BitTorrent {{ t('common.info') }}</span>
+        </div>
       </template>
 
-      <n-descriptions :column="2" bordered label-placement="left">
+      <n-descriptions :column="2" label-placement="left" class="task-descriptions">
         <n-descriptions-item :label="t('taskDetail.torrentName')">{{ task.bittorrent.info?.name || t('common.unknown') }}</n-descriptions-item>
         <n-descriptions-item :label="t('taskDetail.createdBy')">{{ task.bittorrent.createdBy || t('common.unknown') }}</n-descriptions-item>
         <n-descriptions-item :label="t('taskDetail.creationDate')">{{ formatDate(task.bittorrent.creationDate) }}</n-descriptions-item>
-        <n-descriptions-item :label="t('taskDetail.comment')">{{ task.bittorrent.comment || t('common.none') }}</n-descriptions-item>
         <n-descriptions-item :label="t('taskDetail.mode')">{{ task.bittorrent.mode || t('common.unknown') }}</n-descriptions-item>
-        <n-descriptions-item :label="t('taskDetail.announceList')">
-          <div v-if="task.bittorrent.announceList?.length">
+        <n-descriptions-item :label="t('taskDetail.comment')" :span="2">{{ task.bittorrent.comment || t('common.none') }}</n-descriptions-item>
+        <n-descriptions-item :label="t('taskDetail.announceList')" :span="2">
+          <div v-if="task.bittorrent.announceList?.length" class="announce-list">
             <n-tag
               v-for="(announce, index) in task.bittorrent.announceList.slice(0, 3)"
               :key="index"
               size="small"
-              style="margin: 2px;"
+              :bordered="false"
+              round
             >
               {{ announce[0] }}
             </n-tag>
-            <span v-if="task.bittorrent.announceList.length > 3">
+            <span v-if="task.bittorrent.announceList.length > 3" class="and-more">
               {{ t('taskDetail.andMore', { count: task.bittorrent.announceList.length }) }}
             </span>
           </div>
@@ -115,8 +131,9 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { CopyOutline, FolderOpenOutline, DocumentTextOutline } from '@vicons/ionicons5'
+import { CopyOutline, FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import type { Aria2Task, Aria2Uri } from '@/types/aria2'
 import {
@@ -136,6 +153,17 @@ interface Props {
 
 const props = defineProps<Props>()
 const { t } = useI18n()
+
+const progressPercent = computed(() => getProgress(props.task))
+
+const progressClass = computed(() => {
+  switch (props.task.status) {
+    case 'complete': return 'complete'
+    case 'error': return 'error'
+    case 'active': return 'active'
+    default: return 'pending'
+  }
+})
 
 function copyGid() {
   if (props.task?.gid) {
@@ -182,38 +210,154 @@ async function openFileInFolder(filePath: string) {
     message.error(t('task.openLocationFailed'))
   }
 }
-
-async function openFile(filePath: string) {
-  if (!window.electronAPI) {
-    message.warning(t('task.desktopOnly'))
-    return
-  }
-
-  try {
-    const result = await window.electronAPI.openPath(filePath)
-    if (result?.success) {
-      message.success(t('task.openedLocation'))
-    } else {
-      message.error(t('task.openDirFailed', { error: result?.error || t('common.unknown') }))
-    }
-  } catch (error) {
-    console.error('Failed to open file:', error)
-    message.error(t('taskDetail.openFileFailed'))
-  }
-}
 </script>
 
 <style scoped>
 .info-card {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
 }
 
-.info-section {
-  margin-bottom: 32px;
-}
-
-.info-section:last-child {
+.info-card:last-child {
   margin-bottom: 0;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-descriptions {
+  --label-width: 96px;
+}
+
+.task-descriptions :deep(.n-descriptions-table) {
+  border-collapse: separate;
+  border-spacing: 0 6px;
+}
+
+.task-descriptions :deep(.n-descriptions-table-label) {
+  width: var(--label-width);
+  min-width: var(--label-width);
+  white-space: nowrap;
+  text-align: left;
+  padding: 6px 16px 6px 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.task-descriptions :deep(.n-descriptions-table-content) {
+  padding: 6px 0;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+/* 内容 span 为 inline-block 会收缩宽度，导致进度条等宽度失效，改为占满单元格 */
+.task-descriptions :deep(.n-descriptions-table-content__content) {
+  display: inline-block;
+  width: 100%;
+}
+
+.file-name-text {
+  display: block;
+  width: 100%;
+  word-break: break-all;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.field-with-action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gid-text {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+}
+
+.muted-value {
+  color: var(--text-placeholder);
+}
+
+.speed-download {
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+.speed-upload {
+  color: var(--color-info);
+  font-weight: 500;
+}
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.progress-track {
+  flex: 1;
+  height: 8px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background-color: var(--color-primary);
+  transition: width 0.3s ease;
+}
+
+.progress-fill.complete {
+  background-color: var(--color-success);
+}
+
+.progress-fill.error {
+  background-color: var(--color-danger);
+}
+
+.progress-fill.pending {
+  background-color: var(--text-placeholder);
+}
+
+.progress-text {
+  flex-shrink: 0;
+  min-width: 42px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.path-with-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.mono-block {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  color: var(--text-regular);
+  word-break: break-all;
+  line-height: 1.5;
 }
 
 .file-actions {
@@ -224,54 +368,16 @@ async function openFile(filePath: string) {
   border-top: 1px solid var(--border-light);
 }
 
-.task-descriptions :deep(.n-descriptions-table-label) {
-  min-width: 120px !important;
-  width: 120px !important;
-  white-space: nowrap !important;
-  text-align: left !important;
-  padding-right: 16px !important;
-}
-
-.field-with-action {
+.announce-list {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
-.path-with-action {
-  display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 0;
-  width: 100%;
+  align-items: center;
+  gap: 6px;
 }
 
-.path-with-action span {
-  word-break: break-all;
-  line-height: 1.5;
-}
-
-.field-with-action .uri-content-full {
-  display: flex;
-  align-items: flex-start;
-  padding: 12px;
-  background-color: var(--bg-tertiary);
-  border-radius: 4px;
-  border: 1px solid var(--border-light);
-  flex: 1;
-  min-width: 0;
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.field-with-action .uri-text-full {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 11px;
-  color: var(--text-regular);
-  word-break: break-all;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  width: 100%;
+.and-more {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: 4px;
 }
 </style>

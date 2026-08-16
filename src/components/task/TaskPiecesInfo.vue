@@ -1,22 +1,32 @@
 <template>
-  <n-card class="info-card" size="small">
-    <div v-if="task.numPieces && parseInt(task.numPieces) > 0">
-      <div class="pieces-info">
-        <n-descriptions :column="3" bordered label-placement="left">
-          <n-descriptions-item :label="t('taskPeer.totalPieces')">{{ task.numPieces }}</n-descriptions-item>
-          <n-descriptions-item :label="t('taskPeer.pieceSize')">{{ formatSize(task.pieceLength || '0') }}</n-descriptions-item>
-          <n-descriptions-item :label="t('taskPeer.completedPieces')">{{ getCompletedPieces() }}</n-descriptions-item>
-        </n-descriptions>
+  <n-card class="info-card" size="small" :bordered="false">
+    <template v-if="task.numPieces && parseInt(task.numPieces) > 0">
+      <div class="pieces-summary">
+        <div class="pieces-stat">
+          <span class="pieces-stat-label">{{ t('taskPeer.totalPieces') }}</span>
+          <span class="pieces-stat-value">{{ task.numPieces }}</span>
+        </div>
+        <div class="pieces-stat">
+          <span class="pieces-stat-label">{{ t('taskPeer.pieceSize') }}</span>
+          <span class="pieces-stat-value">{{ formatSize(task.pieceLength || '0') }}</span>
+        </div>
+        <div class="pieces-stat">
+          <span class="pieces-stat-label">{{ t('taskPeer.completedPieces') }}</span>
+          <span class="pieces-stat-value">{{ getCompletedPieces() }}</span>
+        </div>
       </div>
 
-      <div class="pieces-visual" style="margin-top: 20px;">
-        <h4>{{ t('taskPeer.pieceStatus') }}</h4>
+      <div class="pieces-visual">
+        <div class="pieces-visual-header">
+          <h4>{{ t('taskPeer.pieceStatus') }}</h4>
+          <span class="pieces-count">{{ getPiecesStatus().length }}/{{ task.numPieces }}</span>
+        </div>
         <div class="pieces-grid">
           <div
             v-for="(piece, index) in getPiecesStatus()"
             :key="index"
             :class="['piece-block', piece ? 'completed' : 'pending']"
-            :title="`区块 ${index}: ${piece ? t('taskPeer.pieceDone') : t('taskPeer.piecePending')}`"
+            :title="`区块 ${index + 1}: ${piece ? t('taskPeer.pieceDone') : t('taskPeer.piecePending')}`"
           />
         </div>
         <div class="pieces-legend">
@@ -30,7 +40,7 @@
           </span>
         </div>
       </div>
-    </div>
+    </template>
 
     <n-empty v-else :description="t('common.none')" />
   </n-card>
@@ -91,17 +101,57 @@ function getPiecesStatus(): boolean[] {
 
 <style scoped>
 .info-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+}
+
+.pieces-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
   margin-bottom: 20px;
 }
 
-.pieces-info {
-  margin-bottom: 20px;
+.pieces-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
 }
 
-.pieces-visual h4 {
-  margin: 0 0 16px 0;
+.pieces-stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pieces-stat-value {
   font-size: 16px;
   font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pieces-visual-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pieces-visual-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pieces-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .pieces-grid {
@@ -112,7 +162,7 @@ function getPiecesStatus(): boolean[] {
   margin-bottom: 16px;
   background-color: var(--bg-tertiary);
   padding: 12px;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .piece-block {
@@ -120,7 +170,7 @@ function getPiecesStatus(): boolean[] {
   height: 12px;
   border-radius: 2px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
 .piece-block.completed {
@@ -129,16 +179,19 @@ function getPiecesStatus(): boolean[] {
 
 .piece-block.pending {
   background-color: var(--text-placeholder);
+  opacity: 0.6;
 }
 
 [data-theme="dark"] .piece-block.pending {
   background-color: var(--border-dark);
+  opacity: 0.6;
 }
 
 .piece-block:hover {
   transform: scale(1.5);
   z-index: 1;
   position: relative;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
 }
 
 .pieces-legend {
@@ -151,7 +204,8 @@ function getPiecesStatus(): boolean[] {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 13px;
+  color: var(--text-regular);
 }
 
 .legend-color {
@@ -165,6 +219,7 @@ function getPiecesStatus(): boolean[] {
 }
 
 .legend-color.pending {
-  background-color: var(--border-light);
+  background-color: var(--text-placeholder);
+  opacity: 0.6;
 }
 </style>
