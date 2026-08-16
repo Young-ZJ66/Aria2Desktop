@@ -65,7 +65,7 @@
           </n-button>
 
           <n-button
-            type="warning"
+            type="info"
             :loading="isStarting || isStopping"
             :disabled="!canRestart"
             @click="restartService"
@@ -248,6 +248,14 @@ const localConfig = reactive<Aria2LocalConfig>({
   autoStart: false
 })
 
+// 用已预加载的进程配置初始化表单，首次渲染直接显示真实值，避免异步加载闪烁
+if (processInfo.value.config) {
+  localConfig.port = processInfo.value.config.port
+  localConfig.secret = processInfo.value.config.secret
+  localConfig.autoStart = processInfo.value.config.autoStart
+  localConfig.downloadDir = processInfo.value.config.downloadDir
+}
+
 // 表单验证规则
 const configRules = computed<FormRules>(() => ({
   port: [
@@ -279,29 +287,31 @@ async function startService() {
 }
 
 // 停止服务
-async function stopService() {
-  const confirmed = await dialog.warning({
+function stopService() {
+  dialog.warning({
     title: t('localService.confirmStopTitle'),
     content: t('localService.confirmStop'),
     positiveText: t('common.ok'),
-    negativeText: t('common.cancel')
+    negativeText: t('common.cancel'),
+    onPositiveClick: () => {
+      // 立即关闭确认框，停止操作在后台执行（stop 内部自行处理错误与提示）
+      void stop()
+    }
   })
-  if (confirmed !== true) return
-
-  await stop()
 }
 
 // 重启服务
-async function restartService() {
-  const confirmed = await dialog.warning({
+function restartService() {
+  dialog.warning({
     title: t('localService.confirmRestartTitle'),
     content: t('localService.confirmRestart'),
     positiveText: t('common.ok'),
-    negativeText: t('common.cancel')
+    negativeText: t('common.cancel'),
+    onPositiveClick: () => {
+      // 立即关闭确认框，重启操作在后台执行
+      void restart()
+    }
   })
-  if (confirmed !== true) return
-
-  await restart()
 }
 
 // 保存会话
@@ -361,22 +371,26 @@ async function saveConfig() {
 
   try {
     if (isRunning.value) {
-      const confirmed = await dialog.warning({
+      dialog.warning({
         title: t('localService.confirmSaveTitle'),
         content: t('localService.confirmSaveRestart'),
         positiveText: t('localService.saveAndRestart'),
-        negativeText: t('common.cancel')
+        negativeText: t('common.cancel'),
+        onPositiveClick: () => {
+          // 立即关闭确认框，保存并重启在后台执行
+          void (async () => {
+            try {
+              const success = await updateConfig(localConfig)
+              if (success) {
+                message.success(t('localService.configSavedRestarting'))
+                await restart()
+              }
+            } catch (error) {
+              handleConfigError(error)
+            }
+          })()
+        }
       })
-      if (confirmed !== true) {
-        message.info(t('localService.saveCancelled'))
-        return
-      }
-
-      const success = await updateConfig(localConfig)
-      if (success) {
-        message.success(t('localService.configSavedRestarting'))
-        await restart()
-      }
     } else {
       const success = await updateConfig(localConfig)
       if (success) {
@@ -384,18 +398,23 @@ async function saveConfig() {
       }
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    console.error('保存配置失败:', error)
-
-    if (errorMessage.includes('下载目录验证失败')) {
-      message.error(t('localService.invalidDir'))
-    } else if (errorMessage.includes('启动失败')) {
-      message.error(t('localService.restartFailed'))
-    } else {
-      message.error(t('localService.configSaveFailed', { error: errorMessage }))
-    }
+    handleConfigError(error)
   } finally {
     isSavingConfig.value = false
+  }
+}
+
+// 错误处理辅助函数
+function handleConfigError(error: unknown) {
+  const errorMessage = error instanceof Error ? error.message : String(error)
+  console.error('保存配置失败:', error)
+
+  if (errorMessage.includes('下载目录验证失败')) {
+    message.error(t('localService.invalidDir'))
+  } else if (errorMessage.includes('启动失败')) {
+    message.error(t('localService.restartFailed'))
+  } else {
+    message.error(t('localService.configSaveFailed', { error: errorMessage }))
   }
 }
 
@@ -456,6 +475,7 @@ onMounted(async () => {
 .status-row {
   display: flex;
   align-items: center;
+  gap: 12px;
   margin-bottom: 10px;
 }
 
@@ -479,5 +499,33 @@ onMounted(async () => {
   justify-content: center;
   gap: 12px;
   padding-top: 8px;
+}
+
+/* 统一现代化操作按钮：与系统风格一致，圆角、语义色光晕、悬停轻微浮起 */
+.control-buttons :deep(.n-button) {
+  height: 34px;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.control-buttons :deep(.n-button:hover:not([disabled])) {
+  transform: translateY(-1px);
+}
+
+.control-buttons :deep(.n-button:active:not([disabled])) {
+  transform: translateY(0);
+}
+
+.control-buttons :deep(.n-button--primary-type) {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 26%, transparent);
+}
+
+.control-buttons :deep(.n-button--error-type) {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-danger) 26%, transparent);
+}
+
+.control-buttons :deep(.n-button--info-type) {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-info) 22%, transparent);
 }
 </style>

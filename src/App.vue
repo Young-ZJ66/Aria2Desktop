@@ -52,6 +52,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { setLocale, getLocale, type AppLocale } from '@/i18n'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
+import { initLocalService } from '@/composables/useAria2LocalService'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import ConnectionDialog from '@/components/dialogs/ConnectionDialog.vue'
@@ -127,6 +128,7 @@ watch(() => connectionStore.isConnected, (connected) => {
     // 连接成功后立即加载一次数据
     statsStore.loadGlobalStat()
     statsStore.loadVersion()
+    // 全局配置缓存由 connectionStore.connect 连接成功后预热，设置页直接使用缓存，避免切换页面时重复请求闪烁
     taskStore.loadAllTasks()
     // 后台持续采集流量数据（不依赖状态页是否打开）
     trafficMonitor.startMonitor()
@@ -158,6 +160,12 @@ onMounted(async () => {
   // 应用主题
   settingsStore.applyTheme()
 
+  // 后台预加载本地引擎状态（让设置页直接渲染最新状态，避免闪烁）
+  initLocalService()
+
+  // 加载多连接配置预设（在自动连接之前）
+  connectionStore.loadProfiles()
+
   // Listen for config changes from main process (hot-reload)
   if (window.electronAPI) {
     unsubscribeConfig = window.electronAPI.onConfigChanged((data: { key: string; value: unknown }) => {
@@ -176,11 +184,10 @@ onMounted(async () => {
     })
   }
 
-  // 如果启用了自动连接，尝试连接（手动连接场景由上面的 isConnected watch 处理）
+  // 如果启用了自动连接，尝试连接（使用当前激活的配置预设）
   if (settingsStore.getSetting('autoConnect')) {
     try {
-      const aria2Config = settingsStore.aria2Config
-      await connectionStore.connect(aria2Config)
+      await connectionStore.connect()
     } catch (error) {
       console.error('Auto connection failed:', error)
       connectionStore.showConnectionDialog = true

@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, readonly } from 'vue'
 import { message } from '@/utils/feedback'
 import { useI18n } from 'vue-i18n'
 
@@ -33,19 +33,54 @@ export interface Aria2LocalConfig {
   autoStart?: boolean
 }
 
+// ── 模块级单例状态 ──
+// 在整个应用生命周期内只创建一次，状态跨组件实例共享
+const processInfo = ref<Aria2ProcessInfo>({
+  isRunning: false,
+  pid: null,
+  retryCount: 0,
+  config: null
+})
+
+const isStarting = ref(false)
+const isStopping = ref(false)
+let statusCheckInterval: ReturnType<typeof setInterval> | null = null
+
+// 模块级后台预加载标记，只初始化一次
+let initialized = false
+
+// 共享的进程状态拉取逻辑
+async function fetchStatus(): Promise<void> {
+  if (typeof window === 'undefined' || !window.electronAPI?.aria2) {
+    console.warn('Electron API not available')
+    return
+  }
+
+  try {
+    const status = await window.electronAPI.aria2.getStatus()
+    processInfo.value = status
+  } catch (error) {
+    console.error('获取 Aria2 状态失败:', error)
+    processInfo.value.error = error instanceof Error ? error.message : String(error)
+  }
+}
+
+// 应用启动时在后台预加载本地引擎状态并开启轮询，
+// 使设置页首次进入即可直接渲染最新状态，避免从"停止"闪烁到"运行中"
+export function initLocalService(): void {
+  if (initialized) return
+  initialized = true
+
+  if (typeof window === 'undefined' || !window.electronAPI?.aria2) return
+
+  fetchStatus()
+  if (!statusCheckInterval) {
+    statusCheckInterval = setInterval(fetchStatus, 5000)
+  }
+}
+
 export function useAria2LocalService() {
   const { t } = useI18n()
-
-  const processInfo = ref<Aria2ProcessInfo>({
-    isRunning: false,
-    pid: null,
-    retryCount: 0,
-    config: null
-  })
-
-  const isStarting = ref(false)
-  const isStopping = ref(false)
-  const statusCheckInterval = ref<NodeJS.Timeout | null>(null)
 
   // 计算属性
   const isRunning = computed(() => processInfo.value.isRunning)
@@ -61,20 +96,9 @@ export function useAria2LocalService() {
            window.electronAPI.aria2
   })
 
-  // 获取进程状态
+  // 获取进程状态（复用模块级共享 fetch）
   async function getStatus(): Promise<void> {
-    if (!isElectronAvailable.value) {
-      console.warn('Electron API not available')
-      return
-    }
-
-    try {
-      const status = await window.electronAPI.aria2.getStatus()
-      processInfo.value = status
-    } catch (error) {
-      console.error('获取 Aria2 状态失败:', error)
-      processInfo.value.error = error instanceof Error ? error.message : String(error)
-    }
+    await fetchStatus()
   }
 
   // 启动 Aria2
@@ -95,7 +119,6 @@ export function useAria2LocalService() {
       const result = await window.electronAPI.aria2.start()
 
       if (result.success) {
-        // 移除自动提示，让调用方决定是否显示成功消息
         await getStatus()
         return true
       } else {
@@ -190,7 +213,6 @@ export function useAria2LocalService() {
     }
 
     try {
-      // 将 reactive 对象转换为普通对象，确保可以序列化
       const plainConfig = {
         port: config.port,
         secret: config.secret,
@@ -198,14 +220,13 @@ export function useAria2LocalService() {
         autoStart: config.autoStart
       }
 
-      console.warn('正在更新 Aria2 配置:', plainConfig) // {{ AURA: Add - 调试日志 }}
+      console.warn('正在更新 Aria2 配置:', plainConfig)
       const result = await window.electronAPI.aria2.updateConfig(plainConfig)
-      console.warn('配置更新结果:', result) // {{ AURA: Add - 调试日志 }}
+      console.warn('配置更新结果:', result)
 
       if (result.success) {
-        // 移除重复的成功提示，让调用方决定是否显示消息
         await getStatus()
-        console.warn('配置更新成功，状态已刷新') // {{ AURA: Add - 调试日志 }}
+        console.warn('配置更新成功，状态已刷新')
         return true
       } else {
         message.error(t('localService.updateConfigFailed', { error: result.error }))
@@ -221,20 +242,20 @@ export function useAria2LocalService() {
 
   // 开始定期检查状态
   function startStatusCheck(interval = 5000): void {
-    if (statusCheckInterval.value) {
-      clearInterval(statusCheckInterval.value)
+    if (statusCheckInterval) {
+      clearInterval(statusCheckInterval)
     }
 
-    statusCheckInterval.value = setInterval(async () => {
+    statusCheckInterval = setInterval(async () => {
       await getStatus()
     }, interval)
   }
 
   // 停止状态检查
   function stopStatusCheck(): void {
-    if (statusCheckInterval.value) {
-      clearInterval(statusCheckInterval.value)
-      statusCheckInterval.value = null
+    if (statusCheckInterval) {
+      clearInterval(statusCheckInterval)
+      statusCheckInterval = null
     }
   }
 
@@ -257,21 +278,9 @@ export function useAria2LocalService() {
     }
   })
 
-  // 生命周期钩子
-  onMounted(async () => {
-    if (isElectronAvailable.value) {
-      await getStatus()
-      startStatusCheck()
-    }
-  })
-
-  onUnmounted(() => {
-    stopStatusCheck()
-  })
-
   return {
     // 状态
-    processInfo,
+    processInfo: readonly(processInfo),
     isRunning,
     hasError,
     canStart,
