@@ -43,7 +43,7 @@ export class Aria2ProcessManager {
       configPath: config.configPath || resources.configPath,
       port: config.port || 6800,
       secret: config.secret || '', // 默认不启用密钥
-      downloadDir: config.downloadDir || path.join(app.getPath('downloads'), 'Aria2Downloads'),
+      downloadDir: config.downloadDir || app.getPath('downloads'),
       enableRpc: config.enableRpc ?? true,
       rpcAllowOriginAll: config.rpcAllowOriginAll ?? true,
       autoStart: config.autoStart ?? true
@@ -483,6 +483,17 @@ export class Aria2ProcessManager {
       isAria2Available: this.resourceManager.isAria2Available(),
       resourceInfo: this.resourceManager.getResourceInfo()
     }
+  }
+
+  /**
+   * 将运行时会话级全局选项持久化到 aria2 配置文件，
+   * 使 aria2 进程重启（如每次软件启动）后仍能自动应用（如 max-mmap-limit）。
+   */
+  public saveGlobalOptionsToConfig(options: Record<string, string | number>): void {
+    if (!options || Object.keys(options).length === 0) return
+    // 重新加载配置文件，确保基于最新文件内容写入
+    this.configManager = new Aria2ConfigManager(this.config.configPath)
+    this.configManager.setMultipleConfigs(options)
   }
 
   public isAria2Available(): boolean {

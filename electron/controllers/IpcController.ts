@@ -53,6 +53,15 @@ export class IpcController {
   private registerAppHandlers() {
     ipcMain.handle('get-app-version', () => app.getVersion())
 
+    // 应用默认下载目录（Windows 系统"下载"文件夹）
+    ipcMain.handle('get-default-download-dir', (event) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      return {
+        success: true,
+        path: app.getPath('downloads').replace(/\\/g, '/')
+      }
+    })
+
     // 开机自启：查询当前是否已启用（仅 Windows 支持）
     ipcMain.handle('get-auto-launch', (event) => {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }

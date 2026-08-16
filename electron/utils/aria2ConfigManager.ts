@@ -56,18 +56,21 @@ export class Aria2ConfigManager {
   }
 
   private createDefaultConfig() {
-    const defaultDownloadDir = path.join(app.getPath('downloads'), 'Aria2Downloads').replace(/\\/g, '/')
+    const defaultDownloadDir = app.getPath('downloads').replace(/\\/g, '/')
     const defaultConfig = `# Aria2 Configuration File
 dir=${defaultDownloadDir}
 rpc-listen-port=6800
 rpc-allow-origin-all=true
 enable-rpc=true
+event-poll=select
 max-concurrent-downloads=5
 max-connection-per-server=16
 min-split-size=10M
 split=16
 continue=true
 save-session-interval=60
+log-level=warn
+max-mmap-limit=0
 `
     try {
       const dir = path.dirname(this.configPath)

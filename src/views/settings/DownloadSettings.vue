@@ -464,9 +464,9 @@ const rules: FormRules = {
 function applyOptionsToSettings(options: Aria2Option) {
   settings.dir = options.dir || ''
   settings.maxConcurrentDownloads = parseInt(options['max-concurrent-downloads'] || '5')
-  settings.maxConnectionPerServer = parseInt(options['max-connection-per-server'] || '5')
-  settings.split = parseInt(options.split || '5')
-  const minSplitValue = `${parseSizeToUnit(options['min-split-size'] || '20M', 'M')}M`
+  settings.maxConnectionPerServer = parseInt(options['max-connection-per-server'] || '16')
+  settings.split = parseInt(options.split || '16')
+  const minSplitValue = `${parseSizeToUnit(options['min-split-size'] || '10M', 'M')}M`
   settings.minSplitSize = minSplitValue
   if (!minSplitSizeOptions.some((o) => o.value === minSplitValue)) {
     minSplitSizeOptions.push({ label: minSplitValue, value: minSplitValue })
@@ -546,9 +546,9 @@ function defaults() {
   return {
     dir: '',
     maxConcurrentDownloads: 5,
-    maxConnectionPerServer: 5,
-    split: 5,
-    minSplitSize: '20M',
+    maxConnectionPerServer: 16,
+    split: 16,
+    minSplitSize: '10M',
     continue: true,
     saveSession: true,
     saveSessionInterval: 60,
@@ -598,7 +598,19 @@ const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSett
   toOptions,
   defaults,
   validate,
-  loadErrorKey: 'settings.download.loadFailed'
+  loadErrorKey: 'settings.download.loadFailed',
+  // 恢复默认后把下载目录填充为应用默认下载目录，避免输入框为空
+  onAfterReset: async (form) => {
+    if (!window.electronAPI?.getDefaultDownloadDir) return
+    try {
+      const result = await window.electronAPI.getDefaultDownloadDir()
+      if (result?.success && result.path) {
+        form.dir = result.path
+      }
+    } catch (error) {
+      console.warn('Failed to get default download dir:', error)
+    }
+  }
 })
 
 async function selectDirectory() {

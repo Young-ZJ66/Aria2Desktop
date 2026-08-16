@@ -23,11 +23,11 @@
           <n-tag
             v-if="isElectronAvailable && processInfo.isAria2Available !== false"
             :type="isRunning ? 'success' : 'error'"
-            size="large"
+            size="small"
           >
             {{ isRunning ? t('localService.running') : t('localService.stopped') }}
           </n-tag>
-          <n-tag v-else type="warning" size="large">
+          <n-tag v-else type="warning" size="small">
             {{ t('settings.engine.unavailable') }}
           </n-tag>
         </div>
@@ -46,26 +46,29 @@
 
         <div v-if="hasError" class="status-row">
           <span class="status-label">{{ t('localService.errorLabel') }}</span>
-          <n-tag type="error">{{ processInfo.error }}</n-tag>
+          <n-tag type="error" size="small">{{ processInfo.error }}</n-tag>
         </div>
       </div>
 
       <div class="control-buttons">
         <n-space>
           <n-button
-            :type="isRunning ? 'error' : 'primary'"
+            type="default"
+            :class="isRunning ? 'status-btn-stop' : 'status-btn-start'"
             :loading="isStarting || isStopping"
             :disabled="!canStart && !canStop"
             @click="isRunning ? stopService() : startService()"
           >
             <template #icon>
-              <n-icon><PlayOutline v-if="!isRunning" /><PauseOutline v-else /></n-icon>
+              <n-icon><PlayOutline v-if="!isRunning" /><StopOutline v-else /></n-icon>
             </template>
             {{ isRunning ? t('localService.stop') : t('localService.start') }}
           </n-button>
 
           <n-button
-            type="info"
+            v-if="isRunning"
+            type="default"
+            class="status-btn-restart"
             :loading="isStarting || isStopping"
             :disabled="!canRestart"
             @click="restartService"
@@ -77,7 +80,7 @@
           </n-button>
 
           <n-button
-            :disabled="!isRunning"
+            v-if="isRunning"
             @click="handleSaveSession"
           >
             <template #icon>
@@ -206,7 +209,7 @@ import { NIcon } from 'naive-ui'
 import {
   RefreshOutline,
   PlayOutline,
-  PauseOutline,
+  StopOutline,
   SaveOutline,
   FolderOutline
 } from '@vicons/ionicons5'
@@ -425,11 +428,20 @@ function updateAutoStart(value: boolean) {
 }
 
 // 重置配置
-function resetConfig() {
+async function resetConfig() {
+  let defaultDir = 'D:/Downloads'
+  if (window.electronAPI?.getDefaultDownloadDir) {
+    try {
+      const result = await window.electronAPI.getDefaultDownloadDir()
+      if (result?.success && result.path) defaultDir = result.path
+    } catch (error) {
+      console.warn('Failed to get default download dir:', error)
+    }
+  }
   Object.assign(localConfig, {
     port: 6800,
     secret: '',
-    downloadDir: 'D:/Downloads/Aria2Downloads',
+    downloadDir: defaultDir,
     autoStart: true
   })
   message.success(t('localService.configReset'))
@@ -447,7 +459,7 @@ function loadCurrentConfig() {
       Object.assign(localConfig, {
         port: 6800,
         secret: '',
-        downloadDir: 'D:/Downloads/Aria2Downloads',
+        downloadDir: 'D:/Downloads',
         autoStart: true
       })
     }
@@ -470,6 +482,11 @@ onMounted(async () => {
 
 .status-content {
   margin-bottom: 16px;
+}
+
+/* 统一服务状态标签的圆角，避免不同尺寸标签默认圆角不一致 */
+.status-content :deep(.n-tag) {
+  border-radius: 6px;
 }
 
 .status-row {
@@ -503,7 +520,6 @@ onMounted(async () => {
 
 /* 统一现代化操作按钮：与系统风格一致，圆角、语义色光晕、悬停轻微浮起 */
 .control-buttons :deep(.n-button) {
-  height: 34px;
   border-radius: 8px;
   font-weight: 500;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
@@ -517,15 +533,31 @@ onMounted(async () => {
   transform: translateY(0);
 }
 
-.control-buttons :deep(.n-button--primary-type) {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 26%, transparent);
+/* 启动/停止按钮：边框由 .n-button__border 子元素绘制（内联变量控制），保持默认灰色；
+   仅覆盖文字色：启动默认蓝字，停止默认红字。
+   悬浮时边框与字体自动变蓝（naive-ui default 按钮默认行为，与「保存会话」一致） */
+.control-buttons :deep(.status-btn-start) {
+  color: var(--color-primary) !important;
 }
 
-.control-buttons :deep(.n-button--error-type) {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-danger) 26%, transparent);
+.control-buttons :deep(.status-btn-stop) {
+  color: var(--color-danger) !important;
 }
 
-.control-buttons :deep(.n-button--info-type) {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-info) 22%, transparent);
+.control-buttons :deep(.status-btn-stop:hover:not([disabled])) {
+  color: var(--color-danger) !important;
+}
+
+/* 停止按钮悬浮时边框同步变红 */
+.control-buttons :deep(.status-btn-stop:hover:not([disabled]) .n-button__state-border) {
+  border-color: var(--color-danger);
+}
+
+/* 点击后的 focus 状态不显示蓝色边框（避免残留看起来像默认蓝边框），
+   仅悬浮时边框变蓝（naive-ui 默认 hover 行为） */
+.control-buttons :deep(.status-btn-start:focus:not(:hover) .n-button__state-border),
+.control-buttons :deep(.status-btn-stop:focus:not(:hover) .n-button__state-border),
+.control-buttons :deep(.status-btn-restart:focus:not(:hover) .n-button__state-border) {
+  border-color: transparent;
 }
 </style>

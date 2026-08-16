@@ -3,7 +3,7 @@
     <div class="action-buttons-group">
       <n-button
         size="small"
-        type="primary"
+        type="default"
         :disabled="!canBatchStart"
         @click="$emit('batch-start')"
       >
@@ -15,7 +15,7 @@
 
       <n-button
         size="small"
-        type="info"
+        type="default"
         :disabled="!canBatchPause"
         @click="$emit('batch-pause')"
       >
@@ -28,7 +28,8 @@
       <n-button
         v-if="hasSelection"
         size="small"
-        type="error"
+        type="default"
+        class="batch-delete-btn"
         @click="$emit('batch-delete')"
       >
         <template #icon>
@@ -78,7 +79,9 @@ defineEmits<Emits>()
   gap: 10px;
 }
 
-/* 统一现代化批量操作按钮：圆角、语义色光晕、悬停轻微浮起 */
+/* 统一现代化批量操作按钮：圆角、悬停轻微浮起。
+   开始/暂停为默认样式（灰边框+黑字，悬浮时边框与字体自动变蓝）；
+   删除按钮为灰边框+红字，悬浮时边框与字体变红 */
 .action-buttons-group :deep(.n-button) {
   height: 32px;
   border-radius: 8px;
@@ -94,16 +97,22 @@ defineEmits<Emits>()
   transform: translateY(0);
 }
 
-.action-buttons-group :deep(.n-button--primary-type) {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 25%, transparent);
+/* 删除按钮：默认红字，悬浮时红字红框 */
+.action-buttons-group :deep(.batch-delete-btn) {
+  color: var(--color-danger) !important;
 }
 
-.action-buttons-group :deep(.n-button--error-type) {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-danger) 25%, transparent);
+.action-buttons-group :deep(.batch-delete-btn:hover:not([disabled])) {
+  color: var(--color-danger) !important;
 }
 
-.action-buttons-group :deep(.n-button--info-type) {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-info) 22%, transparent);
+.action-buttons-group :deep(.batch-delete-btn:hover:not([disabled]) .n-button__state-border) {
+  border-color: var(--color-danger);
+}
+
+/* 删除按钮点击后的 focus 状态不显示蓝色边框，仅悬浮时边框变红 */
+.action-buttons-group :deep(.batch-delete-btn:focus:not(:hover) .n-button__state-border) {
+  border-color: transparent;
 }
 
 .selected-count {

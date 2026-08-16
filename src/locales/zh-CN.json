@@ -269,6 +269,8 @@
   "settings": {
     "save": "保存设置",
     "saved": "设置已保存",
+    "savedRestartAria2": "设置已保存，部分设置需要重启 Aria2 服务后生效",
+    "restartRequiredHint": "此选项需要重启 Aria2 服务后才能生效",
     "saveFailed": "保存设置失败: {error}",
     "reset": "重置",
     "resetConfirm": "确定要重置所有设置吗？",

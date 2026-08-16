@@ -16,7 +16,7 @@
       <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.advanced.eventPoll')" :tip="t('settings.advanced.eventPollTip')" />
+            <TipLabel :label="t('settings.advanced.eventPoll')" :tip="t('settings.advanced.eventPollTip')" :option="'event-poll'" />
           </template>
           <n-select
             v-model:value="form.eventPoll"
@@ -27,7 +27,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.advanced.enableMmap')" :tip="t('settings.advanced.enableMmapTip')" />
+            <TipLabel :label="t('settings.advanced.enableMmap')" :tip="t('settings.advanced.enableMmapTip')" :option="'enable-mmap'" />
           </template>
           <AppSwitch
             v-model:value="form.enableMmap"
@@ -37,7 +37,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.advanced.maxMmapLimit')" :tip="t('settings.advanced.maxMmapLimitTip')" />
+            <TipLabel :label="t('settings.advanced.maxMmapLimit')" :tip="t('settings.advanced.maxMmapLimitTip')" :option="'max-mmap-limit'" />
           </template>
           <n-input-number
             v-model:value="form.maxMmapLimit"
@@ -85,7 +85,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.advanced.consoleLogLevel')" :tip="t('settings.advanced.consoleLogLevelTip')" />
+            <TipLabel :label="t('settings.advanced.consoleLogLevel')" :tip="t('settings.advanced.consoleLogLevelTip')" :option="'console-log-level'" />
           </template>
           <n-select
             v-model:value="form.consoleLogLevel"
@@ -96,7 +96,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.advanced.summaryInterval')" :tip="t('settings.advanced.summaryIntervalTip')" />
+            <TipLabel :label="t('settings.advanced.summaryInterval')" :tip="t('settings.advanced.summaryIntervalTip')" :option="'summary-interval'" />
           </template>
           <n-input-number
             v-model:value="form.summaryInterval"
@@ -108,7 +108,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.advanced.enableColor')" :tip="t('settings.advanced.enableColorTip')" />
+            <TipLabel :label="t('settings.advanced.enableColor')" :tip="t('settings.advanced.enableColorTip')" :option="'enable-color'" />
           </template>
           <AppSwitch
             v-model:value="form.enableColor"
@@ -118,7 +118,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.advanced.humanReadable')" :tip="t('settings.advanced.humanReadableTip')" />
+            <TipLabel :label="t('settings.advanced.humanReadable')" :tip="t('settings.advanced.humanReadableTip')" :option="'human-readable'" />
           </template>
           <AppSwitch
             v-model:value="form.humanReadable"
@@ -162,7 +162,7 @@ const logLevelOptions = [
 ]
 
 const form = reactive({
-  eventPoll: 'epoll',
+  eventPoll: 'select',
   enableMmap: false,
   maxMmapLimit: 0,
   log: '',
@@ -174,7 +174,7 @@ const form = reactive({
 })
 
 function applyOptionsToSettings(options: Aria2Option) {
-  form.eventPoll = options['event-poll'] || 'epoll'
+  form.eventPoll = options['event-poll'] || 'select'
   form.enableMmap = options['enable-mmap'] === 'true'
   form.maxMmapLimit = parseSizeToUnit(options['max-mmap-limit'] || '0', 'G')
   form.log = options['log'] || ''
@@ -204,7 +204,7 @@ function toOptions(): Record<string, string> {
 
 function defaults() {
   return {
-    eventPoll: 'epoll',
+    eventPoll: 'select',
     enableMmap: false,
     maxMmapLimit: 0,
     log: '',

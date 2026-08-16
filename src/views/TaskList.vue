@@ -59,7 +59,7 @@
         :data="filteredTasks"
         :row-key="(row: Aria2Task) => row.gid"
         :row-props="rowProps"
-        :scroll-x="filteredTasks.length > 0 ? 1200 : undefined"
+        :scroll-x="1200"
         flex-height
         :bordered="false"
         class="task-table"

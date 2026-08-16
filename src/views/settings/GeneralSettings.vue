@@ -81,31 +81,33 @@
           <template #label>
             <TipLabel :label="t('generalSettings.checkForUpdates')" :tip="t('generalSettings.updateCheckTooltip')" />
           </template>
-          <div class="update-control">
-            <n-button
-              size="small"
-              :type="updateState === 'downloaded' ? 'primary' : 'default'"
-              :loading="updating"
-              :disabled="!isElectronAvailable || updateState === 'downloading'"
-              @click="handleUpdateAction"
-            >
-              <template #icon>
-                <n-icon><RefreshOutline /></n-icon>
-              </template>
-              {{ updateState === 'downloaded' ? t('generalSettings.restartToUpdate') : t('generalSettings.checkForUpdates') }}
-            </n-button>
-            <n-tag
-              v-if="updateState && updateState !== 'idle' && updateState !== 'error'"
-              :type="updateTagType"
-              size="small"
-              :bordered="false"
-              round
-            >
-              {{ updateStatusText }}
-            </n-tag>
-          </div>
-          <div class="current-version">
-            {{ t('generalSettings.currentVersion', { version: currentVersion || '—' }) }}
+          <div class="update-section">
+            <div class="update-control">
+              <n-button
+                size="small"
+                :type="updateState === 'downloaded' ? 'primary' : 'default'"
+                :loading="updating"
+                :disabled="!isElectronAvailable || updateState === 'downloading'"
+                @click="handleUpdateAction"
+              >
+                <template #icon>
+                  <n-icon><RefreshOutline /></n-icon>
+                </template>
+                {{ updateState === 'downloaded' ? t('generalSettings.restartToUpdate') : t('generalSettings.checkForUpdates') }}
+              </n-button>
+              <n-tag
+                v-if="updateState && updateState !== 'idle' && updateState !== 'error'"
+                :type="updateTagType"
+                size="small"
+                :bordered="false"
+                round
+              >
+                {{ updateStatusText }}
+              </n-tag>
+            </div>
+            <div class="current-version">
+              {{ t('generalSettings.currentVersion', { version: currentVersion || '—' }) }}
+            </div>
           </div>
         </n-form-item>
       </n-form>
@@ -340,10 +342,9 @@ onMounted(async () => {
   if (window.electronAPI?.onUpdateStatus) {
     unsubscribeUpdateStatus = window.electronAPI.onUpdateStatus((status: UpdateStatus) => {
       if (status.state === 'error') {
-        // 错误以顶部弹出提示呈现，避免长文本溢出设置界面
-        updateState.value = 'idle'
+        // 网络错误等问题静默视为已是最新版本，不提示用户更新出错
+        updateState.value = 'not-available'
         updating.value = false
-        message.error(t('generalSettings.updateError', { error: status.error || t('settings.unknownError') }))
         return
       }
       updateState.value = status.state
@@ -584,12 +585,11 @@ async function checkForUpdates() {
   try {
     const result = await window.electronAPI.checkForUpdates()
     if (!result.success) {
-      updateState.value = 'idle'
-      message.error(t('generalSettings.updateError', { error: result.error || t('settings.unknownError') }))
+      // 网络错误等问题静默视为已是最新版本，不提示用户更新出错
+      updateState.value = 'not-available'
     }
-  } catch (error) {
-    updateState.value = 'idle'
-    message.error(t('generalSettings.updateError', { error: error instanceof Error ? error.message : String(error) }))
+  } catch (_error) {
+    updateState.value = 'not-available'
   } finally {
     updating.value = false
   }
@@ -627,6 +627,14 @@ async function restartAndInstall() {
   gap: 12px;
 }
 
+.update-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+}
+
 .update-control {
   display: flex;
   align-items: center;
@@ -635,7 +643,6 @@ async function restartAndInstall() {
 }
 
 .current-version {
-  margin-top: 6px;
   font-size: 12px;
   color: var(--text-tertiary, #999);
   user-select: text;

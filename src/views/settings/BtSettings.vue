@@ -17,28 +17,28 @@
         <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.enableDht')" :tip="t('settings.bt.enableDhtTip')" />
+              <TipLabel :label="t('settings.bt.enableDht')" :tip="t('settings.bt.enableDhtTip')" :option="'enable-dht'" />
             </template>
             <AppSwitch v-model:value="settings.enableDht" />
           </n-form-item>
 
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.enableDht6')" :tip="t('settings.bt.enableDht6Tip')" />
+              <TipLabel :label="t('settings.bt.enableDht6')" :tip="t('settings.bt.enableDht6Tip')" :option="'enable-dht6'" />
             </template>
             <AppSwitch v-model:value="settings.enableDht6" />
           </n-form-item>
 
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.dhtListenPort')" :tip="t('settings.bt.dhtListenPortTip')" />
+              <TipLabel :label="t('settings.bt.dhtListenPort')" :tip="t('settings.bt.dhtListenPortTip')" :option="'dht-listen-port'" />
             </template>
             <n-input-number v-model:value="settings.dhtListenPort" :min="1024" :max="65535" />
           </n-form-item>
 
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.dhtFilePath')" :tip="t('settings.bt.dhtFilePathTip')" />
+              <TipLabel :label="t('settings.bt.dhtFilePath')" :tip="t('settings.bt.dhtFilePathTip')" :option="'dht-file-path'" />
             </template>
             <n-input-group>
               <n-input v-model:value="settings.dhtFilePath" :placeholder="t('settings.bt.dhtFilePathPlaceholder')" clearable />
@@ -52,35 +52,35 @@
 
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.btEnableLpd')" :tip="t('settings.bt.btEnableLpdTip')" />
+              <TipLabel :label="t('settings.bt.btEnableLpd')" :tip="t('settings.bt.btEnableLpdTip')" :option="'bt-enable-lpd'" />
             </template>
             <AppSwitch v-model:value="settings.btEnableLpd" />
           </n-form-item>
 
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.btExternalIp')" :tip="t('settings.bt.btExternalIpTip')" />
+              <TipLabel :label="t('settings.bt.btExternalIp')" :tip="t('settings.bt.btExternalIpTip')" :option="'bt-external-ip'" />
             </template>
             <n-input v-model:value="settings.btExternalIp" :placeholder="t('settings.bt.btExternalIpPlaceholder')" clearable />
           </n-form-item>
 
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.dhtEntryPoint')" :tip="t('settings.bt.dhtEntryPointTip')" />
+              <TipLabel :label="t('settings.bt.dhtEntryPoint')" :tip="t('settings.bt.dhtEntryPointTip')" :option="'dht-entry-point'" />
             </template>
             <n-input v-model:value="settings.dhtEntryPoint" :placeholder="t('settings.bt.dhtEntryPointPlaceholder')" clearable />
           </n-form-item>
 
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.dhtEntryPoint6')" :tip="t('settings.bt.dhtEntryPoint6Tip')" />
+              <TipLabel :label="t('settings.bt.dhtEntryPoint6')" :tip="t('settings.bt.dhtEntryPoint6Tip')" :option="'dht-entry-point6'" />
             </template>
             <n-input v-model:value="settings.dhtEntryPoint6" :placeholder="t('settings.bt.dhtEntryPoint6Placeholder')" clearable />
           </n-form-item>
 
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.dhtFilePath6')" :tip="t('settings.bt.dhtFilePath6Tip')" />
+              <TipLabel :label="t('settings.bt.dhtFilePath6')" :tip="t('settings.bt.dhtFilePath6Tip')" :option="'dht-file-path6'" />
             </template>
             <n-input-group>
               <n-input v-model:value="settings.dhtFilePath6" :placeholder="t('settings.bt.dhtFilePath6Placeholder')" clearable />
@@ -106,7 +106,7 @@
         <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.listenPort')" :tip="t('settings.bt.listenPortTip')" />
+              <TipLabel :label="t('settings.bt.listenPort')" :tip="t('settings.bt.listenPortTip')" :option="'listen-port'" />
             </template>
             <n-input-number v-model:value="settings.listenPort" :min="1024" :max="65535" />
           </n-form-item>
@@ -332,14 +332,14 @@
         <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.peerIdPrefix')" :tip="t('settings.bt.peerIdPrefixTip')" />
+              <TipLabel :label="t('settings.bt.peerIdPrefix')" :tip="t('settings.bt.peerIdPrefixTip')" :option="'peer-id-prefix'" />
             </template>
             <n-input v-model:value="settings.peerIdPrefix" :placeholder="t('settings.bt.peerIdPrefixPlaceholder')" clearable />
           </n-form-item>
 
           <n-form-item>
             <template #label>
-              <TipLabel :label="t('settings.bt.peerAgent')" :tip="t('settings.bt.peerAgentTip')" />
+              <TipLabel :label="t('settings.bt.peerAgent')" :tip="t('settings.bt.peerAgentTip')" :option="'peer-agent'" />
             </template>
             <n-input v-model:value="settings.peerAgent" :placeholder="t('settings.bt.peerAgentPlaceholder')" clearable />
           </n-form-item>
@@ -445,7 +445,7 @@ function applyOptionsToSettings(options: Aria2Option) {
   settings.seedRatio = parseFloat(options['seed-ratio'] || '1.0')
   settings.seedTime = parseInt(options['seed-time'] || '0')
   settings.btStopTimeout = parseInt(options['bt-stop-timeout'] || '0')
-  settings.btPrioritizePiece = options['bt-prioritize-piece'] === 'true'
+  settings.btPrioritizePiece = !!options['bt-prioritize-piece']
   settings.btHashCheckSeed = options['bt-hash-check-seed'] !== 'false'
   settings.btDetachSeedOnly = options['bt-detach-seed-only'] === 'true'
   settings.maxPieceLength = parseSizeToUnit(options['max-piece-length'] || '0', 'M')
@@ -483,7 +483,6 @@ function toOptions(): Record<string, string> {
     'seed-ratio': settings.seedRatio.toString(),
     'seed-time': settings.seedTime.toString(),
     'bt-stop-timeout': settings.btStopTimeout.toString(),
-    'bt-prioritize-piece': settings.btPrioritizePiece ? 'true' : 'false',
     'bt-hash-check-seed': settings.btHashCheckSeed ? 'true' : 'false',
     'bt-detach-seed-only': settings.btDetachSeedOnly ? 'true' : 'false',
     'bt-seed-unverified': settings.btSeedUnverified ? 'true' : 'false',
@@ -503,6 +502,8 @@ function toOptions(): Record<string, string> {
   if (settings.btExternalIp) options['bt-external-ip'] = settings.btExternalIp
   if (settings.btTracker) options['bt-tracker'] = settings.btTracker
   if (settings.btExcludeTracker) options['bt-exclude-tracker'] = settings.btExcludeTracker
+  // bt-prioritize-piece 需要 head/tail 格式（如 head=32M,tail=32M），开启时优先下载文件开头与结尾
+  if (settings.btPrioritizePiece) options['bt-prioritize-piece'] = 'head=32M,tail=32M'
   options['max-piece-length'] = formatSizeWithUnit(settings.maxPieceLength, 'M')
   if (settings.peerIdPrefix) options['peer-id-prefix'] = settings.peerIdPrefix
   if (settings.peerAgent) options['peer-agent'] = settings.peerAgent

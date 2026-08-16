@@ -4,6 +4,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 const electronAPI = {
   // 应用信息
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  // 应用默认下载目录（Windows 系统"下载"文件夹）
+  getDefaultDownloadDir: () => ipcRenderer.invoke('get-default-download-dir'),
 
   // 数据存储
   getStoreValue: (key: string) => ipcRenderer.invoke('get-store-value', key),
@@ -46,7 +48,8 @@ const electronAPI = {
     stop: () => ipcRenderer.invoke('aria2-stop'),
     restart: () => ipcRenderer.invoke('aria2-restart'),
     getStatus: () => ipcRenderer.invoke('aria2-status'),
-    updateConfig: (config: unknown) => ipcRenderer.invoke('aria2-update-config', config)
+    updateConfig: (config: unknown) => ipcRenderer.invoke('aria2-update-config', config),
+    saveGlobalOptions: (options: Record<string, string | number>) => ipcRenderer.invoke('aria2-save-global-options', options)
   },
 
   // 会话管理

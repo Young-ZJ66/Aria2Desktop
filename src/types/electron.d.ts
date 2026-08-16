@@ -14,6 +14,9 @@ export interface ElectronAPI {
   // 应用信息
   getAppVersion: () => Promise<string>
 
+  // 应用默认下载目录（Windows 系统"下载"文件夹）
+  getDefaultDownloadDir: () => Promise<{ success: boolean; path?: string; error?: string }>
+
   // 数据存储
   getStoreValue: (key: string) => Promise<unknown>
   setStoreValue: (key: string, value: unknown) => Promise<{ success: boolean; error?: string }>
@@ -67,6 +70,7 @@ export interface ElectronAPI {
       error?: string
     }>
     updateConfig: (config: unknown) => Promise<{ success: boolean; error?: string }>
+    saveGlobalOptions: (options: Record<string, string | number>) => Promise<{ success: boolean; error?: string }>
   }
 
   // 会话管理

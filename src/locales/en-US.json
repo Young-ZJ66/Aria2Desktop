@@ -269,6 +269,8 @@
   "settings": {
     "save": "Save Settings",
     "saved": "Settings saved",
+    "savedRestartAria2": "Settings saved. Some settings require restarting Aria2 to take effect",
+    "restartRequiredHint": "This option requires restarting the Aria2 service to take effect",
     "saveFailed": "Failed to save settings: {error}",
     "reset": "Reset",
     "resetConfirm": "Are you sure you want to reset all settings?",

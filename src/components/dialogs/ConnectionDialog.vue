@@ -47,8 +47,8 @@
             <n-button
               v-if="isProfileConnected(profile.id)"
               size="small"
-              type="error"
-              class="app-action-btn"
+              type="default"
+              class="app-action-btn disconnect-btn"
               @click="handleDisconnect"
             >
               {{ t('connection.disconnect') }}
@@ -519,7 +519,21 @@ function handleDeleteProfile() {
   box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
-:deep(.app-action-btn--error-type) {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-danger) 25%, transparent);
+/* 断开按钮：灰边框+红字，悬浮时边框与字体变红 */
+:deep(.disconnect-btn) {
+  color: var(--color-danger) !important;
+}
+
+:deep(.disconnect-btn:hover:not([disabled])) {
+  color: var(--color-danger) !important;
+}
+
+:deep(.disconnect-btn:hover:not([disabled]) .n-button__state-border) {
+  border-color: var(--color-danger);
+}
+
+/* 断开按钮点击后的 focus 状态不显示蓝色边框，仅悬浮时边框变红 */
+:deep(.disconnect-btn:focus:not(:hover) .n-button__state-border) {
+  border-color: transparent;
 }
 </style>

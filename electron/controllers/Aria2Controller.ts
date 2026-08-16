@@ -33,7 +33,7 @@ export class Aria2Controller {
       const aria2Config = {
         port: Number(aria2Settings.port) || 6800,
         secret: String(aria2Settings.secret || ''),
-        downloadDir: aria2Settings.downloadDir ? String(aria2Settings.downloadDir) : path.join(app.getPath('downloads'), 'Aria2Downloads'),
+        downloadDir: aria2Settings.downloadDir ? String(aria2Settings.downloadDir) : app.getPath('downloads'),
         autoStart: aria2Settings.autoStart !== undefined ? Boolean(aria2Settings.autoStart) : true
       }
 
@@ -165,6 +165,17 @@ export class Aria2Controller {
       try {
         const { port, secret } = this.getRpcSettings()
         await this.callAria2Rpc(port, secret, 'aria2.saveSession')
+        return { success: true }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    })
+
+    ipcMain.handle('aria2-save-global-options', (event, options) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
+      try {
+        this.aria2Manager.saveGlobalOptionsToConfig(options || {})
         return { success: true }
       } catch (e) {
         return { success: false, error: String(e) }
