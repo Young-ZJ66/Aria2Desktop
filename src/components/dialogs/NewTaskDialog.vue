@@ -15,9 +15,40 @@
             <n-input
               v-model:value="uriForm.uris"
               type="textarea"
-              :rows="6"
+              :rows="5"
               :placeholder="t('newTask.urlsPlaceholder')"
             />
+          </n-form-item>
+          <n-form-item path="dir" :label="t('newTask.downloadDir')" label-placement="top">
+            <n-input v-model:value="uriForm.dir" :placeholder="t('newTask.dirPlaceholder')">
+              <template #suffix>
+                <n-button text :disabled="!isElectron" @click="selectDir">
+                  <template #icon><n-icon><FolderOutline /></n-icon></template>
+                </n-button>
+              </template>
+            </n-input>
+          </n-form-item>
+          <n-form-item path="fileName" :label="t('newTask.fileName')" label-placement="top">
+            <n-input v-model:value="uriForm.fileName" :placeholder="t('newTask.fileNamePlaceholder')" />
+          </n-form-item>
+          <n-form-item>
+            <template #label>
+              <span class="option-label">{{ t('newTask.options') }}</span>
+            </template>
+            <div class="option-row">
+              <div class="option-item">
+                <span class="option-item-label">{{ t('newTask.maxConnectionPerServer') }}</span>
+                <n-input-number v-model:value="uriForm.maxConnectionPerServer" :min="1" :max="16" />
+              </div>
+              <div class="option-item">
+                <span class="option-item-label">{{ t('newTask.minSplitSize') }}</span>
+                <n-select v-model:value="uriForm.minSplitSize" :options="minSplitSizeOptions" />
+              </div>
+              <div class="option-item option-item--switch">
+                <span class="option-item-label">{{ t('newTask.autoStart') }}</span>
+                <AppSwitch v-model:value="uriForm.autoStart" />
+              </div>
+            </div>
           </n-form-item>
           <div class="form-actions">
             <n-space>
@@ -101,13 +132,14 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { CloudUploadOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline, FolderOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import type { FormInst, FormRules } from 'naive-ui'
 import { useUiStore } from '@/stores/uiStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import AppSwitch from '@/components/AppSwitch.vue'
 import type { Aria2Option } from '@/types/aria2'
 
 const uiStore = useUiStore()
@@ -120,6 +152,17 @@ const activeTab = ref('uri')
 const submitting = ref(false)
 const draggingTorrent = ref(false)
 const draggingMetalink = ref(false)
+
+const isElectron = computed(() => !!window.electronAPI)
+
+const minSplitSizeOptions = [
+  { label: '1M', value: '1M' },
+  { label: '5M', value: '5M' },
+  { label: '10M', value: '10M' },
+  { label: '20M', value: '20M' },
+  { label: '50M', value: '50M' },
+  { label: '100M', value: '100M' }
+]
 
 const visible = computed({
   get: () => uiStore.showNewTask,
@@ -137,9 +180,14 @@ const uriFormRef = ref<FormInst>()
 const torrentFormRef = ref<FormInst>()
 const metalinkFormRef = ref<FormInst>()
 
-// URI 下载表单（仅保留链接输入框）
+// URI 下载表单
 const uriForm = reactive({
-  uris: ''
+  uris: '',
+  dir: '',
+  fileName: '',
+  maxConnectionPerServer: 5,
+  minSplitSize: '20M',
+  autoStart: true
 })
 
 // 种子下载表单
@@ -195,11 +243,11 @@ async function handleUriSubmit() {
     }
 
     const options: Record<string, string> = {}
-    const downloadConfig = settingsStore.downloadConfig
-    if (downloadConfig.defaultDir) options.dir = downloadConfig.defaultDir
-    options['max-connection-per-server'] = downloadConfig.maxConnectionPerServer.toString()
-    options['min-split-size'] = downloadConfig.minSplitSize
-    if (!downloadConfig.autoStart) options.pause = 'true'
+    if (uriForm.dir) options.dir = uriForm.dir
+    if (uriForm.fileName) options.out = uriForm.fileName
+    options['max-connection-per-server'] = uriForm.maxConnectionPerServer.toString()
+    options['min-split-size'] = uriForm.minSplitSize
+    if (!uriForm.autoStart) options.pause = 'true'
 
     const gid = await taskStore.addUri(uris, options)
     console.warn('Task added with GID:', gid)
@@ -296,6 +344,28 @@ async function handleMetalinkSubmit() {
 function handleUriReset() {
   uriFormRef.value?.restoreValidation()
   uriForm.uris = ''
+  uriForm.dir = ''
+  uriForm.fileName = ''
+  uriForm.maxConnectionPerServer = 5
+  uriForm.minSplitSize = '20M'
+  uriForm.autoStart = true
+}
+
+// 选择保存目录
+async function selectDir() {
+  if (!window.electronAPI) return
+  try {
+    const result = await window.electronAPI.showOpenDialog({
+      title: t('newTask.selectDirTitle'),
+      properties: ['openDirectory'],
+      defaultPath: uriForm.dir || undefined
+    })
+    if (!result.canceled && result.filePaths.length > 0) {
+      uriForm.dir = result.filePaths[0]
+    }
+  } catch (_error) {
+    message.error(t('newTask.selectDirFailed'))
+  }
 }
 
 function handleTorrentReset() {
@@ -368,6 +438,34 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   margin-top: 8px;
+}
+
+.option-label {
+  font-weight: 500;
+}
+
+.option-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  width: 100%;
+}
+
+.option-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 0;
+  min-width: 160px;
+}
+
+.option-item--switch {
+  justify-content: center;
+}
+
+.option-item-label {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .file-drop-area {
