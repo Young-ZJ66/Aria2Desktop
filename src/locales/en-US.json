@@ -820,7 +820,11 @@
     "restartToUpdate": "Restart to Update",
     "updateCheckDone": "Check complete",
     "updateCheckTooltip": "Check for new Aria2Desktop releases",
-    "currentVersion": "Current version: {version}"
+    "currentVersion": "Current version: {version}",
+    "startupUpdatePrompt": "New version v{version} available",
+    "updateNotesTitle": "What's New",
+    "updateNow": "Update Now",
+    "updateLater": "Later"
   },
   "aria2Basic": {
     "title": "Aria2 Basic Settings",

@@ -820,7 +820,11 @@
     "restartToUpdate": "重启更新",
     "updateCheckDone": "检查完成",
     "updateCheckTooltip": "检查 Aria2Desktop 是否有新版本发布",
-    "currentVersion": "当前版本：{version}"
+    "currentVersion": "当前版本：{version}",
+    "startupUpdatePrompt": "发现新版本 v{version}",
+    "updateNotesTitle": "更新内容",
+    "updateNow": "立即更新",
+    "updateLater": "稍后"
   },
   "aria2Basic": {
     "title": "Aria2 基本设置",

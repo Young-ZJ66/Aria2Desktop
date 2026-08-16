@@ -84,6 +84,12 @@ export class IpcController {
       return await this.updateController.checkForUpdates()
     })
 
+    // 自动更新：启动时后台检查（只提醒，不下载）
+    ipcMain.handle('check-updates-on-startup', async (event) => {
+      if (!this.validateSender(event)) return { success: false, hasUpdate: false, error: 'Unauthorized' }
+      return await this.updateController.checkForUpdatesOnStartup()
+    })
+
     // 自动更新：重启更新（启动安装程序并退出应用）
     ipcMain.handle('restart-and-install', async (event) => {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }

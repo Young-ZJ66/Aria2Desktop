@@ -43,7 +43,7 @@ export class UpdateController {
       return { success: false, error: 'Development mode does not support auto update' }
     }
     try {
-      const tag = await this.fetchLatestVersionTag()
+      const { tag } = await this.fetchLatestReleaseInfo()
       const latestVersion = tag.replace(/^v/i, '')
       const currentVersion = app.getVersion()
 
@@ -83,9 +83,32 @@ export class UpdateController {
     }
   }
 
-  /** 请求 releases.atom 订阅源，提取最新 Release 的 tag（如 v1.0.1） */
-  private fetchLatestVersionTag(): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
+  /** 启动时后台检查更新（只提醒，不下载） */
+  async checkForUpdatesOnStartup(): Promise<{
+    success: boolean
+    hasUpdate: boolean
+    version?: string
+    notes?: string
+    error?: string
+  }> {
+    if (!app.isPackaged) {
+      return { success: false, hasUpdate: false, error: 'Development mode does not support auto update' }
+    }
+    try {
+      const { tag, notes } = await this.fetchLatestReleaseInfo()
+      const latestVersion = tag.replace(/^v/i, '')
+      if (this.compareVersions(latestVersion, app.getVersion()) <= 0) {
+        return { success: true, hasUpdate: false }
+      }
+      return { success: true, hasUpdate: true, version: latestVersion, notes }
+    } catch (error) {
+      return { success: false, hasUpdate: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  /** 请求 releases.atom 订阅源，提取最新 Release 的 tag 与更新内容（如 v1.0.1） */
+  private fetchLatestReleaseInfo(): Promise<{ tag: string; notes: string }> {
+    return new Promise<{ tag: string; notes: string }>((resolve, reject) => {
       const req = https.request(this.buildRequestOptions(RELEASES_ATOM_URL), (res) => {
         const chunks: Buffer[] = []
         res.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -96,18 +119,31 @@ export class UpdateController {
           }
           const body = Buffer.concat(chunks).toString('utf-8')
           // 匹配第一个 release tag，如 https://github.com/.../releases/tag/v1.0.1
-          const match = /releases\/tag\/([^\/<"']+)/.exec(body)
-          if (!match) {
+          const tagMatch = /releases\/tag\/([^\/<"']+)/.exec(body)
+          if (!tagMatch) {
             reject(new Error('No release tag found'))
             return
           }
-          resolve(match[1])
+          // 提取第一条 entry 的更新内容（content 节点，HTML 转义，需反转义）
+          const contentMatch = /<content[^>]*>([\s\S]*?)<\/content>/.exec(body)
+          const notes = contentMatch ? this.decodeHtmlEntities(contentMatch[1]).trim() : ''
+          resolve({ tag: tagMatch[1], notes })
         })
         res.on('error', reject)
       })
       req.on('error', reject)
       req.end()
     })
+  }
+
+  /** 反转义 atom 内容中的 HTML 实体 */
+  private decodeHtmlEntities(input: string): string {
+    return input
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&')
   }
 
   /** 按版本与当前架构构造安装包下载地址（命名规则与打包产物保持一致） */
