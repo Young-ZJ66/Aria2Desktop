@@ -103,7 +103,7 @@
               {{ t('generalSettings.installNow') }}
             </n-button>
             <n-tag
-              v-if="updateState && updateState !== 'idle'"
+              v-if="updateState && updateState !== 'idle' && updateState !== 'error'"
               :type="updateTagType"
               size="small"
               :bordered="false"
@@ -237,15 +237,13 @@ const updateState = ref<'idle' | UpdateStatus['state']>('idle')
 const updateVersion = ref('')
 const updatePercent = ref(0)
 
-const updateTagType = computed<'info' | 'success' | 'error' | 'warning'>(() => {
+const updateTagType = computed<'info' | 'success' | 'warning'>(() => {
   switch (updateState.value) {
     case 'available':
     case 'downloading':
       return 'info'
     case 'downloaded':
       return 'success'
-    case 'error':
-      return 'error'
     case 'not-available':
       return 'success'
     default:
@@ -265,14 +263,10 @@ const updateStatusText = computed(() => {
       return t('generalSettings.updateDownloading', { percent: Math.round(updatePercent.value) })
     case 'downloaded':
       return t('generalSettings.updateDownloaded')
-    case 'error':
-      return t('generalSettings.updateError', { error: updateErrorText.value })
     default:
       return ''
   }
 })
-
-const updateErrorText = ref('')
 
 const languageOptions = [
   { label: '简体中文', value: 'zh-CN' },
@@ -340,13 +334,17 @@ onMounted(async () => {
   // 注册更新状态监听
   if (window.electronAPI?.onUpdateStatus) {
     unsubscribeUpdateStatus = window.electronAPI.onUpdateStatus((status: UpdateStatus) => {
+      if (status.state === 'error') {
+        // 错误以顶部弹出提示呈现，避免长文本溢出设置界面
+        updateState.value = 'idle'
+        updating.value = false
+        message.error(t('generalSettings.updateError', { error: status.error || t('settings.unknownError') }))
+        return
+      }
       updateState.value = status.state
       updateVersion.value = status.version ?? ''
       if (typeof status.percent === 'number') {
         updatePercent.value = status.percent
-      }
-      if (status.error) {
-        updateErrorText.value = status.error
       }
       if (status.state === 'not-available') {
         updating.value = false
@@ -578,17 +576,15 @@ async function checkForUpdates() {
   if (!window.electronAPI?.checkForUpdates) return
   updating.value = true
   updateState.value = 'checking'
-  updateErrorText.value = ''
   try {
     const result = await window.electronAPI.checkForUpdates()
     if (!result.success) {
-      updateState.value = 'error'
-      updateErrorText.value = result.error || ''
+      updateState.value = 'idle'
       message.error(t('generalSettings.updateError', { error: result.error || t('settings.unknownError') }))
     }
   } catch (error) {
-    updateState.value = 'error'
-    updateErrorText.value = error instanceof Error ? error.message : String(error)
+    updateState.value = 'idle'
+    message.error(t('generalSettings.updateError', { error: error instanceof Error ? error.message : String(error) }))
   } finally {
     updating.value = false
   }
