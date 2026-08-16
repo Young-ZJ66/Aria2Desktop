@@ -84,11 +84,10 @@ export class IpcController {
       return await this.updateController.checkForUpdates()
     })
 
-    // 自动更新：立即退出并安装已下载的更新
-    ipcMain.handle('quit-and-install', (event) => {
+    // 自动更新：重新打开已下载的安装程序
+    ipcMain.handle('open-update-installer', async (event) => {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
-      this.updateController.quitAndInstall()
-      return { success: true }
+      return await this.updateController.openInstaller()
     })
 
     ipcMain.handle('set-tray-enabled', (event, enabled: boolean) => {

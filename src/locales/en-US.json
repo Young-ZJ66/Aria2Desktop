@@ -815,9 +815,9 @@
     "updateAvailable": "New version {version} found, downloading...",
     "updateNotAvailable": "You are up to date",
     "updateDownloading": "Downloading update {percent}%",
-    "updateDownloaded": "Update downloaded and will install on next quit",
+    "updateDownloaded": "Update downloaded, launching installer",
     "updateError": "Failed to check for updates: {error}",
-    "installNow": "Install Now",
+    "installNow": "Open Installer",
     "updateCheckDone": "Check complete",
     "updateCheckTooltip": "Check for new Aria2Desktop releases"
   },

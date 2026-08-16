@@ -590,9 +590,12 @@ async function checkForUpdates() {
   }
 }
 
-// 立即安装更新
-function installUpdate() {
-  window.electronAPI?.quitAndInstall()
+// 打开已下载的安装程序执行安装
+async function installUpdate() {
+  const result = await window.electronAPI?.openUpdateInstaller?.()
+  if (result && !result.success) {
+    message.error(t('generalSettings.updateError', { error: result.error || t('settings.unknownError') }))
+  }
 }
 </script>
 

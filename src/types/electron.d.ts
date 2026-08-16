@@ -44,7 +44,7 @@ export interface ElectronAPI {
 
   // 自动更新
   checkForUpdates: () => Promise<{ success: boolean; error?: string }>
-  quitAndInstall: () => Promise<{ success: boolean; error?: string }>
+  openUpdateInstaller: () => Promise<{ success: boolean; error?: string }>
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
 
   // Aria2 进程管理

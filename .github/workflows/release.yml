@@ -41,23 +41,28 @@ jobs:
       - name: 准备对应架构的 aria2c
         run: node scripts/prepare-aria2c.mjs ${{ matrix.res_arch }}
 
-      # 构建安装包并发布（electron-builder 负责创建 Release、上传 Setup.exe、生成 latest.yml 供自动更新）
-      - name: 构建并发布安装包
+      # 构建安装包（不发布，产物含 Setup.exe 与 blockmap，仅上传 Setup.exe）
+      - name: 构建安装包
         shell: pwsh
         run: |
           npm run build
-          npx electron-builder --win --publish always --${{ matrix.electron_arch }} --config.win.target=nsis --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-Setup.${ext}'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npx electron-builder --win --publish never --${{ matrix.electron_arch }} --config.win.target=nsis --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-Setup.${ext}'
 
-      # 仅构建 zip 便携版，不触发 electron-builder 二次发布，避免 SIGINT 取消
+      # 仅构建 zip 便携版
       - name: 构建便携版 zip
         run: npx electron-builder --win --publish never --${{ matrix.electron_arch }} --config.win.target=zip --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-portable.${ext}'
 
-      # 用 GitHub CLI 把 zip 补传到已创建的 Release（gh 预装在 windows-latest runner 上）
-      - name: 上传便携版到 Release
+      # 用 GitHub CLI 创建/更新 Release，只上传安装包与便携版（不含 latest.yml / blockmap）
+      - name: 创建 Release 并上传产物
         shell: pwsh
         run: |
+          gh release view ${{ github.ref_name }} 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create ${{ github.ref_name }} --title "Aria2 Desktop ${{ github.ref_name }}" --generate-notes
+          }
+          Get-ChildItem release -Filter "*-Setup.exe" | ForEach-Object {
+            gh release upload ${{ github.ref_name }} $_.FullName --clobber
+          }
           Get-ChildItem release -Filter "*-portable.zip" | ForEach-Object {
             gh release upload ${{ github.ref_name }} $_.FullName --clobber
           }
