@@ -30,7 +30,7 @@ jobs:
       - name: 安装 Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: npm
 
       - name: 安装依赖
@@ -40,13 +40,25 @@ jobs:
       - name: 准备对应架构的 aria2c
         run: node scripts/prepare-aria2c.mjs ${{ matrix.res_arch }}
 
-      # 前端构建 + 主进程编译 + 打包发布（--publish always 自动上传到 GitHub Release）
-      # 每个架构依次产出 NSIS 安装包和 zip 便携版
-      - name: 构建并发布
+      # 构建安装包并发布（electron-builder 负责创建 Release、上传 Setup.exe、生成 latest.yml 供自动更新）
+      - name: 构建并发布安装包
         shell: pwsh
         run: |
           npm run build
           npx electron-builder --win --publish always --${{ matrix.electron_arch }} --config.win.target=nsis --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-Setup.${ext}'
-          npx electron-builder --win --publish always --${{ matrix.electron_arch }} --config.win.target=zip --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-portable.${ext}'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 仅构建 zip 便携版，不触发 electron-builder 二次发布，避免 SIGINT 取消
+      - name: 构建便携版 zip
+        run: npx electron-builder --win --publish never --${{ matrix.electron_arch }} --config.win.target=zip --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-portable.${ext}'
+
+      # 用 GitHub CLI 把 zip 补传到已创建的 Release（gh 预装在 windows-latest runner 上）
+      - name: 上传便携版到 Release
+        shell: pwsh
+        run: |
+          Get-ChildItem release -Filter "*-portable.zip" | ForEach-Object {
+            gh release upload ${{ github.ref_name }} $_.FullName --clobber
+          }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
