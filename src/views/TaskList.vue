@@ -60,6 +60,7 @@
         :row-key="(row: Aria2Task) => row.gid"
         :row-props="rowProps"
         :scroll-x="filteredTasks.length > 0 ? 1200 : undefined"
+        flex-height
         :bordered="false"
         class="task-table"
       >
@@ -796,6 +797,11 @@ watch(
   border-radius: 8px;
   box-shadow: var(--shadow-light);
   transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* 让表格填满容器高度（配合 flex-height），横向滚动条固定在列表底部 */
+.task-list-content :deep(.n-data-table) {
+  height: 100%;
 }
 
 /* 空状态铺满列表区域并居中，避免空列表时横向滚动条残留在中间 */
