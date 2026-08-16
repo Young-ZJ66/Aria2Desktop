@@ -117,11 +117,40 @@ export class IpcController {
       }
     })
 
+    ipcMain.handle('open-in-explorer', async (event, filePath: string) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      try {
+        const normalizedPath = path.normalize(filePath)
+        if (fs.existsSync(normalizedPath)) {
+          // 文件存在时在资源管理器中定位并选中它
+          shell.showItemInFolder(normalizedPath)
+          return { success: true }
+        }
+        // 文件尚未生成时，退化为打开其所在目录
+        const dir = path.dirname(normalizedPath)
+        if (fs.existsSync(dir)) {
+          await shell.openPath(dir)
+          return { success: true }
+        }
+        return { success: false, error: 'Path not found' }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    })
+
     ipcMain.handle('open-path', async (event, filePath: string) => {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
       try {
         const normalizedPath = path.normalize(filePath)
-        if (!fs.existsSync(normalizedPath)) return { success: false, error: 'Path not found' }
+        if (!fs.existsSync(normalizedPath)) {
+          // 目标文件不存在时，尝试打开其所在目录，提高可用性
+          const dir = path.dirname(normalizedPath)
+          if (fs.existsSync(dir)) {
+            await shell.openPath(dir)
+            return { success: true }
+          }
+          return { success: false, error: 'Path not found' }
+        }
         await shell.openPath(normalizedPath)
         return { success: true }
       } catch (e) {
