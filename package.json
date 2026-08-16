@@ -19,15 +19,15 @@
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-pattern .gitignore"
   },
   "dependencies": {
-    "@vicons/ionicons5": "^0.13.0",
-    "electron-store": "^8.2.0",
-    "naive-ui": "^2.44.1"
+    "electron-store": "^8.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^26.2.0",
+    "@vicons/ionicons5": "^0.13.0",
     "@vitejs/plugin-vue": "^6.0.8",
+    "naive-ui": "^2.44.1",
     "@vue/eslint-config-typescript": "^14.9.0",
     "axios": "^1.19.0",
     "concurrently": "^8.2.2",
