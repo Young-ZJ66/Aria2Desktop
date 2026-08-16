@@ -19,7 +19,8 @@
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-pattern .gitignore"
   },
   "dependencies": {
-    "electron-store": "^8.2.0"
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -27,7 +28,6 @@
     "@types/node": "^26.2.0",
     "@vicons/ionicons5": "^0.13.0",
     "@vitejs/plugin-vue": "^6.0.8",
-    "naive-ui": "^2.44.1",
     "@vue/eslint-config-typescript": "^14.9.0",
     "axios": "^1.19.0",
     "concurrently": "^8.2.2",
@@ -39,6 +39,7 @@
     "eslint": "^10.8.1",
     "eslint-plugin-vue": "^10.10.0",
     "file-saver": "^2.0.5",
+    "naive-ui": "^2.44.1",
     "pinia": "^3.0.4",
     "typescript": "^6.0.3",
     "vite": "^8.2.1",
@@ -53,6 +54,13 @@
     "productName": "Aria2Desktop",
     "icon": "build/Icon.ico",
     "compression": "maximum",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Young-ZJ66",
+        "repo": "Aria2Desktop"
+      }
+    ],
     "directories": {
       "output": "release",
       "buildResources": "build"

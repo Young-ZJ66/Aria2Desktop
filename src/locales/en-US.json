@@ -804,7 +804,22 @@
     "languageFailed": "Failed to set language: {error}",
     "trayEnabled": "System tray enabled",
     "trayDisabled": "System tray disabled",
-    "trayFailed": "Failed to set tray: {error}"
+    "trayFailed": "Failed to set tray: {error}",
+    "autoLaunch": "Launch on Startup",
+    "autoLaunchTip": "Automatically start Aria2Desktop when Windows starts",
+    "autoLaunchEnabled": "Launch on startup enabled",
+    "autoLaunchDisabled": "Launch on startup disabled",
+    "autoLaunchFailed": "Failed to set launch on startup: {error}",
+    "checkForUpdates": "Check for Updates",
+    "checkingForUpdates": "Checking for updates...",
+    "updateAvailable": "New version {version} found, downloading...",
+    "updateNotAvailable": "You are up to date",
+    "updateDownloading": "Downloading update {percent}%",
+    "updateDownloaded": "Update downloaded and will install on next quit",
+    "updateError": "Failed to check for updates: {error}",
+    "installNow": "Install Now",
+    "updateCheckDone": "Check complete",
+    "updateCheckTooltip": "Check for new Aria2Desktop releases"
   },
   "aria2Basic": {
     "title": "Aria2 Basic Settings",

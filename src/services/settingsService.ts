@@ -6,6 +6,7 @@ export interface AppSettings {
   refreshInterval: number
   autoConnect: boolean
   minimizeToTray: boolean
+  autoLaunch: boolean
 
   // 连接设置（保留兼容，实际使用 profiles）
   aria2: {
@@ -54,6 +55,7 @@ export const defaultSettings: AppSettings = {
   refreshInterval: 1000,
   autoConnect: true,
   minimizeToTray: true,
+  autoLaunch: false,
 
   aria2: {
     host: 'localhost',

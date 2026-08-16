@@ -804,7 +804,22 @@
     "languageFailed": "语言设置失败：{error}",
     "trayEnabled": "已启用系统托盘",
     "trayDisabled": "已禁用系统托盘",
-    "trayFailed": "托盘设置失败：{error}"
+    "trayFailed": "托盘设置失败：{error}",
+    "autoLaunch": "开机自启",
+    "autoLaunchTip": "系统启动时自动运行 Aria2Desktop（仅 Windows 支持）",
+    "autoLaunchEnabled": "已启用开机自启",
+    "autoLaunchDisabled": "已禁用开机自启",
+    "autoLaunchFailed": "开机自启设置失败：{error}",
+    "checkForUpdates": "检查更新",
+    "checkingForUpdates": "正在检查更新...",
+    "updateAvailable": "发现新版本 {version}，正在下载...",
+    "updateNotAvailable": "当前已是最新版本",
+    "updateDownloading": "正在下载更新 {percent}%",
+    "updateDownloaded": "更新已下载完成，将在下次退出时自动安装",
+    "updateError": "检查更新失败：{error}",
+    "installNow": "立即安装更新",
+    "updateCheckDone": "检查完成",
+    "updateCheckTooltip": "检查 Aria2Desktop 是否有新版本发布"
   },
   "aria2Basic": {
     "title": "Aria2 基本设置",

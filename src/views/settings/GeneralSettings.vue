@@ -65,6 +65,54 @@
             @update:value="handleTraySettingChange"
           />
         </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('generalSettings.autoLaunch')" :tip="t('generalSettings.autoLaunchTip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.autoLaunch"
+            :disabled="!isElectronAvailable"
+            @update:value="handleAutoLaunchChange"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('generalSettings.checkForUpdates')" :tip="t('generalSettings.updateCheckTooltip')" />
+          </template>
+          <div class="update-control">
+            <n-button
+              size="small"
+              :loading="updating"
+              :disabled="!isElectronAvailable || updateState === 'downloading'"
+              @click="checkForUpdates"
+            >
+              <template #icon>
+                <n-icon><RefreshOutline /></n-icon>
+              </template>
+              {{ t('generalSettings.checkForUpdates') }}
+            </n-button>
+            <n-button
+              v-if="updateState === 'downloaded'"
+              size="small"
+              type="primary"
+              class="app-action-btn"
+              @click="installUpdate"
+            >
+              {{ t('generalSettings.installNow') }}
+            </n-button>
+            <n-tag
+              v-if="updateState && updateState !== 'idle'"
+              :type="updateTagType"
+              size="small"
+              :bordered="false"
+              round
+            >
+              {{ updateStatusText }}
+            </n-tag>
+          </div>
+        </n-form-item>
       </n-form>
     </n-card>
 
@@ -143,11 +191,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon } from 'naive-ui'
-import { FolderOpenOutline } from '@vicons/ionicons5'
+import { FolderOpenOutline, RefreshOutline } from '@vicons/ionicons5'
 import { message, dialog } from '@/utils/feedback'
+import type { UpdateStatus } from '@/types/electron'
 
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
@@ -163,6 +212,9 @@ const importText = ref('')
 const selectedFileName = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
+// Electron 环境可用性
+const isElectronAvailable = !!window.electronAPI
+
 // 表单数据
 const form = reactive({
   language: 'zh-CN' as 'zh-CN' | 'en-US',
@@ -170,6 +222,7 @@ const form = reactive({
   refreshInterval: 1000,
   autoConnect: true,
   minimizeToTray: true,
+  autoLaunch: false,
   ui: {
     showStatusBar: true,
     showToolbar: true,
@@ -177,6 +230,49 @@ const form = reactive({
     defaultView: 'downloading' as 'downloading' | 'waiting' | 'stopped'
   }
 })
+
+// 自动更新状态
+const updating = ref(false)
+const updateState = ref<'idle' | UpdateStatus['state']>('idle')
+const updateVersion = ref('')
+const updatePercent = ref(0)
+
+const updateTagType = computed<'info' | 'success' | 'error' | 'warning'>(() => {
+  switch (updateState.value) {
+    case 'available':
+    case 'downloading':
+      return 'info'
+    case 'downloaded':
+      return 'success'
+    case 'error':
+      return 'error'
+    case 'not-available':
+      return 'success'
+    default:
+      return 'info'
+  }
+})
+
+const updateStatusText = computed(() => {
+  switch (updateState.value) {
+    case 'checking':
+      return t('generalSettings.checkingForUpdates')
+    case 'available':
+      return t('generalSettings.updateAvailable', { version: updateVersion.value })
+    case 'not-available':
+      return t('generalSettings.updateNotAvailable')
+    case 'downloading':
+      return t('generalSettings.updateDownloading', { percent: Math.round(updatePercent.value) })
+    case 'downloaded':
+      return t('generalSettings.updateDownloaded')
+    case 'error':
+      return t('generalSettings.updateError', { error: updateErrorText.value })
+    default:
+      return ''
+  }
+})
+
+const updateErrorText = ref('')
 
 const languageOptions = [
   { label: '简体中文', value: 'zh-CN' },
@@ -205,6 +301,7 @@ watch(() => settingsStore.settings, (newSettings) => {
     refreshInterval: newSettings.refreshInterval,
     autoConnect: newSettings.autoConnect,
     minimizeToTray: newSettings.minimizeToTray,
+    autoLaunch: newSettings.autoLaunch,
     ui: { ...newSettings.ui }
   })
 }, { immediate: true, deep: true })
@@ -217,12 +314,45 @@ function loadFormData() {
     refreshInterval: settingsStore.settings.refreshInterval,
     autoConnect: settingsStore.settings.autoConnect,
     minimizeToTray: settingsStore.settings.minimizeToTray,
+    autoLaunch: settingsStore.settings.autoLaunch,
     ui: { ...settingsStore.settings.ui }
   })
 }
 
+// 监听主进程推送的更新状态
+let unsubscribeUpdateStatus: (() => void) | null = null
+
 onMounted(async () => {
   await settingsStore.initialize()
+
+  // 同步系统实际的开机自启状态，避免设置与系统不一致
+  if (window.electronAPI?.getAutoLaunch) {
+    try {
+      const result = await window.electronAPI.getAutoLaunch()
+      if (result && result.success) {
+        form.autoLaunch = result.enabled ?? form.autoLaunch
+      }
+    } catch (error) {
+      console.warn('Failed to get auto launch state:', error)
+    }
+  }
+
+  // 注册更新状态监听
+  if (window.electronAPI?.onUpdateStatus) {
+    unsubscribeUpdateStatus = window.electronAPI.onUpdateStatus((status: UpdateStatus) => {
+      updateState.value = status.state
+      updateVersion.value = status.version ?? ''
+      if (typeof status.percent === 'number') {
+        updatePercent.value = status.percent
+      }
+      if (status.error) {
+        updateErrorText.value = status.error
+      }
+      if (status.state === 'not-available') {
+        updating.value = false
+      }
+    })
+  }
 })
 
 // 自动刷新间隔变化处理
@@ -267,6 +397,11 @@ async function resetSettings() {
         // 控制托盘（根据重置后的设置）
         if (window.electronAPI?.setTrayEnabled) {
           await window.electronAPI.setTrayEnabled(settingsStore.settings.minimizeToTray)
+        }
+
+        // 同步开机自启（重置后默认关闭）
+        if (window.electronAPI?.setAutoLaunch) {
+          await window.electronAPI.setAutoLaunch(settingsStore.settings.autoLaunch)
         }
 
         message.success(t('generalSettings.resetDone'))
@@ -416,6 +551,53 @@ async function handleTraySettingChange() {
     message.error(t('generalSettings.trayFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
   }
 }
+
+// 开机自启变化处理
+async function handleAutoLaunchChange() {
+  try {
+    // 调用主进程设置开机自启（返回实际状态）
+    const result = await window.electronAPI?.setAutoLaunch(form.autoLaunch)
+    if (result && result.success) {
+      // 同步实际状态
+      form.autoLaunch = result.enabled ?? form.autoLaunch
+      await settingsStore.updateSetting('autoLaunch', form.autoLaunch)
+      message.success(form.autoLaunch ? t('generalSettings.autoLaunchEnabled') : t('generalSettings.autoLaunchDisabled'))
+    } else {
+      throw new Error(result?.error || 'Unknown error')
+    }
+  } catch (error) {
+    console.error('Auto launch change error:', error)
+    // 恢复开关状态
+    form.autoLaunch = settingsStore.settings.autoLaunch
+    message.error(t('generalSettings.autoLaunchFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
+  }
+}
+
+// 检查更新
+async function checkForUpdates() {
+  if (!window.electronAPI?.checkForUpdates) return
+  updating.value = true
+  updateState.value = 'checking'
+  updateErrorText.value = ''
+  try {
+    const result = await window.electronAPI.checkForUpdates()
+    if (!result.success) {
+      updateState.value = 'error'
+      updateErrorText.value = result.error || ''
+      message.error(t('generalSettings.updateError', { error: result.error || t('settings.unknownError') }))
+    }
+  } catch (error) {
+    updateState.value = 'error'
+    updateErrorText.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    updating.value = false
+  }
+}
+
+// 立即安装更新
+function installUpdate() {
+  window.electronAPI?.quitAndInstall()
+}
 </script>
 
 <style scoped>
@@ -430,6 +612,13 @@ async function handleTraySettingChange() {
 .backup-actions {
   display: flex;
   gap: 12px;
+}
+
+.update-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .hidden-file-input {

@@ -66,7 +66,8 @@ export const useSettingsStore = defineStore('settings', () => {
       theme: generalSettings.theme ?? settings.value.theme,
       refreshInterval: generalSettings.refreshInterval ?? settings.value.refreshInterval,
       autoConnect: generalSettings.autoConnect ?? settings.value.autoConnect,
-      minimizeToTray: generalSettings.minimizeToTray ?? settings.value.minimizeToTray
+      minimizeToTray: generalSettings.minimizeToTray ?? settings.value.minimizeToTray,
+      autoLaunch: generalSettings.autoLaunch ?? settings.value.autoLaunch
     }
 
     await updateSettings(newSettings)

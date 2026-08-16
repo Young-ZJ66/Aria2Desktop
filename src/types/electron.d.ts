@@ -1,3 +1,14 @@
+// 自动更新状态推送类型
+export interface UpdateStatus {
+  state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
+  version?: string
+  percent?: number
+  transferred?: number
+  total?: number
+  bytesPerSecond?: number
+  error?: string
+}
+
 // Electron API 类型定义（与 electron/preload.ts 暴露的接口对齐，唯一声明处）
 export interface ElectronAPI {
   // 应用信息
@@ -26,6 +37,15 @@ export interface ElectronAPI {
 
   // 窗口主题设置
   setWindowTheme: (isDark: boolean) => Promise<{ success: boolean; error?: string }>
+
+  // 开机自启
+  getAutoLaunch: () => Promise<{ success: boolean; enabled?: boolean; error?: string }>
+  setAutoLaunch: (enabled: boolean) => Promise<{ success: boolean; enabled?: boolean; error?: string }>
+
+  // 自动更新
+  checkForUpdates: () => Promise<{ success: boolean; error?: string }>
+  quitAndInstall: () => Promise<{ success: boolean; error?: string }>
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
 
   // Aria2 进程管理
   aria2: {

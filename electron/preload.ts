@@ -24,6 +24,21 @@ const electronAPI = {
   // {{ AURA: Add - 窗口主题设置 IPC 方法 }}
   setWindowTheme: (isDark: boolean) => ipcRenderer.invoke('set-window-theme', isDark),
 
+  // 开机自启
+  getAutoLaunch: () => ipcRenderer.invoke('get-auto-launch'),
+  setAutoLaunch: (enabled: boolean) => ipcRenderer.invoke('set-auto-launch', enabled),
+
+  // 自动更新
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
+  onUpdateStatus: (callback: (status: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: unknown) => callback(status)
+    ipcRenderer.on('update:status', listener)
+    return () => {
+      ipcRenderer.removeListener('update:status', listener)
+    }
+  },
+
   // Aria2 进程管理
   aria2: {
     start: () => ipcRenderer.invoke('aria2-start'),

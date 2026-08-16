@@ -1,7 +1,8 @@
-import { ipcMain, dialog, shell, BrowserWindow } from 'electron'
+import { ipcMain, dialog, shell, BrowserWindow, app } from 'electron'
 import { WindowController } from './WindowController'
 import { TrayController } from './TrayController'
 import { Aria2Controller } from './Aria2Controller'
+import { UpdateController } from './UpdateController'
 import Store from 'electron-store'
 import * as path from 'path'
 import * as fs from 'fs'
@@ -17,6 +18,7 @@ export class IpcController {
   private windowController: WindowController
   private trayController: TrayController
   private aria2Controller: Aria2Controller
+  private updateController: UpdateController
   private store: Store<StoreData>
 
   constructor(
@@ -28,6 +30,7 @@ export class IpcController {
     this.windowController = windowController
     this.trayController = trayController
     this.aria2Controller = aria2Controller
+    this.updateController = new UpdateController(() => windowController.getMainWindow())
     this.store = store
   }
 
@@ -49,6 +52,44 @@ export class IpcController {
 
   private registerAppHandlers() {
     ipcMain.handle('get-app-version', () => process.env.npm_package_version || '1.0.0')
+
+    // 开机自启：查询当前是否已启用（仅 Windows 支持）
+    ipcMain.handle('get-auto-launch', (event) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      try {
+        const openAtLogin = app.getLoginItemSettings().openAtLogin
+        return { success: true, enabled: openAtLogin }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    })
+
+    // 开机自启：设置启用/禁用（仅 Windows 支持）
+    ipcMain.handle('set-auto-launch', (event, enabled: boolean) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      try {
+        app.setLoginItemSettings({
+          openAtLogin: !!enabled,
+          path: process.execPath
+        })
+        return { success: true, enabled: !!enabled }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    })
+
+    // 自动更新：检查更新（检测到后自动下载）
+    ipcMain.handle('check-for-updates', async (event) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      return await this.updateController.checkForUpdates()
+    })
+
+    // 自动更新：立即退出并安装已下载的更新
+    ipcMain.handle('quit-and-install', (event) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      this.updateController.quitAndInstall()
+      return { success: true }
+    })
 
     ipcMain.handle('set-tray-enabled', (event, enabled: boolean) => {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
