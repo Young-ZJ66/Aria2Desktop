@@ -45,7 +45,7 @@
 - **深色/浅色主题**: 支持主题切换，保护眼睛
 - **响应式设计**: 适配不同窗口大小
 - **多语言支持**: 中文、英文界面
-- **系统通知**: 下载完成桌面提醒
+- **实时状态面板**: 通过图表直观展示实时流量与连接情况
 
 ### 系统集成
 - **开机启动**: 支持系统启动时自动运行
@@ -75,16 +75,16 @@
 ### 使用步骤
 1. **安装运行**: 双击安装包，按提示完成安装
 2. **启动应用**: 桌面双击图标启动
-3. **添加下载**: 
+3. **添加下载**:
    - 点击 "+" 按钮添加下载链接
-   - 或直接拖拽链接到窗口
    - 支持批量添加多个链接
-4. **管理任务**: 右键任务进行暂停、删除、优先级调整等操作
+   - 新建任务对话框内可直接拖拽 `.torrent` / `.metalink` 文件，或拖放链接进行添加
+4. **管理任务**: 在任务列表中通过操作按钮或右键菜单进行暂停、恢复、删除、打开所在目录等操作
 
 ## 开发指南
 
 ### 环境要求
-- **Node.js** 18.x 或更高版本
+- **Node.js** 20.x 或更高版本
 - **npm** 包管理器
 - **Git** 版本控制工具
 
@@ -93,40 +93,55 @@
 ```bash
 # 克隆项目
 git clone https://github.com/Young-ZJ66/Aria2Desktop.git
-cd aria2-desktop
+cd Aria2Desktop
 
 # 安装依赖
 npm install
 
-# 启动开发服务器
+# 启动开发服务器（Vue + Electron）
 npm run dev
 
-# 构建生产版本
+# 构建生产版本（前端 + Electron 主进程编译）
 npm run build
 
-# 打包应用程序
+# 打包安装程序（当前平台架构，仅支持 Windows）
 npm run dist
+
+# 打包 Windows 64 位 / 32 位 / 双架构安装包
+npm run dist:win64
+npm run dist:win32
+npm run dist:win-all
 ```
+
+> **平台支持**: 本项目仅构建 Windows 32/64 位版本。32 位打包资源后缀为 `x86`，64 位为 `x64`。推送以 `v` 开头的 tag 会自动触发 GitHub Actions 构建并发布 Release。
 
 ### 项目结构
 ```
-aria2-desktop/
+Aria2Desktop/
 ├── src/                    # 渲染进程源代码
 │   ├── components/         # Vue 组件
-│   ├── views/             # 页面视图
-│   ├── stores/            # Pinia 状态管理
-│   ├── services/          # API 服务
-│   ├── i18n/              # 国际化
-│   ├── locales/           # 语言文件
-│   └── utils/             # 工具函数
-├── electron/              # Electron 主进程代码
-│   ├── controllers/       # 控制器（窗口/托盘/Aria2/IPC/生命周期）
-│   ├── managers/          # 进程管理
-│   ├── types/             # 类型定义
-│   └── utils/             # 工具函数
-├── resources/             # 资源文件(Aria2 引擎等)
-├── build/                 # 构建配置
-└── dist/                  # 构建输出目录
+│   ├── composables/        # 组合式函数（服务、设置表单、任务选择、流量监控等）
+│   ├── views/              # 页面视图
+│   ├── stores/             # Pinia 状态管理
+│   ├── services/           # API 服务
+│   ├── router/             # 路由配置
+│   ├── styles/             # 全局样式
+│   ├── i18n/               # 国际化初始化
+│   ├── locales/            # 语言文件（zh-CN / en-US）
+│   ├── types/              # 类型定义
+│   └── utils/              # 工具函数
+├── electron/               # Electron 主进程代码
+│   ├── controllers/        # 控制器（窗口/托盘/Aria2/IPC/更新/生命周期）
+│   ├── managers/           # 进程管理
+│   ├── types/              # 类型定义
+│   ├── utils/              # 工具函数（配置管理、资源定位等）
+│   ├── main.ts             # 主进程入口
+│   └── preload.ts          # 预加载脚本
+├── resources/              # 资源文件（Aria2 引擎二进制、默认配置）
+├── scripts/                # 构建辅助脚本（Aria2 二进制准备、Release 更新说明生成）
+├── build/                  # 打包配置与图标
+├── dist/                   # 编译产物（Vue / Electron 主进程）
+└── release/                # electron-builder 打包输出目录
 ```
 
 ## 贡献
