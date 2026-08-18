@@ -87,9 +87,9 @@ export class IpcController {
       }
     })
 
-    // 自动更新：检查更新（检测到后自动下载）
+    // 自动更新：检查更新（只检查不下载，由用户确认后再下载）
     ipcMain.handle('check-for-updates', async (event) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      if (!this.validateSender(event)) return { success: false, hasUpdate: false, error: 'Unauthorized' }
       return await this.updateController.checkForUpdates()
     })
 
@@ -97,6 +97,12 @@ export class IpcController {
     ipcMain.handle('check-updates-on-startup', async (event) => {
       if (!this.validateSender(event)) return { success: false, hasUpdate: false, error: 'Unauthorized' }
       return await this.updateController.checkForUpdatesOnStartup()
+    })
+
+    // 自动更新：下载最新版本安装包（用户在更新弹窗中确认后调用）
+    ipcMain.handle('download-update', async (event) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      return await this.updateController.downloadUpdate()
     })
 
     // 自动更新：重启更新（启动安装程序并退出应用）
@@ -231,9 +237,16 @@ export class IpcController {
         try {
           const normalized = path.resolve(path.normalize(p))
 
+          // 解析符号链接后重新校验前缀，防止软链接逃逸出下载目录
+          let target = normalized
+          if (fs.existsSync(normalized)) {
+            target = fs.realpathSync(normalized)
+          }
+          const realAllowedDir = fs.existsSync(normalizedAllowedDir) ? fs.realpathSync(normalizedAllowedDir) : normalizedAllowedDir
+
           // 校验文件路径是否在允许的下载目录范围内
-          if (!normalized.startsWith(normalizedAllowedDir + path.sep) && normalized !== normalizedAllowedDir) {
-            console.warn(`[IpcController] Blocked deletion of path outside download dir: ${normalized}`)
+          if (!target.startsWith(realAllowedDir + path.sep) && target !== realAllowedDir) {
+            console.warn(`[IpcController] Blocked deletion of path outside download dir: ${target}`)
             results.push({ path: p, success: false, error: 'Path outside allowed directory' })
             continue
           }
@@ -255,5 +268,27 @@ export class IpcController {
       }
       return { success: true, results }
     })
+  }
+
+  /**
+   * 定位文件：存在时在资源管理器中选中，不存在时退化为打开其所在目录
+   * 供 open-in-explorer / open-path（文件缺失场景）共用
+   */
+  private async locateOrOpenDirectory(filePath: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const normalizedPath = path.normalize(filePath)
+      if (fs.existsSync(normalizedPath)) {
+        shell.showItemInFolder(normalizedPath)
+        return { success: true }
+      }
+      const dir = path.dirname(normalizedPath)
+      if (fs.existsSync(dir)) {
+        await shell.openPath(dir)
+        return { success: true }
+      }
+      return { success: false, error: 'Path not found' }
+    } catch (e) {
+      return { success: false, error: String(e) }
+    }
   }
 }

@@ -1,20 +1,27 @@
-import { BrowserWindow, Menu, shell, app, screen, ipcMain, nativeTheme } from 'electron'
+import { BrowserWindow, Menu, shell, screen, ipcMain, nativeTheme } from 'electron'
 import { join } from 'path'
+import * as fs from 'fs'
 import Store from 'electron-store'
+import { appState } from '../utils/appState'
+import { createSenderValidator } from '../utils/ipcSecurity'
 import type { StoreData, AppSettings, WindowState } from '../types/store'
+
+/** 允许通过 shell.openExternal 打开的外部 URL 协议白名单 */
+const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
 
 export class WindowController {
   private mainWindow: BrowserWindow | null = null
   private store: Store<StoreData>
   private isContentReady = false // 页面内容是否已加载完成
-  /** 标题栏覆盖层是否启用（仅 titleBarStyle 为 hidden/hiddenInset 时可用） */
-  private titleBarOverlayEnabled = false
+  private validateSender = createSenderValidator(() => this.mainWindow)
 
   constructor(store: Store<StoreData>) {
     this.store = store
 
     // 监听渲染进程的 app-ready 消息（只注册一次，避免重复创建窗口时叠加监听器）
-    ipcMain.on('app-ready', () => {
+    ipcMain.on('app-ready', (event) => {
+      // 校验来源为主窗口，防止其他 webContents 伪造就绪信号
+      if (!this.validateSender(event)) return
       console.log('[WindowController] Received app-ready from renderer')
       this.isContentReady = true
     })
@@ -31,9 +38,8 @@ export class WindowController {
     const keepWindowState = settings.keepWindowState !== false
     const savedState = this.store.get('windowState') as WindowState
 
-    // 标题栏覆盖层仅在 titleBarStyle 为 hidden/hiddenInset 时生效
+    // 标题栏使用系统默认样式（如需自定义标题栏，可在此扩展 hidden/hiddenInset + overlay 配置）
     const titleBarStyle = 'default' as 'default' | 'hidden' | 'hiddenInset'
-    this.titleBarOverlayEnabled = titleBarStyle === 'hidden' || titleBarStyle === 'hiddenInset'
 
     let windowOptions: Electron.BrowserWindowConstructorOptions = {
       width: 1200,
@@ -45,13 +51,6 @@ export class WindowController {
       center: !keepWindowState || !savedState, // 仅在没有保存状态时居中
       resizable: true,
       titleBarStyle,
-      ...(this.titleBarOverlayEnabled ? {
-        titleBarOverlay: {
-          color: '#f0f0f0',
-          symbolColor: '#000000',
-          height: 32
-        }
-      } : {}),
       icon: process.env.NODE_ENV === 'development'
         ? join(process.cwd(), 'build/Icon.ico')
         : join(__dirname, '../../build/Icon.ico'),
@@ -93,8 +92,6 @@ export class WindowController {
         this.mainWindow.setFullScreen(true)
       }
     }
-
-    Menu.setApplicationMenu(null)
 
     this.setupEventHandlers()
     this.loadContent()
@@ -141,7 +138,7 @@ export class WindowController {
       const minimizeToTray = settings.minimizeToTray !== false
 
       // 如果启用了托盘且不是真正退出应用
-      if (minimizeToTray && !(app as unknown as { isQuiting?: boolean }).isQuiting) {
+      if (minimizeToTray && !appState.isQuiting) {
         event.preventDefault()
         this.hide()
         console.log('[WindowController] Window hidden to tray')
@@ -149,7 +146,17 @@ export class WindowController {
     })
 
     this.mainWindow.webContents.setWindowOpenHandler((details) => {
-      shell.openExternal(details.url)
+      // 仅放行安全的协议，防止 file://、自定义协议等触发系统级处理程序
+      try {
+        const protocol = new URL(details.url).protocol
+        if (ALLOWED_EXTERNAL_PROTOCOLS.has(protocol)) {
+          shell.openExternal(details.url)
+        } else {
+          console.warn('[WindowController] Blocked openExternal for unsafe protocol:', protocol)
+        }
+      } catch {
+        console.warn('[WindowController] Blocked openExternal for invalid URL:', details.url)
+      }
       return { action: 'deny' }
     })
 
@@ -194,6 +201,10 @@ export class WindowController {
     this.mainWindow.on('unmaximize', saveWindowState)
     this.mainWindow.on('enter-full-screen', saveWindowState)
     this.mainWindow.on('leave-full-screen', saveWindowState)
+    // 窗口销毁时清理未触发的防抖保存，避免向已销毁窗口写入状态
+    this.mainWindow.on('closed', () => {
+      if (saveTimeout) clearTimeout(saveTimeout)
+    })
   }
 
   private loadContent() {
@@ -216,7 +227,7 @@ export class WindowController {
 
       let loaded = false
       for (const htmlPath of possiblePaths) {
-        if (require('fs').existsSync(htmlPath)) {
+        if (fs.existsSync(htmlPath)) {
           console.log('[WindowController] Loading production file from:', htmlPath)
           this.mainWindow.loadFile(htmlPath).catch(err => {
             console.error('[WindowController] Failed to load file:', err)
@@ -249,12 +260,14 @@ export class WindowController {
         // 等待 ready-to-show 事件，最多重试 100 次（10 秒），超时后强制显示
         let attempts = 0
         const showWhenReady = () => {
+          // 窗口已销毁时终止重试
+          if (!this.mainWindow || this.mainWindow.isDestroyed()) return
           if (this.isContentReady || attempts >= 100) {
             if (!this.isContentReady) {
               console.warn('[WindowController] Timed out waiting for content, forcing show')
             }
-            this.mainWindow?.show()
-            this.mainWindow?.focus()
+            this.mainWindow.show()
+            this.mainWindow.focus()
           } else {
             attempts++
             setTimeout(showWhenReady, 100)
@@ -286,22 +299,8 @@ export class WindowController {
     try {
       // 原生主题始终生效
       nativeTheme.themeSource = isDark ? 'dark' : 'light'
-
-      // 标题栏覆盖层仅在启用时更新，避免 "Titlebar overlay is not enabled" 报错
-      if (process.platform === 'win32' && this.titleBarOverlayEnabled) {
-        const darkColor = '#1a1a1a'
-        const lightColor = '#ffffff'
-        const darkSymbol = '#ffffff'
-        const lightSymbol = '#000000'
-
-        this.mainWindow.setTitleBarOverlay({
-          color: isDark ? darkColor : lightColor,
-          symbolColor: isDark ? darkSymbol : lightSymbol,
-          height: 32
-        })
-      }
     } catch (error) {
-      console.error('Failed to set Windows theme:', error)
+      console.error('Failed to set window theme:', error)
     }
   }
 }

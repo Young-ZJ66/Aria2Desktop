@@ -85,8 +85,9 @@ export class AppLifecycle extends EventEmitter {
       this.windowController.show()
 
     } catch (error) {
-      // 用户主动选择退出时不重复广播错误
+      // 用户主动选择退出：先执行优雅关闭（Aria2 子进程可能已启动），再向上抛出
       if (error instanceof UserCancelledError) {
+        await this.shutdown()
         throw error
       }
       console.error('[AppLifecycle] Initialization failed:', error)

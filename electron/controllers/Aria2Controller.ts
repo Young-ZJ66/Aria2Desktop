@@ -1,28 +1,20 @@
-import { ipcMain, app, BrowserWindow } from 'electron'
+import { ipcMain, app } from 'electron'
 import Store from 'electron-store'
 import http from 'http'
-import * as path from 'path'
 import { getAria2ProcessManager, Aria2ProcessManager } from '../managers/Aria2ProcessManager'
 import { WindowController } from './WindowController'
+import { createSenderValidator } from '../utils/ipcSecurity'
 import type { StoreData, AppSettings } from '../types/store'
 
 export class Aria2Controller {
   private aria2Manager: Aria2ProcessManager | null = null
   private store: Store<StoreData>
   private windowController: WindowController
+  private validateSender = createSenderValidator(() => this.windowController.getMainWindow())
 
   constructor(store: Store<StoreData>, windowController: WindowController) {
     this.store = store
     this.windowController = windowController
-  }
-
-  /**
-     * 校验 IPC 调用来源是否为主窗口
-     */
-  private validateSender(event: Electron.IpcMainInvokeEvent): boolean {
-    const senderWindow = BrowserWindow.fromWebContents(event.sender)
-    const mainWindow = this.windowController.getMainWindow()
-    return senderWindow !== null && senderWindow === mainWindow
   }
 
   public async initialize() {
@@ -37,7 +29,13 @@ export class Aria2Controller {
         autoStart: aria2Settings.autoStart !== undefined ? Boolean(aria2Settings.autoStart) : true
       }
 
-      console.log('Initializing Aria2 with config:', aria2Config)
+      // 日志脱敏：不打印 RPC secret
+      console.log('Initializing Aria2 with config:', {
+        port: aria2Config.port,
+        downloadDir: aria2Config.downloadDir,
+        autoStart: aria2Config.autoStart,
+        secret: aria2Config.secret ? '***' : ''
+      })
 
       this.aria2Manager = getAria2ProcessManager(aria2Config)
 
@@ -187,13 +185,18 @@ export class Aria2Controller {
       if (!this.aria2Manager) await this.initialize()
       if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
 
+      // 入参规范化与校验，防止异常类型写入 store / 配置文件
+      const port = Number(config?.port)
+      if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+        return { success: false, error: `Invalid port: ${config?.port}` }
+      }
       const serializableConfig = {
-        port: config.port,
-        secret: config.secret,
-        downloadDir: config.downloadDir,
-        enableRpc: config.enableRpc,
-        rpcAllowOriginAll: config.rpcAllowOriginAll,
-        autoStart: config.autoStart
+        port,
+        secret: String(config?.secret ?? ''),
+        downloadDir: String(config?.downloadDir ?? ''),
+        enableRpc: config?.enableRpc === undefined ? true : Boolean(config.enableRpc),
+        rpcAllowOriginAll: config?.rpcAllowOriginAll === undefined ? true : Boolean(config.rpcAllowOriginAll),
+        autoStart: config?.autoStart === undefined ? true : Boolean(config.autoStart)
       }
 
       this.aria2Manager.updateConfig(serializableConfig)

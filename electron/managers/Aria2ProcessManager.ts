@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process'
-import * as path from 'path'
+import * as net from 'net'
 import { existsSync } from 'fs'
 import { app } from 'electron'
 import { ResourceManager } from '../utils/resourceManager'
@@ -107,48 +107,8 @@ export class Aria2ProcessManager {
 
       this.setupProcessHandlers()
 
-      // 等待进程启动 - 简化检测逻辑，只检查进程是否运行
-      await new Promise<void>((resolve, reject) => {
-        const proc = this.process
-        if (!proc) {
-          reject(new Error('Aria2 进程未创建'))
-          return
-        }
-
-        const timeout = setTimeout(() => {
-          cleanup()
-          reject(new Error('Aria2 启动超时'))
-        }, 10000) // 10秒超时
-
-        // 简单延迟后认为启动成功
-        const successTimer = setTimeout(() => {
-          cleanup()
-          resolve()
-        }, 3000)
-
-        const onError = (error: Error) => {
-          cleanup()
-          reject(error)
-        }
-
-        const onExit = (code: number | null) => {
-          cleanup()
-          if (code !== 0 && code !== null) {
-            reject(new Error(`Aria2 进程异常退出，代码: ${code}`))
-          }
-        }
-
-        // 启动完成后移除临时监听器，避免泄漏（常驻监听由 setupProcessHandlers 注册）
-        const cleanup = () => {
-          clearTimeout(timeout)
-          clearTimeout(successTimer)
-          proc.removeListener('error', onError)
-          proc.removeListener('exit', onExit)
-        }
-
-        proc.on('error', onError)
-        proc.on('exit', onExit)
-      })
+      // 等待进程就绪：轮询探测 RPC 端口是否可连接，确保后续 RPC 调用可用
+      await this.waitForRpcReady()
 
       console.log('Aria2 进程启动成功, PID:', this.process?.pid)
       this.retryCount = 0
@@ -179,6 +139,50 @@ export class Aria2ProcessManager {
     } finally {
       this.isStarting = false
     }
+  }
+
+  /**
+   * 探测 RPC 端口是否可连接（TCP 层探活）
+   * 最多等待 10 秒：端口通了即认为就绪；超时但进程仍存活时也视为启动成功（回退为宽容判定），
+   * 进程已退出则抛出错误。替代原先固定延迟 3 秒就判定成功的做法。
+   */
+  private async waitForRpcReady(timeoutMs = 10000): Promise<void> {
+    const port = this.config.port
+    const startAt = Date.now()
+
+    while (Date.now() - startAt < timeoutMs) {
+      // 进程已退出则直接失败
+      if (!this.process || this.process.exitCode !== null || this.process.signalCode !== null) {
+        throw new Error(`Aria2 进程异常退出，代码: ${this.process?.exitCode}`)
+      }
+      if (await this.probePort(port)) {
+        return
+      }
+      await new Promise(resolve => setTimeout(resolve, 250))
+    }
+
+    // 超时但进程仍存活：宽容判定为成功（与旧行为兼容），仅记录警告
+    if (this.process && !this.process.killed) {
+      console.warn(`Aria2 RPC 端口 ${port} 探测超时，进程仍在运行，视为启动成功`)
+      return
+    }
+    throw new Error('Aria2 启动超时')
+  }
+
+  /** 尝试建立 TCP 连接探测端口，300ms 内未连上视为未就绪 */
+  private probePort(port: number): Promise<boolean> {
+    return new Promise(resolve => {
+      const socket = new net.Socket()
+      const done = (ok: boolean) => {
+        socket.destroy()
+        resolve(ok)
+      }
+      socket.setTimeout(300)
+      socket.once('connect', () => done(true))
+      socket.once('timeout', () => done(false))
+      socket.once('error', () => done(false))
+      socket.connect(port, '127.0.0.1')
+    })
   }
 
   private setupProcessHandlers(): void {
@@ -271,19 +275,28 @@ export class Aria2ProcessManager {
 
       // 等待进程退出 - 确保完全退出
       await new Promise<void>((resolve) => {
+        const proc = this.process!
         const timeout = setTimeout(() => {
           // 强制终止
           if (this.process && !this.process.killed) {
             console.log('强制终止 Aria2 进程')
             this.process.kill('SIGKILL')
           }
-          resolve()
+          finish()
         }, 8000) // 增加到8秒，给进程更多时间优雅退出
 
-        this.process?.on('exit', () => {
+        const onExit = () => {
           clearTimeout(timeout)
+          finish()
+        }
+
+        const finish = () => {
+          // resolve 后移除监听器，避免并发 stop() 叠加 exit 监听导致泄漏
+          proc.removeListener('exit', onExit)
           resolve()
-        })
+        }
+
+        proc.on('exit', onExit)
       })
 
       this.process = null
@@ -302,8 +315,8 @@ export class Aria2ProcessManager {
   }
 
   public getConfig(): Required<Aria2ProcessConfig> {
-    // 直接读取配置文件中的值
-    this.configManager = new Aria2ConfigManager(this.config.configPath)
+    // 重载配置文件中的最新值（复用缓存实例，避免每次 IPC 调用都重建对象）
+    this.configManager.reload()
     const actualConfigs = this.configManager.getRelevantConfigs()
 
     const result = {
@@ -392,8 +405,8 @@ export class Aria2ProcessManager {
 
     while (attempts < maxAttempts) {
       try {
-        // 尝试重新加载配置管理器以验证文件完整性
-        this.configManager = new Aria2ConfigManager(this.config.configPath)
+        // 重新加载配置管理器以验证文件完整性
+        this.configManager.reload()
         break
       } catch (error) {
         attempts++
@@ -491,13 +504,45 @@ export class Aria2ProcessManager {
    */
   public saveGlobalOptionsToConfig(options: Record<string, string | number>): void {
     if (!options || Object.keys(options).length === 0) return
+
+    // 键名白名单校验：
+    // 1. 仅接受合法的 aria2 选项名格式（小写字母/数字/连字符），阻止任意内容写入配置文件
+    // 2. 拒绝 on-download-* / on-bt-download-* 等执行外部命令的钩子选项，防止等价 RCE
+    const BLOCKED_OPTION_PATTERN = /^on-(download|bt-download)-/
+    const KEY_NAME_PATTERN = /^[a-z][a-z0-9-]*$/
+    const safeOptions: Record<string, string | number> = {}
+
+    for (const [key, value] of Object.entries(options)) {
+      if (!KEY_NAME_PATTERN.test(key) || BLOCKED_OPTION_PATTERN.test(key)) {
+        console.warn(`[Aria2ProcessManager] Blocked unsafe global option: ${key}`)
+        continue
+      }
+      if (typeof value === 'string' || typeof value === 'number') {
+        safeOptions[key] = value
+      }
+    }
+
+    if (Object.keys(safeOptions).length === 0) return
     // 重新加载配置文件，确保基于最新文件内容写入
-    this.configManager = new Aria2ConfigManager(this.config.configPath)
-    this.configManager.setMultipleConfigs(options)
+    this.configManager.reload()
+    this.configManager.setMultipleConfigs(safeOptions)
   }
 
   public isAria2Available(): boolean {
     return this.resourceManager.isAria2Available()
+  }
+
+  /**
+   * 单例已存在时同步外部传入的最新配置（仅更新内存值，不写文件、不触发重启）。
+   * 文件写入与重启判定由 updateConfig 负责，避免应用每次启动都重写配置文件。
+   */
+  public syncConfig(config: Partial<Aria2ProcessConfig>): void {
+    const normalized = this.normalizeConfig(config)
+    const keys = Object.keys(normalized) as (keyof Required<Aria2ProcessConfig>)[]
+    const changed = keys.some(k => normalized[k] !== this.config[k])
+    if (changed) {
+      this.config = normalized
+    }
   }
 }
 
@@ -507,6 +552,9 @@ let aria2Manager: Aria2ProcessManager | null = null
 export function getAria2ProcessManager(config?: Partial<Aria2ProcessConfig>): Aria2ProcessManager {
   if (!aria2Manager) {
     aria2Manager = new Aria2ProcessManager(config)
+  } else if (config) {
+    // 已存在实例时同步最新配置，避免"改了端口不生效"的单例配置失效问题
+    aria2Manager.syncConfig(config)
   }
   return aria2Manager
 }

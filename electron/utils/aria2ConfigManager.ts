@@ -20,6 +20,14 @@ export class Aria2ConfigManager {
     this.loadConfig()
   }
 
+  /** 重新加载配置文件（复用实例，替代反复 new） */
+  reload(): void {
+    this.configContent.clear()
+    this.commentedKeys.clear()
+    this.rawLines = []
+    this.loadConfig()
+  }
+
   private loadConfig() {
     try {
       if (fs.existsSync(this.configPath)) {
@@ -77,7 +85,8 @@ max-mmap-limit=0
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true })
       }
-      fs.writeFileSync(this.configPath, defaultConfig, 'utf-8')
+      // 0o600：配置可能包含 rpc-secret，限制为仅当前用户可读写（Windows 上等效继承 ACL，POSIX 上生效）
+      fs.writeFileSync(this.configPath, defaultConfig, { encoding: 'utf-8', mode: 0o600 })
       this.configContent.clear()
       this.commentedKeys.clear()
       this.loadConfig()
@@ -181,7 +190,8 @@ max-mmap-limit=0
       }
 
       const output = lines.join('\n')
-      fs.writeFileSync(this.configPath, output, 'utf-8')
+      // 0o600：配置可能包含 rpc-secret，限制为仅当前用户可读写
+      fs.writeFileSync(this.configPath, output, { encoding: 'utf-8', mode: 0o600 })
 
       // 更新 rawLines 以反映最新状态
       this.rawLines = lines

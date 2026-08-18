@@ -2,6 +2,7 @@ import { Tray, Menu, app, nativeImage } from 'electron'
 import { join } from 'path'
 import * as fs from 'fs'
 import { WindowController } from './WindowController'
+import { appState } from '../utils/appState'
 
 export class TrayController {
   private tray: Tray | null = null
@@ -60,7 +61,7 @@ export class TrayController {
       {
         label: '退出',
         click: () => {
-          (app as unknown as { isQuiting?: boolean }).isQuiting = true
+          appState.isQuiting = true
           app.quit()
         }
       }
