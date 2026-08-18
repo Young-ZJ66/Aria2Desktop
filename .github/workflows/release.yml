@@ -52,10 +52,15 @@ jobs:
       - name: 构建便携版 zip
         run: npx electron-builder --win --publish never --${{ matrix.electron_arch }} --config.win.target=zip --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-portable.${ext}'
 
-      # 从上个版本到当前版本的提交中自动提取并归类生成更新内容
-      - name: 生成更新内容
+      # 使用仓库中预写的更新日志（.github/release-notes.md，需在推送 tag 前更新并提交）
+      - name: 使用预写更新日志
         shell: pwsh
-        run: node scripts/generate-release-notes.mjs ${{ github.ref_name }}
+        run: |
+          if (-not (Test-Path .github/release-notes.md)) {
+            Write-Error "未找到 .github/release-notes.md，请在推送 tag 前填写更新日志并提交该文件"
+            exit 1
+          }
+          Write-Host "使用预写的 .github/release-notes.md 作为 Release 描述"
 
       # 用 GitHub CLI 创建/更新 Release，只上传安装包与便携版（不含 latest.yml / blockmap）
       - name: 创建 Release 并上传产物
@@ -63,9 +68,9 @@ jobs:
         run: |
           gh release view ${{ github.ref_name }} 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create ${{ github.ref_name }} --title "Aria2 Desktop ${{ github.ref_name }}" --notes-file release-notes.md
+            gh release create ${{ github.ref_name }} --title "Aria2 Desktop ${{ github.ref_name }}" --notes-file .github/release-notes.md
           } else {
-            gh release edit ${{ github.ref_name }} --notes-file release-notes.md
+            gh release edit ${{ github.ref_name }} --notes-file .github/release-notes.md
           }
           Get-ChildItem release -Filter "*-Setup.exe" | ForEach-Object {
             gh release upload ${{ github.ref_name }} $_.FullName --clobber
