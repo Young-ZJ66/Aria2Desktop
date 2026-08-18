@@ -46,14 +46,23 @@ export interface ElectronAPI {
   setAutoLaunch: (enabled: boolean) => Promise<{ success: boolean; enabled?: boolean; error?: string }>
 
   // 自动更新
-  checkForUpdates: () => Promise<{ success: boolean; error?: string }>
+  checkForUpdates: () => Promise<{
+    success: boolean
+    hasUpdate?: boolean
+    version?: string
+    notes?: string
+    alreadyDownloaded?: boolean
+    error?: string
+  }>
   checkUpdatesOnStartup: () => Promise<{
     success: boolean
     hasUpdate?: boolean
     version?: string
     notes?: string
+    alreadyDownloaded?: boolean
     error?: string
   }>
+  downloadUpdate: () => Promise<{ success: boolean; error?: string }>
   restartAndInstall: () => Promise<{ success: boolean; error?: string }>
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
 

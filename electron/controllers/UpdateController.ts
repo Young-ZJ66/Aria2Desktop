@@ -24,6 +24,8 @@ const MAX_REDIRECTS = 5
 export class UpdateController {
   private getWindow: () => BrowserWindow | null
   private downloadedPath: string = ''
+  private downloadedVersion: string = ''
+  private isDownloading = false
 
   constructor(getWindow: () => BrowserWindow | null) {
     this.getWindow = getWindow
@@ -37,31 +39,77 @@ export class UpdateController {
     }
   }
 
-  /** 检查更新；发现新版本时自动下载安装包 */
-  async checkForUpdates(): Promise<{ success: boolean; error?: string }> {
+  /** 检查更新（只检查不下载），供启动检查与设置页手动检查共用 */
+  async checkForUpdates(): Promise<{
+    success: boolean
+    hasUpdate: boolean
+    version?: string
+    notes?: string
+    /** 本次会话中该版本安装包是否已下载完成 */
+    alreadyDownloaded?: boolean
+    error?: string
+  }> {
+    if (!app.isPackaged) {
+      return { success: false, hasUpdate: false, error: 'Development mode does not support auto update' }
+    }
+    try {
+      const { tag, notes } = await this.fetchLatestReleaseInfo()
+      const latestVersion = tag.replace(/^v/i, '')
+      if (this.compareVersions(latestVersion, app.getVersion()) <= 0) {
+        this.sendToRenderer({ state: 'not-available' })
+        return { success: true, hasUpdate: false }
+      }
+      this.sendToRenderer({ state: 'available', version: latestVersion })
+      const alreadyDownloaded = this.downloadedVersion === latestVersion &&
+        !!this.downloadedPath && fs.existsSync(this.downloadedPath)
+      return { success: true, hasUpdate: true, version: latestVersion, notes, alreadyDownloaded }
+    } catch (error) {
+      return { success: false, hasUpdate: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  /** 启动时后台检查更新（只提醒，不下载），与 checkForUpdates 行为一致 */
+  async checkForUpdatesOnStartup(): Promise<{
+    success: boolean
+    hasUpdate: boolean
+    version?: string
+    notes?: string
+    alreadyDownloaded?: boolean
+    error?: string
+  }> {
+    return this.checkForUpdates()
+  }
+
+  /** 下载最新版本安装包（带进度推送），由用户在更新弹窗中确认后调用 */
+  async downloadUpdate(): Promise<{ success: boolean; error?: string }> {
     if (!app.isPackaged) {
       return { success: false, error: 'Development mode does not support auto update' }
+    }
+    if (this.isDownloading) {
+      return { success: false, error: 'Download already in progress' }
     }
     try {
       const { tag } = await this.fetchLatestReleaseInfo()
       const latestVersion = tag.replace(/^v/i, '')
-      const currentVersion = app.getVersion()
-
-      // 当前已是最新版本
-      if (this.compareVersions(latestVersion, currentVersion) <= 0) {
-        this.sendToRenderer({ state: 'not-available' })
+      if (this.compareVersions(latestVersion, app.getVersion()) <= 0) {
+        return { success: false, error: 'No update available' }
+      }
+      // 同版本已下载完成时直接复用，不重复下载
+      if (this.downloadedVersion === latestVersion && this.downloadedPath && fs.existsSync(this.downloadedPath)) {
+        this.sendToRenderer({ state: 'downloaded', version: latestVersion })
         return { success: true }
       }
 
-      // 按版本与架构构造安装包下载地址（命名规则与打包产物一致）
+      this.isDownloading = true
       const downloadUrl = this.buildInstallerUrl(latestVersion)
-
-      this.sendToRenderer({ state: 'available', version: latestVersion })
       await this.downloadInstaller(downloadUrl, latestVersion)
       this.sendToRenderer({ state: 'downloaded', version: latestVersion })
       return { success: true }
     } catch (error) {
+      // 失败原因通过返回值交给渲染层展示（附 GitHub 手动下载指引），不再推送 error 状态避免重复提示
       return { success: false, error: error instanceof Error ? error.message : String(error) }
+    } finally {
+      this.isDownloading = false
     }
   }
 
@@ -83,29 +131,6 @@ export class UpdateController {
     }
   }
 
-  /** 启动时后台检查更新（只提醒，不下载） */
-  async checkForUpdatesOnStartup(): Promise<{
-    success: boolean
-    hasUpdate: boolean
-    version?: string
-    notes?: string
-    error?: string
-  }> {
-    if (!app.isPackaged) {
-      return { success: false, hasUpdate: false, error: 'Development mode does not support auto update' }
-    }
-    try {
-      const { tag, notes } = await this.fetchLatestReleaseInfo()
-      const latestVersion = tag.replace(/^v/i, '')
-      if (this.compareVersions(latestVersion, app.getVersion()) <= 0) {
-        return { success: true, hasUpdate: false }
-      }
-      return { success: true, hasUpdate: true, version: latestVersion, notes }
-    } catch (error) {
-      return { success: false, hasUpdate: false, error: error instanceof Error ? error.message : String(error) }
-    }
-  }
-
   /** 请求 releases.atom 订阅源，提取最新 Release 的 tag 与更新内容（如 v1.0.1） */
   private fetchLatestReleaseInfo(): Promise<{ tag: string; notes: string }> {
     return new Promise<{ tag: string; notes: string }>((resolve, reject) => {
@@ -119,7 +144,7 @@ export class UpdateController {
           }
           const body = Buffer.concat(chunks).toString('utf-8')
           // 匹配第一个 release tag，如 https://github.com/.../releases/tag/v1.0.1
-          const tagMatch = /releases\/tag\/([^\/<"']+)/.exec(body)
+          const tagMatch = /releases\/tag\/([^/<"']+)/.exec(body)
           if (!tagMatch) {
             reject(new Error('No release tag found'))
             return
@@ -131,6 +156,8 @@ export class UpdateController {
         })
         res.on('error', reject)
       })
+      // 15 秒超时，避免网络异常时请求永久挂起（更新检查随之无法返回）
+      req.setTimeout(15000, () => req.destroy(new Error('Update check timed out')))
       req.on('error', reject)
       req.end()
     })
@@ -158,7 +185,7 @@ export class UpdateController {
     return new Promise<void>((resolve, reject) => {
       // 每次下载使用唯一文件名，避免覆盖仍被占用（如安装器运行中/杀软扫描）的旧文件
       const filePath = path.join(app.getPath('temp'), `Aria2Desktop-${version}-${Date.now()}-Setup.exe`)
-      this.downloadWithRedirects(url, filePath, 0, resolve, reject)
+      this.downloadWithRedirects(url, filePath, version, 0, resolve, reject)
     })
   }
 
@@ -166,6 +193,7 @@ export class UpdateController {
   private downloadWithRedirects(
     url: string,
     filePath: string,
+    version: string,
     redirectCount: number,
     resolve: () => void,
     reject: (reason?: unknown) => void
@@ -180,7 +208,7 @@ export class UpdateController {
       if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume()
         const nextUrl = new URL(res.headers.location, url).toString()
-        this.downloadWithRedirects(nextUrl, filePath, redirectCount + 1, resolve, reject)
+        this.downloadWithRedirects(nextUrl, filePath, version, redirectCount + 1, resolve, reject)
         return
       }
 
@@ -193,8 +221,18 @@ export class UpdateController {
       const total = Number(res.headers['content-length'] || 0)
       const fileStream = fs.createWriteStream(filePath)
       let received = 0
+      let failed = false
+
+      // 磁盘满、权限不足等写盘失败也要终止下载并退出 Promise，避免永久挂起
+      fileStream.on('error', (err) => {
+        failed = true
+        res.destroy()
+        fileStream.destroy()
+        reject(err)
+      })
 
       res.on('data', (chunk: Buffer) => {
+        if (failed) return
         received += chunk.length
         if (!fileStream.write(chunk)) {
           res.pause()
@@ -211,8 +249,10 @@ export class UpdateController {
       })
 
       res.on('end', () => {
+        if (failed) return
         fileStream.end(() => {
           this.downloadedPath = filePath
+          this.downloadedVersion = version
           resolve()
         })
       })

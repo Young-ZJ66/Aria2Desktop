@@ -7,6 +7,7 @@ import { TrayController } from './controllers/TrayController'
 import { Aria2Controller } from './controllers/Aria2Controller'
 import { IpcController } from './controllers/IpcController'
 import { AppLifecycle } from './controllers/AppLifecycle'
+import { appState } from './utils/appState'
 import type { StoreData, AppSettings } from './types/store'
 
 // ==========================================
@@ -106,10 +107,10 @@ if (!gotTheLock) {
   })
 
   app.on('before-quit', async (e) => {
-    if ((app as unknown as { isQuiting?: boolean }).isQuiting) return
+    if (appState.isQuiting) return
 
-    e.preventDefault();
-    (app as unknown as { isQuiting?: boolean }).isQuiting = true
+    e.preventDefault()
+    appState.isQuiting = true
 
     console.log('App quitting, starting graceful shutdown...')
 

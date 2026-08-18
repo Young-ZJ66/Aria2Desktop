@@ -190,18 +190,19 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NIcon } from 'naive-ui'
 import { FolderOpenOutline, RefreshOutline } from '@vicons/ionicons5'
-import { message, dialog } from '@/utils/feedback'
+import { message, confirm } from '@/utils/feedback'
 import type { UpdateStatus } from '@/types/electron'
 
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useUiStore } from '@/stores/uiStore'
 import { setLocale, type AppLocale } from '@/i18n'
 
 const settingsStore = useSettingsStore()
+const uiStore = useUiStore()
 const { t } = useI18n()
 const importing = ref(false)
 const showImportDialog = ref(false)
@@ -219,13 +220,7 @@ const form = reactive({
   refreshInterval: 1000,
   autoConnect: true,
   minimizeToTray: true,
-  autoLaunch: false,
-  ui: {
-    showStatusBar: true,
-    showToolbar: true,
-    taskListColumns: ['name', 'size', 'progress', 'status', 'speed'],
-    defaultView: 'downloading' as 'downloading' | 'waiting' | 'stopped'
-  }
+  autoLaunch: false
 })
 
 // 自动更新状态
@@ -293,8 +288,7 @@ watch(() => settingsStore.settings, (newSettings) => {
     refreshInterval: newSettings.refreshInterval,
     autoConnect: newSettings.autoConnect,
     minimizeToTray: newSettings.minimizeToTray,
-    autoLaunch: newSettings.autoLaunch,
-    ui: { ...newSettings.ui }
+    autoLaunch: newSettings.autoLaunch
   })
 }, { immediate: true, deep: true })
 
@@ -306,8 +300,7 @@ function loadFormData() {
     refreshInterval: settingsStore.settings.refreshInterval,
     autoConnect: settingsStore.settings.autoConnect,
     minimizeToTray: settingsStore.settings.minimizeToTray,
-    autoLaunch: settingsStore.settings.autoLaunch,
-    ui: { ...settingsStore.settings.ui }
+    autoLaunch: settingsStore.settings.autoLaunch
   })
 }
 
@@ -359,6 +352,20 @@ onMounted(async () => {
   }
 })
 
+// 关闭更新弹窗（点击"稍后"）时清理设置页的更新状态，
+// 避免残留"正在下载"等提示，或卡在加载态
+watch(() => uiStore.showUpdateDialog, (show) => {
+  if (!show && updateState.value !== 'idle') {
+    updateState.value = 'idle'
+    updateVersion.value = ''
+    updating.value = false
+  }
+})
+
+onUnmounted(() => {
+  unsubscribeUpdateStatus?.()
+})
+
 // 自动刷新间隔变化处理
 async function handleRefreshIntervalChange() {
   try {
@@ -382,7 +389,7 @@ async function handleAutoConnectChange() {
 }
 
 async function resetSettings() {
-  dialog.warning({
+  confirm({
     title: t('generalSettings.resetConfirmTitle'),
     content: t('generalSettings.resetConfirmMsg'),
     positiveText: t('generalSettings.resetConfirmBtn'),
@@ -577,15 +584,25 @@ async function handleAutoLaunchChange() {
   }
 }
 
-// 检查更新
+// 检查更新：发现新版本时不自动下载，弹窗展示更新日志（与启动检查行为一致）
 async function checkForUpdates() {
   if (!window.electronAPI?.checkForUpdates) return
+  // 防止检查进行中重复点击导致状态错乱
+  if (updating.value) return
   updating.value = true
   updateState.value = 'checking'
   try {
     const result = await window.electronAPI.checkForUpdates()
-    if (!result.success) {
-      // 网络错误等问题静默视为已是最新版本，不提示用户更新出错
+    if (result.success && result.hasUpdate) {
+      updateState.value = 'available'
+      updateVersion.value = result.version ?? ''
+      uiStore.openUpdateDialog({
+        version: result.version || '',
+        notes: result.notes,
+        state: result.alreadyDownloaded ? 'downloaded' : 'prompt'
+      })
+    } else {
+      // 无新版本或网络错误：统一静默提示已是最新版本
       updateState.value = 'not-available'
     }
   } catch (_error) {
