@@ -64,7 +64,7 @@ function getCompletedPieces(): string {
   const bitfield = props.task.bitfield
   let completed = 0
   for (let i = 0; i < bitfield.length; i++) {
-    const byte = parseInt(bitfield.substr(i * 2, 2), 16)
+    const byte = parseInt(bitfield.substring(i * 2, i * 2 + 2), 16)
     for (let j = 0; j < 8; j++) {
       if (byte & (1 << (7 - j))) completed++
     }
@@ -88,7 +88,7 @@ function getPiecesStatus(): boolean[] {
     const bitIndex = i % 8
 
     if (byteIndex * 2 + 1 < bitfield.length) {
-      const byte = parseInt(bitfield.substr(byteIndex * 2, 2), 16)
+      const byte = parseInt(bitfield.substring(byteIndex * 2, byteIndex * 2 + 2), 16)
       pieces.push(!!(byte & (1 << (7 - bitIndex))))
     } else {
       pieces.push(false)

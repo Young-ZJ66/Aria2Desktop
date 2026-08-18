@@ -249,8 +249,7 @@ async function handleUriSubmit() {
     options['min-split-size'] = uriForm.minSplitSize
     if (!uriForm.autoStart) options.pause = 'true'
 
-    const gid = await taskStore.addUri(uris, options)
-    console.warn('Task added with GID:', gid)
+    await taskStore.addUri(uris, options)
 
     message.success(t('newTask.addedCount', { count: uris.length }))
     uiStore.closeNewTask()
@@ -288,8 +287,7 @@ async function handleTorrentSubmit() {
     if (downloadConfig.defaultDir) options.dir = downloadConfig.defaultDir
     if (!downloadConfig.autoStart) options.pause = 'true'
 
-    const gid = await taskStore.addTorrent(torrentData, [], options)
-    console.warn('Torrent task added with GID:', gid)
+    await taskStore.addTorrent(torrentData, [], options)
 
     message.success(t('newTask.torrentAdded'))
     uiStore.closeNewTask()
@@ -328,7 +326,6 @@ async function handleMetalinkSubmit() {
     if (!downloadConfig.autoStart) options.pause = 'true'
 
     const gids = await taskStore.addMetalink(metalinkData, options)
-    console.warn('Metalink tasks added with GIDs:', gids)
 
     message.success(t('newTask.metalinkAdded', { count: gids.length }))
     uiStore.closeNewTask()

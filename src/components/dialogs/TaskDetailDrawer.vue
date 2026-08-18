@@ -39,21 +39,21 @@
             </n-tab-pane>
           </n-tabs>
 
-        <!-- URI 信息对话框 -->
-        <n-modal
-          v-model:show="uriDialogVisible"
-          :title="t('taskDetail.uriListTitle')"
-          preset="card"
-          style="width: 70%"
-          :bordered="false"
-        >
-          <n-data-table
-            :columns="uriColumns"
-            :data="selectedFileUris"
-            :row-key="(row: any) => row.uri"
-            :scroll-x="600"
-          />
-        </n-modal>
+          <!-- URI 信息对话框 -->
+          <n-modal
+            v-model:show="uriDialogVisible"
+            :title="t('taskDetail.uriListTitle')"
+            preset="card"
+            style="width: 70%"
+            :bordered="false"
+          >
+            <n-data-table
+              :columns="uriColumns"
+              :data="selectedFileUris"
+              :row-key="(row: Aria2Uri) => row.uri"
+              :scroll-x="600"
+            />
+          </n-modal>
         </div>
 
         <div v-else class="loading">
@@ -73,7 +73,7 @@ import { message } from '@/utils/feedback'
 import { useUiStore } from '@/stores/uiStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
-import type { Aria2Task, Aria2Uri, Aria2Server } from '@/types/aria2'
+import type { Aria2Task, Aria2Uri, Aria2Server, Aria2Peer } from '@/types/aria2'
 import TaskBasicInfo from '@/components/task/TaskBasicInfo.vue'
 import TaskServerInfo from '@/components/task/TaskServerInfo.vue'
 import TaskPeerInfo from '@/components/task/TaskPeerInfo.vue'
@@ -89,7 +89,7 @@ const loading = ref(false)
 const uriDialogVisible = ref(false)
 const selectedFileUris = ref<Aria2Uri[]>([])
 const taskUris = ref<Aria2Uri[]>([])
-const taskPeers = ref<unknown[]>([])
+const taskPeers = ref<Aria2Peer[]>([])
 const taskServers = ref<Aria2Server[]>([])
 const activeTab = ref('basic')
 
@@ -149,7 +149,7 @@ const uriColumns: DataTableColumns<Aria2Uri> = [
     width: 100,
     render: (row) =>
       h(NTag, {
-        type: (getUriStatusType(row.status) as 'success' | 'warning' | 'info' | 'default') || 'default',
+        type: getUriStatusType(row.status),
         size: 'small'
       }, { default: () => getUriStatusText(row.status) })
   }
@@ -259,7 +259,8 @@ function deduplicateUris(uris: Aria2Uri[]): Aria2Uri[] {
   return uniqueUris
 }
 
-function getUriStatusType(status: string): string {
+/** URI 状态标签类型（与 NTag type prop 对齐） */
+function getUriStatusType(status: string): 'success' | 'warning' | 'info' {
   switch (status) {
     case 'used': return 'success'
     case 'waiting': return 'warning'

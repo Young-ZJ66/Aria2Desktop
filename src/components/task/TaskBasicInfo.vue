@@ -5,7 +5,7 @@
       <template #header>
         <div class="card-header">
           <span>{{ t('taskDetail.basicInfo') }}</span>
-          <n-tag v-if="task.status" :type="(getStatusType(task.status) as any) || 'default'" size="small">
+          <n-tag v-if="task.status" :type="getStatusType(task.status)" size="small">
             {{ t('status.' + task.status) }}
           </n-tag>
         </div>

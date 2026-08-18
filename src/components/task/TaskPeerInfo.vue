@@ -22,13 +22,13 @@ import type { Aria2Peer } from '@/types/aria2'
 import { formatSpeed } from '@/utils/taskFormatters'
 
 interface Props {
-  peers: unknown[]
+  peers: Aria2Peer[]
 }
 
 defineProps<Props>()
 const { t } = useI18n()
 
-const columns = computed<DataTableColumns<any>>(() => [
+const columns = computed<DataTableColumns<Aria2Peer>>(() => [
   {
     key: 'index',
     title: t('taskDetail.index'),

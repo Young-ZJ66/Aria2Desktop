@@ -108,6 +108,8 @@ export interface Aria2Server {
     uri: string
     currentUri: string
     downloadSpeed: string
+    /** aria2 实际返回该字段（used/waiting），官方文档未列出 */
+    status?: string
   }>
 }
 

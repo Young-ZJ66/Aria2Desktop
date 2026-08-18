@@ -52,14 +52,15 @@ const rows = computed<ServerRow[]>(() => {
         fileIndex: entry.index,
         uri: server.uri,
         downloadSpeed: server.downloadSpeed || '0',
-        status: (server as { status?: string }).status || ''
+        status: server.status || ''
       })
     })
   })
   return result
 })
 
-function getStatusType(status: string): string {
+/** 服务器状态标签类型（与 NTag type prop 对齐） */
+function getStatusType(status: string): 'success' | 'warning' | 'info' {
   switch (status) {
     case 'used': return 'success'
     case 'waiting': return 'warning'
@@ -120,7 +121,7 @@ const columns = computed<DataTableColumns<ServerRow>>(() => [
     align: 'center',
     render: (row: ServerRow) =>
       h(NTag, {
-        type: (getStatusType(row.status) as 'success' | 'warning' | 'info' | 'default') || 'default',
+        type: getStatusType(row.status),
         size: 'small',
         bordered: false
       }, { default: () => getStatusText(row.status) })

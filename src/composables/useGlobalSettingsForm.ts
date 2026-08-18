@@ -6,7 +6,7 @@
  */
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { message, dialog } from '@/utils/feedback'
+import { message, confirm } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
 import { hasRestartRequiredOption } from '@/utils/aria2RestartOptions'
@@ -120,7 +120,7 @@ export function useGlobalSettingsForm<T extends object>(
 
   // 重置为默认值（统一确认对话框）
   function handleReset(): void {
-    dialog.warning({
+    confirm({
       title: t('settings.restoreConfirmTitle'),
       content: t('settings.restoreConfirm'),
       positiveText: t('common.ok'),

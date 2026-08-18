@@ -353,6 +353,7 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import type { Aria2Option } from '@/types/aria2'
 import { useI18n } from 'vue-i18n'
 import { useConnectionStore } from '@/stores/connectionStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'

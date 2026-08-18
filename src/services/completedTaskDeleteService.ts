@@ -4,6 +4,7 @@
  */
 
 import type { Aria2Task } from '@/types/aria2'
+import { getTaskName } from '@/utils/taskUtils'
 import { taskPersistenceService } from './taskPersistenceService'
 import { taskTimeService } from './taskTimeService'
 
@@ -31,6 +32,12 @@ export interface BatchDeleteResult {
   errors: string[]
 }
 
+/** 由调用方（taskStore / 组件）注入的 Aria2 删除能力，避免 service 层反向依赖 store */
+export interface TaskRemovalService {
+  removeDownloadResult(gid: string): Promise<string>
+  remove(gid: string): Promise<string>
+}
+
 class CompletedTaskDeleteService {
 
   /**
@@ -39,45 +46,20 @@ class CompletedTaskDeleteService {
   getTaskFilePaths(task: Aria2Task): string[] {
     const filePaths: string[] = []
 
-    console.warn(`Getting file paths for task ${task.gid}:`, {
-      status: task.status,
-      dir: task.dir,
-      files: task.files,
-      filesLength: task.files?.length || 0
-    })
-
     if (task.files && task.files.length > 0) {
-      task.files.forEach((file, index) => {
-        console.warn(`  File ${index}:`, {
-          path: file.path,
-          selected: file.selected,
-          length: file.length,
-          completedLength: file.completedLength
-        })
-
+      task.files.forEach((file) => {
         if (file.path && file.path.trim()) {
           let fullPath = file.path.trim()
           const isAbsolute = this.isAbsolutePath(fullPath)
 
-          console.warn(`    Original file path: "${fullPath}"`)
-          console.warn(`    Is absolute path: ${isAbsolute}`)
-          console.warn(`    Task dir: "${task.dir}"`)
-
           // 如果路径不是绝对路径，尝试与下载目录组合
           if (!isAbsolute && task.dir) {
-            const originalPath = fullPath
             fullPath = this.joinPath(task.dir, fullPath)
-            console.warn(`    Combined path: "${originalPath}" + "${task.dir}" = "${fullPath}"`)
-          } else if (isAbsolute) {
-            console.warn(`    Using absolute path as-is: "${fullPath}"`)
-          } else {
-            console.warn(`    No task.dir available, using path as-is: "${fullPath}"`)
           }
 
           // 规范化路径，处理可能的重复目录问题
           const normalizedPath = this.normalizePath(fullPath)
           filePaths.push(normalizedPath)
-          console.warn(`    Final file path: "${normalizedPath}"`)
         }
       })
     }
@@ -87,16 +69,7 @@ class CompletedTaskDeleteService {
       .filter(path => !path.endsWith('.aria2')) // 避免重复添加
       .map(path => path + '.aria2')
 
-    const allFiles = [...filePaths, ...aria2Files]
-
-    // 如果没有找到文件，尝试从下载目录推断
-    if (filePaths.length === 0 && task.dir) {
-      console.warn(`No files found in task.files, checking download directory: ${task.dir}`)
-      // 这里可以添加从下载目录推断文件的逻辑
-    }
-
-    console.warn(`Final file paths for task ${task.gid} (including .aria2 files):`, allFiles)
-    return allFiles
+    return [...filePaths, ...aria2Files]
   }
 
   /**
@@ -117,7 +90,8 @@ class CompletedTaskDeleteService {
   }
 
   /**
-   * 规范化路径，处理重复的目录问题
+   * 规范化路径，处理 aria2 在 Windows 下偶发的首层目录重复问题
+   * （如 C:\dir\dir\file -> C:\dir\file）
    */
   private normalizePath(path: string): string {
     // 将所有斜杠统一为反斜杠（Windows）或正斜杠（Unix）
@@ -125,15 +99,16 @@ class CompletedTaskDeleteService {
     const separator = isWindows ? '\\' : '/'
     const normalizedPath = path.replace(/[\\/]+/g, separator)
 
-    // 检查是否有重复的目录路径
+    // 检查是否有重复的目录路径（仅处理"盘符根后第一层目录紧接着重复"的已知 aria2 缺陷形态）
     if (isWindows) {
-      // Windows 路径：检查是否有重复的盘符路径
-      const match = normalizedPath.match(/^([a-zA-Z]:[\\/][^\\/]+)[\\/]\1(.*)$/i)
+      const match = normalizedPath.match(/^([a-zA-Z]:[\\/][^\\/]+)[\\/]\1(?:[\\/](.*))?$/i)
       if (match) {
         const duplicatedPart = match[1]
         const remainingPart = match[2]
-        const correctedPath = duplicatedPart + (remainingPart ? separator + remainingPart : '')
-        console.warn(`    Detected duplicate path: "${normalizedPath}" -> "${correctedPath}"`)
+        const correctedPath = remainingPart !== undefined
+          ? duplicatedPart + separator + remainingPart
+          : duplicatedPart
+        console.warn(`Detected duplicate path: "${normalizedPath}" -> "${correctedPath}"`)
         return correctedPath
       }
     }
@@ -141,32 +116,21 @@ class CompletedTaskDeleteService {
     return normalizedPath
   }
 
-
   /**
-   * 获取任务显示名称
+   * 获取任务显示名称（统一委托 taskUtils，避免多处实现行为不一致）
    */
   getTaskDisplayName(task: Aria2Task): string {
-    if (task.bittorrent?.info?.name) {
-      return task.bittorrent.info.name
-    }
-
-    if (task.files && task.files.length > 0) {
-      const file = task.files[0]
-      const path = file.path
-      if (path) {
-        return path.split('/').pop() || path.split('\\').pop() || 'Unknown'
-      }
-    }
-
-    return `Task ${task.gid}`
+    return getTaskName(task)
   }
 
   /**
    * 删除单个已完成任务
+   * @param service 可选的 Aria2 删除能力（由调用方注入）；缺省时跳过 Aria2 侧清理
    */
   async deleteCompletedTask(
     task: Aria2Task,
-    deleteFiles: boolean = false
+    deleteFiles: boolean = false,
+    service?: TaskRemovalService | null
   ): Promise<DeleteResult> {
     const taskName = this.getTaskDisplayName(task)
     const result: DeleteResult = {
@@ -177,19 +141,14 @@ class CompletedTaskDeleteService {
       errors: []
     }
 
-    console.warn(`Deleting completed task ${task.gid} (${taskName}), deleteFiles: ${deleteFiles}`)
-
     try {
       // 如果需要删除文件
       if (deleteFiles && window.electronAPI?.deleteFiles) {
         const filePaths = this.getTaskFilePaths(task)
 
         if (filePaths.length > 0) {
-          console.warn(`Attempting to delete ${filePaths.length} files for task ${task.gid}`)
-
           try {
             const deleteResult = await window.electronAPI.deleteFiles(filePaths)
-            console.warn(`File deletion result for task ${task.gid}:`, deleteResult)
 
             if (deleteResult.success && deleteResult.results) {
               const successfulDeletes = deleteResult.results.filter((r: FileDeleteItemResult) => r.success)
@@ -209,60 +168,38 @@ class CompletedTaskDeleteService {
             result.errors.push(errorMsg)
             console.error(errorMsg, error)
           }
-        } else {
-          console.warn(`Task ${task.gid} has no files to delete`)
         }
       }
 
       // 删除任务记录
       try {
         // 1. 尝试从 Aria2 中删除任务（如果任务仍在 Aria2 中）
-        try {
-          // 动态导入 connectionStore 来删除任务
-          const { useConnectionStore } = await import('@/stores/connectionStore')
-          const connectionStore = useConnectionStore()
-
-          if (connectionStore.service && connectionStore.isConnected) {
-            console.warn(`Attempting to remove task ${task.gid} from Aria2`)
-
-            // 先尝试从下载结果中删除（适用于已完成的任务）
+        if (service) {
+          // 先尝试从下载结果中删除（适用于已完成的任务）
+          try {
+            await service.removeDownloadResult(task.gid)
+          } catch {
+            // 如果从下载结果删除失败，尝试常规删除（任务可能仍处于活动状态）
             try {
-              await connectionStore.service.removeDownloadResult(task.gid)
-              console.warn(`Successfully removed task ${task.gid} from Aria2 download results`)
-            } catch (resultError) {
-              // 如果从下载结果删除失败，尝试常规删除
-              console.warn(`Failed to remove from download results, trying regular remove:`, resultError)
-              try {
-                await connectionStore.service.remove(task.gid)
-                console.warn(`Successfully removed task ${task.gid} from Aria2 (regular remove)`)
-              } catch (removeError) {
-                console.warn(`Failed to remove task ${task.gid} from Aria2 (may not exist):`, removeError)
-              }
+              await service.remove(task.gid)
+            } catch {
+              // 任务可能已不在 Aria2 中，忽略
             }
-          } else {
-            console.warn(`Aria2 not connected, skipping Aria2 deletion for task ${task.gid}`)
           }
-        } catch (aria2Error) {
-          // Aria2 删除失败不影响整体删除流程，可能任务已经不在 Aria2 中了
-          console.warn(`Failed to remove task ${task.gid} from Aria2:`, aria2Error)
         }
 
         // 2. 从持久化存储中删除
         taskPersistenceService.removePersistedTask(task.gid)
-        console.warn(`Removed task ${task.gid} from persistence storage`)
 
         // 3. 从时间记录中删除
         taskTimeService.removeTaskTime(task.gid)
-        console.warn(`Removed task ${task.gid} time record`)
 
         result.success = true
-        console.warn(`Successfully deleted task record for ${task.gid}`)
       } catch (error) {
         const errorMsg = `删除任务记录失败: ${error instanceof Error ? error.message : String(error)}`
         result.errors.push(errorMsg)
         console.error(errorMsg, error)
       }
-
     } catch (error) {
       const errorMsg = `删除任务时发生未知错误: ${error instanceof Error ? error.message : String(error)}`
       result.errors.push(errorMsg)
@@ -274,13 +211,13 @@ class CompletedTaskDeleteService {
 
   /**
    * 批量删除已完成任务
+   * @param service 可选的 Aria2 删除能力（由调用方注入）；缺省时跳过 Aria2 侧清理
    */
   async batchDeleteCompletedTasks(
     tasks: Aria2Task[],
-    deleteFiles: boolean = false
+    deleteFiles: boolean = false,
+    service?: TaskRemovalService | null
   ): Promise<BatchDeleteResult> {
-    console.warn(`Batch deleting ${tasks.length} completed tasks, deleteFiles: ${deleteFiles}`)
-
     const batchResult: BatchDeleteResult = {
       totalTasks: tasks.length,
       successfulTasks: 0,
@@ -292,7 +229,7 @@ class CompletedTaskDeleteService {
 
     for (const task of tasks) {
       try {
-        const result = await this.deleteCompletedTask(task, deleteFiles)
+        const result = await this.deleteCompletedTask(task, deleteFiles, service)
         batchResult.results.push(result)
 
         if (result.success) {
@@ -310,7 +247,6 @@ class CompletedTaskDeleteService {
       }
     }
 
-    console.warn('Batch delete completed:', batchResult)
     return batchResult
   }
 

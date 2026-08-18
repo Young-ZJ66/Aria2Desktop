@@ -6,23 +6,23 @@
 import type { Aria2Task } from '@/types/aria2'
 import { getLocale } from '@/i18n'
 import {
+  formatSize as utilFormatSize,
   formatSpeed as utilFormatSpeed,
   formatTime,
-  getTaskRemainingTime
+  getTaskProgress,
+  getTaskRemainingTime,
+  getTaskName
 } from '@/utils/taskUtils'
 
+/** Naive UI 组件（NTag 等）的状态类型联合 */
+export type StatusTagType = 'primary' | 'success' | 'warning' | 'info' | 'error' | 'default'
+
 /**
- * 格式化字节大小字符串为人类可读格式
+ * 格式化字节大小字符串为人类可读格式（委托 taskUtils 统一实现）
  */
 export function formatSize(bytes: string | number): string {
   const size = typeof bytes === 'string' ? parseInt(bytes) : bytes
-  if (!Number.isFinite(size) || size <= 0) return '0 B'
-
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.min(Math.floor(Math.log(size) / Math.log(k)), sizes.length - 1)
-
-  return parseFloat((size / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+  return utilFormatSize(size)
 }
 
 /**
@@ -42,14 +42,10 @@ export function formatRemainingTime(task: Aria2Task): string {
 }
 
 /**
- * 获取任务进度百分比
+ * 获取任务进度百分比（委托 taskUtils 统一实现）
  */
 export function getProgress(task: Aria2Task): number {
-  const total = parseInt(task.totalLength)
-  const completed = parseInt(task.completedLength)
-
-  if (total === 0) return 0
-  return Math.round((completed / total) * 100)
+  return getTaskProgress(task)
 }
 
 /**
@@ -65,34 +61,24 @@ export function getProgressStatus(task: Aria2Task): string {
 }
 
 /**
- * 获取状态标签类型
+ * 获取状态标签类型（返回类型与 Naive UI NTag 的 type prop 对齐）
  */
-export function getStatusType(status: string): string {
+export function getStatusType(status: string): StatusTagType {
   switch (status) {
     case 'active': return 'primary'
     case 'waiting': return 'warning'
     case 'paused': return 'info'
     case 'complete': return 'success'
     case 'error': return 'error'
-    default: return ''
+    default: return 'default'
   }
 }
 
 /**
- * 获取任务显示名称
+ * 获取任务显示名称（委托 taskUtils 的 getTaskName，含空值守卫，避免多处实现行为不一致）
  */
 export function getTaskDisplayName(task: Aria2Task): string {
-  if (task.bittorrent?.info?.name) {
-    return task.bittorrent.info.name
-  }
-
-  if (task.files && task.files.length > 0) {
-    const file = task.files[0]
-    const path = file.path
-    return path.split('/').pop() || path.split('\\').pop() || 'Unknown'
-  }
-
-  return `Task ${task.gid}`
+  return getTaskName(task)
 }
 
 /**

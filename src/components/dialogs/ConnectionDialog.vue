@@ -177,7 +177,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { message, dialog } from '@/utils/feedback'
+import { message, confirm } from '@/utils/feedback'
 import type { FormInst, FormRules, SelectOption } from 'naive-ui'
 import { ArrowBackOutline, AddOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
 import { useConnectionStore } from '@/stores/connectionStore'
@@ -378,7 +378,7 @@ async function confirmName() {
 function handleDeleteProfile() {
   const profile = connectionStore.profiles.find(p => p.id === selectedProfileId.value)
   const name = profile?.name || t('connection.defaultProfileName')
-  dialog.warning({
+  confirm({
     title: t('connection.deleteProfileTitle'),
     content: t('connection.confirmDeleteProfile', { name }),
     positiveText: t('common.confirm'),

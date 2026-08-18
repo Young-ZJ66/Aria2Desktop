@@ -32,6 +32,8 @@ export class Aria2Client {
     timer: ReturnType<typeof setTimeout>
   }>()
   private eventListeners = new Map<string, Aria2EventListener[]>()
+  /** 连接阶段未完成的 settle 函数，disconnect 时用于立即结束挂起的 connect() */
+  private pendingConnectSettle: ((err?: Error) => void) | null = null
 
   constructor(config: Aria2Config) {
     this.config = config
@@ -108,10 +110,14 @@ export class Aria2Client {
       const settle = (err?: Error) => {
         if (settled) return
         settled = true
+        this.pendingConnectSettle = null
         clearTimeout(connectTimeout)
         if (err) reject(err)
         else resolve()
       }
+
+      // 记录 settle，供连接过程中 disconnect() 立即结束挂起的 Promise
+      this.pendingConnectSettle = settle
 
       this.wsClient.onopen = () => {
         this.emit('connected')
@@ -216,7 +222,14 @@ export class Aria2Client {
         timer
       })
 
-      this.wsClient!.send(JSON.stringify(request))
+      // 检查通过后 socket 可能恰好关闭，send 同步抛错时清理在途请求并 reject
+      try {
+        this.wsClient!.send(JSON.stringify(request))
+      } catch (err) {
+        clearTimeout(timer)
+        this.pendingRequests.delete(request.id as number)
+        reject(err instanceof Error ? err : new Error('WebSocket send failed'))
+      }
     })
   }
 
@@ -256,6 +269,10 @@ export class Aria2Client {
 
   // 断开连接
   disconnect() {
+    // 连接尚未完成时，立即结束挂起的 connect() Promise（否则需等待超时才 settle）
+    if (this.pendingConnectSettle) {
+      this.pendingConnectSettle(new Error('Client disconnected'))
+    }
     if (this.wsClient) {
       // 移除事件回调，避免 close 时重复触发 disconnected/rejectAllPending
       this.wsClient.onclose = null

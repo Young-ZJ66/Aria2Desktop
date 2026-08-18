@@ -279,6 +279,7 @@
 
 <script setup lang="ts">
 import { reactive, computed } from 'vue'
+import type { Aria2Option } from '@/types/aria2'
 import { useI18n } from 'vue-i18n'
 import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'

@@ -7,13 +7,16 @@ export class SessionManager {
   private saveQueue = new Set<string>()
   private saveTimer: NodeJS.Timeout | null = null
   private isSaving = false
+  /** 保存进行期间又有新保存请求到达时，完成后补一次保存 */
+  private needsResave = false
 
   /**
    * 立即保存会话
    */
   async saveSessionImmediate(): Promise<boolean> {
     if (this.isSaving) {
-      console.warn('Session save already in progress, skipping...')
+      // 正在保存时记录待重试，避免本次变更被静默丢弃
+      this.needsResave = true
       return false
     }
 
@@ -25,14 +28,18 @@ export class SessionManager {
         return false
       }
 
-      const result = await window.electronAPI.saveSession()
-      console.warn('Session saved immediately:', result)
+      await window.electronAPI.saveSession()
       return true
     } catch (error) {
       console.error('Failed to save session immediately:', error)
       return false
     } finally {
       this.isSaving = false
+      // 保存期间有新的保存请求：稍后补一次，确保最新状态落盘
+      if (this.needsResave) {
+        this.needsResave = false
+        this.saveSessionDebounced(500)
+      }
     }
   }
 
@@ -68,7 +75,6 @@ export class SessionManager {
       return true
     }
 
-    console.warn(`Batch saving ${this.saveQueue.size} tasks`)
     const success = await this.saveSessionImmediate()
 
     if (success) {

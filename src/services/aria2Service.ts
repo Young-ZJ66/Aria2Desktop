@@ -57,7 +57,6 @@ export class Aria2Service {
     }
     if (position !== undefined) params.push(position)
 
-    console.warn('Adding URI with params:', params)
     return this.client.call<string>(Aria2Methods.ADD_URI, params)
   }
 

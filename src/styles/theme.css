@@ -85,3 +85,19 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--border-dark);
 }
+
+/* =========================================
+   按钮：默认类型按钮点击后的焦点回落
+   Naive UI 默认按钮在 :focus 时渲染为蓝色（边框+文字），
+   鼠标点击后按钮会保留焦点，导致按钮一直"卡"在蓝色聚焦态不恢复。
+   这里让"鼠标点击导致的焦点"回落到默认灰（灰边框+深色文字），
+   鼠标悬浮（hover）仍显示蓝色，键盘 Tab 聚焦（:focus-visible）也保留蓝色。
+   ========================================= */
+.n-button--default-type:focus:not(:hover):not(:focus-visible) {
+  background-color: var(--n-color);
+  color: var(--n-text-color);
+}
+
+.n-button--default-type:focus:not(:hover):not(:focus-visible) .n-button__state-border {
+  border: var(--n-border);
+}

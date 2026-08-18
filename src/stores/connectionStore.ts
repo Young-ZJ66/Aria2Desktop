@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, shallowRef, computed } from 'vue'
 import { Aria2Service } from '@/services/aria2Service'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useTaskStore } from '@/stores/taskStore'
@@ -15,7 +15,8 @@ const DEFAULT_CONFIG: Aria2Config = {
 }
 
 export const useConnectionStore = defineStore('connection', () => {
-  const service = ref<Aria2Service | null>(null)
+  // shallowRef：service 内部持有 WebSocket/axios 等非纯数据结构，仅追踪引用变化，避免深度代理开销与行为异常
+  const service = shallowRef<Aria2Service | null>(null)
   const isConnected = ref(false)
   const isConnecting = ref(false)
   const connectionError = ref<string | null>(null)

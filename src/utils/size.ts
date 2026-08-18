@@ -3,12 +3,12 @@
 // disk-cache、速度限制等）一律是字节数（如 "2097152"），也可能带单位后缀（如 "2M"）。
 // 这里统一转换为目标单位下的数值，避免把原始字节数直接显示/回写。
 
-const UNIT_BYTES = { K: 1024, M: 1048576, G: 1073741824 } as const
+const UNIT_BYTES = { K: 1024, M: 1048576, G: 1073741824, T: 1099511627776 } as const
 
 export type SizeUnit = keyof typeof UNIT_BYTES
 
 /**
- * 将 aria2 的 SIZE 字符串（字节数或带 K/M/G 后缀）解析为目标单位下的数值。
+ * 将 aria2 的 SIZE 字符串（字节数或带 K/M/G/T 后缀）解析为目标单位下的数值。
  * 例：parseSizeToUnit('2097152', 'M') => 2；parseSizeToUnit('2M', 'M') => 2；
  *     parseSizeToUnit('1048576', 'K') => 1024；parseSizeToUnit('0', 'M') => 0
  */

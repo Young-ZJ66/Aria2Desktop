@@ -12,346 +12,346 @@
     @reload="loadSettings"
     @reset="handleReset"
   >
-      <!-- DHT 与网络 -->
-      <n-card :title="t('settings.bt.groupDht')" class="setting-group">
-        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.enableDht')" :tip="t('settings.bt.enableDhtTip')" :option="'enable-dht'" />
-            </template>
-            <AppSwitch v-model:value="settings.enableDht" />
-          </n-form-item>
+    <!-- DHT 与网络 -->
+    <n-card :title="t('settings.bt.groupDht')" class="setting-group">
+      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.enableDht')" :tip="t('settings.bt.enableDhtTip')" :option="'enable-dht'" />
+          </template>
+          <AppSwitch v-model:value="settings.enableDht" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.enableDht6')" :tip="t('settings.bt.enableDht6Tip')" :option="'enable-dht6'" />
-            </template>
-            <AppSwitch v-model:value="settings.enableDht6" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.enableDht6')" :tip="t('settings.bt.enableDht6Tip')" :option="'enable-dht6'" />
+          </template>
+          <AppSwitch v-model:value="settings.enableDht6" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.dhtListenPort')" :tip="t('settings.bt.dhtListenPortTip')" :option="'dht-listen-port'" />
-            </template>
-            <n-input-number v-model:value="settings.dhtListenPort" :min="1024" :max="65535" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.dhtListenPort')" :tip="t('settings.bt.dhtListenPortTip')" :option="'dht-listen-port'" />
+          </template>
+          <n-input-number v-model:value="settings.dhtListenPort" :min="1024" :max="65535" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.dhtFilePath')" :tip="t('settings.bt.dhtFilePathTip')" :option="'dht-file-path'" />
-            </template>
-            <n-input-group>
-              <n-input v-model:value="settings.dhtFilePath" :placeholder="t('settings.bt.dhtFilePathPlaceholder')" clearable />
-              <n-button @click="selectDhtFile('dhtFilePath')">
-                <template #icon>
-                  <n-icon><FolderOpenOutline /></n-icon>
-                </template>
-              </n-button>
-            </n-input-group>
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.dhtFilePath')" :tip="t('settings.bt.dhtFilePathTip')" :option="'dht-file-path'" />
+          </template>
+          <n-input-group>
+            <n-input v-model:value="settings.dhtFilePath" :placeholder="t('settings.bt.dhtFilePathPlaceholder')" clearable />
+            <n-button @click="selectDhtFile('dhtFilePath')">
+              <template #icon>
+                <n-icon><FolderOpenOutline /></n-icon>
+              </template>
+            </n-button>
+          </n-input-group>
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btEnableLpd')" :tip="t('settings.bt.btEnableLpdTip')" :option="'bt-enable-lpd'" />
-            </template>
-            <AppSwitch v-model:value="settings.btEnableLpd" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btEnableLpd')" :tip="t('settings.bt.btEnableLpdTip')" :option="'bt-enable-lpd'" />
+          </template>
+          <AppSwitch v-model:value="settings.btEnableLpd" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btExternalIp')" :tip="t('settings.bt.btExternalIpTip')" :option="'bt-external-ip'" />
-            </template>
-            <n-input v-model:value="settings.btExternalIp" :placeholder="t('settings.bt.btExternalIpPlaceholder')" clearable />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btExternalIp')" :tip="t('settings.bt.btExternalIpTip')" :option="'bt-external-ip'" />
+          </template>
+          <n-input v-model:value="settings.btExternalIp" :placeholder="t('settings.bt.btExternalIpPlaceholder')" clearable />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.dhtEntryPoint')" :tip="t('settings.bt.dhtEntryPointTip')" :option="'dht-entry-point'" />
-            </template>
-            <n-input v-model:value="settings.dhtEntryPoint" :placeholder="t('settings.bt.dhtEntryPointPlaceholder')" clearable />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.dhtEntryPoint')" :tip="t('settings.bt.dhtEntryPointTip')" :option="'dht-entry-point'" />
+          </template>
+          <n-input v-model:value="settings.dhtEntryPoint" :placeholder="t('settings.bt.dhtEntryPointPlaceholder')" clearable />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.dhtEntryPoint6')" :tip="t('settings.bt.dhtEntryPoint6Tip')" :option="'dht-entry-point6'" />
-            </template>
-            <n-input v-model:value="settings.dhtEntryPoint6" :placeholder="t('settings.bt.dhtEntryPoint6Placeholder')" clearable />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.dhtEntryPoint6')" :tip="t('settings.bt.dhtEntryPoint6Tip')" :option="'dht-entry-point6'" />
+          </template>
+          <n-input v-model:value="settings.dhtEntryPoint6" :placeholder="t('settings.bt.dhtEntryPoint6Placeholder')" clearable />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.dhtFilePath6')" :tip="t('settings.bt.dhtFilePath6Tip')" :option="'dht-file-path6'" />
-            </template>
-            <n-input-group>
-              <n-input v-model:value="settings.dhtFilePath6" :placeholder="t('settings.bt.dhtFilePath6Placeholder')" clearable />
-              <n-button @click="selectDhtFile('dhtFilePath6')">
-                <template #icon>
-                  <n-icon><FolderOpenOutline /></n-icon>
-                </template>
-              </n-button>
-            </n-input-group>
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.dhtFilePath6')" :tip="t('settings.bt.dhtFilePath6Tip')" :option="'dht-file-path6'" />
+          </template>
+          <n-input-group>
+            <n-input v-model:value="settings.dhtFilePath6" :placeholder="t('settings.bt.dhtFilePath6Placeholder')" clearable />
+            <n-button @click="selectDhtFile('dhtFilePath6')">
+              <template #icon>
+                <n-icon><FolderOpenOutline /></n-icon>
+              </template>
+            </n-button>
+          </n-input-group>
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.dhtMessageTimeout')" :tip="t('settings.bt.dhtMessageTimeoutTip')" />
-            </template>
-            <n-input-number v-model:value="settings.dhtMessageTimeout" :min="1" :max="60" />
-          </n-form-item>
-        </n-form>
-      </n-card>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.dhtMessageTimeout')" :tip="t('settings.bt.dhtMessageTimeoutTip')" />
+          </template>
+          <n-input-number v-model:value="settings.dhtMessageTimeout" :min="1" :max="60" />
+        </n-form-item>
+      </n-form>
+    </n-card>
 
-      <!-- 连接与对等 -->
-      <n-card :title="t('settings.bt.groupConnections')" class="setting-group">
-        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.listenPort')" :tip="t('settings.bt.listenPortTip')" :option="'listen-port'" />
-            </template>
-            <n-input-number v-model:value="settings.listenPort" :min="1024" :max="65535" />
-          </n-form-item>
+    <!-- 连接与对等 -->
+    <n-card :title="t('settings.bt.groupConnections')" class="setting-group">
+      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.listenPort')" :tip="t('settings.bt.listenPortTip')" :option="'listen-port'" />
+          </template>
+          <n-input-number v-model:value="settings.listenPort" :min="1024" :max="65535" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btMaxPeers')" :tip="t('settings.bt.btMaxPeersTip')" />
-            </template>
-            <n-input-number v-model:value="settings.btMaxPeers" :min="1" :max="1000" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btMaxPeers')" :tip="t('settings.bt.btMaxPeersTip')" />
+          </template>
+          <n-input-number v-model:value="settings.btMaxPeers" :min="1" :max="1000" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btMaxOpenFiles')" :tip="t('settings.bt.btMaxOpenFilesTip')" />
-            </template>
-            <n-input-number v-model:value="settings.btMaxOpenFiles" :min="0" :max="10000" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btMaxOpenFiles')" :tip="t('settings.bt.btMaxOpenFilesTip')" />
+          </template>
+          <n-input-number v-model:value="settings.btMaxOpenFiles" :min="0" :max="10000" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btForceEncryption')" :tip="t('settings.bt.btForceEncryptionTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.btForceEncryption" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btForceEncryption')" :tip="t('settings.bt.btForceEncryptionTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.btForceEncryption" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btRequestPeerSpeedLimit')" :tip="t('settings.bt.btRequestPeerSpeedLimitTip')" />
-            </template>
-            <n-input-number v-model:value="settings.btRequestPeerSpeedLimit" :min="0" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btRequestPeerSpeedLimit')" :tip="t('settings.bt.btRequestPeerSpeedLimitTip')" />
+          </template>
+          <n-input-number v-model:value="settings.btRequestPeerSpeedLimit" :min="0" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.enablePeerExchange')" :tip="t('settings.bt.enablePeerExchangeTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.enablePeerExchange" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.enablePeerExchange')" :tip="t('settings.bt.enablePeerExchangeTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.enablePeerExchange" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btRequireCrypto')" :tip="t('settings.bt.btRequireCryptoTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.btRequireCrypto" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btRequireCrypto')" :tip="t('settings.bt.btRequireCryptoTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.btRequireCrypto" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btMinCryptoLevel')" :tip="t('settings.bt.btMinCryptoLevelTip')" />
-            </template>
-            <n-select v-model:value="settings.btMinCryptoLevel" :options="cryptoLevelOptions" />
-          </n-form-item>
-        </n-form>
-      </n-card>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btMinCryptoLevel')" :tip="t('settings.bt.btMinCryptoLevelTip')" />
+          </template>
+          <n-select v-model:value="settings.btMinCryptoLevel" :options="cryptoLevelOptions" />
+        </n-form-item>
+      </n-form>
+    </n-card>
 
-      <!-- Tracker -->
-      <n-card :title="t('settings.bt.groupTracker')" class="setting-group">
-        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btTracker')" :tip="t('settings.bt.btTrackerTip')" />
-            </template>
-            <n-input
-              v-model:value="settings.btTracker"
-              type="textarea"
-              :autosize="{ minRows: 4, maxRows: 8 }"
-              :placeholder="t('settings.bt.btTrackerPlaceholder')"
-            />
-          </n-form-item>
+    <!-- Tracker -->
+    <n-card :title="t('settings.bt.groupTracker')" class="setting-group">
+      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btTracker')" :tip="t('settings.bt.btTrackerTip')" />
+          </template>
+          <n-input
+            v-model:value="settings.btTracker"
+            type="textarea"
+            :autosize="{ minRows: 4, maxRows: 8 }"
+            :placeholder="t('settings.bt.btTrackerPlaceholder')"
+          />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btExcludeTracker')" :tip="t('settings.bt.btExcludeTrackerTip')" />
-            </template>
-            <n-input
-              v-model:value="settings.btExcludeTracker"
-              type="textarea"
-              :autosize="{ minRows: 4, maxRows: 8 }"
-              :placeholder="t('settings.bt.btExcludeTrackerPlaceholder')"
-            />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btExcludeTracker')" :tip="t('settings.bt.btExcludeTrackerTip')" />
+          </template>
+          <n-input
+            v-model:value="settings.btExcludeTracker"
+            type="textarea"
+            :autosize="{ minRows: 4, maxRows: 8 }"
+            :placeholder="t('settings.bt.btExcludeTrackerPlaceholder')"
+          />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btTrackerConnectTimeout')" :tip="t('settings.bt.btTrackerConnectTimeoutTip')" />
-            </template>
-            <n-input-number v-model:value="settings.btTrackerConnectTimeout" :min="1" :max="600" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btTrackerConnectTimeout')" :tip="t('settings.bt.btTrackerConnectTimeoutTip')" />
+          </template>
+          <n-input-number v-model:value="settings.btTrackerConnectTimeout" :min="1" :max="600" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btTrackerInterval')" :tip="t('settings.bt.btTrackerIntervalTip')" />
-            </template>
-            <n-input-number v-model:value="settings.btTrackerInterval" :min="0" :max="86400" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btTrackerInterval')" :tip="t('settings.bt.btTrackerIntervalTip')" />
+          </template>
+          <n-input-number v-model:value="settings.btTrackerInterval" :min="0" :max="86400" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btTrackerTimeout')" :tip="t('settings.bt.btTrackerTimeoutTip')" />
-            </template>
-            <n-input-number v-model:value="settings.btTrackerTimeout" :min="1" :max="600" />
-          </n-form-item>
-        </n-form>
-      </n-card>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btTrackerTimeout')" :tip="t('settings.bt.btTrackerTimeoutTip')" />
+          </template>
+          <n-input-number v-model:value="settings.btTrackerTimeout" :min="1" :max="600" />
+        </n-form-item>
+      </n-form>
+    </n-card>
 
-      <!-- 做种 -->
-      <n-card :title="t('settings.bt.groupSeeding')" class="setting-group">
-        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.seedRatio')" :tip="t('settings.bt.seedRatioTip')" />
-            </template>
-            <n-input-number v-model:value="settings.seedRatio" :min="0" :max="100" :step="0.1" :precision="1" />
-          </n-form-item>
+    <!-- 做种 -->
+    <n-card :title="t('settings.bt.groupSeeding')" class="setting-group">
+      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.seedRatio')" :tip="t('settings.bt.seedRatioTip')" />
+          </template>
+          <n-input-number v-model:value="settings.seedRatio" :min="0" :max="100" :step="0.1" :precision="1" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.seedTime')" :tip="t('settings.bt.seedTimeTip')" />
-            </template>
-            <n-input-number v-model:value="settings.seedTime" :min="0" :max="999999" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.seedTime')" :tip="t('settings.bt.seedTimeTip')" />
+          </template>
+          <n-input-number v-model:value="settings.seedTime" :min="0" :max="999999" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btStopTimeout')" :tip="t('settings.bt.btStopTimeoutTip')" />
-            </template>
-            <n-input-number v-model:value="settings.btStopTimeout" :min="0" :max="86400" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btStopTimeout')" :tip="t('settings.bt.btStopTimeoutTip')" />
+          </template>
+          <n-input-number v-model:value="settings.btStopTimeout" :min="0" :max="86400" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btPrioritizePiece')" :tip="t('settings.bt.btPrioritizePieceTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.btPrioritizePiece" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btPrioritizePiece')" :tip="t('settings.bt.btPrioritizePieceTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.btPrioritizePiece" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btHashCheckSeed')" :tip="t('settings.bt.btHashCheckSeedTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.btHashCheckSeed" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btHashCheckSeed')" :tip="t('settings.bt.btHashCheckSeedTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.btHashCheckSeed" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btDetachSeedOnly')" :tip="t('settings.bt.btDetachSeedOnlyTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.btDetachSeedOnly" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btDetachSeedOnly')" :tip="t('settings.bt.btDetachSeedOnlyTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.btDetachSeedOnly" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.maxPieceLength')" :tip="t('settings.bt.maxPieceLengthTip')" />
-            </template>
-            <n-input-number v-model:value="settings.maxPieceLength" :min="0" :placeholder="t('settings.bt.maxPieceLengthPlaceholder')" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.maxPieceLength')" :tip="t('settings.bt.maxPieceLengthTip')" />
+          </template>
+          <n-input-number v-model:value="settings.maxPieceLength" :min="0" :placeholder="t('settings.bt.maxPieceLengthPlaceholder')" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btSeedUnverified')" :tip="t('settings.bt.btSeedUnverifiedTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.btSeedUnverified" />
-          </n-form-item>
-        </n-form>
-      </n-card>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btSeedUnverified')" :tip="t('settings.bt.btSeedUnverifiedTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.btSeedUnverified" />
+        </n-form-item>
+      </n-form>
+    </n-card>
 
-      <!-- 元数据与文件 -->
-      <n-card :title="t('settings.bt.groupMetadata')" class="setting-group">
-        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.followTorrent')" :tip="t('settings.bt.followTorrentTip')" />
-            </template>
-            <n-select v-model:value="settings.followTorrent" :options="followTorrentOptions" />
-          </n-form-item>
+    <!-- 元数据与文件 -->
+    <n-card :title="t('settings.bt.groupMetadata')" class="setting-group">
+      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.followTorrent')" :tip="t('settings.bt.followTorrentTip')" />
+          </template>
+          <n-select v-model:value="settings.followTorrent" :options="followTorrentOptions" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btSaveMetadata')" :tip="t('settings.bt.btSaveMetadataTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.btSaveMetadata" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btSaveMetadata')" :tip="t('settings.bt.btSaveMetadataTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.btSaveMetadata" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btLoadSavedMetadata')" :tip="t('settings.bt.btLoadSavedMetadataTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.btLoadSavedMetadata" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btLoadSavedMetadata')" :tip="t('settings.bt.btLoadSavedMetadataTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.btLoadSavedMetadata" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btMetadataOnly')" :tip="t('settings.bt.btMetadataOnlyTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.btMetadataOnly" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btMetadataOnly')" :tip="t('settings.bt.btMetadataOnlyTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.btMetadataOnly" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.btRemoveUnselectedFile')" :tip="t('settings.bt.btRemoveUnselectedFileTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.btRemoveUnselectedFile" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.btRemoveUnselectedFile')" :tip="t('settings.bt.btRemoveUnselectedFileTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.btRemoveUnselectedFile" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.pieceLength')" :tip="t('settings.bt.pieceLengthTip')" />
-            </template>
-            <n-input-number v-model:value="settings.pieceLength" :min="1" :max="1024" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.pieceLength')" :tip="t('settings.bt.pieceLengthTip')" />
+          </template>
+          <n-input-number v-model:value="settings.pieceLength" :min="1" :max="1024" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.allowPieceLengthChange')" :tip="t('settings.bt.allowPieceLengthChangeTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.allowPieceLengthChange" />
-          </n-form-item>
-        </n-form>
-      </n-card>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.allowPieceLengthChange')" :tip="t('settings.bt.allowPieceLengthChangeTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.allowPieceLengthChange" />
+        </n-form-item>
+      </n-form>
+    </n-card>
 
-      <!-- 客户端标识 -->
-      <n-card :title="t('settings.bt.groupClient')" class="setting-group">
-        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.peerIdPrefix')" :tip="t('settings.bt.peerIdPrefixTip')" :option="'peer-id-prefix'" />
-            </template>
-            <n-input v-model:value="settings.peerIdPrefix" :placeholder="t('settings.bt.peerIdPrefixPlaceholder')" clearable />
-          </n-form-item>
+    <!-- 客户端标识 -->
+    <n-card :title="t('settings.bt.groupClient')" class="setting-group">
+      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.peerIdPrefix')" :tip="t('settings.bt.peerIdPrefixTip')" :option="'peer-id-prefix'" />
+          </template>
+          <n-input v-model:value="settings.peerIdPrefix" :placeholder="t('settings.bt.peerIdPrefixPlaceholder')" clearable />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.bt.peerAgent')" :tip="t('settings.bt.peerAgentTip')" :option="'peer-agent'" />
-            </template>
-            <n-input v-model:value="settings.peerAgent" :placeholder="t('settings.bt.peerAgentPlaceholder')" clearable />
-          </n-form-item>
-        </n-form>
-      </n-card>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.peerAgent')" :tip="t('settings.bt.peerAgentTip')" :option="'peer-agent'" />
+          </template>
+          <n-input v-model:value="settings.peerAgent" :placeholder="t('settings.bt.peerAgentPlaceholder')" clearable />
+        </n-form-item>
+      </n-form>
+    </n-card>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import type { Aria2Option } from '@/types/aria2'
 import { useI18n } from 'vue-i18n'
-import { NIcon } from 'naive-ui'
 import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'

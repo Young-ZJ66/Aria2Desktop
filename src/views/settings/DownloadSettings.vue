@@ -12,18 +12,18 @@
     @reload="loadSettings"
     @reset="handleReset"
   >
-      <n-form
-        ref="formRef"
-        :model="settings"
-        :rules="rules"
-        label-placement="left"
-        :label-width="180"
-        label-align="left"
-        :show-feedback="false"
-        :disabled="!connectionStore.isConnected"
-      >
-        <!-- 目录与会话 -->
-        <n-card :title="t('settings.download.dirAndSession')" class="setting-group">
+    <n-form
+      ref="formRef"
+      :model="settings"
+      :rules="rules"
+      label-placement="left"
+      :label-width="180"
+      label-align="left"
+      :show-feedback="false"
+      :disabled="!connectionStore.isConnected"
+    >
+      <!-- 目录与会话 -->
+      <n-card :title="t('settings.download.dirAndSession')" class="setting-group">
 
         <n-form-item path="dir">
           <template #label>
@@ -62,10 +62,10 @@
           />
         </n-form-item>
 
-        </n-card>
+      </n-card>
 
-        <!-- 并发与分片 -->
-        <n-card :title="t('settings.download.concurrency')" class="setting-group">
+      <!-- 并发与分片 -->
+      <n-card :title="t('settings.download.concurrency')" class="setting-group">
 
         <n-form-item path="maxConcurrentDownloads">
           <template #label>
@@ -110,10 +110,10 @@
           />
         </n-form-item>
 
-        </n-card>
+      </n-card>
 
-        <!-- 速度限制 -->
-        <n-card :title="t('settings.download.speedLimit')" class="setting-group">
+      <!-- 速度限制 -->
+      <n-card :title="t('settings.download.speedLimit')" class="setting-group">
 
         <n-form-item path="maxOverallDownloadLimit">
           <template #label>
@@ -155,10 +155,10 @@
           />
         </n-form-item>
 
-        </n-card>
+      </n-card>
 
-        <!-- 磁盘与存储 -->
-        <n-card :title="t('settings.download.diskAndMemory')" class="setting-group">
+      <!-- 磁盘与存储 -->
+      <n-card :title="t('settings.download.diskAndMemory')" class="setting-group">
 
         <n-form-item path="diskCache">
           <template #label>
@@ -192,10 +192,10 @@
           />
         </n-form-item>
 
-        </n-card>
+      </n-card>
 
-        <!-- 下载行为 -->
-        <n-card :title="t('settings.download.behavior')" class="setting-group">
+      <!-- 下载行为 -->
+      <n-card :title="t('settings.download.behavior')" class="setting-group">
 
         <n-form-item path="continue">
           <template #label>
@@ -342,15 +342,15 @@
           </template>
           <AppSwitch v-model:value="settings.keepUnfinishedDownloadResult" />
         </n-form-item>
-        </n-card>
-      </n-form>
+      </n-card>
+    </n-form>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
+import type { Aria2Option } from '@/types/aria2'
 import { useI18n } from 'vue-i18n'
-import { NIcon } from 'naive-ui'
 import { FolderOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import type { FormRules, FormInst } from 'naive-ui'

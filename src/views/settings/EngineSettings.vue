@@ -205,7 +205,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NIcon } from 'naive-ui'
 import {
   RefreshOutline,
   PlayOutline,
@@ -213,7 +212,7 @@ import {
   SaveOutline,
   FolderOutline
 } from '@vicons/ionicons5'
-import { message, dialog } from '@/utils/feedback'
+import { message, confirm } from '@/utils/feedback'
 import type { FormRules, FormInst } from 'naive-ui'
 
 import SettingsPage from '@/components/settings/SettingsPage.vue'
@@ -291,7 +290,7 @@ async function startService() {
 
 // 停止服务
 function stopService() {
-  dialog.warning({
+  confirm({
     title: t('localService.confirmStopTitle'),
     content: t('localService.confirmStop'),
     positiveText: t('common.ok'),
@@ -305,7 +304,7 @@ function stopService() {
 
 // 重启服务
 function restartService() {
-  dialog.warning({
+  confirm({
     title: t('localService.confirmRestartTitle'),
     content: t('localService.confirmRestart'),
     positiveText: t('common.ok'),
@@ -374,7 +373,7 @@ async function saveConfig() {
 
   try {
     if (isRunning.value) {
-      dialog.warning({
+      confirm({
         title: t('localService.confirmSaveTitle'),
         content: t('localService.confirmSaveRestart'),
         positiveText: t('localService.saveAndRestart'),

@@ -136,6 +136,15 @@ export function filterBySize(tasks: Aria2Task[], sizeFilter: string): Aria2Task[
   })
 }
 
+/** 解析 16 位十六进制 GID 为 BigInt；格式异常时回退为 0，避免排序崩溃 */
+function parseGidToBigInt(gid: string): bigint {
+  try {
+    return BigInt(`0x${gid}`)
+  } catch {
+    return 0n
+  }
+}
+
 // 任务排序
 export function sortTasks(tasks: Aria2Task[], sortBy: string, sortOrder: 'asc' | 'desc'): Aria2Task[] {
   const sorted = [...tasks].sort((a, b) => {
@@ -166,8 +175,8 @@ export function sortTasks(tasks: Aria2Task[], sortBy: string, sortOrder: 'asc' |
       case 'addTime':
       default:
         // 使用 GID 作为添加时间的近似值（GID 是 16 位十六进制递增值，BigInt 避免精度丢失）
-        aValue = BigInt(`0x${a.gid}`)
-        bValue = BigInt(`0x${b.gid}`)
+        aValue = parseGidToBigInt(a.gid)
+        bValue = parseGidToBigInt(b.gid)
         break
     }
 

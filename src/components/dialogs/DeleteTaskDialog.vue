@@ -5,6 +5,7 @@
     preset="card"
     style="width: 500px"
     :bordered="false"
+    :mask-closable="!loading"
     :on-after-leave="resetState"
   >
     <div class="delete-dialog-content">
@@ -36,10 +37,11 @@
     <template #footer>
       <div class="dialog-footer">
         <n-space justify="end">
-          <n-button @click="handleClose">{{ t('common.cancel') }}</n-button>
+          <n-button :disabled="loading" @click="handleClose">{{ t('common.cancel') }}</n-button>
           <n-button
             type="error"
-            :loading="deleting"
+            :loading="loading"
+            :disabled="deleting"
             @click="handleConfirm"
           >
             {{ deleteFiles ? t('delete.deleteTaskAndFiles') : t('delete.confirm') }}
@@ -62,6 +64,8 @@ interface Props {
   tasks: Aria2Task[]
   taskName?: string
   taskType?: string
+  /** 父组件删除进行中：确认按钮显示 loading 并阻止重复提交/关闭 */
+  loading?: boolean
 }
 
 interface Emits {
@@ -78,6 +82,7 @@ const visible = computed({
   set: (value) => emit('update:modelValue', value)
 })
 
+// deleting 仅用于防止同一轮内重复点击确认（持续 loading 由父组件 loading prop 驱动）
 const deleting = ref(false)
 const deleteFiles = ref(false)
 
@@ -134,18 +139,17 @@ function resetState() {
 }
 
 function handleClose() {
-  if (!deleting.value) {
+  // 父组件删除进行中不允许关闭
+  if (!props.loading) {
     visible.value = false
   }
 }
 
-async function handleConfirm() {
-  try {
-    deleting.value = true
-    emit('confirm', deleteFiles.value)
-  } finally {
-    deleting.value = false
-  }
+function handleConfirm() {
+  // 防重复点击：父组件处理完成后会关闭对话框并复位状态
+  if (deleting.value || props.loading) return
+  deleting.value = true
+  emit('confirm', deleteFiles.value)
 }
 </script>
 

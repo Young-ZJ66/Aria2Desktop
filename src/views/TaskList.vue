@@ -76,18 +76,20 @@
       :tasks="tasksToDelete"
       :task-name="tasksToDelete.length === 1 ? getTaskDisplayName(tasksToDelete[0]) : undefined"
       :task-type="taskType"
+      :loading="batchDeleting"
       @confirm="handleBatchDeleteConfirm"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue'
+import { computed, h, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon, NProgress, NTag, NCheckbox, type DataTableColumns } from 'naive-ui'
 import { AddOutline, SearchOutline, VideocamOutline, MusicalNotesOutline, ImageOutline, ArchiveOutline, DocumentTextOutline, CodeSlashOutline, DocumentOutline } from '@vicons/ionicons5'
-import { message, dialog } from '@/utils/feedback'
+import { message, confirm } from '@/utils/feedback'
 import { useTaskStore } from '@/stores/taskStore'
+import { useConnectionStore } from '@/stores/connectionStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { taskTimeService } from '@/services/taskTimeService'
@@ -117,12 +119,15 @@ interface Props {
 
 const props = defineProps<Props>()
 const taskStore = useTaskStore()
+const connectionStore = useConnectionStore()
 const uiStore = useUiStore()
 const { t } = useI18n()
 
 // 批量删除对话框状态
 const showBatchDeleteDialog = ref(false)
 const tasksToDelete = ref<Aria2Task[]>([])
+// 批量删除执行中（驱动删除对话框的 loading，删除期间保持对话框打开）
+const batchDeleting = ref(false)
 
 // 操作锁定状态
 const operatingTasks = ref<Set<string>>(new Set())
@@ -187,8 +192,17 @@ const allTasks = computed(() => {
 })
 
 // GID 为 16 位十六进制数，BigInt 比较避免超出 Number 安全整数精度丢失
+// 格式异常时回退为 0，避免整个列表排序崩溃
+function parseGid(gid: string): bigint {
+  try {
+    return BigInt(`0x${gid}`)
+  } catch {
+    return 0n
+  }
+}
+
 function compareGidDesc(a: Aria2Task, b: Aria2Task): number {
-  const diff = BigInt(`0x${b.gid}`) - BigInt(`0x${a.gid}`)
+  const diff = parseGid(b.gid) - parseGid(a.gid)
   return diff > 0n ? 1 : diff < 0n ? -1 : 0
 }
 
@@ -276,7 +290,7 @@ function getTaskName(task: Aria2Task): string {
 }
 
 // 获取文件类型图标（基于文件扩展名）
-function getFileTypeIcon(task: Aria2Task): any {
+function getFileTypeIcon(task: Aria2Task): Component {
   const name = getTaskName(task).toLowerCase()
   const ext = name.split('.').pop() || ''
 
@@ -374,7 +388,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     title: t('task.status'),
     width: 130,
     render: (row: Aria2Task) =>
-      h(NTag, { type: (getStatusType(row.status) as 'primary' | 'warning' | 'info' | 'success' | 'error' | 'default') || 'default', size: 'small' }, { default: () => t('status.' + row.status) })
+      h(NTag, { type: getStatusType(row.status), size: 'small' }, { default: () => t('status.' + row.status) })
   },
   {
     key: 'downloadSpeed',
@@ -384,17 +398,17 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   },
   props.taskType === 'stopped'
     ? {
-        key: 'completeTime',
-        title: t('task.completeTime'),
-        width: 150,
-        render: (row: Aria2Task) => formatCompleteTimeLabel(row)
-      }
+      key: 'completeTime',
+      title: t('task.completeTime'),
+      width: 150,
+      render: (row: Aria2Task) => formatCompleteTimeLabel(row)
+    }
     : {
-        key: 'remainingTime',
-        title: t('task.remainingTime'),
-        width: 120,
-        render: (row: Aria2Task) => formatRemainingTime(row)
-      },
+      key: 'remainingTime',
+      title: t('task.remainingTime'),
+      width: 120,
+      render: (row: Aria2Task) => formatRemainingTime(row)
+    },
   {
     key: 'actions',
     title: t('task.actions'),
@@ -503,7 +517,7 @@ async function removeTask(gid: string) {
       showBatchDeleteDialog.value = true
     } else {
       // 使用简单确认对话框
-      dialog.warning({
+      confirm({
         title: t('delete.title'),
         content: t('delete.confirmSingle'),
         positiveText: t('delete.confirm'),
@@ -511,7 +525,7 @@ async function removeTask(gid: string) {
         onPositiveClick: async () => {
           try {
             if (props.taskType === 'stopped') {
-              const result = await completedTaskDeleteService.deleteCompletedTask(task, false)
+              const result = await completedTaskDeleteService.deleteCompletedTask(task, false, connectionStore.service)
               await taskStore.loadAllTasks()
               if (result.success) {
                 message.success(t('delete.taskDeleted'))
@@ -519,7 +533,7 @@ async function removeTask(gid: string) {
                 message.error(t('task.deleteFailed', { error: result.errors.join(', ') }))
               }
             } else {
-              await taskStore.removeTask(gid, false, false)
+              await taskStore.removeTask(gid)
               message.success(t('delete.taskDeleted'))
             }
           } catch (error: unknown) {
@@ -682,7 +696,7 @@ async function batchDelete() {
       tasksToDelete.value = [...selectedTasks.value]
       showBatchDeleteDialog.value = true
     } else {
-      dialog.warning({
+      confirm({
         title: t('delete.title'),
         content: t('delete.confirmBatch', { count: selectedCount.value }),
         positiveText: t('delete.confirm'),
@@ -702,13 +716,12 @@ async function batchDelete() {
 
 // 批量删除确认处理
 async function handleBatchDeleteConfirm(deleteFiles: boolean) {
+  batchDeleting.value = true
   try {
-    showBatchDeleteDialog.value = false
-
     const tasks = tasksToDelete.value.length > 0 ? tasksToDelete.value : [...selectedTasks.value]
 
     if (props.taskType === 'stopped') {
-      const result = await completedTaskDeleteService.batchDeleteCompletedTasks(tasks, deleteFiles)
+      const result = await completedTaskDeleteService.batchDeleteCompletedTasks(tasks, deleteFiles, connectionStore.service)
       await taskStore.loadAllTasks()
 
       if (result.successfulTasks === result.totalTasks) {
@@ -727,7 +740,7 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
       let successCount = 0
       for (const task of tasks) {
         try {
-          await taskStore.removeTask(task.gid, false, deleteFiles)
+          await taskStore.removeTask(task.gid, deleteFiles)
           successCount++
         } catch (error) {
           console.error(`Failed to delete task ${task.gid}:`, error)
@@ -749,18 +762,23 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
   } catch (error) {
     console.error('删除任务失败:', error)
     message.error(t('task.deleteTaskFailed'))
+  } finally {
+    batchDeleting.value = false
+    showBatchDeleteDialog.value = false
   }
 }
 
 // 监听任务数据变化，更新选中任务的数据
 // （filteredTasks 是每次返回新数组的 computed，浅层监听即可，deep 会每秒递归比较全量任务属性）
+// immediate: 挂载时立即同步一次，处理"选中任务在离开页面期间被删除"的情况
 watch(
   filteredTasks,
   (newTasks) => {
     updateSelectedTasksData(newTasks)
     const existingGids = newTasks.map(task => task.gid)
     cleanupNonExistentTasks(existingGids)
-  }
+  },
+  { immediate: true }
 )
 </script>
 

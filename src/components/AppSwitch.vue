@@ -14,7 +14,7 @@
           <path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" />
         </svg>
       </span>
-      <span class="app-switch__knob" aria-hidden="true"></span>
+      <span class="app-switch__knob" aria-hidden="true"/>
     </span>
   </button>
 </template>

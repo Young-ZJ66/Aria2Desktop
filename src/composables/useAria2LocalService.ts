@@ -79,6 +79,14 @@ export function initLocalService(): void {
   }
 }
 
+/** 停止后台状态轮询（应用卸载时调用） */
+export function stopStatusCheck(): void {
+  if (statusCheckInterval) {
+    clearInterval(statusCheckInterval)
+    statusCheckInterval = null
+  }
+}
+
 export function useAria2LocalService() {
   const { t } = useI18n()
 
@@ -220,13 +228,10 @@ export function useAria2LocalService() {
         autoStart: config.autoStart
       }
 
-      console.warn('正在更新 Aria2 配置:', plainConfig)
       const result = await window.electronAPI.aria2.updateConfig(plainConfig)
-      console.warn('配置更新结果:', result)
 
       if (result.success) {
         await getStatus()
-        console.warn('配置更新成功，状态已刷新')
         return true
       } else {
         message.error(t('localService.updateConfigFailed', { error: result.error }))
@@ -237,25 +242,6 @@ export function useAria2LocalService() {
       message.error(t('localService.updateConfigFailed', { error: errorMessage }))
       console.error('更新 Aria2 配置失败:', error)
       return false
-    }
-  }
-
-  // 开始定期检查状态
-  function startStatusCheck(interval = 5000): void {
-    if (statusCheckInterval) {
-      clearInterval(statusCheckInterval)
-    }
-
-    statusCheckInterval = setInterval(async () => {
-      await getStatus()
-    }, interval)
-  }
-
-  // 停止状态检查
-  function stopStatusCheck(): void {
-    if (statusCheckInterval) {
-      clearInterval(statusCheckInterval)
-      statusCheckInterval = null
     }
   }
 
@@ -296,8 +282,6 @@ export function useAria2LocalService() {
     restart,
     getStatus,
     updateConfig,
-    startStatusCheck,
-    stopStatusCheck,
 
     // 配置
     getConnectionConfig

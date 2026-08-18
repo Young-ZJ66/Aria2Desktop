@@ -12,82 +12,83 @@
     @reload="loadSettings"
     @reset="handleReset"
   >
-      <n-card :title="t('settings.metalink.groupBasic')" class="setting-group">
-        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.metalink.followMetalink')" :tip="t('settings.metalink.followMetalinkTip')" />
-            </template>
-            <n-select v-model:value="settings.followMetalink" :options="followMetalinkOptions" />
-          </n-form-item>
+    <n-card :title="t('settings.metalink.groupBasic')" class="setting-group">
+      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.metalink.followMetalink')" :tip="t('settings.metalink.followMetalinkTip')" />
+          </template>
+          <n-select v-model:value="settings.followMetalink" :options="followMetalinkOptions" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.metalink.metalinkPreferredProtocol')" :tip="t('settings.metalink.metalinkPreferredProtocolTip')" />
-            </template>
-            <n-input v-model:value="settings.metalinkPreferredProtocol" :placeholder="t('settings.metalink.metalinkPreferredProtocolPlaceholder')" clearable />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.metalink.metalinkPreferredProtocol')" :tip="t('settings.metalink.metalinkPreferredProtocolTip')" />
+          </template>
+          <n-input v-model:value="settings.metalinkPreferredProtocol" :placeholder="t('settings.metalink.metalinkPreferredProtocolPlaceholder')" clearable />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.metalink.metalinkEnableUniqueProtocol')" :tip="t('settings.metalink.metalinkEnableUniqueProtocolTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.metalinkEnableUniqueProtocol" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.metalink.metalinkEnableUniqueProtocol')" :tip="t('settings.metalink.metalinkEnableUniqueProtocolTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.metalinkEnableUniqueProtocol" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.metalink.metalinkServers')" :tip="t('settings.metalink.metalinkServersTip')" />
-            </template>
-            <n-input
-              v-model:value="settings.metalinkServers"
-              type="textarea"
-              :autosize="{ minRows: 4, maxRows: 8 }"
-              :placeholder="t('settings.metalink.metalinkServersPlaceholder')"
-            />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.metalink.metalinkServers')" :tip="t('settings.metalink.metalinkServersTip')" />
+          </template>
+          <n-input
+            v-model:value="settings.metalinkServers"
+            type="textarea"
+            :autosize="{ minRows: 4, maxRows: 8 }"
+            :placeholder="t('settings.metalink.metalinkServersPlaceholder')"
+          />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.metalink.metalinkLanguage')" :tip="t('settings.metalink.metalinkLanguageTip')" />
-            </template>
-            <n-input v-model:value="settings.metalinkLanguage" :placeholder="t('settings.metalink.metalinkLanguagePlaceholder')" clearable />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.metalink.metalinkLanguage')" :tip="t('settings.metalink.metalinkLanguageTip')" />
+          </template>
+          <n-input v-model:value="settings.metalinkLanguage" :placeholder="t('settings.metalink.metalinkLanguagePlaceholder')" clearable />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.metalink.metalinkLocation')" :tip="t('settings.metalink.metalinkLocationTip')" />
-            </template>
-            <n-input v-model:value="settings.metalinkLocation" :placeholder="t('settings.metalink.metalinkLocationPlaceholder')" clearable />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.metalink.metalinkLocation')" :tip="t('settings.metalink.metalinkLocationTip')" />
+          </template>
+          <n-input v-model:value="settings.metalinkLocation" :placeholder="t('settings.metalink.metalinkLocationPlaceholder')" clearable />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.metalink.metalinkOs')" :tip="t('settings.metalink.metalinkOsTip')" />
-            </template>
-            <n-input v-model:value="settings.metalinkOs" :placeholder="t('settings.metalink.metalinkOsPlaceholder')" clearable />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.metalink.metalinkOs')" :tip="t('settings.metalink.metalinkOsTip')" />
+          </template>
+          <n-input v-model:value="settings.metalinkOs" :placeholder="t('settings.metalink.metalinkOsPlaceholder')" clearable />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.metalink.metalinkVersion')" :tip="t('settings.metalink.metalinkVersionTip')" />
-            </template>
-            <n-input v-model:value="settings.metalinkVersion" :placeholder="t('settings.metalink.metalinkVersionPlaceholder')" clearable />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.metalink.metalinkVersion')" :tip="t('settings.metalink.metalinkVersionTip')" />
+          </template>
+          <n-input v-model:value="settings.metalinkVersion" :placeholder="t('settings.metalink.metalinkVersionPlaceholder')" clearable />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.metalink.metalinkBaseUri')" :tip="t('settings.metalink.metalinkBaseUriTip')" />
-            </template>
-            <n-input v-model:value="settings.metalinkBaseUri" :placeholder="t('settings.metalink.metalinkBaseUriPlaceholder')" clearable />
-          </n-form-item>
-        </n-form>
-      </n-card>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.metalink.metalinkBaseUri')" :tip="t('settings.metalink.metalinkBaseUriTip')" />
+          </template>
+          <n-input v-model:value="settings.metalinkBaseUri" :placeholder="t('settings.metalink.metalinkBaseUriPlaceholder')" clearable />
+        </n-form-item>
+      </n-form>
+    </n-card>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import type { Aria2Option } from '@/types/aria2'
 import { useI18n } from 'vue-i18n'
 import { useConnectionStore } from '@/stores/connectionStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'

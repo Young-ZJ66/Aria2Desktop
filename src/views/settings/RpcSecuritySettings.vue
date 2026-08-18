@@ -12,124 +12,124 @@
     @reload="loadSettings"
     @reset="handleReset"
   >
-      <!-- RPC 服务 -->
-      <n-card :title="t('settings.rpc.groupService')" class="setting-group">
-        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.enableRpc')" :tip="t('settings.rpc.enableRpcTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.enableRpc" />
-          </n-form-item>
+    <!-- RPC 服务 -->
+    <n-card :title="t('settings.rpc.groupService')" class="setting-group">
+      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.rpc.enableRpc')" :tip="t('settings.rpc.enableRpcTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.enableRpc" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.rpcListenPort')" :tip="t('settings.rpc.rpcListenPortTip')" />
-            </template>
-            <n-input-number v-model:value="settings.rpcListenPort" :min="1024" :max="65535" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.rpc.rpcListenPort')" :tip="t('settings.rpc.rpcListenPortTip')" />
+          </template>
+          <n-input-number v-model:value="settings.rpcListenPort" :min="1024" :max="65535" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.rpcListenAll')" :tip="t('settings.rpc.rpcListenAllTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.rpcListenAll" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.rpc.rpcListenAll')" :tip="t('settings.rpc.rpcListenAllTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.rpcListenAll" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.rpcMaxRequestSize')" :tip="t('settings.rpc.rpcMaxRequestSizeTip')" />
-            </template>
-            <n-input-number v-model:value="settings.rpcMaxRequestSize" :min="0" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.rpc.rpcMaxRequestSize')" :tip="t('settings.rpc.rpcMaxRequestSizeTip')" />
+          </template>
+          <n-input-number v-model:value="settings.rpcMaxRequestSize" :min="0" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.rpcSaveUploadMetadata')" :tip="t('settings.rpc.rpcSaveUploadMetadataTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.rpcSaveUploadMetadata" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.rpc.rpcSaveUploadMetadata')" :tip="t('settings.rpc.rpcSaveUploadMetadataTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.rpcSaveUploadMetadata" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.pauseMetadata')" :tip="t('settings.rpc.pauseMetadataTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.pauseMetadata" />
-          </n-form-item>
-        </n-form>
-      </n-card>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.rpc.pauseMetadata')" :tip="t('settings.rpc.pauseMetadataTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.pauseMetadata" />
+        </n-form-item>
+      </n-form>
+    </n-card>
 
-      <!-- RPC 安全 -->
-      <n-card :title="t('settings.rpc.groupSecurity')" class="setting-group">
-        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.rpcSecret')" :tip="t('settings.rpc.rpcSecretTip')" />
-            </template>
-            <n-input
-              v-model:value="settings.rpcSecret"
-              type="password"
-              show-password-on="click"
-              clearable
-              :placeholder="t('settings.rpc.rpcSecretPlaceholder')"
-            />
-          </n-form-item>
+    <!-- RPC 安全 -->
+    <n-card :title="t('settings.rpc.groupSecurity')" class="setting-group">
+      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.rpc.rpcSecret')" :tip="t('settings.rpc.rpcSecretTip')" />
+          </template>
+          <n-input
+            v-model:value="settings.rpcSecret"
+            type="password"
+            show-password-on="click"
+            clearable
+            :placeholder="t('settings.rpc.rpcSecretPlaceholder')"
+          />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.rpcAllowOriginAll')" :tip="t('settings.rpc.rpcAllowOriginAllTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.rpcAllowOriginAll" />
-          </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.rpc.rpcAllowOriginAll')" :tip="t('settings.rpc.rpcAllowOriginAllTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.rpcAllowOriginAll" />
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.forceSave')" :tip="t('settings.rpc.forceSaveTip')" />
-            </template>
-            <AppSwitch v-model:value="settings.forceSave" />
-          </n-form-item>
-        </n-form>
-      </n-card>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.rpc.forceSave')" :tip="t('settings.rpc.forceSaveTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.forceSave" />
+        </n-form-item>
+      </n-form>
+    </n-card>
 
-      <!-- TLS 加密 -->
-      <n-card :title="t('settings.rpc.groupTls')" class="setting-group">
-        <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.rpcCertificate')" :tip="t('settings.rpc.rpcCertificateTip')" />
-            </template>
-            <n-input-group>
-              <n-input v-model:value="settings.rpcCertificate" :placeholder="t('settings.rpc.rpcCertificatePlaceholder')" clearable />
-              <n-button @click="selectFile('rpcCertificate', t('settings.rpc.rpcCertificateDialog'))">
-                <template #icon>
-                  <n-icon><FolderOpenOutline /></n-icon>
-                </template>
-              </n-button>
-            </n-input-group>
-          </n-form-item>
+    <!-- TLS 加密 -->
+    <n-card :title="t('settings.rpc.groupTls')" class="setting-group">
+      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.rpc.rpcCertificate')" :tip="t('settings.rpc.rpcCertificateTip')" />
+          </template>
+          <n-input-group>
+            <n-input v-model:value="settings.rpcCertificate" :placeholder="t('settings.rpc.rpcCertificatePlaceholder')" clearable />
+            <n-button @click="selectFile('rpcCertificate', t('settings.rpc.rpcCertificateDialog'))">
+              <template #icon>
+                <n-icon><FolderOpenOutline /></n-icon>
+              </template>
+            </n-button>
+          </n-input-group>
+        </n-form-item>
 
-          <n-form-item>
-            <template #label>
-              <TipLabel :label="t('settings.rpc.rpcPrivateKey')" :tip="t('settings.rpc.rpcPrivateKeyTip')" />
-            </template>
-            <n-input-group>
-              <n-input v-model:value="settings.rpcPrivateKey" :placeholder="t('settings.rpc.rpcPrivateKeyPlaceholder')" clearable />
-              <n-button @click="selectFile('rpcPrivateKey', t('settings.rpc.rpcPrivateKeyDialog'))">
-                <template #icon>
-                  <n-icon><FolderOpenOutline /></n-icon>
-                </template>
-              </n-button>
-            </n-input-group>
-          </n-form-item>
-        </n-form>
-      </n-card>
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.rpc.rpcPrivateKey')" :tip="t('settings.rpc.rpcPrivateKeyTip')" />
+          </template>
+          <n-input-group>
+            <n-input v-model:value="settings.rpcPrivateKey" :placeholder="t('settings.rpc.rpcPrivateKeyPlaceholder')" clearable />
+            <n-button @click="selectFile('rpcPrivateKey', t('settings.rpc.rpcPrivateKeyDialog'))">
+              <template #icon>
+                <n-icon><FolderOpenOutline /></n-icon>
+              </template>
+            </n-button>
+          </n-input-group>
+        </n-form-item>
+      </n-form>
+    </n-card>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import type { Aria2Option } from '@/types/aria2'
 import { useI18n } from 'vue-i18n'
-import { NIcon } from 'naive-ui'
 import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
