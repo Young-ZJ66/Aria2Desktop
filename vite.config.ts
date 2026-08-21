@@ -9,23 +9,19 @@ export default defineConfig({
   build: {
     outDir: 'dist/vue',
     emptyOutDir: true,
+    // naive-ui / echarts 为按需使用的全量库，gzip 后体积可接受，调高阈值消除噪音告警
+    chunkSizeWarningLimit: 1500,
     rolldownOptions: {
       output: {
         codeSplitting: {
           groups: [
-            // Element Plus 单独拆分
-            {
-              name: 'element-plus',
-              test: /node_modules[\\/]*element-plus/,
-              priority: 20
-            },
             // Vue 生态（vue、vue-router、pinia、vue-i18n）单独拆分
             {
               name: 'vue-vendor',
               test: /node_modules[\\/]*(@vue|vue|vue-router|pinia|@intlify)[\\/]/,
               priority: 15
             },
-            // ECharts 单独拆分
+            // ECharts 单独拆分（已按需引入 core + 折线图，利于长期缓存）
             {
               name: 'echarts',
               test: /node_modules[\\/]*echarts/,
@@ -43,6 +39,6 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: '0.0.0.0'
+    host: 'localhost'
   }
 })
