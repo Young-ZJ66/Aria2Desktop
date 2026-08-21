@@ -45,6 +45,27 @@ export const useTaskStore = defineStore('task', () => {
   // 加载状态（响应式，供 UI 展示加载中；同时用作并发保护标志）
   const isLoading = ref(false)
 
+  // waiting/stopped 列表指纹（gid+status）：未变化时保留旧数组引用，
+  // 避免每秒轮询全量替换数组触发表格无效 diff 与全量重排序
+  let waitingFingerprint = ''
+  let stoppedFingerprint = ''
+
+  function setWaitingIfChanged(waiting: Aria2Task[]): void {
+    const fp = waiting.map(t => `${t.gid}:${t.status}`).join('|')
+    if (fp !== waitingFingerprint) {
+      waitingFingerprint = fp
+      waitingTasks.value = waiting
+    }
+  }
+
+  function setStoppedIfChanged(stopped: Aria2Task[]): void {
+    const fp = stopped.map(t => `${t.gid}:${t.status}`).join('|')
+    if (fp !== stoppedFingerprint) {
+      stoppedFingerprint = fp
+      stoppedTasks.value = stopped
+    }
+  }
+
   async function loadAllTasks() {
     if (!connectionStore.service) return
     // 并发保护：轮询与 WS 事件同时触发时跳过后续调用，避免竞态
@@ -52,6 +73,8 @@ export const useTaskStore = defineStore('task', () => {
     isLoading.value = true
 
     try {
+      // 确保本地持久化任务已从主进程加载完成，避免首次合并时丢失历史记录
+      await taskPersistenceService.ensureLoaded()
       const previousStopped = new Set(stoppedTasks.value.map(task => task.gid))
       const previousActive = new Set(activeTasks.value.map(task => task.gid))
 
@@ -84,12 +107,44 @@ export const useTaskStore = defineStore('task', () => {
       })
 
       activeTasks.value = active
-      waitingTasks.value = waiting
+      // waiting/stopped 指纹相同时保留旧引用，避免无效响应式更新
+      setWaitingIfChanged(waiting)
       // error/complete 任务统一保留在 stoppedTasks，由对应 computed 过滤
-      stoppedTasks.value = taskPersistenceService.mergeWithAria2Tasks(stopped)
+      setStoppedIfChanged(taskPersistenceService.mergeWithAria2Tasks(stopped))
 
     } catch (error) {
       console.error('Failed to load tasks:', error)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * 高频轻量刷新：仅拉取活动/等待任务（速度等实时字段）。
+   * stopped 列表由低频全量刷新与 WS 下载事件负责，降低大任务列表时的轮询开销。
+   */
+  async function loadLightTasks() {
+    if (!connectionStore.service) return
+    if (isLoading.value) return
+    isLoading.value = true
+
+    try {
+      const [active, waiting] = await Promise.all([
+        connectionStore.service.tellActive(),
+        connectionStore.service.tellWaiting(0, MAX_TELL_COUNT)
+      ])
+
+      const previousActive = new Set(activeTasks.value.map(task => task.gid))
+      active.forEach(task => {
+        if (!previousActive.has(task.gid)) {
+          taskTimeService.recordTaskAdd(task.gid, getTaskName(task))
+        }
+      })
+
+      activeTasks.value = active
+      setWaitingIfChanged(waiting)
+    } catch (error) {
+      console.error('Failed to load active tasks:', error)
     } finally {
       isLoading.value = false
     }
@@ -163,7 +218,7 @@ export const useTaskStore = defineStore('task', () => {
     // 查找任务以判断状态（活动/等待任务用 forceRemove，已停止任务直接清理结果）
     const task = [...activeTasks.value, ...waitingTasks.value, ...stoppedTasks.value].find(t => t.gid === gid)
 
-    // 收集要删除的文件路径（统一使用删除服务的路径处理逻辑）
+    // 收集要删除的文件路径（趁任务记录还在时获取，统一使用删除服务的路径处理逻辑）
     let taskFiles: string[] = []
     if (deleteFiles && window.electronAPI && task) {
       try {
@@ -174,27 +229,32 @@ export const useTaskStore = defineStore('task', () => {
     }
 
     const isActive = task && (task.status === 'active' || task.status === 'waiting' || task.status === 'paused')
-    try {
-      if (isActive) {
-        // 活动/等待/暂停中的任务：forceRemove 移出队列并记录到已停止列表
-        try {
-          await connectionStore.service.forceRemove(gid)
-        } catch (e) {
-          console.warn('forceRemove failed:', e)
-        }
-      }
-      // 清理下载结果（complete/error/removed 状态的任务只保留在结果列表中）
+
+    // 活动/等待/暂停中的任务：先 forceRemove 停止下载并释放文件句柄（文件占用时删除会失败）
+    if (isActive) {
       try {
-        await connectionStore.service.removeDownloadResult(gid)
-      } catch {
-        // removeDownloadResult 可能失败（任务已不存在），忽略
+        await connectionStore.service.forceRemove(gid)
+      } catch (e) {
+        console.warn('forceRemove failed:', e)
       }
-    } catch (e) {
-      console.warn('Removal failed:', e)
     }
 
-    if (deleteFiles && taskFiles.length > 0 && window.electronAPI && window.electronAPI.deleteFiles) {
-      await window.electronAPI.deleteFiles(taskFiles)
+    // 先删文件：任一失败时抛出错误并保留任务记录，用户可重试；
+    // 避免旧顺序（先清记录后删文件）失败后留下无入口的孤儿文件
+    if (deleteFiles && taskFiles.length > 0 && window.electronAPI?.deleteFiles) {
+      const deleteResult = await window.electronAPI.deleteFiles(taskFiles, task?.dir)
+      const failedItems = deleteResult.results?.filter(r => !r.success) || []
+      if (!deleteResult.success || failedItems.length > 0) {
+        const detail = failedItems[0]?.error || deleteResult.error || 'unknown'
+        throw new Error(`文件删除失败: ${detail}`)
+      }
+    }
+
+    // 文件删除成功后再清理任务记录
+    try {
+      await connectionStore.service.removeDownloadResult(gid)
+    } catch {
+      // removeDownloadResult 可能失败（任务已不存在），忽略
     }
 
     // 本地清理
@@ -268,6 +328,9 @@ export const useTaskStore = defineStore('task', () => {
     activeTasks.value = []
     waitingTasks.value = []
     stoppedTasks.value = []
+    // 重置指纹，避免切换服务器后同 gid 序列误命中导致不更新
+    waitingFingerprint = ''
+    stoppedFingerprint = ''
     taskPersistenceService.clearAllPersistedTasks()
     taskTimeService.clearAll()
   }
@@ -302,6 +365,7 @@ export const useTaskStore = defineStore('task', () => {
     errorTasks,
     isLoading,
     loadAllTasks,
+    loadLightTasks,
     addUri,
     addTorrent,
     addMetalink,

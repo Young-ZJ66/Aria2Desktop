@@ -148,7 +148,8 @@ class CompletedTaskDeleteService {
 
         if (filePaths.length > 0) {
           try {
-            const deleteResult = await window.electronAPI.deleteFiles(filePaths)
+            // 第二参数传任务实际目录，主进程据此放宽白名单（任务可下载到非默认目录）
+            const deleteResult = await window.electronAPI.deleteFiles(filePaths, task.dir)
 
             if (deleteResult.success && deleteResult.results) {
               const successfulDeletes = deleteResult.results.filter((r: FileDeleteItemResult) => r.success)

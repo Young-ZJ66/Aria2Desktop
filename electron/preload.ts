@@ -19,11 +19,10 @@ const electronAPI = {
   showItemInFolder: (path: string) => ipcRenderer.invoke('show-item-in-folder', path),
   openPath: (path: string) => ipcRenderer.invoke('open-path', path),
   openInExplorer: (path: string) => ipcRenderer.invoke('open-in-explorer', path),
-  deleteFiles: (paths: string[]) => ipcRenderer.invoke('delete-files', paths),
+  deleteFiles: (paths: string[], taskDir?: string) => ipcRenderer.invoke('delete-files', paths, taskDir),
 
   // 托盘控制
   setTrayEnabled: (enabled: boolean) => ipcRenderer.invoke('set-tray-enabled', enabled),
-  // {{ AURA: Add - 窗口主题设置 IPC 方法 }}
   setWindowTheme: (isDark: boolean) => ipcRenderer.invoke('set-window-theme', isDark),
 
   // 开机自启
@@ -55,6 +54,10 @@ const electronAPI = {
 
   // 会话管理
   saveSession: () => ipcRenderer.invoke('aria2-save-session'),
+
+  // 已完成任务持久化（替代 localStorage，存于 userData）
+  loadPersistedTasks: () => ipcRenderer.invoke('persisted-tasks-load'),
+  savePersistedTasks: (data: unknown) => ipcRenderer.invoke('persisted-tasks-save', data),
 
   // 平台信息
   platform: process.platform,

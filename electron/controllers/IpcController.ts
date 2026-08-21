@@ -37,6 +37,7 @@ export class IpcController {
   public registerHandlers() {
     this.registerAppHandlers()
     this.registerFileHandlers()
+    this.registerPersistedTasksHandlers()
     this.aria2Controller.registerIpcHandlers()
   }
 
@@ -219,34 +220,49 @@ export class IpcController {
       }
     })
 
-    ipcMain.handle('delete-files', async (event, filePaths: string[]) => {
+    ipcMain.handle('delete-files', async (event, filePaths: string[], taskDir?: string) => {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
 
-      // 获取允许删除文件的根目录（下载目录）
+      // 允许删除文件的根目录集合：默认下载目录 + 调用方传入的任务实际目录
+      // （任务可下载到非默认目录，按任务目录放宽白名单）
       const settings = this.store.get('settings', {}) as AppSettings
-      const allowedDir = settings?.aria2?.downloadDir || settings?.download?.defaultDir || ''
-      // 未配置下载目录时拒绝所有删除操作，防止任意路径被删
-      if (!allowedDir) {
-        console.warn('[IpcController] Blocked deletion: download dir not configured')
+      const allowedRoots: string[] = []
+      const settingDir = settings?.aria2?.downloadDir || settings?.download?.defaultDir || ''
+      if (settingDir) allowedRoots.push(path.resolve(settingDir))
+      if (taskDir && taskDir.trim()) allowedRoots.push(path.resolve(taskDir.trim()))
+      // 未配置任何允许目录时拒绝所有删除操作，防止任意路径被删
+      if (allowedRoots.length === 0) {
+        console.warn('[IpcController] Blocked deletion: no download dir configured')
         return { success: false, error: 'Download dir not configured' }
       }
-      const normalizedAllowedDir = path.resolve(allowedDir)
+
+      // 预解析符号链接并做大小写不敏感比较（Windows 文件系统大小写不敏感）
+      const isWindows = process.platform === 'win32'
+      const normalizeRoot = (p: string): string => {
+        const real = fs.existsSync(p) ? fs.realpathSync(p) : p
+        return isWindows ? real.toLowerCase() : real
+      }
+      const normalizedRoots = allowedRoots.map(normalizeRoot)
+      // 判定路径是否落在任一允许根目录下
+      const isAllowed = (target: string): boolean => {
+        const norm = normalizeRoot(target)
+        return normalizedRoots.some(root =>
+          norm === root || norm.startsWith(root + path.sep)
+        )
+      }
 
       const results: unknown[] = []
       for (const p of filePaths) {
         try {
           const normalized = path.resolve(path.normalize(p))
 
-          // 解析符号链接后重新校验前缀，防止软链接逃逸出下载目录
+          // 校验文件路径是否在允许的目录范围内
           let target = normalized
           if (fs.existsSync(normalized)) {
             target = fs.realpathSync(normalized)
           }
-          const realAllowedDir = fs.existsSync(normalizedAllowedDir) ? fs.realpathSync(normalizedAllowedDir) : normalizedAllowedDir
-
-          // 校验文件路径是否在允许的下载目录范围内
-          if (!target.startsWith(realAllowedDir + path.sep) && target !== realAllowedDir) {
-            console.warn(`[IpcController] Blocked deletion of path outside download dir: ${target}`)
+          if (!isAllowed(target)) {
+            console.warn(`[IpcController] Blocked deletion of path outside allowed dirs: ${target}`)
             results.push({ path: p, success: false, error: 'Path outside allowed directory' })
             continue
           }
@@ -270,25 +286,32 @@ export class IpcController {
     })
   }
 
-  /**
-   * 定位文件：存在时在资源管理器中选中，不存在时退化为打开其所在目录
-   * 供 open-in-explorer / open-path（文件缺失场景）共用
-   */
-  private async locateOrOpenDirectory(filePath: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      const normalizedPath = path.normalize(filePath)
-      if (fs.existsSync(normalizedPath)) {
-        shell.showItemInFolder(normalizedPath)
-        return { success: true }
+  /** 已完成任务记录持久化到 userData（替代 localStorage，规避配额限制） */
+  private registerPersistedTasksHandlers() {
+    const filePath = path.join(app.getPath('userData'), 'persisted-tasks.json')
+
+    ipcMain.handle('persisted-tasks-load', (event) => {
+      if (!this.validateSender(event)) return {}
+      try {
+        if (!fs.existsSync(filePath)) return {}
+        const content = fs.readFileSync(filePath, 'utf-8')
+        return JSON.parse(content || '{}')
+      } catch (e) {
+        console.error('[IpcController] Failed to load persisted tasks:', e)
+        return {}
       }
-      const dir = path.dirname(normalizedPath)
-      if (fs.existsSync(dir)) {
-        await shell.openPath(dir)
+    })
+
+    ipcMain.handle('persisted-tasks-save', (event, data: unknown) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      try {
+        const dir = path.dirname(filePath)
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+        fs.writeFileSync(filePath, JSON.stringify(data ?? {}), { encoding: 'utf-8', mode: 0o600 })
         return { success: true }
+      } catch (e) {
+        return { success: false, error: String(e) }
       }
-      return { success: false, error: 'Path not found' }
-    } catch (e) {
-      return { success: false, error: String(e) }
-    }
+    })
   }
 }

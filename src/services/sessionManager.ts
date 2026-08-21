@@ -4,7 +4,6 @@
  */
 
 export class SessionManager {
-  private saveQueue = new Set<string>()
   private saveTimer: NodeJS.Timeout | null = null
   private isSaving = false
   /** 保存进行期间又有新保存请求到达时，完成后补一次保存 */
@@ -58,51 +57,11 @@ export class SessionManager {
   }
 
   /**
-   * 标记任务需要保存
+   * 标记任务需要保存（触发一次防抖保存，确保新任务快速持久化）
    */
   markTaskForSave(gid: string): void {
-    this.saveQueue.add(gid)
-
-    // 短延迟保存，确保新任务快速持久化
+    void gid
     this.saveSessionDebounced(500)
-  }
-
-  /**
-   * 批量保存标记的任务
-   */
-  async savePendingTasks(): Promise<boolean> {
-    if (this.saveQueue.size === 0) {
-      return true
-    }
-
-    const success = await this.saveSessionImmediate()
-
-    if (success) {
-      this.saveQueue.clear()
-    }
-
-    return success
-  }
-
-  /**
-   * 强制保存模式 - 应用退出时使用
-   */
-  async forceExit(): Promise<boolean> {
-    // 清除延迟保存定时器
-    if (this.saveTimer) {
-      clearTimeout(this.saveTimer)
-      this.saveTimer = null
-    }
-
-    // 执行最终保存
-    return await this.saveSessionImmediate()
-  }
-
-  /**
-   * 获取待保存任务数量
-   */
-  getPendingTaskCount(): number {
-    return this.saveQueue.size
   }
 }
 

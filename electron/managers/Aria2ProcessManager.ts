@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'child_process'
 import * as net from 'net'
+import * as http from 'http'
 import { existsSync } from 'fs'
 import { app } from 'electron'
 import { ResourceManager } from '../utils/resourceManager'
@@ -27,6 +28,11 @@ export class Aria2ProcessManager {
   private pendingRestartTimer: NodeJS.Timeout | null = null
   private resourceManager: ResourceManager
   private configManager: Aria2ConfigManager
+  /**
+   * 优雅关闭钩子（由 Aria2Controller 注入，通过 RPC aria2.shutdown 触发会话保存）。
+   * Windows 上进程信号是强杀，先走 RPC 才能保存会话；所有停止/重启路径统一经过 stop()。
+   */
+  private gracefulShutdownHook: (() => Promise<void>) | null = null
 
   constructor(config: Partial<Aria2ProcessConfig> = {}) {
     this.resourceManager = ResourceManager.getInstance()
@@ -64,6 +70,11 @@ export class Aria2ProcessManager {
     if (!currentSaveSession) {
       console.log('设置会话保存文件路径:', sessionPath)
       this.configManager.setConfigValue('save-session', sessionPath)
+    }
+
+    // 清理曾被误写入、但当前 aria2c 不支持的选项残留，避免启动时 Unknown option 告警
+    if (this.configManager.removeConfigKey('max-piece-length')) {
+      console.log('已从 aria2 配置文件移除不支持的 max-piece-length 选项')
     }
 
     // 不再验证或修改下载目录，完全交给Aria2处理
@@ -148,6 +159,7 @@ export class Aria2ProcessManager {
    */
   private async waitForRpcReady(timeoutMs = 10000): Promise<void> {
     const port = this.config.port
+    const secret = this.configManager.getConfigValue('rpc-secret') || this.config.secret
     const startAt = Date.now()
 
     while (Date.now() - startAt < timeoutMs) {
@@ -155,8 +167,11 @@ export class Aria2ProcessManager {
       if (!this.process || this.process.exitCode !== null || this.process.signalCode !== null) {
         throw new Error(`Aria2 进程异常退出，代码: ${this.process?.exitCode}`)
       }
+      // TCP 端口通了之后，再验证 RPC 协议层就绪，排除端口被其他进程占用的情况
       if (await this.probePort(port)) {
-        return
+        if (await this.probeRpc(port, secret)) {
+          return
+        }
       }
       await new Promise(resolve => setTimeout(resolve, 250))
     }
@@ -183,6 +198,45 @@ export class Aria2ProcessManager {
       socket.once('error', () => done(false))
       socket.connect(port, '127.0.0.1')
     })
+  }
+
+  /** 通过轻量 JSON-RPC 调用（getVersion）验证 RPC 协议层就绪 */
+  private probeRpc(port: number, secret: string): Promise<boolean> {
+    return new Promise(resolve => {
+      const body = JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'probe',
+        method: 'aria2.getVersion',
+        params: secret ? [`token:${secret}`] : []
+      })
+      const req = http.request({
+        hostname: '127.0.0.1',
+        port,
+        path: '/jsonrpc',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body)
+        }
+      }, (res) => {
+        let data = ''
+        res.on('data', (chunk) => { data += chunk })
+        res.on('end', () => resolve(data.includes('"jsonrpc"')))
+      })
+      req.setTimeout(1000, () => req.destroy())
+      req.on('error', () => resolve(false))
+      req.end(body)
+    })
+  }
+
+  /** 等待端口释放（进程停止后 listen socket 立即释放，通常首轮即通过） */
+  private async waitForPortRelease(port: number, timeoutMs: number): Promise<void> {
+    const startAt = Date.now()
+    while (Date.now() - startAt < timeoutMs) {
+      if (!(await this.probePort(port))) return
+      await new Promise(resolve => setTimeout(resolve, 150))
+    }
+    console.warn(`等待端口 ${port} 释放超时，继续后续操作`)
   }
 
   private setupProcessHandlers(): void {
@@ -250,6 +304,23 @@ export class Aria2ProcessManager {
     }
   }
 
+  /** 注入优雅关闭钩子（RPC shutdown，触发 aria2 save-session） */
+  public setGracefulShutdown(hook: () => Promise<void>): void {
+    this.gracefulShutdownHook = hook
+  }
+
+  /** 等待进程退出（轮询 exitCode），超时返回 false */
+  private async waitForExit(timeoutMs: number): Promise<boolean> {
+    const startAt = Date.now()
+    while (Date.now() - startAt < timeoutMs) {
+      if (!this.process || this.process.exitCode !== null || this.process.signalCode !== null) {
+        return true
+      }
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    return false
+  }
+
   public async stop(): Promise<boolean> {
     if (this.restartTimer) {
       clearTimeout(this.restartTimer)
@@ -270,8 +341,24 @@ export class Aria2ProcessManager {
     try {
       console.log('正在停止 Aria2 进程...')
 
-      // 优雅关闭
-      this.process.kill('SIGTERM')
+      // 先尝试优雅关闭（RPC shutdown 会保存会话）；Windows 上直接发信号是强杀、不保存会话
+      if (this.gracefulShutdownHook) {
+        try {
+          await this.gracefulShutdownHook()
+          // RPC 关闭后等待进程自行退出
+          if (await this.waitForExit(3000)) {
+            this.process = null
+            console.log('Aria2 进程已通过 RPC 优雅停止')
+            return true
+          }
+        } catch {
+          // RPC 不可用时回退到进程信号关闭
+        }
+      }
+
+      // 信号关闭（此时进程仍存在：waitForExit 返回 false 才走到这里）
+      const proc = this.process!
+      proc.kill('SIGTERM')
 
       // 等待进程退出 - 确保完全退出
       await new Promise<void>((resolve) => {
@@ -332,48 +419,34 @@ export class Aria2ProcessManager {
 
   public updateConfig(newConfig: Partial<Aria2ProcessConfig>): void {
     const oldConfig = { ...this.config }
-    this.config = { ...this.config, ...newConfig }
+    const mergedConfig = { ...this.config, ...newConfig }
 
-    // 直接修改配置文件中的相关配置项
-    try {
-      const configUpdates: Record<string, string | number> = {}
+    // 先写配置文件，成功后再更新内存值；写入失败时向上抛出，由 IPC 层反馈给用户
+    const configUpdates: Record<string, string | number> = {}
 
-      if (newConfig.port !== undefined) {
-        configUpdates['rpc-listen-port'] = newConfig.port
-      }
-
-      if (newConfig.secret !== undefined) {
-        if (newConfig.secret && newConfig.secret.trim() !== '') {
-          configUpdates['rpc-secret'] = newConfig.secret
-        } else {
-          // 如果密钥为空，注释掉配置文件中的 rpc-secret 行
-          this.configManager.commentConfigValue('rpc-secret')
-        }
-      }
-
-      if (newConfig.downloadDir !== undefined && newConfig.downloadDir.trim() !== '') {
-        // 简化下载目录验证，只做基本检查
-        const downloadDir = newConfig.downloadDir.trim().replace(/\\/g, '/')
-
-        try {
-          // 只检查路径格式是否合理，不强制创建目录
-          if (downloadDir && downloadDir.length > 0) {
-            configUpdates['dir'] = downloadDir
-            console.log(`设置下载目录: ${downloadDir}`)
-          }
-        } catch (error) {
-          console.error(`下载目录设置失败: ${downloadDir}`, error)
-          // 即使验证失败，也继续更新配置，让Aria2自己处理
-          configUpdates['dir'] = downloadDir
-        }
-      }
-
-      if (Object.keys(configUpdates).length > 0) {
-        this.configManager.setMultipleConfigs(configUpdates)
-      }
-    } catch (error) {
-      console.error('更新配置文件失败:', error)
+    if (newConfig.port !== undefined) {
+      configUpdates['rpc-listen-port'] = newConfig.port
     }
+
+    if (newConfig.secret !== undefined) {
+      if (newConfig.secret && newConfig.secret.trim() !== '') {
+        configUpdates['rpc-secret'] = newConfig.secret
+      } else {
+        // 如果密钥为空，注释掉配置文件中的 rpc-secret 行
+        this.configManager.commentConfigValue('rpc-secret')
+      }
+    }
+
+    if (newConfig.downloadDir !== undefined && newConfig.downloadDir.trim() !== '') {
+      // 只做路径规范化，目录是否可用交给 Aria2 处理
+      configUpdates['dir'] = newConfig.downloadDir.trim().replace(/\\/g, '/')
+    }
+
+    if (Object.keys(configUpdates).length > 0) {
+      this.configManager.setMultipleConfigs(configUpdates)
+    }
+
+    this.config = mergedConfig
 
     // 检查是否有需要重启才能生效的配置变更
     const needsRestart = this.checkIfRestartNeeded(oldConfig, this.config)
@@ -441,7 +514,7 @@ export class Aria2ProcessManager {
     console.log('开始重启 Aria2 进程...')
 
     try {
-      // 先停止进程
+      // 先停止进程（stop 内部会先走 RPC 优雅关闭，保存会话后再退出）
       const stopSuccess = await this.stop()
       if (!stopSuccess) {
         throw new Error('停止进程失败')
@@ -450,9 +523,10 @@ export class Aria2ProcessManager {
       // 等待进程完全清理
       await this.waitForProcessCleanup()
 
-      // 额外等待确保端口完全释放
+      // 等待端口释放（探活循环，通常瞬时完成，替代原先固定 2 秒等待）
       console.log('等待端口完全释放...')
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      await this.waitForPortRelease(this.config.port, 5000)
+      await new Promise(resolve => setTimeout(resolve, 300))
 
       // 启动进程
       const startSuccess = await this.start()
@@ -469,9 +543,9 @@ export class Aria2ProcessManager {
   }
 
   private async waitForProcessCleanup(): Promise<void> {
-    // 等待进程完全退出
+    // 等待进程完全退出（stop 已 await exit，这里做兜底轮询）
     let attempts = 0
-    const maxAttempts = 20 // 增加到20次
+    const maxAttempts = 20
 
     while (attempts < maxAttempts) {
       // 检查进程是否还在运行
@@ -483,8 +557,8 @@ export class Aria2ProcessManager {
       attempts++
     }
 
-    // 额外等待确保端口释放
-    await new Promise(resolve => setTimeout(resolve, 1500)) // 增加到1.5秒
+    // 短暂缓冲，让句柄清理完成（端口释放由 restart 中的探活循环处理）
+    await new Promise(resolve => setTimeout(resolve, 200))
   }
 
   public getProcessInfo() {
@@ -517,6 +591,8 @@ export class Aria2ProcessManager {
         console.warn(`[Aria2ProcessManager] Blocked unsafe global option: ${key}`)
         continue
       }
+      // 跳过空字符串值（表单占位/未设置项），避免把无意义默认值写进配置文件触发 Unknown option 警告
+      if (typeof value === 'string' && value.trim() === '') continue
       if (typeof value === 'string' || typeof value === 'number') {
         safeOptions[key] = value
       }

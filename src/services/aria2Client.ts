@@ -34,6 +34,13 @@ export class Aria2Client {
   private eventListeners = new Map<string, Aria2EventListener[]>()
   /** 连接阶段未完成的 settle 函数，disconnect 时用于立即结束挂起的 connect() */
   private pendingConnectSettle: ((err?: Error) => void) | null = null
+  /** 是否允许断线自动重连（connect 置 true，手动 disconnect 置 false） */
+  private shouldReconnect = false
+  /** 本次会话是否成功建立过 WS 连接（首次失败交给 HTTP 回退，不自动重连） */
+  private everConnected = false
+  /** 自动重连尝试次数（用于指数退避） */
+  private reconnectAttempts = 0
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(config: Aria2Config) {
     this.config = config
@@ -98,9 +105,10 @@ export class Aria2Client {
     const wsProto = this.config.protocol === 'https' || this.config.protocol === 'wss' ? 'wss' : 'ws'
     const wsUrl = `${wsProto}://${this.config.host}:${this.config.port}${this.config.path || '/jsonrpc'}`
 
-    return new Promise((resolve, reject) => {
-      this.wsClient = new WebSocket(wsUrl)
+    // 标记允许断线自动重连（手动 disconnect 时取消）
+    this.shouldReconnect = true
 
+    return new Promise((resolve, reject) => {
       const connectTimeout = setTimeout(() => {
         this.wsClient?.close()
         reject(new Error('WebSocket connection timeout'))
@@ -119,34 +127,63 @@ export class Aria2Client {
       // 记录 settle，供连接过程中 disconnect() 立即结束挂起的 Promise
       this.pendingConnectSettle = settle
 
-      this.wsClient.onopen = () => {
-        this.emit('connected')
-        settle()
-      }
-
-      this.wsClient.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          this.handleWebSocketMessage(data)
-        } catch (error) {
-          console.error('Failed to parse WebSocket message:', error)
-        }
-      }
-
-      this.wsClient.onclose = () => {
-        this.emit('disconnected')
-        this.wsClient = null
-        // 连接建立后断开：reject 所有在途请求，避免调用方挂起
-        this.rejectAllPending('WebSocket connection closed')
-        // 连接阶段断开（未触发 onerror 的场景），确保 Promise settle
-        settle(new Error('WebSocket connection closed'))
-      }
-
-      this.wsClient.onerror = (error) => {
-        this.emit('error', error)
-        settle(new Error('WebSocket connection error'))
-      }
+      this.createSocket(wsUrl, settle)
     })
+  }
+
+  /** 创建 WebSocket 并挂载事件处理；settle 用于结束首次连接的 Promise（重连时传 noop） */
+  private createSocket(wsUrl: string, settle: (err?: Error) => void): void {
+    this.wsClient = new WebSocket(wsUrl)
+
+    this.wsClient.onopen = () => {
+      this.everConnected = true
+      this.reconnectAttempts = 0
+      this.emit('connected')
+      settle()
+    }
+
+    this.wsClient.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        this.handleWebSocketMessage(data)
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error)
+      }
+    }
+
+    this.wsClient.onclose = () => {
+      this.emit('disconnected')
+      this.wsClient = null
+      // 连接建立后断开：reject 所有在途请求，避免调用方挂起
+      this.rejectAllPending('WebSocket connection closed')
+      // 连接阶段断开（未触发 onerror 的场景），确保 Promise settle
+      settle(new Error('WebSocket connection closed'))
+      // 曾成功连接过且未被手动断开：自动重连（aria2 重启等瞬时断开场景自愈）
+      if (this.shouldReconnect && this.everConnected) {
+        this.scheduleReconnect()
+      }
+    }
+
+    this.wsClient.onerror = (error) => {
+      this.emit('error', error)
+      settle(new Error('WebSocket connection error'))
+    }
+  }
+
+  /** 指数退避自动重连（1s 起步，最长 30s；重连成功后由 onopen 重置计数） */
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)
+    this.reconnectAttempts++
+    console.warn(`WebSocket disconnected, auto reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      if (!this.shouldReconnect) return
+      const wsProto = this.config.protocol === 'https' || this.config.protocol === 'wss' ? 'wss' : 'ws'
+      const wsUrl = `${wsProto}://${this.config.host}:${this.config.port}${this.config.path || '/jsonrpc'}`
+      this.createSocket(wsUrl, () => { /* 重连结果由事件驱动，无需结束任何 Promise */ })
+    }, delay)
   }
 
   /** 拒绝并清理所有在途请求 */
@@ -269,6 +306,12 @@ export class Aria2Client {
 
   // 断开连接
   disconnect() {
+    // 取消自动重连
+    this.shouldReconnect = false
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
     // 连接尚未完成时，立即结束挂起的 connect() Promise（否则需等待超时才 settle）
     if (this.pendingConnectSettle) {
       this.pendingConnectSettle(new Error('Client disconnected'))

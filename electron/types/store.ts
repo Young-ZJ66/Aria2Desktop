@@ -1,10 +1,13 @@
 /**
  * Electron Store 数据类型定义
+ *
+ * 注意：AppSettings 与 src/services/settingsService.ts 中的同名接口描述同一份
+ * 持久化数据，枚举值（如 theme）必须保持一致，修改任一处时同步更新另一处。
  */
 
 /** 应用设置 */
 export interface AppSettings {
-  theme?: 'light' | 'dark' | 'system'
+  theme?: 'light' | 'dark' | 'auto'
   language?: string
   refreshInterval?: number
   autoConnect?: boolean

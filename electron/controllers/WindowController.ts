@@ -30,7 +30,10 @@ export class WindowController {
   public createWindow(): BrowserWindow {
     console.log('Creating main window...')
 
-    // {{ AURA: Add - 完全移除应用菜单栏 }}
+    // 重置内容就绪标记（窗口重建场景，避免沿用旧值提前 show）
+    this.isContentReady = false
+
+    // 完全移除应用菜单栏
     Menu.setApplicationMenu(null)
 
     // 如果启用，恢复窗口状态

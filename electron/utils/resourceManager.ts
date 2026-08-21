@@ -23,17 +23,17 @@ export class ResourceManager {
   }
 
   public initializeResources() {
-    const appDir = app.isPackaged
-      ? path.dirname(process.execPath)
-      : process.cwd()
-
     // Aria2 可执行文件路径（跨平台：Windows 为 .exe，其他平台无后缀）
+    // 打包后位于 resources 目录（extraResources，只读）；开发环境位于项目 resources/
     const executableName = process.platform === 'win32' ? 'aria2c.exe' : 'aria2c'
-    this.executablePath = path.join(appDir, 'resources', executableName)
+    this.executablePath = app.isPackaged
+      ? path.join(process.resourcesPath, executableName)
+      : path.join(process.cwd(), 'resources', executableName)
     console.log('Looking for aria2 executable at:', this.executablePath)
 
-    // 配置文件路径 - 使用 data/aria2 目录
-    const configDir = path.join(appDir, 'data', 'aria2')
+    // 配置/会话目录：userData（可写），与 electron-store 数据同根。
+    // 不再写入 exe 旁目录（Program Files / 只读位置会写入失败）
+    const configDir = path.join(app.getPath('userData'), 'aria2')
     if (!fs.existsSync(configDir)) {
       fs.mkdirSync(configDir, { recursive: true })
     }

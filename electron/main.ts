@@ -14,6 +14,7 @@ import type { StoreData, AppSettings } from './types/store'
 // 配置和路径设置
 // ==========================================
 
+/** 应用可执行文件所在目录（仅用于定位旧版数据） */
 const getAppDirectory = () => {
   if (app.isPackaged) {
     return path.dirname(process.execPath)
@@ -22,15 +23,59 @@ const getAppDirectory = () => {
   }
 }
 
+/**
+ * 数据根目录：统一使用 userData（Electron 惯例）。
+ * 避免把设置 / aria2 配置 / 会话写入安装目录——
+ * 提权安装到 Program Files 或便携版解压到只读位置时会写入失败。
+ */
+const getDataRoot = () => app.getPath('userData')
+
+/**
+ * 一次性迁移旧版数据（exe 旁的 data/ 目录）到 userData。
+ * 仅当旧数据存在且新位置尚无对应文件时复制，不删除旧文件。
+ */
+function migrateLegacyData(): void {
+  const legacyDataDir = path.join(getAppDirectory(), 'data')
+  if (!fs.existsSync(legacyDataDir)) return
+
+  const migrations: Array<{ from: string; to: string }> = [
+    // electron-store 设置文件
+    {
+      from: path.join(legacyDataDir, 'config', 'aria2-desktop-settings.json'),
+      to: path.join(getDataRoot(), 'config', 'aria2-desktop-settings.json')
+    },
+    // aria2 配置与会话文件
+    {
+      from: path.join(legacyDataDir, 'aria2', 'aria2.conf'),
+      to: path.join(getDataRoot(), 'aria2', 'aria2.conf')
+    },
+    {
+      from: path.join(legacyDataDir, 'aria2', 'aria2.session'),
+      to: path.join(getDataRoot(), 'aria2', 'aria2.session')
+    }
+  ]
+
+  for (const { from, to } of migrations) {
+    try {
+      if (!fs.existsSync(from) || fs.existsSync(to)) continue
+      fs.mkdirSync(path.dirname(to), { recursive: true })
+      fs.copyFileSync(from, to)
+      console.log(`[Migration] Migrated legacy data: ${from} -> ${to}`)
+    } catch (error) {
+      console.warn(`[Migration] Failed to migrate ${from}:`, error)
+    }
+  }
+}
+
 const getConfigDirectory = () => {
-  const appDir = getAppDirectory()
-  const configDir = path.join(appDir, 'data', 'config')
+  const configDir = path.join(getDataRoot(), 'config')
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true })
   }
   return configDir
 }
 
+migrateLegacyData()
 const configDir = getConfigDirectory()
 const store = new Store<StoreData>({
   cwd: configDir,

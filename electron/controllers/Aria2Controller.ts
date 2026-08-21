@@ -39,6 +39,13 @@ export class Aria2Controller {
 
       this.aria2Manager = getAria2ProcessManager(aria2Config)
 
+      // 注入优雅关闭钩子：所有停止/重启路径（含配置变更触发的自动重启）
+      // 统一先通过 RPC shutdown 保存会话，再退出进程（Windows 信号是强杀）
+      this.aria2Manager.setGracefulShutdown(async () => {
+        const { port, secret } = this.getRpcSettings()
+        await this.callAria2Rpc(port, secret, 'aria2.shutdown', [], 3000)
+      })
+
       if (aria2Config.autoStart) {
         const success = await this.aria2Manager.start()
         console.log(`Aria2 auto-start result: ${success}`)
@@ -118,13 +125,7 @@ export class Aria2Controller {
 
   public async stop() {
     if (this.aria2Manager && this.aria2Manager.isRunning()) {
-      // Windows 上进程信号是强杀且不保存会话，先通过 RPC 优雅关闭（触发 save-session）
-      try {
-        const { port, secret } = this.getRpcSettings()
-        await this.callAria2Rpc(port, secret, 'aria2.shutdown', [], 3000)
-      } catch {
-        // RPC 不可用时回退到进程信号关闭
-      }
+      // stop 内部会先执行注入的 RPC 优雅关闭（保存会话），失败时回退信号关闭
       await this.aria2Manager.stop()
     }
   }
@@ -199,7 +200,14 @@ export class Aria2Controller {
         autoStart: config?.autoStart === undefined ? true : Boolean(config.autoStart)
       }
 
-      this.aria2Manager.updateConfig(serializableConfig)
+      try {
+        this.aria2Manager.updateConfig(serializableConfig)
+      } catch (e) {
+        // 配置文件写入失败时如实反馈，避免用户误以为保存成功
+        const error = e instanceof Error ? e.message : String(e)
+        console.error('Failed to write aria2 config:', error)
+        return { success: false, error: `配置文件写入失败: ${error}` }
+      }
 
       // 更新存储
       const currentSettings = this.store.get('settings', {}) as AppSettings

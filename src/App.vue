@@ -101,15 +101,29 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => ({
 const naiveLocale = computed(() => (getLocale() === 'zh-CN' ? zhCN : enUS))
 
 let updateInterval: ReturnType<typeof setInterval> | null = null
+let slowInterval: ReturnType<typeof setInterval> | null = null
+// 本会话是否已成功连接过一次：用于区分"首次连接"与"自动重连"，避免重连时把用户正在编辑的连接对话框关掉
+let hasConnectedOnce = false
 
+// 高频刷新：实时速度 / 活动任务进度（不含 stopped 列表，降低大任务列表开销）
 function startAutoUpdate(interval = 1000) {
   stopAutoUpdate()
   updateInterval = setInterval(() => {
     if (connectionStore.isConnected) {
       statsStore.loadGlobalStat()
-      taskStore.loadAllTasks()
+      taskStore.loadLightTasks()
     }
   }, interval)
+}
+
+// 低频全量刷新：补齐 stopped 列表与已完成任务持久化（30s）
+function startSlowUpdate() {
+  stopSlowUpdate()
+  slowInterval = setInterval(() => {
+    if (connectionStore.isConnected) {
+      taskStore.loadAllTasks()
+    }
+  }, 30000)
 }
 
 function stopAutoUpdate() {
@@ -119,10 +133,19 @@ function stopAutoUpdate() {
   }
 }
 
-// 连接状态统一管理自动刷新：连接成功即启动刷新并关闭连接对话框（处理启动竞态）
+function stopSlowUpdate() {
+  if (slowInterval) {
+    clearInterval(slowInterval)
+    slowInterval = null
+  }
+}
+
+// 连接状态统一管理自动刷新：连接成功即启动刷新；仅在首次连接时关闭残留对话框，
+// 自动重连成功（已连过一次）不触碰对话框，避免打断用户编辑另一个配置
 watch(() => connectionStore.isConnected, (connected) => {
   if (connected) {
     startAutoUpdate(settingsStore.getSetting('refreshInterval'))
+    startSlowUpdate()
     // 连接成功后立即加载一次数据
     statsStore.loadGlobalStat()
     statsStore.loadVersion()
@@ -130,10 +153,14 @@ watch(() => connectionStore.isConnected, (connected) => {
     taskStore.loadAllTasks()
     // 后台持续采集流量数据（不依赖状态页是否打开）
     trafficMonitor.startMonitor()
-    // 自动关闭对话框（处理启动时竞态导致的对话框未关闭问题）
-    connectionStore.showConnectionDialog = false
+    if (!hasConnectedOnce) {
+      hasConnectedOnce = true
+      // 自动关闭对话框（处理启动时竞态导致的对话框未关闭问题）
+      connectionStore.showConnectionDialog = false
+    }
   } else {
     stopAutoUpdate()
+    stopSlowUpdate()
     trafficMonitor.stopMonitor()
   }
 })
@@ -184,6 +211,13 @@ onMounted(async () => {
     })
   }
 
+  // 断开连接后重置"首次连接"标记，使下次真实重连时仍可关闭残留对话框
+  const disconnectUnsub = watch(() => connectionStore.isConnected, (connected, old) => {
+    if (old && !connected) {
+      hasConnectedOnce = false
+    }
+  })
+
   // 如果启用了自动连接，尝试连接（使用当前激活的配置预设）
   if (settingsStore.getSetting('autoConnect')) {
     try {
@@ -219,6 +253,7 @@ async function runStartupUpdateCheck(): Promise<void> {
 
 onUnmounted(() => {
   stopAutoUpdate()
+  stopSlowUpdate()
   stopStatusCheck()
   unsubscribeConfig?.()
   connectionStore.disconnect()

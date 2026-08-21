@@ -29,7 +29,7 @@ export interface ElectronAPI {
   showItemInFolder: (path: string) => Promise<{ success: boolean; error?: string }>
   openPath: (path: string) => Promise<{ success: boolean; error?: string }>
   openInExplorer: (path: string) => Promise<{ success: boolean; error?: string }>
-  deleteFiles: (paths: string[]) => Promise<{
+  deleteFiles: (paths: string[], taskDir?: string) => Promise<{
     success: boolean
     error?: string
     results?: Array<{ path: string; success: boolean; error?: string }>
@@ -84,6 +84,10 @@ export interface ElectronAPI {
 
   // 会话管理
   saveSession: () => Promise<{ success: boolean; error?: string }>
+
+  // 已完成任务持久化（存于 userData，替代 localStorage）
+  loadPersistedTasks: () => Promise<Record<string, unknown>>
+  savePersistedTasks: (data: unknown) => Promise<{ success: boolean; error?: string }>
 
   // 平台信息
   platform: string

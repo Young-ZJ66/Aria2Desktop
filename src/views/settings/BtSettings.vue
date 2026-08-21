@@ -491,7 +491,6 @@ function toOptions(): Record<string, string> {
     'bt-metadata-only': settings.btMetadataOnly ? 'true' : 'false',
     'bt-remove-unselected-file': settings.btRemoveUnselectedFile ? 'true' : 'false',
     'follow-torrent': settings.followTorrent,
-    'piece-length': formatSizeWithUnit(settings.pieceLength, 'M'),
     'allow-piece-length-change': settings.allowPieceLengthChange ? 'true' : 'false'
   }
 
@@ -504,7 +503,9 @@ function toOptions(): Record<string, string> {
   if (settings.btExcludeTracker) options['bt-exclude-tracker'] = settings.btExcludeTracker
   // bt-prioritize-piece 需要 head/tail 格式（如 head=32M,tail=32M），开启时优先下载文件开头与结尾
   if (settings.btPrioritizePiece) options['bt-prioritize-piece'] = 'head=32M,tail=32M'
-  options['max-piece-length'] = formatSizeWithUnit(settings.maxPieceLength, 'M')
+  // piece-length：0 表示未设置（用 aria2 默认），>0 才写入，避免把 0 值写进配置文件
+  if (settings.pieceLength > 0) options['piece-length'] = formatSizeWithUnit(settings.pieceLength, 'M')
+  // max-piece-length：当前 aria2c 不识别该选项（启动报 Unknown option），一律不写入配置文件
   if (settings.peerIdPrefix) options['peer-id-prefix'] = settings.peerIdPrefix
   if (settings.peerAgent) options['peer-agent'] = settings.peerAgent
   return options

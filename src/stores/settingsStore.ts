@@ -150,7 +150,7 @@ export const useSettingsStore = defineStore('settings', () => {
     document.documentElement.classList.toggle('dark', isDark)
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
 
-    // {{ AURA: Add - 通知 Electron 主进程更新窗口主题 }}
+    // 通知 Electron 主进程更新窗口主题
     if (window.electronAPI) {
       try {
         await window.electronAPI.setWindowTheme(isDark)

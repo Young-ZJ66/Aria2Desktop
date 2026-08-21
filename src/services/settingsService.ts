@@ -1,4 +1,7 @@
 // 设置管理服务
+//
+// 注意：AppSettings 与 electron/types/store.ts 描述同一份持久化数据，
+// 枚举值（如 theme）必须保持一致，修改任一处时同步更新另一处。
 export interface AppSettings {
   // 常规设置
   language: string

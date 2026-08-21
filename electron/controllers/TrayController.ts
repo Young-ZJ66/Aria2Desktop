@@ -48,18 +48,26 @@ export class TrayController {
   private setupContextMenu() {
     if (!this.tray) return
 
+    // 按系统语言切换托盘菜单文案（主进程无 i18n 实例，简单分流中英文）
+    const isZh = app.getLocale().startsWith('zh')
+    const labels = {
+      show: isZh ? '显示主窗口' : 'Show Main Window',
+      hide: isZh ? '隐藏窗口' : 'Hide Window',
+      quit: isZh ? '退出' : 'Quit'
+    }
+
     const contextMenu = Menu.buildFromTemplate([
       {
-        label: '显示主窗口',
+        label: labels.show,
         click: () => this.windowController.show()
       },
       {
-        label: '隐藏窗口',
+        label: labels.hide,
         click: () => this.windowController.hide()
       },
       { type: 'separator' },
       {
-        label: '退出',
+        label: labels.quit,
         click: () => {
           appState.isQuiting = true
           app.quit()

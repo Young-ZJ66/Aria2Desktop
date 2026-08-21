@@ -9,10 +9,10 @@ import { ConfigWatcher } from '../utils/ConfigWatcher'
 import type { StoreData, AppSettings } from '../types/store'
 
 export enum AppStatus {
-    INITIALIZING = 'initializing',
-    READY = 'ready',
-    ERROR = 'error',
-    SHUTTING_DOWN = 'shutting_down'
+  INITIALIZING = 'initializing',
+  READY = 'ready',
+  ERROR = 'error',
+  SHUTTING_DOWN = 'shutting_down'
 }
 
 /** 用户在错误对话框中选择退出时抛出的标记错误 */
@@ -48,8 +48,8 @@ export class AppLifecycle extends EventEmitter {
   }
 
   /**
-     * 按正确顺序初始化所有子系统
-     */
+   * 按正确顺序初始化所有子系统
+   */
   async initialize(): Promise<void> {
     console.log('[AppLifecycle] Starting initialization...')
     this.status = AppStatus.INITIALIZING
@@ -78,7 +78,6 @@ export class AppLifecycle extends EventEmitter {
       // 步骤 6: 标记为就绪
       this.status = AppStatus.READY
       console.log('[AppLifecycle] Initialization complete')
-      this.emit('ready')
 
       // 步骤 7: 显示窗口
       console.log('[AppLifecycle] Step 7: Showing window...')
@@ -92,14 +91,13 @@ export class AppLifecycle extends EventEmitter {
       }
       console.error('[AppLifecycle] Initialization failed:', error)
       this.status = AppStatus.ERROR
-      this.emit('error', error)
       throw error
     }
   }
 
   /**
-     * 初始化 Aria2，带用户友好的错误处理
-     */
+   * 初始化 Aria2，带用户友好的错误处理
+   */
   private async initializeAria2WithErrorHandling(): Promise<void> {
     try {
       await this.aria2Controller.initialize()
@@ -122,15 +120,13 @@ export class AppLifecycle extends EventEmitter {
         // 用户选择退出
         throw new UserCancelledError('User cancelled due to Aria2 startup failure')
       }
-
-      // 用户选择继续 - 发出警告但不抛出异常
-      this.emit('aria2-error', error)
+      // 用户选择继续 - 仅记录，不阻断初始化
     }
   }
 
   /**
-     * 如果设置中启用，则创建托盘
-     */
+   * 如果设置中启用，则创建托盘
+   */
   private createTrayIfEnabled() {
     const settings = this.store.get('settings', {}) as AppSettings
     const minimizeToTray = settings.minimizeToTray !== false
@@ -140,8 +136,8 @@ export class AppLifecycle extends EventEmitter {
   }
 
   /**
-     * 设置配置监听器以实现热更新
-     */
+   * 设置配置监听器以实现热更新
+   */
   private setupConfigWatchers() {
     // 监听主题变更
     this.configWatcher.watch('settings.theme', (newValue, _oldValue) => {
@@ -186,8 +182,8 @@ export class AppLifecycle extends EventEmitter {
   }
 
   /**
-     * 优雅关闭序列
-     */
+   * 优雅关闭序列
+   */
   async shutdown(): Promise<void> {
     if (this.status === AppStatus.SHUTTING_DOWN) {
       console.log('[AppLifecycle] Already shutting down...')
@@ -222,26 +218,5 @@ export class AppLifecycle extends EventEmitter {
       // 清理所有 EventEmitter 监听器，防止内存泄漏
       this.removeAllListeners()
     }
-  }
-
-  /**
-     * 检查应用是否就绪
-     */
-  isReady(): boolean {
-    return this.status === AppStatus.READY
-  }
-
-  /**
-     * 获取当前状态
-     */
-  getStatus(): AppStatus {
-    return this.status
-  }
-
-  /**
-     * 获取配置监听器实例
-     */
-  getConfigWatcher(): ConfigWatcher {
-    return this.configWatcher
   }
 }

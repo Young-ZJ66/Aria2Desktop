@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as https from 'https'
+import * as crypto from 'crypto'
 import { URL } from 'url'
 
 // 仓库信息与版本查询入口
@@ -185,7 +186,7 @@ export class UpdateController {
     return new Promise<void>((resolve, reject) => {
       // 每次下载使用唯一文件名，避免覆盖仍被占用（如安装器运行中/杀软扫描）的旧文件
       const filePath = path.join(app.getPath('temp'), `Aria2Desktop-${version}-${Date.now()}-Setup.exe`)
-      this.downloadWithRedirects(url, filePath, version, 0, resolve, reject)
+      this.downloadWithRedirects(url, filePath, version, url, 0, resolve, reject)
     })
   }
 
@@ -194,6 +195,7 @@ export class UpdateController {
     url: string,
     filePath: string,
     version: string,
+    originalUrl: string,
     redirectCount: number,
     resolve: () => void,
     reject: (reason?: unknown) => void
@@ -208,7 +210,7 @@ export class UpdateController {
       if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume()
         const nextUrl = new URL(res.headers.location, url).toString()
-        this.downloadWithRedirects(nextUrl, filePath, version, redirectCount + 1, resolve, reject)
+        this.downloadWithRedirects(nextUrl, filePath, version, originalUrl, redirectCount + 1, resolve, reject)
         return
       }
 
@@ -251,9 +253,14 @@ export class UpdateController {
       res.on('end', () => {
         if (failed) return
         fileStream.end(() => {
-          this.downloadedPath = filePath
-          this.downloadedVersion = version
-          resolve()
+          // 写盘完成后校验 SHA-256（release 附带 .sha256 时强制校验，缺失则跳过）
+          this.verifyChecksum(filePath, originalUrl)
+            .then(() => {
+              this.downloadedPath = filePath
+              this.downloadedVersion = version
+              resolve()
+            })
+            .catch(reject)
         })
       })
 
@@ -267,6 +274,49 @@ export class UpdateController {
     req.setTimeout(30000, () => req.destroy(new Error('Download timed out')))
     req.on('error', reject)
     req.end()
+  }
+
+  /**
+   * 校验安装包 SHA-256：若 release 附带 `${url}.sha256` 文件则强制比对，
+   * 缺失（404 等）视为无校验文件、跳过校验以兼容现有 release。
+   */
+  private async verifyChecksum(installerPath: string, originalUrl: string): Promise<void> {
+    let sha256Text: string | null = null
+    try {
+      sha256Text = await this.fetchText(`${originalUrl}.sha256`)
+    } catch {
+      // 无校验文件，跳过
+      return
+    }
+    if (!sha256Text) return
+    // 兼容 "hash  filename" 与纯 hash 两种格式
+    const expected = sha256Text.trim().split(/\s+/)[0].toLowerCase()
+    if (!/^[0-9a-f]{64}$/.test(expected)) return
+    const actual = crypto.createHash('sha256').update(fs.readFileSync(installerPath)).digest('hex')
+    if (actual !== expected) {
+      throw new Error(`SHA-256 校验失败：期望 ${expected.slice(0, 12)}…，实际 ${actual.slice(0, 12)}…`)
+    }
+    console.log('[UpdateController] Installer checksum verified')
+  }
+
+  /** GET 文本（用于拉取 .sha256），非 2xx 或不存在则 reject */
+  private fetchText(url: string): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      const req = https.request(this.buildRequestOptions(url), (res) => {
+        if (!res.statusCode || res.statusCode >= 400) {
+          res.resume()
+          reject(new Error(`Fetch failed: ${res.statusCode}`))
+          return
+        }
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')))
+        res.on('error', reject)
+      })
+      req.setTimeout(15000, () => req.destroy(new Error('Fetch checksum timed out')))
+      req.on('error', reject)
+      req.end()
+    })
   }
 
   /** 构造 https 请求选项 */

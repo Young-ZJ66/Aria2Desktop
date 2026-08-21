@@ -31,7 +31,8 @@ export class Aria2ConfigManager {
   private loadConfig() {
     try {
       if (fs.existsSync(this.configPath)) {
-        const content = fs.readFileSync(this.configPath, 'utf-8')
+        // 统一处理 CRLF / CR，避免行尾 \r 残留在键值中
+        const content = fs.readFileSync(this.configPath, 'utf-8').replace(/\r\n?/g, '\n')
         this.rawLines = content.split('\n')
 
         for (let i = 0; i < this.rawLines.length; i++) {
@@ -42,7 +43,8 @@ export class Aria2ConfigManager {
           if (trimmed.startsWith('#')) {
             const uncommented = trimmed.substring(1)
             const [key, ...valueParts] = uncommented.split('=')
-            if (key && valueParts.length > 0) {
+            // 仅收集符合 aria2 选项命名格式的键，避免普通注释文本（含 = 的 URL 等）被误判
+            if (key && valueParts.length > 0 && /^[a-z][a-z0-9-]*$/.test(key.trim())) {
               this.commentedKeys.set(key.trim(), i)
             }
             continue
@@ -112,9 +114,9 @@ max-mmap-limit=0
   }
 
   /**
-     * 注释掉指定配置项（保留原行内容，仅加 # 前缀）
-     * 用于禁用某个配置而不丢失其值
-     */
+   * 注释掉指定配置项（保留原行内容，仅加 # 前缀）
+   * 用于禁用某个配置而不丢失其值
+   */
   public commentConfigValue(key: string): void {
     this.configContent.delete(key)
     for (let i = 0; i < this.rawLines.length; i++) {
@@ -130,74 +132,98 @@ max-mmap-limit=0
   }
 
   /**
-     * 保存配置：保留原始文件结构（注释、空行），仅更新已修改的键值对
-     * 新增的键值对追加到文件末尾
-     */
+   * 保存配置：保留原始文件结构（注释、空行），仅更新已修改的键值对
+   * 新增的键值对追加到文件末尾。
+   * 写入失败时抛出异常，由调用方决定如何反馈（避免静默丢配置）。
+   */
   private saveConfig() {
-    try {
-      const lines: string[] = [...this.rawLines]
-      const updatedKeys = new Set<string>()
+    const lines: string[] = [...this.rawLines]
+    const updatedKeys = new Set<string>()
 
-      // 更新已存在的键值对（包括被注释的）
-      for (let i = 0; i < lines.length; i++) {
-        const trimmed = lines[i].trim()
-        if (!trimmed) continue
+    // 更新已存在的键值对（包括被注释的）
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].trim()
+      if (!trimmed) continue
 
-        // 检查被注释的键值对
-        if (trimmed.startsWith('#')) {
-          const uncommented = trimmed.substring(1)
-          const [key, ...valueParts] = uncommented.split('=')
-          if (key && valueParts.length > 0) {
-            const cleanKey = key.trim()
-            // 如果该键现在有值且不在 commentedKeys 中被标记为需要注释
-            if (this.configContent.has(cleanKey)) {
-              // 取消注释并更新值
-              lines[i] = `${cleanKey}=${this.configContent.get(cleanKey)}`
-              updatedKeys.add(cleanKey)
-            }
-          }
-          continue
-        }
-
-        // 更新正常键值对
-        const [key, ...valueParts] = trimmed.split('=')
+      // 检查被注释的键值对
+      if (trimmed.startsWith('#')) {
+        const uncommented = trimmed.substring(1)
+        const [key, ...valueParts] = uncommented.split('=')
         if (key && valueParts.length > 0) {
           const cleanKey = key.trim()
+          // 如果该键现在有值且不在 commentedKeys 中被标记为需要注释
           if (this.configContent.has(cleanKey)) {
+            // 取消注释并更新值
             lines[i] = `${cleanKey}=${this.configContent.get(cleanKey)}`
             updatedKeys.add(cleanKey)
           }
         }
+        continue
       }
 
-      // 追加新增的键值对（原文件中不存在的）
-      const newKeys = Array.from(this.configContent.keys())
-        .filter(k => !updatedKeys.has(k))
-
-      if (newKeys.length > 0) {
-        // 确保文件末尾有换行
-        if (lines.length > 0 && lines[lines.length - 1].trim() !== '') {
-          lines.push('')
-        }
-        for (const key of newKeys) {
-          lines.push(`${key}=${this.configContent.get(key)}`)
+      // 更新正常键值对
+      const [key, ...valueParts] = trimmed.split('=')
+      if (key && valueParts.length > 0) {
+        const cleanKey = key.trim()
+        if (this.configContent.has(cleanKey)) {
+          lines[i] = `${cleanKey}=${this.configContent.get(cleanKey)}`
+          updatedKeys.add(cleanKey)
         }
       }
+    }
 
+    // 追加新增的键值对（原文件中不存在的）
+    const newKeys = Array.from(this.configContent.keys())
+      .filter(k => !updatedKeys.has(k))
+
+    if (newKeys.length > 0) {
       // 确保文件末尾有换行
-      if (lines.length === 0 || lines[lines.length - 1] !== '') {
+      if (lines.length > 0 && lines[lines.length - 1].trim() !== '') {
         lines.push('')
       }
-
-      const output = lines.join('\n')
-      // 0o600：配置可能包含 rpc-secret，限制为仅当前用户可读写
-      fs.writeFileSync(this.configPath, output, { encoding: 'utf-8', mode: 0o600 })
-
-      // 更新 rawLines 以反映最新状态
-      this.rawLines = lines
-    } catch (error) {
-      console.error('Failed to save Aria2 config:', error)
+      for (const key of newKeys) {
+        lines.push(`${key}=${this.configContent.get(key)}`)
+      }
     }
+
+    // 确保文件末尾有换行
+    if (lines.length === 0 || lines[lines.length - 1] !== '') {
+      lines.push('')
+    }
+
+    const output = lines.join('\n')
+    // 0o600：配置可能包含 rpc-secret，限制为仅当前用户可读写
+    fs.writeFileSync(this.configPath, output, { encoding: 'utf-8', mode: 0o600 })
+
+    // 更新 rawLines 以反映最新状态
+    this.rawLines = lines
+  }
+
+  /**
+   * 移除指定配置项的所有行（正常键值行 + 注释行），并从内存清除。
+   * 用于清理曾被误写入、但当前 aria2c 不支持的选项残留。
+   * @returns 是否实际有删除（true 表示文件已变更并重新落盘）
+   */
+  public removeConfigKey(key: string): boolean {
+    const beforeLen = this.rawLines.length
+    this.configContent.delete(key)
+    this.commentedKeys.delete(key)
+    this.rawLines = this.rawLines.filter(line => {
+      const trimmed = line.trim()
+      if (!trimmed) return true
+      // 注释行 #key=...
+      if (trimmed.startsWith('#')) {
+        const [k, ...rest] = trimmed.substring(1).split('=')
+        return !(k && k.trim() === key && rest.length > 0)
+      }
+      const [k, ...rest] = trimmed.split('=')
+      return !(k && k.trim() === key && rest.length > 0)
+    })
+    if (this.rawLines.length !== beforeLen) {
+      this.saveConfig()
+      return true
+    }
+    return false
   }
 
   public getRelevantConfigs() {

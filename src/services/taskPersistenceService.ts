@@ -14,36 +14,76 @@ class TaskPersistenceService {
   private readonly STORAGE_KEY = 'aria2_persisted_tasks'
   private readonly MAX_TASKS = 1000 // 最多保存1000个已完成任务
   private persistedTasks: Map<string, PersistedTask> = new Map()
+  /** 是否已完成异步后端加载（避免每次 loadAllTasks 都重复请求） */
+  private loaded = false
+  private loadPromise: Promise<void> | null = null
 
   constructor() {
-    this.loadFromStorage()
+    // 非 Electron 环境 / 主进程未就绪时的同步兜底（Electron 环境下会被 ensureLoaded 覆盖）
+    this.loadFromLocalStorage()
   }
 
   /**
-   * 从本地存储加载持久化任务
+   * 异步初始化：从主进程加载持久化任务（Electron 环境，存于 userData 下的 JSON 文件）。
+   * 启动时由 loadAllTasks 首次调用前 await，确保本地记录就绪、避免 localStorage 配额限制。
    */
-  private loadFromStorage() {
+  async ensureLoaded(): Promise<void> {
+    if (this.loaded) return
+    if (this.loadPromise) return this.loadPromise
+    this.loadPromise = this.loadFromBackend()
+    try {
+      await this.loadPromise
+    } finally {
+      this.loaded = true
+      this.loadPromise = null
+    }
+  }
+
+  private async loadFromBackend(): Promise<void> {
+    if (!window.electronAPI?.loadPersistedTasks) return
+    try {
+      const data = await window.electronAPI.loadPersistedTasks()
+      if (data && typeof data === 'object') {
+        this.persistedTasks = new Map(Object.entries(data))
+        console.log(`Loaded ${this.persistedTasks.size} persisted tasks from backend`)
+      }
+    } catch (error) {
+      console.error('Failed to load persisted tasks from backend:', error)
+    }
+  }
+
+  /** 从本地存储加载（localStorage，非 Electron 环境回退） */
+  private loadFromLocalStorage() {
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY)
       if (stored) {
         const data = JSON.parse(stored)
         this.persistedTasks = new Map(Object.entries(data))
-        console.warn(`Loaded ${this.persistedTasks.size} persisted tasks from storage`)
+        console.log(`Loaded ${this.persistedTasks.size} persisted tasks from storage`)
       }
     } catch (error) {
       console.error('Failed to load persisted tasks from storage:', error)
     }
   }
 
-  /**
-   * 保存持久化任务到本地存储
-   */
-  private saveToStorage() {
+  /** 持久化到后端（Electron IPC 写文件），非 Electron 环境回退 localStorage */
+  private persist(): void {
+    if (window.electronAPI?.savePersistedTasks) {
+      const data = Object.fromEntries(this.persistedTasks)
+      window.electronAPI.savePersistedTasks(data).catch((error: unknown) => {
+        console.error('Failed to persist tasks to backend:', error)
+      })
+    } else {
+      this.saveToLocalStorage()
+    }
+  }
+
+  private saveToLocalStorage() {
     try {
       const data = Object.fromEntries(this.persistedTasks)
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data))
     } catch (error) {
-      console.error('Failed to save persisted tasks to storage:', error)
+      console.error('Failed to save persisted tasks to localStorage:', error)
     }
   }
 
@@ -72,8 +112,8 @@ class TaskPersistenceService {
       this.cleanupOldTasks()
     }
 
-    this.saveToStorage()
-    console.warn(`Persisted completed task: ${task.gid} at ${new Date(persistedTask.completedAt!)}`)
+    this.persist()
+    console.log(`Persisted completed task: ${task.gid} at ${new Date(persistedTask.completedAt!)}`)
   }
 
   /**
@@ -102,8 +142,8 @@ class TaskPersistenceService {
    */
   removePersistedTask(gid: string) {
     this.persistedTasks.delete(gid)
-    this.saveToStorage()
-    console.warn(`Removed persisted task: ${gid}`)
+    this.persist()
+    console.log(`Removed persisted task: ${gid}`)
   }
 
   /**
@@ -111,8 +151,8 @@ class TaskPersistenceService {
    */
   removePersistedTasks(gids: string[]) {
     gids.forEach(gid => this.persistedTasks.delete(gid))
-    this.saveToStorage()
-    console.warn(`Removed ${gids.length} persisted tasks`)
+    this.persist()
+    console.log(`Removed ${gids.length} persisted tasks`)
   }
 
   /**
@@ -131,7 +171,7 @@ class TaskPersistenceService {
     })
 
     if (tasksToRemove.length > 0) {
-      console.warn(`Cleaned up ${tasksToRemove.length} old persisted tasks`)
+      console.log(`Cleaned up ${tasksToRemove.length} old persisted tasks`)
     }
   }
 
@@ -151,8 +191,8 @@ class TaskPersistenceService {
     }
 
     if (cleaned > 0) {
-      this.saveToStorage()
-      console.warn(`Cleaned up ${cleaned} expired persisted tasks`)
+      this.persist()
+      console.log(`Cleaned up ${cleaned} expired persisted tasks`)
     }
   }
 
@@ -201,7 +241,7 @@ class TaskPersistenceService {
   clearAllPersistedTasks() {
     this.persistedTasks.clear()
     localStorage.removeItem(this.STORAGE_KEY)
-    console.warn('Cleared all persisted tasks')
+    console.log('Cleared all persisted tasks')
   }
 }
 
