@@ -1,23 +1,42 @@
-# v1.0.2 更新日志
+# v1.0.3 更新日志
+
 ## 🔒 安全加固
- - 新增内容安全策略（CSP）：阻止内联脚本注入，script-src 限制为 'self'
- - 自动更新安装包新增 SHA-256 校验：release 附带 .sha256 时强制比对，防止供应链篡改
- - 删除文件接口（delete-files）改为大小写不敏感比较（Windows），并支持按任务实际目录放宽白名单——任务下载到非默认目录时也能正常删除文件
+ - 内容安全策略（CSP）改由主进程通过响应头强制注入，生产环境不再依赖渲染层 meta 兜底
+ - IPC 调用增加页面来源（origin）白名单校验：被导航到恶意页面后发起的 IPC 请求会被拒绝
+ - 自动更新 SHA-256 校验强化：校验文件格式异常时直接拒绝安装（封死格式异常绕过路径）
+ - 删除文件接口（delete-files）的 taskDir 限定为下载目录子树，防止通过构造路径删除任意目录文件
+ - RPC secret 改用系统级 safeStorage 加密存储：磁盘上不保存明文，旧明文数据自动兼容并在下次保存时加密
+ - 设置导出时 secret 脱敏；导入设置增加原型污染防护，且不覆盖本地真实密钥
+ - HTTP 协议 + 非 localhost 地址使用 RPC secret 时给出明文传输安全告警
+
 ## 🛠️ 可靠性与修复
- - 修复配置写入失败被静默吞掉的问题：aria2.conf 写入失败时如实返回错误，不再误报保存成功
- - 数据目录迁移到 userData：解决提权安装到 Program Files 或解压到只读目录时设置/会话写入失败；附带一次性旧数据迁移
- - WebSocket 断线自动重连：aria2 重启等瞬时断开后前端自愈，不再需要手动重连；自动重连时不再误关用户正在编辑的连接对话框
- - 优雅关闭统一走 RPC aria2.shutdown：配置变更触发的自动重启也会先保存会话，Windows 上不再因强杀丢失最近变更
- - 删除任务顺序修正：改为先释放文件句柄→删文件→清记录，文件删除失败时保留任务可重试，不再留下无入口的孤儿文件
- - Aria2 启动探活增强：端口通后再验证 RPC 协议层就绪，排除端口被其他进程占用导致的误判
+ - 修复启动崩溃：CSP 注入延迟到 app ready 后执行（此前在 ready 前访问 session 直接抛异常）
+ - 修复 aria2 配置管理器在磁盘写入持续失败时无限递归导致的栈溢出
+ - 修复 Aria2 进程启动失败时子进程泄漏（僵尸进程）
+ - 本地存储（localStorage）损坏自愈：JSON 解析失败自动清理残留数据，不再永久不可用
+ - 任务持久化加载失败可重试（此前首次失败后永久跳过）
+ - 修复任务选中状态在 Vue 3.5 下响应式失效（reactive Map 改 ref Map）
+ - 修复流量监控定时器无法重启、自动刷新间隔未初始化时以 0ms 占满 CPU
+ - 主题 auto 模式实时跟随系统深浅色切换（matchMedia 监听）
+ - 修复确认弹窗在异步操作未完成时提前关闭、主题切换导致 DOM 泄漏
+ - 修复 Windows 路径文件名提取错误（`C:\Downloads\file.zip` 显示完整路径）、时间格式化负数/NaN 输出乱码
+
 ## ⚡ 性能
- - 轮询分层刷新：高频仅拉取活动/等待任务，低频全量刷新 stopped 列表；waiting/stopped 用指纹比对，未变化保留旧数组引用，大任务列表时表格 diff 与排序开销显著降低
- - 构建体积优化：移除 naive-ui 强制合并分组，组件按使用场景自然分散，首屏 gzip 从约 524 kB 降至约 359 kB（降约 31%）
+ - Naive UI 改为按需引入：naive-ui chunk 由约 1.42MB 降至 800KB（约 -44%）
+ - 任务列表虚拟滚动：1000+ 任务时 DOM 节点从 N 行降至视口约 20 行
+ - 分片信息改 canvas 绘制：1000 个块零 DOM 节点，保留悬停提示与主题跟随
+ - 任务列表指纹对比改用滚动哈希，大列表每秒轮询的内存与 CPU 开销显著下降
+ - 全局统计字段数值化：UI 层免去重复 parseInt，类型更安全
+
+## 🎨 UI/UX 与可访问性
+ - 设计 token 体系补全（间距/字号/动效/圆角），关键文字对比度满足 WCAG AA
+ - 9 个组件可访问性补强：aria-label、focus-visible、键盘可达、删除二次确认（popconfirm）、剪贴板降级
+ - 设置页补充表单校验（端口范围 1024-65535 / URL 格式 / 数值范围）
+ - 任务分片 hover 交互优化、空状态文案场景化
+
 ## 🧹 代码质量与可维护性
- - 任务持久化迁出 localStorage：改由主进程写入 userData 下的 JSON 文件，规避 localStorage 配额限制导致的历史记录静默丢失
- - 主进程与渲染进程的 AppSettings 类型定义对齐（theme 枚举统一），并标注同步维护
- - 托盘菜单按系统语言切换中英文；重启等待由固定 sleep 改为端口释放探活
- - 清理死代码（locateOrOpenDirectory、sessionManager 未用方法、AppLifecycle 未用事件等），统一缩进，移除 AI 生成标记，修正 author
-## 🐛 Aria2 告警修复
- - 移除 aria2c 不支持的 max-piece-length 选项：启动时自动清理配置文件残留行，消除 Unknown option 告警
- - rpc-secret 未设置的告警为 aria2 默认安全提醒（本地监听 127.0.0.1 风险低，可忽略或在设置页配置密钥消除）
+ - 设置页 schema 驱动重构：7 页的 aria2 选项双向转换抽为统一框架（净减 312 行），特殊字段保留自定义转换
+ - App.vue 拆分 3 个 composable（useThemeManager / useAutoRefresh / useAppLifecycle），script 由 244 行减至 29 行
+ - TypeScript 严格化：开启 noUncheckedIndexedAccess；三份 tsconfig 抽取公共 base 统一配置
+ - 长方法拆分（removeTask / loadTaskDetail / saveConfig 等），行为完全等价
+ - parseInt 统一补充 radix；ESLint 引入 max-warnings 门禁

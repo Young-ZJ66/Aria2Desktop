@@ -6,6 +6,10 @@ dist
 release
 *.tsbuildinfo
 
+# 评审报告 / 本地文档（工作产物，不入库）
+deliverables
+docs
+
 # 运行时数据
 data
 
