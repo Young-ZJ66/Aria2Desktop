@@ -1,10 +1,16 @@
 import { ipcMain, app } from 'electron'
 import Store from 'electron-store'
 import http from 'http'
+import * as path from 'path'
 import { getAria2ProcessManager, Aria2ProcessManager } from '../managers/Aria2ProcessManager'
 import { WindowController } from './WindowController'
 import { createSenderValidator } from '../utils/ipcSecurity'
+import { encryptSettingsSecrets, decryptSettingsSecrets } from '../utils/secretCipher'
 import type { StoreData, AppSettings } from '../types/store'
+
+/** 端口号合法范围（1024 以下为系统保留端口，65535 为上限） */
+const MIN_PORT = 1024
+const MAX_PORT = 65535
 
 export class Aria2Controller {
   private aria2Manager: Aria2ProcessManager | null = null
@@ -19,7 +25,7 @@ export class Aria2Controller {
 
   public async initialize() {
     try {
-      const settings = this.store.get('settings', {}) as AppSettings
+      const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
       const aria2Settings = settings.aria2 || {}
 
       const aria2Config = {
@@ -61,9 +67,9 @@ export class Aria2Controller {
   }
 
   /**
-     * 通过 HTTP 直接调用 Aria2 JSON-RPC 接口
-     * 避免从主进程导入渲染进程的 service 代码
-     */
+   * 通过 HTTP 直接调用 Aria2 JSON-RPC 接口
+   * 避免从主进程导入渲染进程的 service 代码
+   */
   private callAria2Rpc(port: number, secret: string, method: string, params: unknown[] = [], timeoutMs = 10000): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const rpcParams = secret ? [`token:${secret}`, ...params] : params
@@ -111,7 +117,7 @@ export class Aria2Controller {
 
   /** 从设置中读取当前 RPC 连接参数 */
   private getRpcSettings(): { port: number; secret: string } {
-    const settings = this.store.get('settings', {}) as AppSettings
+    const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
     const aria2Settings = settings.aria2 || {}
     return {
       port: Number(aria2Settings.port) || 6800,
@@ -170,7 +176,7 @@ export class Aria2Controller {
       }
     })
 
-    ipcMain.handle('aria2-save-global-options', (event, options) => {
+    ipcMain.handle('aria2-save-global-options', (event, options: Record<string, string | number>) => {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
       if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
       try {
@@ -188,13 +194,19 @@ export class Aria2Controller {
 
       // 入参规范化与校验，防止异常类型写入 store / 配置文件
       const port = Number(config?.port)
-      if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+      if (!Number.isInteger(port) || port < MIN_PORT || port > MAX_PORT) {
         return { success: false, error: `Invalid port: ${config?.port}` }
+      }
+      const downloadDir = String(config?.downloadDir ?? '')
+      // downloadDir 提供时必须为绝对路径，防止写入非法路径导致 aria2 启动失败；
+      // 为空时保持原行为（由上游回退到默认下载目录）
+      if (downloadDir && !path.isAbsolute(downloadDir)) {
+        return { success: false, error: 'Invalid downloadDir: must be an absolute path' }
       }
       const serializableConfig = {
         port,
         secret: String(config?.secret ?? ''),
-        downloadDir: String(config?.downloadDir ?? ''),
+        downloadDir,
         enableRpc: config?.enableRpc === undefined ? true : Boolean(config.enableRpc),
         rpcAllowOriginAll: config?.rpcAllowOriginAll === undefined ? true : Boolean(config.rpcAllowOriginAll),
         autoStart: config?.autoStart === undefined ? true : Boolean(config.autoStart)
@@ -210,7 +222,7 @@ export class Aria2Controller {
       }
 
       // 更新存储
-      const currentSettings = this.store.get('settings', {}) as AppSettings
+      const currentSettings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
       const updatedSettings = {
         ...currentSettings,
         aria2: {
@@ -224,7 +236,7 @@ export class Aria2Controller {
           autoStart: serializableConfig.autoStart
         }
       }
-      this.store.set('settings', updatedSettings)
+      this.store.set('settings', encryptSettingsSecrets(updatedSettings))
       return { success: true }
     })
   }

@@ -40,7 +40,7 @@ export interface Aria2Task {
   bittorrent?: Aria2BitTorrent
   verifiedLength?: string
   verifyIntegrityPending?: string
-  // 时间相关字段（可能存在）
+  // 时间相关字段（aria2 返回的是秒级时间戳字符串，如 "1620000000"，不是 ISO 日期字符串）
   creationTime?: string
   completionTime?: string
   startTime?: string
@@ -65,6 +65,7 @@ export interface Aria2BitTorrent {
   announceList?: string[][]
   comment?: string
   createdBy?: string
+  /** 创建时间：aria2 返回秒级 Unix 时间戳（number） */
   creationDate?: number
   mode?: string
   info?: {

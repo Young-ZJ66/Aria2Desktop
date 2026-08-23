@@ -12,6 +12,7 @@ export interface TaskTimeRecord {
 
 class TaskTimeService {
   private readonly STORAGE_KEY = 'aria2_task_times'
+  private readonly MAX_RECORDS = 2000
   private taskTimes: Map<string, TaskTimeRecord> = new Map()
 
   constructor() {
@@ -30,6 +31,9 @@ class TaskTimeService {
       }
     } catch (error) {
       console.error('Failed to load task times from storage:', error)
+      // 清理损坏数据，避免下次启动仍反复 parse 失败
+      localStorage.removeItem(this.STORAGE_KEY)
+      this.taskTimes = new Map()
     }
   }
 
@@ -37,12 +41,26 @@ class TaskTimeService {
    * 保存任务时间记录到本地存储
    */
   private saveToStorage() {
+    this.cleanupIfOverLimit()
     try {
       const data = Object.fromEntries(this.taskTimes)
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data))
     } catch (error) {
       console.error('Failed to save task times to storage:', error)
     }
+  }
+
+  /**
+   * 超出上限时按时间排序删除最旧记录（无完成时间时用添加时间）
+   */
+  private cleanupIfOverLimit() {
+    if (this.taskTimes.size <= this.MAX_RECORDS) return
+    const records = Array.from(this.taskTimes.values())
+    records.sort((a, b) => (b.completeTime || b.addTime) - (a.completeTime || a.addTime))
+    const recordsToRemove = records.slice(this.MAX_RECORDS)
+    recordsToRemove.forEach(record => {
+      this.taskTimes.delete(record.gid)
+    })
   }
 
   /**

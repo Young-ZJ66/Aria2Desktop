@@ -1,9 +1,18 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import Components from 'unplugin-vue-components/vite'
+import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
 import { resolve } from 'path'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    // Naive UI 按需引入：自动解析模板中的 n-* 组件并注入 import，替代全量 app.use(naive)
+    Components({
+      dts: 'src/components.d.ts',
+      resolvers: [NaiveUiResolver()]
+    })
+  ],
   base: './',
   assetsInclude: ['**/*.ico'],
   build: {
@@ -26,11 +35,21 @@ export default defineConfig({
               name: 'echarts',
               test: /node_modules[\\/]*echarts/,
               priority: 15
+            },
+            // Naive UI 单独拆分（全量注册，独立 chunk 利于缓存）
+            {
+              name: 'naive-ui',
+              test: /node_modules[\\/]naive-ui/,
+              priority: 20
             }
           ]
         }
       }
     }
+  },
+  // 预构建依赖，加速冷启动并固定依赖版本
+  optimizeDeps: {
+    include: ['vue', 'vue-router', 'pinia', 'vue-i18n', 'naive-ui', 'echarts', 'axios', 'dayjs']
   },
   resolve: {
     alias: {

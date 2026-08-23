@@ -4,7 +4,7 @@
  */
 
 import type { Aria2Task } from '@/types/aria2'
-import { getLocale } from '@/i18n'
+import i18n, { getLocale } from '@/i18n'
 import {
   formatSize as utilFormatSize,
   formatSpeed as utilFormatSpeed,
@@ -21,7 +21,7 @@ export type StatusTagType = 'primary' | 'success' | 'warning' | 'info' | 'error'
  * 格式化字节大小字符串为人类可读格式（委托 taskUtils 统一实现）
  */
 export function formatSize(bytes: string | number): string {
-  const size = typeof bytes === 'string' ? parseInt(bytes) : bytes
+  const size = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes
   return utilFormatSize(size)
 }
 
@@ -29,7 +29,7 @@ export function formatSize(bytes: string | number): string {
  * 格式化下载速度
  */
 export function formatSpeed(speed: string | number): string {
-  const speedNum = typeof speed === 'string' ? parseInt(speed) : speed
+  const speedNum = typeof speed === 'string' ? parseInt(speed, 10) : speed
   return utilFormatSpeed(speedNum)
 }
 
@@ -92,6 +92,9 @@ export function getFileName(path: string): string {
  * 格式化完成时间为友好显示
  */
 export function formatCompleteTime(timestamp: number): string {
+  // 守卫无效时间戳（NaN/Infinity），避免 Invalid Date 渲染乱码
+  if (!Number.isFinite(timestamp)) return '--'
+
   const locale = getLocale()
   const date = new Date(timestamp)
   const now = new Date()
@@ -107,10 +110,10 @@ export function formatCompleteTime(timestamp: number): string {
     })
   }
 
-  // 如果是昨天
+  // 如果是昨天（"昨天"文案走 i18n，避免硬编码绕过 locale）
   const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
   if (taskDate.getTime() === yesterday.getTime()) {
-    return (locale === 'zh-CN' ? '昨天 ' : 'Yesterday ') + date.toLocaleTimeString(locale, {
+    return i18n.global.t('common.yesterday') + ' ' + date.toLocaleTimeString(locale, {
       hour: '2-digit',
       minute: '2-digit'
     })

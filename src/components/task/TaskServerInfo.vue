@@ -46,7 +46,7 @@ interface ServerRow {
 const rows = computed<ServerRow[]>(() => {
   const result: ServerRow[] = []
   props.servers.forEach((entry) => {
-    entry.servers.forEach((server, idx) => {
+    entry.servers?.forEach((server, idx) => {
       result.push({
         key: `${entry.index}-${idx}`,
         fileIndex: entry.index,
@@ -100,6 +100,7 @@ const columns = computed<DataTableColumns<ServerRow>>(() => [
           quaternary: true,
           circle: true,
           style: 'flex-shrink: 0',
+          'aria-label': t('taskDetail.copyLink'),
           onClick: () => copyUri(row.uri)
         }, {
           icon: () => h(NIcon, null, { default: () => h(CopyOutline) })

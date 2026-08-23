@@ -135,8 +135,12 @@
     "pieceSize": "区块大小",
     "completedPieces": "完成区块",
     "pieceStatus": "区块完成状态",
+    "piece": "区块",
     "pieceDone": "已完成",
-    "piecePending": "未完成"
+    "piecePending": "未完成",
+    "pieceDownloading": "下载中",
+    "noPeers": "暂无 Peer 连接",
+    "piecesShown": "仅显示前 {count} 块"
   },
   "delete": {
     "title": "删除任务",
@@ -156,6 +160,7 @@
     "torrentTab": "种子文件",
     "metalinkTab": "Metalink",
     "urls": "下载链接",
+    "urisLabel": "下载链接",
     "urlsPlaceholder": "请输入下载链接，每行一个\n支持协议：HTTP/HTTPS、FTP/SFTP、磁力链接等\n\n示例：\nhttps://example.com/file.zip\nmagnet:?xt=urn:btih:...",
     "torrentFile": "种子文件",
     "selectTorrentFile": "选择种子文件",
@@ -208,7 +213,9 @@
   "footer": {
     "active": "活动",
     "waiting": "等待",
-    "stopped": "已停止"
+    "stopped": "已停止",
+    "downloadSpeed": "下载速度",
+    "uploadSpeed": "上传速度"
   },
   "statusPage": {
     "title": "Aria2 状态",
@@ -221,6 +228,7 @@
     "activeTasks": "活动任务",
     "waitingTasks": "等待任务",
     "trafficStats": "流量统计",
+    "trafficChartAria": "下载与上传速度趋势图",
     "enabledFeatures": "支持的功能"
   },
   "stats": {
@@ -255,6 +263,8 @@
     "restored": "已恢复为默认设置",
     "unknownError": "未知错误",
     "valueRange": "值必须在 {min}-{max} 之间",
+    "valueMin": "值不能小于 {min}",
+    "invalidUrl": "请输入有效的 URL（需包含协议，如 http://、https://）",
     "selectFileFailed": "选择文件失败",
     "engine": {
       "unavailable": "不可用",
@@ -294,6 +304,7 @@
       "maxUploadLimit": "单任务最大上传速度",
       "maxUploadLimitTip": "单个任务的最大上传速度限制（KB/s，0 表示无限制）",
       "noLimit": "0 表示无限制",
+      "kbPerSec": "KB/s",
       "diskAndMemory": "磁盘与存储",
       "diskCache": "磁盘缓存",
       "diskCacheTip": "磁盘缓存大小（MB），0 表示禁用缓存",
@@ -354,6 +365,9 @@
       "noFileAllocationLimitPlaceholder": "0 表示总是预分配",
       "downloadResult": "下载结果格式",
       "downloadResultTip": "控制下载结果在日志中的显示格式。\ndefault：显示默认字段\nfull：显示全部详细信息\nhide：不输出下载结果",
+      "downloadResultDefault": "默认",
+      "downloadResultFull": "完整详情",
+      "downloadResultHide": "隐藏",
       "keepUnfinishedDownloadResult": "保留未完成的结果",
       "keepUnfinishedDownloadResultTip": "即使超出最大下载结果数也保留未完成的下载结果"
     },
@@ -543,6 +557,9 @@
       "groupMetadata": "元数据与文件",
       "followTorrent": "处理种子链接",
       "followTorrentTip": "处理 .torrent 文件或磁力链接的方式。\ntrue：作为 BT 任务下载\nfalse：作为普通文件下载\nmem：在内存中处理种子，不写入文件",
+      "followTorrentTrue": "作为 BT 任务下载",
+      "followTorrentFalse": "作为普通文件下载",
+      "followTorrentMem": "仅内存处理",
       "btSaveMetadata": "保存元数据",
       "btSaveMetadataTip": "将磁力链接获取到的元数据保存为 .torrent 文件",
       "btLoadSavedMetadata": "加载保存的元数据",
@@ -592,6 +609,9 @@
       "groupBasic": "Metalink 匹配",
       "followMetalink": "处理 Metalink 链接",
       "followMetalinkTip": "处理 .metalink 文件或链接的方式。\ntrue：解析为 Metalink 多源下载\nfalse：作为普通文件下载\nmem：在内存中解析，不写入文件",
+      "followMetalinkTrue": "解析为 Metalink 下载",
+      "followMetalinkFalse": "作为普通文件下载",
+      "followMetalinkMem": "仅内存解析",
       "metalinkPreferredProtocol": "首选协议",
       "metalinkPreferredProtocolPlaceholder": "如 https,http,ftp",
       "metalinkPreferredProtocolTip": "选择 Metalink 镜像时优先使用的协议",
@@ -819,6 +839,8 @@
     "connectionFailed": "连接失败",
     "defaultProfileName": "默认",
     "profileList": "连接配置",
+    "editProfile": "编辑配置",
+    "noProfiles": "暂无连接配置",
     "back": "返回",
     "newProfile": "新建配置",
     "renameProfile": "重命名",
@@ -932,6 +954,9 @@
     "none": "无",
     "unknown": "未知",
     "copy": "复制",
-    "copied": "已复制到剪贴板"
+    "copied": "已复制到剪贴板",
+    "copyFailed": "复制失败",
+    "yesterday": "昨天",
+    "today": "今天"
   }
 }

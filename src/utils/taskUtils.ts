@@ -12,10 +12,11 @@ export interface FilterOptions {
 export function getTaskName(task: Aria2Task): string {
   if (task.bittorrent?.info?.name) return task.bittorrent.info.name
   if (task.files && task.files.length > 0) {
-    const path = task.files[0].path || ''
+    const path = task.files[0]?.path || ''
     if (path) {
+      // 同时按 / 与 \ 切分，避免 Windows 路径（如 C:\Downloads\file.zip）因 split('/') 短路而取不到文件名
       const trimmed = path.replace(/[\\/]+$/, '')
-      return trimmed.split('/').pop() || trimmed.split('\\').pop() || task.gid
+      return trimmed.split(/[\\/]/).pop() || task.gid
     }
   }
   return task.gid
@@ -23,28 +24,29 @@ export function getTaskName(task: Aria2Task): string {
 
 // 获取任务大小（字节）
 export function getTaskSize(task: Aria2Task): number {
-  return parseInt(task.totalLength) || 0
+  return parseInt(task.totalLength, 10) || 0
 }
 
 // 获取任务进度（百分比）
 export function getTaskProgress(task: Aria2Task): number {
-  const total = parseInt(task.totalLength)
-  const completed = parseInt(task.completedLength)
+  const total = parseInt(task.totalLength, 10)
+  const completed = parseInt(task.completedLength, 10)
 
   if (total === 0) return 0
-  return Math.round((completed / total) * 100)
+  // 封顶 100，避免 completed > total（RPC 异常数据）时出现 >100 的进度
+  return Math.min(100, Math.round((completed / total) * 100))
 }
 
 // 获取下载速度（字节/秒）
 export function getTaskSpeed(task: Aria2Task): number {
-  return parseInt(task.downloadSpeed) || 0
+  return parseInt(task.downloadSpeed, 10) || 0
 }
 
 // 计算剩余时间（秒）
 export function getTaskRemainingTime(task: Aria2Task): number {
-  const total = parseInt(task.totalLength)
-  const completed = parseInt(task.completedLength)
-  const speed = parseInt(task.downloadSpeed)
+  const total = parseInt(task.totalLength, 10)
+  const completed = parseInt(task.completedLength, 10)
+  const speed = parseInt(task.downloadSpeed, 10)
 
   if (speed === 0 || completed >= total) return 0
   return Math.round((total - completed) / speed)
@@ -68,7 +70,8 @@ export function formatSpeed(bytesPerSecond: number): string {
 
 // 格式化时间
 export function formatTime(seconds: number): string {
-  if (seconds === 0) return '--'
+  // 守卫非有限值/非正值：负数会因 Math.floor 向下取整输出 "-1:-1"，Infinity/NaN 输出乱码
+  if (!Number.isFinite(seconds) || seconds <= 0) return '--'
 
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
@@ -96,7 +99,7 @@ export function searchTasks(tasks: Aria2Task[], searchText: string): Aria2Task[]
     }
 
     // 搜索文件路径
-    if (task.files?.some(file => file.path.toLowerCase().includes(text))) {
+    if (task.files?.some(file => file.path?.toLowerCase().includes(text))) {
       return true
     }
 
@@ -247,7 +250,7 @@ export function getTaskStats(tasks: Aria2Task[]) {
     }
 
     stats.totalSize += getTaskSize(task)
-    stats.completedSize += parseInt(task.completedLength)
+    stats.completedSize += parseInt(task.completedLength, 10)
     stats.totalSpeed += getTaskSpeed(task)
   })
 

@@ -1,4 +1,4 @@
-import { ref, computed, readonly } from 'vue'
+import { ref, computed, readonly, type Ref } from 'vue'
 import { message } from '@/utils/feedback'
 import { useI18n } from 'vue-i18n'
 
@@ -19,10 +19,12 @@ export interface Aria2ProcessInfo {
   error?: string
   /** 内置 Aria2 是否可用 */
   isAria2Available?: boolean
-  /** 资源路径信息 */
+  /** 资源路径信息（与主进程 ResourceManager.getResourceInfo 返回结构一致） */
   resourceInfo?: {
-    userDataPath: string
-    resourcesPath: string
+    executablePath: string
+    configPath: string
+    sessionFilePath: string
+    exists: boolean
   }
 }
 
@@ -49,19 +51,26 @@ let statusCheckInterval: ReturnType<typeof setInterval> | null = null
 // 模块级后台预加载标记，只初始化一次
 let initialized = false
 
+// 轮询并发锁：避免上一次 getStatus 未返回时下一次定时器触发并发请求 IPC
+let isFetching = false
+
 // 共享的进程状态拉取逻辑
 async function fetchStatus(): Promise<void> {
+  if (isFetching) return // 并发保护
   if (typeof window === 'undefined' || !window.electronAPI?.aria2) {
     console.warn('Electron API not available')
     return
   }
 
+  isFetching = true
   try {
     const status = await window.electronAPI.aria2.getStatus()
     processInfo.value = status
   } catch (error) {
     console.error('获取 Aria2 状态失败:', error)
     processInfo.value.error = error instanceof Error ? error.message : String(error)
+  } finally {
+    isFetching = false
   }
 }
 
@@ -73,10 +82,12 @@ export function initLocalService(): void {
 
   if (typeof window === 'undefined' || !window.electronAPI?.aria2) return
 
-  fetchStatus()
-  if (!statusCheckInterval) {
-    statusCheckInterval = setInterval(fetchStatus, 5000)
-  }
+  // 首次拉取完成后再开启轮询，避免初始状态未就绪时轮询到空值造成 UI 闪烁
+  void fetchStatus().then(() => {
+    if (!statusCheckInterval && initialized) {
+      statusCheckInterval = setInterval(() => void fetchStatus(), 5000)
+    }
+  })
 }
 
 /** 停止后台状态轮询（应用卸载时调用） */
@@ -109,108 +120,105 @@ export function useAria2LocalService() {
     await fetchStatus()
   }
 
-  // 启动 Aria2
-  async function start(): Promise<boolean> {
+  /** 操作进行中等待提示文案 key（start/stop 按锁类型区分，restart 用专用文案） */
+  function getWaitMsgKey(action: 'start' | 'stop' | 'restart', lockKey: 'isStarting' | 'isStopping'): string {
+    if (action === 'restart') return 'localService.operatingWait'
+    return lockKey === 'isStarting' ? 'localService.startingWait' : 'localService.stoppingWait'
+  }
+
+  /** 操作对应的失败日志动作名 */
+  function getActionLabel(action: 'start' | 'stop' | 'restart'): string {
+    if (action === 'restart') return '重启'
+    return action === 'start' ? '启动' : '停止'
+  }
+
+  /**
+   * 本地引擎操作的统一骨架：可用性检查 + 并发保护 + IPC 调用 + 结果提示
+   * @param action 操作名（用于等待提示与失败日志）
+   * @param lockRef 并发锁引用（start/restart 用 isStarting，stop 用 isStopping）
+   * @param lockKey 锁类型（用于推导等待提示文案）
+   * @param fn 实际 IPC 调用
+   * @param successMsg 成功提示 i18n key（空字符串表示不提示，与启动原行为一致）
+   * @param failMsgKey 失败提示 i18n key
+   * @param extraLockRef 额外并发锁（restart 需同时检查 isStopping）
+   */
+  async function withLocalServiceOperation(
+    action: 'start' | 'stop' | 'restart',
+    lockRef: Ref<boolean>,
+    lockKey: 'isStarting' | 'isStopping',
+    fn: () => Promise<{ success: boolean; error?: string }>,
+    successMsg: string,
+    failMsgKey: string,
+    extraLockRef?: Ref<boolean>
+  ): Promise<boolean> {
     if (!isElectronAvailable.value) {
       message.error(t('localService.electronUnavailable'))
       return false
     }
 
-    if (isStarting.value) {
-      message.warning(t('localService.startingWait'))
+    if (lockRef.value || extraLockRef?.value) {
+      message.warning(t(getWaitMsgKey(action, lockKey)))
       return false
     }
 
-    isStarting.value = true
+    lockRef.value = true
 
     try {
-      const result = await window.electronAPI.aria2.start()
+      const result = await fn()
 
-      if (result.success) {
+      if (result?.success) {
+        if (successMsg) message.success(t(successMsg))
         await getStatus()
         return true
       } else {
-        message.error(t('localService.startFailed', { error: result.error }))
+        message.error(t(failMsgKey, { error: result.error }))
         return false
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      message.error(t('localService.startFailed', { error: errorMessage }))
-      console.error('启动 Aria2 失败:', error)
+      message.error(t(failMsgKey, { error: errorMessage }))
+      console.error(`${getActionLabel(action)} Aria2 失败:`, error)
       return false
     } finally {
-      isStarting.value = false
+      lockRef.value = false
     }
+  }
+
+  // 启动 Aria2
+  function start(): Promise<boolean> {
+    return withLocalServiceOperation(
+      'start',
+      isStarting,
+      'isStarting',
+      () => window.electronAPI!.aria2.start(),
+      '', // 启动成功不弹提示，与原行为一致
+      'localService.startFailed'
+    )
   }
 
   // 停止 Aria2
-  async function stop(): Promise<boolean> {
-    if (!isElectronAvailable.value) {
-      message.error(t('localService.electronUnavailable'))
-      return false
-    }
-
-    if (isStopping.value) {
-      message.warning(t('localService.stoppingWait'))
-      return false
-    }
-
-    isStopping.value = true
-
-    try {
-      const result = await window.electronAPI.aria2.stop()
-
-      if (result.success) {
-        message.success(t('localService.serviceStopped'))
-        await getStatus()
-        return true
-      } else {
-        message.error(t('localService.stopFailed', { error: result.error }))
-        return false
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      message.error(t('localService.stopFailed', { error: errorMessage }))
-      console.error('停止 Aria2 失败:', error)
-      return false
-    } finally {
-      isStopping.value = false
-    }
+  function stop(): Promise<boolean> {
+    return withLocalServiceOperation(
+      'stop',
+      isStopping,
+      'isStopping',
+      () => window.electronAPI!.aria2.stop(),
+      'localService.serviceStopped',
+      'localService.stopFailed'
+    )
   }
 
   // 重启 Aria2
-  async function restart(): Promise<boolean> {
-    if (!isElectronAvailable.value) {
-      message.error(t('localService.electronUnavailable'))
-      return false
-    }
-
-    if (isStarting.value || isStopping.value) {
-      message.warning(t('localService.operatingWait'))
-      return false
-    }
-
-    isStarting.value = true
-
-    try {
-      const result = await window.electronAPI.aria2.restart()
-
-      if (result.success) {
-        message.success(t('localService.restartSuccess'))
-        await getStatus()
-        return true
-      } else {
-        message.error(t('localService.restartFailed', { error: result.error }))
-        return false
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      message.error(t('localService.restartFailed', { error: errorMessage }))
-      console.error('重启 Aria2 失败:', error)
-      return false
-    } finally {
-      isStarting.value = false
-    }
+  function restart(): Promise<boolean> {
+    return withLocalServiceOperation(
+      'restart',
+      isStarting,
+      'isStarting',
+      () => window.electronAPI!.aria2.restart(),
+      'localService.restartSuccess',
+      'localService.restartFailed',
+      isStopping // 重启需同时检查停止中的锁
+    )
   }
 
   // 更新配置
@@ -228,9 +236,9 @@ export function useAria2LocalService() {
         autoStart: config.autoStart
       }
 
-      const result = await window.electronAPI.aria2.updateConfig(plainConfig)
+      const result = await window.electronAPI!.aria2.updateConfig(plainConfig)
 
-      if (result.success) {
+      if (result?.success) {
         await getStatus()
         return true
       } else {

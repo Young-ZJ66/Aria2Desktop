@@ -10,7 +10,7 @@
   >
     <div class="delete-dialog-content">
       <div class="warning-icon">
-        <n-icon size="48" color="#e88080">
+        <n-icon size="48" class="danger-icon" role="img" :aria-label="t('common.warning')">
           <AlertCircleOutline />
         </n-icon>
       </div>
@@ -161,6 +161,10 @@ function handleConfirm() {
 
 .warning-icon {
   margin-bottom: 20px;
+}
+
+.danger-icon {
+  color: var(--color-danger);
 }
 
 .delete-message h3 {

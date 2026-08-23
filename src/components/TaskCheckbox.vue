@@ -1,6 +1,7 @@
 <template>
   <n-checkbox
     :checked="isSelected"
+    :aria-label="getTaskName(task)"
     @update:checked="handleChange"
     @click.stop
   />
@@ -9,6 +10,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useTaskSelection } from '@/composables/useTaskSelection'
+import { getTaskName } from '@/utils/taskUtils'
 import type { Aria2Task } from '@/types/aria2'
 
 interface Props {

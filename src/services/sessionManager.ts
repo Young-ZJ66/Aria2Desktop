@@ -4,7 +4,7 @@
  */
 
 export class SessionManager {
-  private saveTimer: NodeJS.Timeout | null = null
+  private saveTimer: ReturnType<typeof setTimeout> | null = null
   private isSaving = false
   /** 保存进行期间又有新保存请求到达时，完成后补一次保存 */
   private needsResave = false
@@ -31,14 +31,17 @@ export class SessionManager {
       return true
     } catch (error) {
       console.error('Failed to save session immediately:', error)
+      // 保存失败时重置 needsResave，避免 finally 中调度重复重试导致连锁失败
+      this.needsResave = false
       return false
     } finally {
-      this.isSaving = false
-      // 保存期间有新的保存请求：稍后补一次，确保最新状态落盘
+      // 保存期间有新的保存请求：在释放 isSaving 之前调度微任务串行重试，
+      // 重试会重新获取 isSaving 锁，避免与外部 immediate 调用并发
       if (this.needsResave) {
         this.needsResave = false
-        this.saveSessionDebounced(500)
+        queueMicrotask(() => void this.saveSessionImmediate())
       }
+      this.isSaving = false
     }
   }
 

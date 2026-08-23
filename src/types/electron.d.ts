@@ -75,8 +75,24 @@ export interface ElectronAPI {
       isRunning: boolean
       pid: number | null
       retryCount: number
-      config: Record<string, unknown> | null
+      config: {
+        executablePath: string
+        configPath: string
+        port: number
+        secret: string
+        downloadDir: string
+        enableRpc: boolean
+        rpcAllowOriginAll: boolean
+        autoStart: boolean
+      } | null
       error?: string
+      isAria2Available?: boolean
+      resourceInfo?: {
+        executablePath: string
+        configPath: string
+        sessionFilePath: string
+        exists: boolean
+      }
     }>
     updateConfig: (config: unknown) => Promise<{ success: boolean; error?: string }>
     saveGlobalOptions: (options: Record<string, string | number>) => Promise<{ success: boolean; error?: string }>

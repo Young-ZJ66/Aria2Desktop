@@ -29,7 +29,7 @@ export class ResourceManager {
     this.executablePath = app.isPackaged
       ? path.join(process.resourcesPath, executableName)
       : path.join(process.cwd(), 'resources', executableName)
-    console.log('Looking for aria2 executable at:', this.executablePath)
+    console.log('[ResourceManager] Looking for aria2 executable at:', this.executablePath)
 
     // 配置/会话目录：userData（可写），与 electron-store 数据同根。
     // 不再写入 exe 旁目录（Program Files / 只读位置会写入失败）
@@ -39,7 +39,7 @@ export class ResourceManager {
     }
     this.configPath = path.join(configDir, 'aria2.conf')
 
-    // 会话文件路径 - 同样在 data/aria2 目录
+    // 会话文件路径 - 同样在 userData/aria2 目录
     this.sessionFilePath = path.join(configDir, 'aria2.session')
 
     // 确保会话文件存在

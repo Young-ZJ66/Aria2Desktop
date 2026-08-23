@@ -1,17 +1,21 @@
-import { ref, computed, reactive } from 'vue'
+import { ref, computed } from 'vue'
 import type { Aria2Task } from '@/types/aria2'
 
 // 全局选择状态（模块级单例，所有使用该 composable 的组件共享同一份状态）
-const selectedTaskGids = ref<Set<string>>(new Set())
-const selectedTasksData = reactive<Map<string, Aria2Task>>(new Map())
+// 用 ref(new Map()) 替代 reactive(Map)：Vue 3.5 对 reactive Map 的响应式支持不可靠，
+// 所有 set/delete 通过"创建新 Map 再整体赋值"触发响应式更新
+const selectedTasksMap = ref(new Map<string, Aria2Task>())
 
 export function useTaskSelection() {
   // 计算属性
-  const selectedCount = computed(() => selectedTaskGids.value.size)
-  const hasSelection = computed(() => selectedTaskGids.value.size > 0)
+  const selectedCount = computed(() => selectedTasksMap.value.size)
+  const hasSelection = computed(() => selectedTasksMap.value.size > 0)
+
+  // gid 列表由 Map 派生，避免双数据结构同步维护不一致
+  const selectedTaskGids = computed(() => Array.from(selectedTasksMap.value.keys()))
 
   const selectedTasks = computed(() => {
-    return Array.from(selectedTasksData.values())
+    return Array.from(selectedTasksMap.value.values())
   })
 
   const canBatchStart = computed(() => {
@@ -26,17 +30,20 @@ export function useTaskSelection() {
 
   // 选择操作
   function selectTask(task: Aria2Task) {
-    selectedTaskGids.value.add(task.gid)
-    selectedTasksData.set(task.gid, { ...task })
+    // 创建新 Map 再整体赋值，确保浅层引用变化触发响应式
+    const next = new Map(selectedTasksMap.value)
+    next.set(task.gid, { ...task })
+    selectedTasksMap.value = next
   }
 
   function unselectTask(gid: string) {
-    selectedTaskGids.value.delete(gid)
-    selectedTasksData.delete(gid)
+    const next = new Map(selectedTasksMap.value)
+    next.delete(gid)
+    selectedTasksMap.value = next
   }
 
   function toggleTask(task: Aria2Task) {
-    if (selectedTaskGids.value.has(task.gid)) {
+    if (isTaskSelected(task.gid)) {
       unselectTask(task.gid)
     } else {
       selectTask(task)
@@ -44,28 +51,30 @@ export function useTaskSelection() {
   }
 
   function clearSelection() {
-    selectedTaskGids.value.clear()
-    selectedTasksData.clear()
+    selectedTasksMap.value = new Map()
   }
 
   function isTaskSelected(gid: string): boolean {
-    return selectedTaskGids.value.has(gid)
+    return selectedTasksMap.value.has(gid)
   }
 
   // 批量选择
   function selectTasks(tasks: Aria2Task[]) {
-    tasks.forEach(task => selectTask(task))
+    const next = new Map(selectedTasksMap.value)
+    tasks.forEach(task => next.set(task.gid, { ...task }))
+    selectedTasksMap.value = next
   }
 
   function selectAll(tasks: Aria2Task[]) {
-    clearSelection()
-    selectTasks(tasks)
+    const next = new Map<string, Aria2Task>()
+    tasks.forEach(task => next.set(task.gid, { ...task }))
+    selectedTasksMap.value = next
   }
 
   // 更新选中任务的数据（保持选择状态，只更新任务信息）
   function updateSelectedTaskData(task: Aria2Task) {
-    if (selectedTaskGids.value.has(task.gid)) {
-      selectedTasksData.set(task.gid, { ...task })
+    if (isTaskSelected(task.gid)) {
+      selectTask(task)
     }
   }
 
@@ -77,15 +86,20 @@ export function useTaskSelection() {
   // 清理不存在的任务
   function cleanupNonExistentTasks(existingGids: string[]) {
     const existingGidSet = new Set(existingGids)
-    const toRemove: string[] = []
+    let changed = false
+    const next = new Map<string, Aria2Task>()
 
-    selectedTaskGids.value.forEach(gid => {
-      if (!existingGidSet.has(gid)) {
-        toRemove.push(gid)
+    for (const [gid, task] of selectedTasksMap.value) {
+      if (existingGidSet.has(gid)) {
+        next.set(gid, task)
+      } else {
+        changed = true
       }
-    })
+    }
 
-    toRemove.forEach(gid => unselectTask(gid))
+    if (changed) {
+      selectedTasksMap.value = next
+    }
   }
 
   return {

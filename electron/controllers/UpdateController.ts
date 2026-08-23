@@ -285,13 +285,18 @@ export class UpdateController {
     try {
       sha256Text = await this.fetchText(`${originalUrl}.sha256`)
     } catch {
-      // 无校验文件，跳过
-      return
+      // 缺少校验文件：拒绝自动安装，避免安装包被篡改无法被发现
+      throw new Error('安装包缺少 SHA-256 校验文件，已拒绝自动安装，请从 GitHub Release 手动下载')
     }
-    if (!sha256Text) return
+    if (!sha256Text) {
+      throw new Error('安装包缺少 SHA-256 校验文件，已拒绝自动安装，请从 GitHub Release 手动下载')
+    }
     // 兼容 "hash  filename" 与纯 hash 两种格式
     const expected = sha256Text.trim().split(/\s+/)[0].toLowerCase()
-    if (!/^[0-9a-f]{64}$/.test(expected)) return
+    // 格式异常（非 64 位 hex）时拒绝校验，防止攻击者构造格式异常的 sha256 文件绕过完整性校验
+    if (!/^[0-9a-f]{64}$/.test(expected)) {
+      throw new Error('SHA-256 校验文件格式异常，已拒绝自动安装，请从 GitHub Release 手动下载')
+    }
     const actual = crypto.createHash('sha256').update(fs.readFileSync(installerPath)).digest('hex')
     if (actual !== expected) {
       throw new Error(`SHA-256 校验失败：期望 ${expected.slice(0, 12)}…，实际 ${actual.slice(0, 12)}…`)

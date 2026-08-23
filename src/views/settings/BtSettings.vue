@@ -12,9 +12,17 @@
     @reload="loadSettings"
     @reset="handleReset"
   >
-    <!-- DHT 与网络 -->
-    <n-card :title="t('settings.bt.groupDht')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+    <n-form
+      ref="formRef"
+      :model="settings"
+      :rules="rules"
+      label-placement="left"
+      :label-width="180"
+      label-align="left"
+      :show-feedback="false"
+    >
+      <!-- DHT 与网络 -->
+      <n-card :title="t('settings.bt.groupDht')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.bt.enableDht')" :tip="t('settings.bt.enableDhtTip')" :option="'enable-dht'" />
@@ -29,7 +37,7 @@
           <AppSwitch v-model:value="settings.enableDht6" />
         </n-form-item>
 
-        <n-form-item>
+        <n-form-item path="dhtListenPort">
           <template #label>
             <TipLabel :label="t('settings.bt.dhtListenPort')" :tip="t('settings.bt.dhtListenPortTip')" :option="'dht-listen-port'" />
           </template>
@@ -92,19 +100,17 @@
           </n-input-group>
         </n-form-item>
 
-        <n-form-item>
+        <n-form-item path="dhtMessageTimeout">
           <template #label>
             <TipLabel :label="t('settings.bt.dhtMessageTimeout')" :tip="t('settings.bt.dhtMessageTimeoutTip')" />
           </template>
           <n-input-number v-model:value="settings.dhtMessageTimeout" :min="1" :max="60" />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
 
-    <!-- 连接与对等 -->
-    <n-card :title="t('settings.bt.groupConnections')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
-        <n-form-item>
+      <!-- 连接与对等 -->
+      <n-card :title="t('settings.bt.groupConnections')" class="setting-group">
+        <n-form-item path="listenPort">
           <template #label>
             <TipLabel :label="t('settings.bt.listenPort')" :tip="t('settings.bt.listenPortTip')" :option="'listen-port'" />
           </template>
@@ -159,12 +165,10 @@
           </template>
           <n-select v-model:value="settings.btMinCryptoLevel" :options="cryptoLevelOptions" />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
 
-    <!-- Tracker -->
-    <n-card :title="t('settings.bt.groupTracker')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+      <!-- Tracker -->
+      <n-card :title="t('settings.bt.groupTracker')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.bt.btTracker')" :tip="t('settings.bt.btTrackerTip')" />
@@ -209,12 +213,10 @@
           </template>
           <n-input-number v-model:value="settings.btTrackerTimeout" :min="1" :max="600" />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
 
-    <!-- 做种 -->
-    <n-card :title="t('settings.bt.groupSeeding')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+      <!-- 做种 -->
+      <n-card :title="t('settings.bt.groupSeeding')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.bt.seedRatio')" :tip="t('settings.bt.seedRatioTip')" />
@@ -270,12 +272,10 @@
           </template>
           <AppSwitch v-model:value="settings.btSeedUnverified" />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
 
-    <!-- 元数据与文件 -->
-    <n-card :title="t('settings.bt.groupMetadata')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+      <!-- 元数据与文件 -->
+      <n-card :title="t('settings.bt.groupMetadata')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.bt.followTorrent')" :tip="t('settings.bt.followTorrentTip')" />
@@ -324,12 +324,10 @@
           </template>
           <AppSwitch v-model:value="settings.allowPieceLengthChange" />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
 
-    <!-- 客户端标识 -->
-    <n-card :title="t('settings.bt.groupClient')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+      <!-- 客户端标识 -->
+      <n-card :title="t('settings.bt.groupClient')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.bt.peerIdPrefix')" :tip="t('settings.bt.peerIdPrefixTip')" :option="'peer-id-prefix'" />
@@ -343,14 +341,13 @@
           </template>
           <n-input v-model:value="settings.peerAgent" :placeholder="t('settings.bt.peerAgentPlaceholder')" clearable />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
+    </n-form>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import type { Aria2Option } from '@/types/aria2'
+import { reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
@@ -358,7 +355,9 @@ import { useConnectionStore } from '@/stores/connectionStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
-import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
+import { formatSizeWithUnit } from '@/utils/size'
+import type { SettingSchema } from '@/types/settingSchema'
+import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
@@ -369,11 +368,12 @@ const cryptoLevelOptions = [
   { label: 'arc4', value: 'arc4' }
 ]
 
-const followTorrentOptions = [
-  { label: 'true', value: 'true' },
-  { label: 'false', value: 'false' },
-  { label: 'mem', value: 'mem' }
-]
+// follow-torrent 选项标签本地化，跟随语言实时切换
+const followTorrentOptions = computed(() => [
+  { label: t('settings.bt.followTorrentTrue'), value: 'true' },
+  { label: t('settings.bt.followTorrentFalse'), value: 'false' },
+  { label: t('settings.bt.followTorrentMem'), value: 'mem' }
+])
 
 const settings = reactive({
   enableDht: true,
@@ -418,146 +418,70 @@ const settings = reactive({
   peerAgent: ''
 })
 
-function applyOptionsToSettings(options: Aria2Option) {
-  settings.enableDht = options['enable-dht'] !== 'false'
-  settings.enableDht6 = options['enable-dht6'] !== 'false'
-  settings.dhtListenPort = parseInt(options['dht-listen-port'] || '6881')
-  settings.dhtFilePath = options['dht-file-path'] || ''
-  settings.dhtEntryPoint = options['dht-entry-point'] || ''
-  settings.dhtEntryPoint6 = options['dht-entry-point6'] || ''
-  settings.dhtFilePath6 = options['dht-file-path6'] || ''
-  settings.dhtMessageTimeout = parseInt(options['dht-message-timeout'] || '10')
-  settings.btEnableLpd = options['bt-enable-lpd'] === 'true'
-  settings.btExternalIp = options['bt-external-ip'] || ''
-  settings.listenPort = parseInt(options['listen-port'] || '6881')
-  settings.btMaxPeers = parseInt(options['bt-max-peers'] || '55')
-  settings.btMaxOpenFiles = parseInt(options['bt-max-open-files'] || '100')
-  settings.btRequestPeerSpeedLimit = parseInt(options['bt-request-peer-speed-limit'] || '0')
-  settings.btForceEncryption = options['bt-force-encryption'] === 'true'
-  settings.enablePeerExchange = options['enable-peer-exchange'] !== 'false'
-  settings.btRequireCrypto = options['bt-require-crypto'] === 'true'
-  settings.btMinCryptoLevel = options['bt-min-crypto-level'] || 'plain'
-  settings.btTracker = options['bt-tracker'] || ''
-  settings.btExcludeTracker = options['bt-exclude-tracker'] || ''
-  settings.btTrackerConnectTimeout = parseInt(options['bt-tracker-connect-timeout'] || '60')
-  settings.btTrackerInterval = parseInt(options['bt-tracker-interval'] || '0')
-  settings.btTrackerTimeout = parseInt(options['bt-tracker-timeout'] || '60')
-  settings.seedRatio = parseFloat(options['seed-ratio'] || '1.0')
-  settings.seedTime = parseInt(options['seed-time'] || '0')
-  settings.btStopTimeout = parseInt(options['bt-stop-timeout'] || '0')
-  settings.btPrioritizePiece = !!options['bt-prioritize-piece']
-  settings.btHashCheckSeed = options['bt-hash-check-seed'] !== 'false'
-  settings.btDetachSeedOnly = options['bt-detach-seed-only'] === 'true'
-  settings.maxPieceLength = parseSizeToUnit(options['max-piece-length'] || '0', 'M')
-  settings.btSeedUnverified = options['bt-seed-unverified'] === 'true'
-  settings.btSaveMetadata = options['bt-save-metadata'] === 'true'
-  settings.btLoadSavedMetadata = options['bt-load-saved-metadata'] === 'true'
-  settings.btMetadataOnly = options['bt-metadata-only'] === 'true'
-  settings.btRemoveUnselectedFile = options['bt-remove-unselected-file'] === 'true'
-  settings.followTorrent = options['follow-torrent'] || 'true'
-  const pieceLengthVal = options['piece-length'] || '1M'
-  settings.pieceLength = parseSizeToUnit(pieceLengthVal, 'M')
-  settings.allowPieceLengthChange = options['allow-piece-length-change'] === 'true'
-  settings.peerIdPrefix = options['peer-id-prefix'] || ''
-  settings.peerAgent = options['peer-agent'] || ''
+// aria2 选项 <-> 表单字段 的 schema 声明：type 决定默认转换规则。
+// 特殊字段覆盖默认转换：
+// - btPrioritizePiece：开启时写入固定的 head/tail 格式（head=32M,tail=32M），关闭时不写入
+// - pieceLength：0 表示未设置（用 aria2 默认），>0 才写入，避免把 0 值写进配置文件
+// - maxPieceLength：当前 aria2c 不识别该选项（启动报 Unknown option），一律不写入配置文件
+const btSettingsSchema: SettingSchema = {
+  fields: [
+    { key: 'enableDht', aria2Key: 'enable-dht', type: 'boolean', default: true },
+    { key: 'enableDht6', aria2Key: 'enable-dht6', type: 'boolean', default: true },
+    { key: 'dhtListenPort', aria2Key: 'dht-listen-port', type: 'number', default: 6881 },
+    { key: 'dhtFilePath', aria2Key: 'dht-file-path', type: 'string', default: '' },
+    { key: 'dhtEntryPoint', aria2Key: 'dht-entry-point', type: 'string', default: '' },
+    { key: 'dhtEntryPoint6', aria2Key: 'dht-entry-point6', type: 'string', default: '' },
+    { key: 'dhtFilePath6', aria2Key: 'dht-file-path6', type: 'string', default: '' },
+    { key: 'dhtMessageTimeout', aria2Key: 'dht-message-timeout', type: 'number', default: 10 },
+    { key: 'btEnableLpd', aria2Key: 'bt-enable-lpd', type: 'boolean', default: false },
+    { key: 'btExternalIp', aria2Key: 'bt-external-ip', type: 'string', default: '' },
+    { key: 'listenPort', aria2Key: 'listen-port', type: 'number', default: 6881 },
+    { key: 'btMaxPeers', aria2Key: 'bt-max-peers', type: 'number', default: 55 },
+    { key: 'btMaxOpenFiles', aria2Key: 'bt-max-open-files', type: 'number', default: 100 },
+    { key: 'btRequestPeerSpeedLimit', aria2Key: 'bt-request-peer-speed-limit', type: 'number', default: 0 },
+    { key: 'btForceEncryption', aria2Key: 'bt-force-encryption', type: 'boolean', default: false },
+    { key: 'enablePeerExchange', aria2Key: 'enable-peer-exchange', type: 'boolean', default: true },
+    { key: 'btRequireCrypto', aria2Key: 'bt-require-crypto', type: 'boolean', default: false },
+    { key: 'btMinCryptoLevel', aria2Key: 'bt-min-crypto-level', type: 'select', default: 'plain' },
+    { key: 'btTracker', aria2Key: 'bt-tracker', type: 'string', default: '' },
+    { key: 'btExcludeTracker', aria2Key: 'bt-exclude-tracker', type: 'string', default: '' },
+    { key: 'btTrackerConnectTimeout', aria2Key: 'bt-tracker-connect-timeout', type: 'number', default: 60 },
+    { key: 'btTrackerInterval', aria2Key: 'bt-tracker-interval', type: 'number', default: 0 },
+    { key: 'btTrackerTimeout', aria2Key: 'bt-tracker-timeout', type: 'number', default: 60 },
+    { key: 'seedRatio', aria2Key: 'seed-ratio', type: 'number', default: 1.0 },
+    { key: 'seedTime', aria2Key: 'seed-time', type: 'number', default: 0 },
+    { key: 'btStopTimeout', aria2Key: 'bt-stop-timeout', type: 'number', default: 0 },
+    {
+      key: 'btPrioritizePiece', aria2Key: 'bt-prioritize-piece', type: 'boolean', default: false,
+      optionToValue: (raw) => !!raw,
+      valueToOption: (value) => (value ? 'head=32M,tail=32M' : undefined)
+    },
+    { key: 'btHashCheckSeed', aria2Key: 'bt-hash-check-seed', type: 'boolean', default: true },
+    { key: 'btDetachSeedOnly', aria2Key: 'bt-detach-seed-only', type: 'boolean', default: false },
+    {
+      key: 'maxPieceLength', aria2Key: 'max-piece-length', type: 'size', default: 0, unit: 'M',
+      valueToOption: () => undefined
+    },
+    { key: 'btSeedUnverified', aria2Key: 'bt-seed-unverified', type: 'boolean', default: false },
+    { key: 'btSaveMetadata', aria2Key: 'bt-save-metadata', type: 'boolean', default: false },
+    { key: 'btLoadSavedMetadata', aria2Key: 'bt-load-saved-metadata', type: 'boolean', default: false },
+    { key: 'btMetadataOnly', aria2Key: 'bt-metadata-only', type: 'boolean', default: false },
+    { key: 'btRemoveUnselectedFile', aria2Key: 'bt-remove-unselected-file', type: 'boolean', default: false },
+    { key: 'followTorrent', aria2Key: 'follow-torrent', type: 'select', default: 'true' },
+    {
+      key: 'pieceLength', aria2Key: 'piece-length', type: 'size', default: 1, unit: 'M',
+      valueToOption: (value) => (Number(value) > 0 ? formatSizeWithUnit(Number(value), 'M') : undefined)
+    },
+    { key: 'allowPieceLengthChange', aria2Key: 'allow-piece-length-change', type: 'boolean', default: false },
+    { key: 'peerIdPrefix', aria2Key: 'peer-id-prefix', type: 'string', default: '' },
+    { key: 'peerAgent', aria2Key: 'peer-agent', type: 'string', default: '' }
+  ]
 }
 
-function toOptions(): Record<string, string> {
-  const options: Record<string, string> = {
-    'enable-dht': settings.enableDht ? 'true' : 'false',
-    'enable-dht6': settings.enableDht6 ? 'true' : 'false',
-    'dht-listen-port': settings.dhtListenPort.toString(),
-    'dht-message-timeout': settings.dhtMessageTimeout.toString(),
-    'bt-enable-lpd': settings.btEnableLpd ? 'true' : 'false',
-    'listen-port': settings.listenPort.toString(),
-    'bt-max-peers': settings.btMaxPeers.toString(),
-    'bt-max-open-files': settings.btMaxOpenFiles.toString(),
-    'bt-request-peer-speed-limit': settings.btRequestPeerSpeedLimit.toString(),
-    'bt-force-encryption': settings.btForceEncryption ? 'true' : 'false',
-    'enable-peer-exchange': settings.enablePeerExchange ? 'true' : 'false',
-    'bt-require-crypto': settings.btRequireCrypto ? 'true' : 'false',
-    'bt-min-crypto-level': settings.btMinCryptoLevel,
-    'bt-tracker-connect-timeout': settings.btTrackerConnectTimeout.toString(),
-    'bt-tracker-interval': settings.btTrackerInterval.toString(),
-    'bt-tracker-timeout': settings.btTrackerTimeout.toString(),
-    'seed-ratio': settings.seedRatio.toString(),
-    'seed-time': settings.seedTime.toString(),
-    'bt-stop-timeout': settings.btStopTimeout.toString(),
-    'bt-hash-check-seed': settings.btHashCheckSeed ? 'true' : 'false',
-    'bt-detach-seed-only': settings.btDetachSeedOnly ? 'true' : 'false',
-    'bt-seed-unverified': settings.btSeedUnverified ? 'true' : 'false',
-    'bt-save-metadata': settings.btSaveMetadata ? 'true' : 'false',
-    'bt-load-saved-metadata': settings.btLoadSavedMetadata ? 'true' : 'false',
-    'bt-metadata-only': settings.btMetadataOnly ? 'true' : 'false',
-    'bt-remove-unselected-file': settings.btRemoveUnselectedFile ? 'true' : 'false',
-    'follow-torrent': settings.followTorrent,
-    'allow-piece-length-change': settings.allowPieceLengthChange ? 'true' : 'false'
-  }
-
-  if (settings.dhtFilePath) options['dht-file-path'] = settings.dhtFilePath
-  if (settings.dhtEntryPoint) options['dht-entry-point'] = settings.dhtEntryPoint
-  if (settings.dhtEntryPoint6) options['dht-entry-point6'] = settings.dhtEntryPoint6
-  if (settings.dhtFilePath6) options['dht-file-path6'] = settings.dhtFilePath6
-  if (settings.btExternalIp) options['bt-external-ip'] = settings.btExternalIp
-  if (settings.btTracker) options['bt-tracker'] = settings.btTracker
-  if (settings.btExcludeTracker) options['bt-exclude-tracker'] = settings.btExcludeTracker
-  // bt-prioritize-piece 需要 head/tail 格式（如 head=32M,tail=32M），开启时优先下载文件开头与结尾
-  if (settings.btPrioritizePiece) options['bt-prioritize-piece'] = 'head=32M,tail=32M'
-  // piece-length：0 表示未设置（用 aria2 默认），>0 才写入，避免把 0 值写进配置文件
-  if (settings.pieceLength > 0) options['piece-length'] = formatSizeWithUnit(settings.pieceLength, 'M')
-  // max-piece-length：当前 aria2c 不识别该选项（启动报 Unknown option），一律不写入配置文件
-  if (settings.peerIdPrefix) options['peer-id-prefix'] = settings.peerIdPrefix
-  if (settings.peerAgent) options['peer-agent'] = settings.peerAgent
-  return options
-}
-
-function defaults() {
-  return {
-    enableDht: true,
-    enableDht6: true,
-    dhtListenPort: 6881,
-    dhtFilePath: '',
-    dhtEntryPoint: '',
-    dhtEntryPoint6: '',
-    dhtFilePath6: '',
-    dhtMessageTimeout: 10,
-    btEnableLpd: false,
-    btExternalIp: '',
-    listenPort: 6881,
-    btMaxPeers: 55,
-    btMaxOpenFiles: 100,
-    btRequestPeerSpeedLimit: 0,
-    btForceEncryption: false,
-    enablePeerExchange: true,
-    btRequireCrypto: false,
-    btMinCryptoLevel: 'plain',
-    btTracker: '',
-    btExcludeTracker: '',
-    btTrackerConnectTimeout: 60,
-    btTrackerInterval: 0,
-    btTrackerTimeout: 60,
-    seedRatio: 1.0,
-    seedTime: 0,
-    btStopTimeout: 0,
-    btPrioritizePiece: false,
-    btHashCheckSeed: true,
-    btDetachSeedOnly: false,
-    maxPieceLength: 0,
-    btSeedUnverified: false,
-    btSaveMetadata: false,
-    btLoadSavedMetadata: false,
-    btMetadataOnly: false,
-    btRemoveUnselectedFile: false,
-    followTorrent: 'true',
-    pieceLength: 1,
-    allowPieceLengthChange: false,
-    peerIdPrefix: '',
-    peerAgent: ''
-  }
-}
+const { applyOptions, toOptions, defaults } = useSettingSchema(btSettingsSchema, settings)
 
 const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
-  applyOptions: applyOptionsToSettings,
+  applyOptions,
   toOptions,
   defaults
 })

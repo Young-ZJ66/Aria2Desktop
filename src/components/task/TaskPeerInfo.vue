@@ -8,9 +8,10 @@
       :size="'small'"
       :single-line="false"
       :scroll-x="1000"
+      :aria-label="t('taskDetail.peerInfo', { count: peers.length })"
     />
 
-    <n-empty v-else :description="t('common.none')" size="small" />
+    <n-empty v-else :description="t('taskPeer.noPeers')" size="small" />
   </n-card>
 </template>
 

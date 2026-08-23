@@ -426,17 +426,23 @@ function updateAutoStart(value: boolean) {
   updateConfig(localConfig)
 }
 
-// 重置配置
-async function resetConfig() {
-  let defaultDir = 'D:/Downloads'
+// 获取应用默认下载目录：优先 Electron 的 app.getPath('downloads')，
+// 不可用时回退为空字符串（空 = 使用 aria2 默认目录，跨平台合法，避免写死 Windows 路径）
+async function resolveDefaultDownloadDir(): Promise<string> {
   if (window.electronAPI?.getDefaultDownloadDir) {
     try {
       const result = await window.electronAPI.getDefaultDownloadDir()
-      if (result?.success && result.path) defaultDir = result.path
+      if (result?.success && result.path) return result.path
     } catch (error) {
       console.warn('Failed to get default download dir:', error)
     }
   }
+  return ''
+}
+
+// 重置配置
+async function resetConfig() {
+  const defaultDir = await resolveDefaultDownloadDir()
   Object.assign(localConfig, {
     port: 6800,
     secret: '',
@@ -447,8 +453,9 @@ async function resetConfig() {
 }
 
 // 加载当前配置到表单
-function loadCurrentConfig() {
-  getStatus().then(() => {
+async function loadCurrentConfig() {
+  try {
+    await getStatus()
     if (processInfo.value.config) {
       localConfig.port = processInfo.value.config.port
       localConfig.secret = processInfo.value.config.secret
@@ -458,11 +465,13 @@ function loadCurrentConfig() {
       Object.assign(localConfig, {
         port: 6800,
         secret: '',
-        downloadDir: 'D:/Downloads',
+        downloadDir: await resolveDefaultDownloadDir(),
         autoStart: true
       })
     }
-  })
+  } catch (error) {
+    console.error('加载本地引擎配置失败:', error)
+  }
 }
 
 // 初始化

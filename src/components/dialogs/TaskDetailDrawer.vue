@@ -155,70 +155,86 @@ const uriColumns: DataTableColumns<Aria2Uri> = [
   }
 ]
 
+/**
+ * 从 store 查找任务；未命中时通过 RPC tellStatus 拉取基础信息
+ */
+async function fetchTaskBase(): Promise<Aria2Task | null> {
+  let foundTask = findTaskInStore(gid.value)
+
+  if (!foundTask && connectionStore.service) {
+    foundTask = await connectionStore.service.tellStatus(gid.value, [
+      'gid', 'status', 'totalLength', 'completedLength', 'uploadLength',
+      'downloadSpeed', 'uploadSpeed', 'connections', 'numPieces', 'pieceLength',
+      'dir', 'files', 'bittorrent', 'errorCode', 'errorMessage'
+    ])
+  }
+
+  return foundTask
+}
+
+/**
+ * 拉取并合并任务详情（files/uris/peers/servers），各项独立容错、失败时降级
+ */
+async function fetchAndMergeDetails(): Promise<void> {
+  if (!connectionStore.service || !task.value) return
+
+  try {
+    const files = await connectionStore.service.getFiles(gid.value)
+    if (files && task.value) {
+      task.value.files = files
+    }
+
+    try {
+      const uris = await connectionStore.service.getUris(gid.value)
+      taskUris.value = deduplicateUris(uris || [])
+    } catch (error) {
+      console.warn('Failed to get URIs (task may be completed):', error)
+      if (task.value.files && task.value.files.length > 0) {
+        const fileUris: Aria2Uri[] = []
+        task.value.files.forEach((file) => {
+          if (file.uris && file.uris.length > 0) {
+            file.uris.forEach(uri => {
+              fileUris.push(uri)
+            })
+          }
+        })
+        taskUris.value = deduplicateUris(fileUris)
+      }
+    }
+
+    if (task.value.bittorrent) {
+      try {
+        const peers = await connectionStore.service.getPeers(gid.value)
+        taskPeers.value = peers || []
+      } catch (error) {
+        console.warn('Failed to get peers:', error)
+        taskPeers.value = []
+      }
+    }
+
+    try {
+      const servers = await connectionStore.service.getServers(gid.value)
+      taskServers.value = servers || []
+    } catch (error) {
+      console.warn('Failed to get servers:', error)
+      taskServers.value = []
+    }
+  } catch (error) {
+    console.warn('Failed to get task details:', error)
+  }
+}
+
 async function loadTaskDetail() {
   if (!connectionStore.isConnected || !gid.value) return
 
   loading.value = true
   try {
-    let foundTask = findTaskInStore(gid.value)
-
-    if (!foundTask && connectionStore.service) {
-      foundTask = await connectionStore.service.tellStatus(gid.value, [
-        'gid', 'status', 'totalLength', 'completedLength', 'uploadLength',
-        'downloadSpeed', 'uploadSpeed', 'connections', 'numPieces', 'pieceLength',
-        'dir', 'files', 'bittorrent', 'errorCode', 'errorMessage'
-      ])
-    }
+    const foundTask = await fetchTaskBase()
 
     if (foundTask) {
       task.value = foundTask
-
-      if (connectionStore.service) {
-        try {
-          const files = await connectionStore.service.getFiles(gid.value)
-          if (files && task.value) {
-            task.value.files = files
-          }
-
-          try {
-            const uris = await connectionStore.service.getUris(gid.value)
-            taskUris.value = deduplicateUris(uris || [])
-          } catch (error) {
-            console.warn('Failed to get URIs (task may be completed):', error)
-            if (task.value.files && task.value.files.length > 0) {
-              const fileUris: Aria2Uri[] = []
-              task.value.files.forEach((file) => {
-                if (file.uris && file.uris.length > 0) {
-                  file.uris.forEach(uri => {
-                    fileUris.push(uri)
-                  })
-                }
-              })
-              taskUris.value = deduplicateUris(fileUris)
-            }
-          }
-
-          if (task.value.bittorrent) {
-            try {
-              const peers = await connectionStore.service.getPeers(gid.value)
-              taskPeers.value = peers || []
-            } catch (error) {
-              console.warn('Failed to get peers:', error)
-              taskPeers.value = []
-            }
-          }
-
-          try {
-            const servers = await connectionStore.service.getServers(gid.value)
-            taskServers.value = servers || []
-          } catch (error) {
-            console.warn('Failed to get servers:', error)
-            taskServers.value = []
-          }
-        } catch (error) {
-          console.warn('Failed to get task details:', error)
-        }
-      }
+      // 数据拉取与状态更新分离
+      await fetchAndMergeDetails()
     }
   } catch (error) {
     console.error('Failed to load task detail:', error)

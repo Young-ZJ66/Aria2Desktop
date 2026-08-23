@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell, BrowserWindow, app } from 'electron'
+import { ipcMain, dialog, shell, app } from 'electron'
 import { WindowController } from './WindowController'
 import { TrayController } from './TrayController'
 import { Aria2Controller } from './Aria2Controller'
@@ -6,6 +6,8 @@ import { UpdateController } from './UpdateController'
 import Store from 'electron-store'
 import * as path from 'path'
 import * as fs from 'fs'
+import { createSenderValidator } from '../utils/ipcSecurity'
+import { encryptSettingsSecrets, decryptSettingsSecrets } from '../utils/secretCipher'
 import type { StoreData, AppSettings } from '../types/store'
 
 /** 允许通过 get/set-store-value 访问的 store 键白名单 */
@@ -41,15 +43,8 @@ export class IpcController {
     this.aria2Controller.registerIpcHandlers()
   }
 
-  /**
-     * 校验 IPC 调用来源是否为主窗口
-     * 防止恶意页面或外部进程调用敏感 IPC 通道
-     */
-  private validateSender(event: Electron.IpcMainInvokeEvent): boolean {
-    const senderWindow = BrowserWindow.fromWebContents(event.sender)
-    const mainWindow = this.windowController.getMainWindow()
-    return senderWindow !== null && senderWindow === mainWindow
-  }
+  // 校验 IPC 调用来源是否为主窗口（复用 ipcSecurity 工厂，防止恶意页面或外部进程调用敏感 IPC 通道）
+  private validateSender = createSenderValidator(() => this.windowController.getMainWindow())
 
   private registerAppHandlers() {
     ipcMain.handle('get-app-version', () => app.getVersion())
@@ -134,7 +129,12 @@ export class IpcController {
         console.warn(`[IpcController] Blocked access to store key: ${key}`)
         return undefined
       }
-      return this.store.get(key)
+      const value = this.store.get(key)
+      // settings 含 RPC secret：返回前解密，渲染进程 RPC 连接需要真实明文 secret
+      if (key === 'settings') {
+        return decryptSettingsSecrets(value as AppSettings)
+      }
+      return value
     })
 
     ipcMain.handle('set-store-value', (event, key: string, value: unknown) => {
@@ -143,7 +143,12 @@ export class IpcController {
         console.warn(`[IpcController] Blocked write to store key: ${key}`)
         return { success: false, error: 'Key not allowed' }
       }
-      this.store.set(key, value)
+      // settings 含 RPC secret：写入前加密，磁盘上不保存明文
+      if (key === 'settings') {
+        this.store.set(key, encryptSettingsSecrets(value as AppSettings))
+      } else {
+        this.store.set(key, value)
+      }
       return { success: true }
     })
 
@@ -225,11 +230,10 @@ export class IpcController {
 
       // 允许删除文件的根目录集合：默认下载目录 + 调用方传入的任务实际目录
       // （任务可下载到非默认目录，按任务目录放宽白名单）
-      const settings = this.store.get('settings', {}) as AppSettings
+      const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
       const allowedRoots: string[] = []
       const settingDir = settings?.aria2?.downloadDir || settings?.download?.defaultDir || ''
       if (settingDir) allowedRoots.push(path.resolve(settingDir))
-      if (taskDir && taskDir.trim()) allowedRoots.push(path.resolve(taskDir.trim()))
       // 未配置任何允许目录时拒绝所有删除操作，防止任意路径被删
       if (allowedRoots.length === 0) {
         console.warn('[IpcController] Blocked deletion: no download dir configured')
@@ -238,17 +242,33 @@ export class IpcController {
 
       // 预解析符号链接并做大小写不敏感比较（Windows 文件系统大小写不敏感）
       const isWindows = process.platform === 'win32'
-      const normalizeRoot = (p: string): string => {
-        const real = fs.existsSync(p) ? fs.realpathSync(p) : p
-        return isWindows ? real.toLowerCase() : real
+      // 返回路径的真实路径；路径不存在或 realpath 失败时保留原路径
+      const realPathIfExists = async (p: string): Promise<string> => {
+        try {
+          return fs.existsSync(p) ? await fs.promises.realpath(p) : p
+        } catch {
+          return p
+        }
       }
-      const normalizedRoots = allowedRoots.map(normalizeRoot)
+      const normalizedRoots = (await Promise.all(allowedRoots.map(realPathIfExists)))
+        .map(real => (isWindows ? real.toLowerCase() : real))
       // 判定路径是否落在任一允许根目录下
-      const isAllowed = (target: string): boolean => {
-        const norm = normalizeRoot(target)
-        return normalizedRoots.some(root =>
+      const isAllowed = (norm: string): boolean =>
+        normalizedRoots.some(root =>
           norm === root || norm.startsWith(root + path.sep)
         )
+
+      // taskDir 由渲染进程传入，必须落在已配置下载目录的子树内，防止删除任意目录文件
+      if (taskDir && taskDir.trim()) {
+        const realTaskDir = await realPathIfExists(path.resolve(taskDir.trim()))
+        const normTaskDir = isWindows ? realTaskDir.toLowerCase() : realTaskDir
+        if (!isAllowed(normTaskDir)) {
+          console.warn(`[IpcController] Blocked taskDir outside allowed roots: ${realTaskDir}`)
+          return { success: false, error: 'taskDir outside allowed root' }
+        }
+        // 校验通过后放宽白名单，允许删除该任务目录下文件
+        allowedRoots.push(path.resolve(taskDir.trim()))
+        normalizedRoots.push(normTaskDir)
       }
 
       const results: unknown[] = []
@@ -257,26 +277,28 @@ export class IpcController {
           const normalized = path.resolve(path.normalize(p))
 
           // 校验文件路径是否在允许的目录范围内
-          let target = normalized
-          if (fs.existsSync(normalized)) {
-            target = fs.realpathSync(normalized)
-          }
-          if (!isAllowed(target)) {
+          const target = await realPathIfExists(normalized)
+          const normTarget = isWindows ? target.toLowerCase() : target
+          if (!isAllowed(normTarget)) {
             console.warn(`[IpcController] Blocked deletion of path outside allowed dirs: ${target}`)
             results.push({ path: p, success: false, error: 'Path outside allowed directory' })
             continue
           }
 
-          if (fs.existsSync(normalized)) {
-            const stats = fs.statSync(normalized)
+          try {
+            const stats = await fs.promises.stat(normalized)
             if (stats.isDirectory()) {
-              fs.rmSync(normalized, { recursive: true, force: true })
+              await fs.promises.rm(normalized, { recursive: true, force: true })
             } else {
-              fs.unlinkSync(normalized)
+              await fs.promises.unlink(normalized)
             }
             results.push({ path: p, success: true })
-          } else {
-            results.push({ path: p, success: false, error: 'Not found' })
+          } catch (statErr) {
+            if ((statErr as NodeJS.ErrnoException).code === 'ENOENT') {
+              results.push({ path: p, success: false, error: 'Not found' })
+            } else {
+              throw statErr
+            }
           }
         } catch (e) {
           results.push({ path: p, success: false, error: String(e) })
@@ -305,9 +327,12 @@ export class IpcController {
     ipcMain.handle('persisted-tasks-save', (event, data: unknown) => {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
       try {
+        const serialized = JSON.stringify(data ?? {})
+        // 序列化大小上限：防止异常/恶意数据写超大文件到 userData
+        if (serialized.length > 10 * 1024 * 1024) return { success: false, error: 'Data too large' }
         const dir = path.dirname(filePath)
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-        fs.writeFileSync(filePath, JSON.stringify(data ?? {}), { encoding: 'utf-8', mode: 0o600 })
+        fs.writeFileSync(filePath, serialized, { encoding: 'utf-8', mode: 0o600 })
         return { success: true }
       } catch (e) {
         return { success: false, error: String(e) }

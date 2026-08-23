@@ -89,9 +89,19 @@ max-mmap-limit=0
       }
       // 0o600：配置可能包含 rpc-secret，限制为仅当前用户可读写（Windows 上等效继承 ACL，POSIX 上生效）
       fs.writeFileSync(this.configPath, defaultConfig, { encoding: 'utf-8', mode: 0o600 })
+      // 直接从默认配置字符串解析内存状态，不再调用 loadConfig()，
+      // 避免与 loadConfig 的 catch 分支形成无限递归（文件系统持续失败时栈溢出）
+      this.rawLines = defaultConfig.split('\n')
       this.configContent.clear()
       this.commentedKeys.clear()
-      this.loadConfig()
+      for (const line of this.rawLines) {
+        const trimmed = line.trim()
+        if (!trimmed || trimmed.startsWith('#')) continue
+        const [key, ...valueParts] = trimmed.split('=')
+        if (key && valueParts.length > 0) {
+          this.configContent.set(key.trim(), valueParts.join('=').trim())
+        }
+      }
     } catch (error) {
       console.error('Failed to create default config:', error)
     }
@@ -132,14 +142,9 @@ max-mmap-limit=0
   }
 
   /**
-   * 保存配置：保留原始文件结构（注释、空行），仅更新已修改的键值对
-   * 新增的键值对追加到文件末尾。
-   * 写入失败时抛出异常，由调用方决定如何反馈（避免静默丢配置）。
+   * 更新已存在的键值对（包括被注释的 #key=value 行），返回更新后的行列表
    */
-  private saveConfig() {
-    const lines: string[] = [...this.rawLines]
-    const updatedKeys = new Set<string>()
-
+  private buildUpdatedLines(lines: string[]): string[] {
     // 更新已存在的键值对（包括被注释的）
     for (let i = 0; i < lines.length; i++) {
       const trimmed = lines[i].trim()
@@ -155,7 +160,6 @@ max-mmap-limit=0
           if (this.configContent.has(cleanKey)) {
             // 取消注释并更新值
             lines[i] = `${cleanKey}=${this.configContent.get(cleanKey)}`
-            updatedKeys.add(cleanKey)
           }
         }
         continue
@@ -167,14 +171,34 @@ max-mmap-limit=0
         const cleanKey = key.trim()
         if (this.configContent.has(cleanKey)) {
           lines[i] = `${cleanKey}=${this.configContent.get(cleanKey)}`
-          updatedKeys.add(cleanKey)
         }
       }
     }
 
-    // 追加新增的键值对（原文件中不存在的）
+    return lines
+  }
+
+  /**
+   * 追加新增的键值对（原文件中不存在的），返回追加后的行列表
+   */
+  private appendNewKeys(lines: string[]): string[] {
+    // 重新推导文件中已存在的键（含被注释的 #key=value 行），
+    // 等价于更新阶段收集的已更新键集合：在文件中的键不追加，configContent 中独有的键追加
+    const existingKeys = new Set<string>()
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      if (trimmed.startsWith('#')) {
+        const [key, ...valueParts] = trimmed.substring(1).split('=')
+        if (key && valueParts.length > 0) existingKeys.add(key.trim())
+        continue
+      }
+      const [key, ...valueParts] = trimmed.split('=')
+      if (key && valueParts.length > 0) existingKeys.add(key.trim())
+    }
+
     const newKeys = Array.from(this.configContent.keys())
-      .filter(k => !updatedKeys.has(k))
+      .filter(k => !existingKeys.has(k))
 
     if (newKeys.length > 0) {
       // 确保文件末尾有换行
@@ -186,14 +210,37 @@ max-mmap-limit=0
       }
     }
 
+    return lines
+  }
+
+  /**
+   * 将完整配置内容写入磁盘（0o600：配置可能包含 rpc-secret，限制为仅当前用户可读写）
+   */
+  private writeToDisk(output: string): void {
+    fs.writeFileSync(this.configPath, output, { encoding: 'utf-8', mode: 0o600 })
+  }
+
+  /**
+   * 保存配置：保留原始文件结构（注释、空行），仅更新已修改的键值对
+   * 新增的键值对追加到文件末尾。
+   * 写入失败时抛出异常，由调用方决定如何反馈（避免静默丢配置）。
+   */
+  private saveConfig() {
+    let lines: string[] = [...this.rawLines]
+
+    // 更新已存在的键值对（包括被注释的）
+    lines = this.buildUpdatedLines(lines)
+
+    // 追加新增的键值对（原文件中不存在的）
+    lines = this.appendNewKeys(lines)
+
     // 确保文件末尾有换行
     if (lines.length === 0 || lines[lines.length - 1] !== '') {
       lines.push('')
     }
 
-    const output = lines.join('\n')
-    // 0o600：配置可能包含 rpc-secret，限制为仅当前用户可读写
-    fs.writeFileSync(this.configPath, output, { encoding: 'utf-8', mode: 0o600 })
+    // 写盘（0o600：配置可能包含 rpc-secret，限制为仅当前用户可读写）
+    this.writeToDisk(lines.join('\n'))
 
     // 更新 rawLines 以反映最新状态
     this.rawLines = lines

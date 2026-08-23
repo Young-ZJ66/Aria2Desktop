@@ -4,6 +4,7 @@
     <button
       v-if="status === 'paused'"
       :title="t('task.startDownload')"
+      :aria-label="t('task.startDownload')"
       class="task-action-btn"
       :disabled="operating"
       @click.stop="$emit('unpause', gid)"
@@ -16,6 +17,7 @@
     <button
       v-else-if="status === 'error'"
       :title="t('task.retryDownload')"
+      :aria-label="t('task.retryDownload')"
       class="task-action-btn"
       :disabled="operating"
       @click.stop="$emit('retry', gid)"
@@ -28,6 +30,7 @@
     <button
       v-else-if="status === 'active'"
       :title="t('task.pauseDownload')"
+      :aria-label="t('task.pauseDownload')"
       class="task-action-btn"
       :disabled="operating"
       @click.stop="$emit('pause', gid)"
@@ -40,25 +43,41 @@
     <button
       v-if="showOpenLocation"
       :title="t('task.openLocation')"
+      :aria-label="t('task.openLocation')"
       class="task-action-btn"
+      :disabled="operating"
       @click.stop="$emit('open-location', task)"
     >
       <n-icon class="action-icon"><FolderOpenOutline /></n-icon>
     </button>
 
-    <!-- 删除按钮 -->
-    <button
-      :title="t('task.deleteTask')"
-      class="task-action-btn"
-      @click.stop="$emit('remove', gid)"
+    <!-- 删除按钮（含二次确认，防止误删） -->
+    <n-popconfirm
+      :positive-text="t('delete.confirm')"
+      :negative-text="t('delete.cancel')"
+      :disabled="operating"
+      @positive-click="$emit('remove', gid)"
     >
-      <n-icon class="action-icon"><TrashOutline /></n-icon>
-    </button>
+      <template #trigger>
+        <button
+          :title="t('task.deleteTask')"
+          :aria-label="t('task.deleteTask')"
+          class="task-action-btn"
+          :disabled="operating"
+          @click.stop
+        >
+          <n-icon class="action-icon"><TrashOutline /></n-icon>
+        </button>
+      </template>
+      {{ t('delete.confirmSingle') }}
+    </n-popconfirm>
 
     <!-- 详情按钮 -->
     <button
       :title="t('task.viewDetail')"
+      :aria-label="t('task.viewDetail')"
       class="task-action-btn"
+      :disabled="operating"
       @click.stop="$emit('view-detail', gid)"
     >
       <n-icon class="action-icon"><EyeOutline /></n-icon>
@@ -131,12 +150,13 @@ defineEmits<Emits>()
   color: var(--color-primary);
 }
 
-.task-action-btn:focus {
-  outline: none;
+.task-action-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
   background: var(--bg-tertiary);
 }
 
-.task-action-btn:focus .action-icon {
+.task-action-btn:focus-visible .action-icon {
   color: var(--color-primary);
 }
 
@@ -152,10 +172,10 @@ defineEmits<Emits>()
 }
 
 .loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #e4e7ed;
-  border-top: 2px solid #409eff;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-base);
+  border-top: 2px solid var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

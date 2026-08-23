@@ -122,6 +122,7 @@
           <n-input-number
             v-model:value="settings.maxOverallDownloadLimit"
             :min="0"
+            :suffix="t('settings.download.kbPerSec')"
           />
         </n-form-item>
 
@@ -132,6 +133,7 @@
           <n-input-number
             v-model:value="settings.maxOverallUploadLimit"
             :min="0"
+            :suffix="t('settings.download.kbPerSec')"
           />
         </n-form-item>
 
@@ -142,6 +144,7 @@
           <n-input-number
             v-model:value="settings.maxDownloadLimit"
             :min="0"
+            :suffix="t('settings.download.kbPerSec')"
           />
         </n-form-item>
 
@@ -152,6 +155,7 @@
           <n-input-number
             v-model:value="settings.maxUploadLimit"
             :min="0"
+            :suffix="t('settings.download.kbPerSec')"
           />
         </n-form-item>
 
@@ -349,7 +353,6 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import type { Aria2Option } from '@/types/aria2'
 import { useI18n } from 'vue-i18n'
 import { FolderOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
@@ -358,7 +361,9 @@ import type { FormRules, FormInst } from 'naive-ui'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
-import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
+import { parseSizeToUnit } from '@/utils/size'
+import type { SettingSchema } from '@/types/settingSchema'
+import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
@@ -436,11 +441,12 @@ const streamPieceSelectorOptions = computed(() => [
   { label: t('settings.download.pieceGeom'), value: 'geom' }
 ])
 
-const downloadResultOptions = [
-  { label: 'default', value: 'default' },
-  { label: 'full', value: 'full' },
-  { label: 'hide', value: 'hide' }
-]
+// download-result 选项标签本地化，跟随语言实时切换
+const downloadResultOptions = computed(() => [
+  { label: t('settings.download.downloadResultDefault'), value: 'default' },
+  { label: t('settings.download.downloadResultFull'), value: 'full' },
+  { label: t('settings.download.downloadResultHide'), value: 'hide' }
+])
 
 // 表单验证规则
 const rules: FormRules = {
@@ -461,125 +467,63 @@ const rules: FormRules = {
   ]
 }
 
-function applyOptionsToSettings(options: Aria2Option) {
-  settings.dir = options.dir || ''
-  settings.maxConcurrentDownloads = parseInt(options['max-concurrent-downloads'] || '5')
-  settings.maxConnectionPerServer = parseInt(options['max-connection-per-server'] || '16')
-  settings.split = parseInt(options.split || '16')
-  const minSplitValue = `${parseSizeToUnit(options['min-split-size'] || '10M', 'M')}M`
-  settings.minSplitSize = minSplitValue
-  if (!minSplitSizeOptions.some((o) => o.value === minSplitValue)) {
-    minSplitSizeOptions.push({ label: minSplitValue, value: minSplitValue })
-  }
-  settings.continue = options.continue === 'true'
-  settings.saveSession = options['save-session'] !== 'false'
-  settings.saveSessionInterval = parseInt(options['save-session-interval'] || '60')
-  settings.maxOverallDownloadLimit = parseSizeToUnit(options['max-overall-download-limit'] || '0', 'K')
-  settings.maxOverallUploadLimit = parseSizeToUnit(options['max-overall-upload-limit'] || '0', 'K')
-  settings.maxDownloadLimit = parseSizeToUnit(options['max-download-limit'] || '0', 'K')
-  settings.maxUploadLimit = parseSizeToUnit(options['max-upload-limit'] || '0', 'K')
-  settings.diskCache = parseSizeToUnit(options['disk-cache'] || '16M', 'M')
-  settings.fileAllocation = options['file-allocation'] || 'prealloc'
-  settings.maxDownloadResult = parseInt(options['max-download-result'] || '1000')
-  settings.realtimeChunkChecksum = options['realtime-chunk-checksum'] !== 'false'
-  settings.uriSelector = options['uri-selector'] || 'feedback'
-  settings.streamPieceSelector = options['stream-piece-selector'] || 'default'
-  settings.allowOverwrite = options['allow-overwrite'] === 'true'
-  settings.autoFileRenaming = options['auto-file-renaming'] !== 'false'
-  settings.remoteTime = options['remote-time'] === 'true'
-  settings.reuseUri = options['reuse-uri'] !== 'false'
-  settings.alwaysResume = options['always-resume'] !== 'false'
-  settings.maxResumeFailureTries = parseInt(options['max-resume-failure-tries'] || '0')
-  settings.conditionalGet = options['conditional-get'] === 'true'
-  settings.forceSequential = options['force-sequential'] === 'true'
-  settings.parameterizedUri = options['parameterized-uri'] === 'true'
-  settings.removeControlFile = options['remove-control-file'] === 'true'
-  settings.checkIntegrity = options['check-integrity'] === 'true'
-  settings.optimizeConcurrentDownloads = options['optimize-concurrent-downloads'] === 'true'
-  settings.autoSaveInterval = parseInt(options['auto-save-interval'] || '0')
-  settings.noFileAllocationLimit = parseSizeToUnit(options['no-file-allocation-limit'] || '0', 'M')
-  settings.downloadResult = options['download-result'] || 'default'
-  settings.keepUnfinishedDownloadResult = options['keep-unfinished-download-result'] !== 'false'
+// aria2 选项 <-> 表单字段 的 schema 声明：type 决定默认转换规则。
+// 特殊字段覆盖默认转换：
+// - dir：保存时始终写入（含空串），避免清空下载目录后 aria2 保留旧目录
+// - minSplitSize：表单值是 '1M'/'5M' 等字符串，加载时解析为 `${N}M` 并同步到下拉选项
+// - continue：原转换语义为「只有显式 'true' 才启用」（未返回时视为关闭），保留自定义转换
+const downloadSettingsSchema: SettingSchema = {
+  fields: [
+    {
+      key: 'dir', aria2Key: 'dir', type: 'string', default: '',
+      valueToOption: (value) => (value ? String(value) : '')
+    },
+    { key: 'maxConcurrentDownloads', aria2Key: 'max-concurrent-downloads', type: 'number', default: 5 },
+    { key: 'maxConnectionPerServer', aria2Key: 'max-connection-per-server', type: 'number', default: 16 },
+    { key: 'split', aria2Key: 'split', type: 'number', default: 16 },
+    {
+      key: 'minSplitSize', aria2Key: 'min-split-size', type: 'string', default: '10M',
+      optionToValue: (raw) => {
+        const value = `${parseSizeToUnit(raw ?? '10M', 'M')}M`
+        if (!minSplitSizeOptions.some((o) => o.value === value)) {
+          minSplitSizeOptions.push({ label: value, value })
+        }
+        return value
+      }
+    },
+    { key: 'continue', aria2Key: 'continue', type: 'boolean', default: true, optionToValue: (raw) => raw === 'true' },
+    { key: 'saveSession', aria2Key: 'save-session', type: 'boolean', default: true },
+    { key: 'saveSessionInterval', aria2Key: 'save-session-interval', type: 'number', default: 60 },
+    { key: 'maxOverallDownloadLimit', aria2Key: 'max-overall-download-limit', type: 'size', default: 0, unit: 'K' },
+    { key: 'maxOverallUploadLimit', aria2Key: 'max-overall-upload-limit', type: 'size', default: 0, unit: 'K' },
+    { key: 'maxDownloadLimit', aria2Key: 'max-download-limit', type: 'size', default: 0, unit: 'K' },
+    { key: 'maxUploadLimit', aria2Key: 'max-upload-limit', type: 'size', default: 0, unit: 'K' },
+    { key: 'diskCache', aria2Key: 'disk-cache', type: 'size', default: 16, unit: 'M' },
+    { key: 'fileAllocation', aria2Key: 'file-allocation', type: 'select', default: 'prealloc' },
+    { key: 'maxDownloadResult', aria2Key: 'max-download-result', type: 'number', default: 1000 },
+    { key: 'realtimeChunkChecksum', aria2Key: 'realtime-chunk-checksum', type: 'boolean', default: true },
+    { key: 'uriSelector', aria2Key: 'uri-selector', type: 'select', default: 'feedback' },
+    { key: 'streamPieceSelector', aria2Key: 'stream-piece-selector', type: 'select', default: 'default' },
+    { key: 'allowOverwrite', aria2Key: 'allow-overwrite', type: 'boolean', default: false },
+    { key: 'autoFileRenaming', aria2Key: 'auto-file-renaming', type: 'boolean', default: true },
+    { key: 'remoteTime', aria2Key: 'remote-time', type: 'boolean', default: false },
+    { key: 'reuseUri', aria2Key: 'reuse-uri', type: 'boolean', default: true },
+    { key: 'alwaysResume', aria2Key: 'always-resume', type: 'boolean', default: true },
+    { key: 'maxResumeFailureTries', aria2Key: 'max-resume-failure-tries', type: 'number', default: 0 },
+    { key: 'conditionalGet', aria2Key: 'conditional-get', type: 'boolean', default: false },
+    { key: 'forceSequential', aria2Key: 'force-sequential', type: 'boolean', default: false },
+    { key: 'parameterizedUri', aria2Key: 'parameterized-uri', type: 'boolean', default: false },
+    { key: 'removeControlFile', aria2Key: 'remove-control-file', type: 'boolean', default: false },
+    { key: 'checkIntegrity', aria2Key: 'check-integrity', type: 'boolean', default: false },
+    { key: 'optimizeConcurrentDownloads', aria2Key: 'optimize-concurrent-downloads', type: 'boolean', default: false },
+    { key: 'autoSaveInterval', aria2Key: 'auto-save-interval', type: 'number', default: 0 },
+    { key: 'noFileAllocationLimit', aria2Key: 'no-file-allocation-limit', type: 'size', default: 0, unit: 'M' },
+    { key: 'downloadResult', aria2Key: 'download-result', type: 'select', default: 'default' },
+    { key: 'keepUnfinishedDownloadResult', aria2Key: 'keep-unfinished-download-result', type: 'boolean', default: true }
+  ]
 }
 
-function toOptions(): Record<string, string> {
-  const options: Record<string, string> = {
-    'dir': settings.dir,
-    'max-concurrent-downloads': settings.maxConcurrentDownloads.toString(),
-    'max-connection-per-server': settings.maxConnectionPerServer.toString(),
-    'split': settings.split.toString(),
-    'min-split-size': settings.minSplitSize,
-    'continue': settings.continue.toString(),
-    'save-session': settings.saveSession.toString(),
-    'save-session-interval': settings.saveSessionInterval.toString(),
-    'max-overall-download-limit': formatSizeWithUnit(settings.maxOverallDownloadLimit, 'K'),
-    'max-overall-upload-limit': formatSizeWithUnit(settings.maxOverallUploadLimit, 'K'),
-    'max-download-limit': formatSizeWithUnit(settings.maxDownloadLimit, 'K'),
-    'max-upload-limit': formatSizeWithUnit(settings.maxUploadLimit, 'K'),
-    'disk-cache': formatSizeWithUnit(settings.diskCache, 'M'),
-    'file-allocation': settings.fileAllocation,
-    'max-download-result': settings.maxDownloadResult.toString(),
-    'realtime-chunk-checksum': settings.realtimeChunkChecksum ? 'true' : 'false',
-    'uri-selector': settings.uriSelector,
-    'stream-piece-selector': settings.streamPieceSelector,
-    'allow-overwrite': settings.allowOverwrite ? 'true' : 'false',
-    'auto-file-renaming': settings.autoFileRenaming ? 'true' : 'false',
-    'remote-time': settings.remoteTime ? 'true' : 'false',
-    'reuse-uri': settings.reuseUri ? 'true' : 'false',
-    'always-resume': settings.alwaysResume ? 'true' : 'false',
-    'max-resume-failure-tries': settings.maxResumeFailureTries.toString(),
-    'conditional-get': settings.conditionalGet ? 'true' : 'false',
-    'force-sequential': settings.forceSequential ? 'true' : 'false',
-    'parameterized-uri': settings.parameterizedUri ? 'true' : 'false',
-    'remove-control-file': settings.removeControlFile ? 'true' : 'false',
-    'check-integrity': settings.checkIntegrity ? 'true' : 'false',
-    'optimize-concurrent-downloads': settings.optimizeConcurrentDownloads ? 'true' : 'false',
-    'auto-save-interval': settings.autoSaveInterval.toString(),
-    'download-result': settings.downloadResult,
-    'keep-unfinished-download-result': settings.keepUnfinishedDownloadResult ? 'true' : 'false'
-  }
-  options['no-file-allocation-limit'] = formatSizeWithUnit(settings.noFileAllocationLimit, 'M')
-  return options
-}
-
-function defaults() {
-  return {
-    dir: '',
-    maxConcurrentDownloads: 5,
-    maxConnectionPerServer: 16,
-    split: 16,
-    minSplitSize: '10M',
-    continue: true,
-    saveSession: true,
-    saveSessionInterval: 60,
-    maxOverallDownloadLimit: 0,
-    maxOverallUploadLimit: 0,
-    maxDownloadLimit: 0,
-    maxUploadLimit: 0,
-    diskCache: 16,
-    fileAllocation: 'prealloc',
-    maxDownloadResult: 1000,
-    realtimeChunkChecksum: true,
-    uriSelector: 'feedback',
-    streamPieceSelector: 'default',
-    allowOverwrite: false,
-    autoFileRenaming: true,
-    remoteTime: false,
-    reuseUri: true,
-    alwaysResume: true,
-    maxResumeFailureTries: 0,
-    conditionalGet: false,
-    forceSequential: false,
-    parameterizedUri: false,
-    removeControlFile: false,
-    checkIntegrity: false,
-    optimizeConcurrentDownloads: false,
-    autoSaveInterval: 0,
-    noFileAllocationLimit: 0,
-    downloadResult: 'default',
-    keepUnfinishedDownloadResult: true
-  }
-}
+const { applyOptions, toOptions, defaults } = useSettingSchema(downloadSettingsSchema, settings)
 
 async function validate(): Promise<boolean> {
   if (!formRef.value) return true
@@ -594,7 +538,7 @@ async function validate(): Promise<boolean> {
 }
 
 const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
-  applyOptions: applyOptionsToSettings,
+  applyOptions,
   toOptions,
   defaults,
   validate,

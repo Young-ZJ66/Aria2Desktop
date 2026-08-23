@@ -1,3 +1,25 @@
+# 依赖
+node_modules
+
+# 构建产物
+dist
+release
+*.tsbuildinfo
+
+# 运行时数据
+data
+
+# 本地 Aria2 可执行文件副本（构建时由 prepare-aria2c.mjs 按架构生成）
+resources/aria2c.exe
+
+# 环境变量
+.env
+.env.*
+
+# 日志
+*.log
+
+# AI 工具 / 编辑器配置
 .codebuddy
 .cursor
 .vscode
@@ -5,12 +27,8 @@
 .trae
 .augment
 .sanshu-memory
-node_modules
-data
-release
-dist
-*.log
-.env
-.env.*
-# 构建时由 prepare-aria2c.mjs 按架构生成的副本
-resources/aria2c.exe
+.workbuddy
+
+# 系统文件
+.DS_Store
+Thumbs.db

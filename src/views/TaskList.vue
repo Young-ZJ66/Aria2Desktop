@@ -32,6 +32,8 @@
           :has-selection="hasSelection"
           :can-batch-start="canBatchStart"
           :can-batch-pause="canBatchPause"
+          :operating="batchOperating"
+          :deleting="batchDeleting"
           @batch-start="batchStart"
           @batch-pause="batchPause"
           @batch-delete="batchDelete"
@@ -60,7 +62,10 @@
         :row-key="(row: Aria2Task) => row.gid"
         :row-props="rowProps"
         :scroll-x="1200"
+        :min-row-height="60"
         flex-height
+        virtual-scroll
+        table-layout="fixed"
         :bordered="false"
         class="task-table"
       >
@@ -128,6 +133,8 @@ const showBatchDeleteDialog = ref(false)
 const tasksToDelete = ref<Aria2Task[]>([])
 // 批量删除执行中（驱动删除对话框的 loading，删除期间保持对话框打开）
 const batchDeleting = ref(false)
+// 批量开始/暂停执行中（禁用批量操作按钮，防止重复触发）
+const batchOperating = ref(false)
 
 // 操作锁定状态
 const operatingTasks = ref<Set<string>>(new Set())
@@ -347,7 +354,8 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'gid',
     title: t('task.gid'),
-    width: 120
+    width: 120,
+    ellipsis: { tooltip: true }
   },
   {
     key: 'name',
@@ -622,6 +630,8 @@ async function openTaskLocation(task: Aria2Task) {
 // ── 批量操作 ──
 
 async function batchStart() {
+  if (batchOperating.value) return
+  batchOperating.value = true
   try {
     const startableTasks = selectedTasks.value.filter(task =>
       task.status === 'paused' || task.status === 'waiting' || task.status === 'error'
@@ -646,10 +656,14 @@ async function batchStart() {
   } catch (error) {
     console.error('开始任务失败:', error)
     message.error(t('task.startFailed', { error: '' }))
+  } finally {
+    batchOperating.value = false
   }
 }
 
 async function batchPause() {
+  if (batchOperating.value) return
+  batchOperating.value = true
   try {
     const pausableTasks = selectedTasks.value.filter(task =>
       task.status === 'active' || task.status === 'waiting'
@@ -669,6 +683,8 @@ async function batchPause() {
   } catch (error) {
     console.error('暂停任务失败:', error)
     message.error(t('task.pauseFailed', { error: '' }))
+  } finally {
+    batchOperating.value = false
   }
 }
 

@@ -1,4 +1,3 @@
-import { EventEmitter } from 'events'
 import { dialog } from 'electron'
 import Store from 'electron-store'
 import { WindowController } from './WindowController'
@@ -6,6 +5,7 @@ import { TrayController } from './TrayController'
 import { Aria2Controller } from './Aria2Controller'
 import { IpcController } from './IpcController'
 import { ConfigWatcher } from '../utils/ConfigWatcher'
+import { decryptSettingsSecrets } from '../utils/secretCipher'
 import type { StoreData, AppSettings } from '../types/store'
 
 export enum AppStatus {
@@ -22,7 +22,7 @@ class UserCancelledError extends Error {}
  * AppLifecycle - 集中式应用生命周期管理
  * 协调初始化、就绪状态和优雅关闭
  */
-export class AppLifecycle extends EventEmitter {
+export class AppLifecycle {
   private status: AppStatus = AppStatus.INITIALIZING
   private store: Store<StoreData>
   private configWatcher: ConfigWatcher
@@ -38,7 +38,6 @@ export class AppLifecycle extends EventEmitter {
     aria2Controller: Aria2Controller,
     ipcController: IpcController
   ) {
-    super()
     this.store = store
     this.configWatcher = new ConfigWatcher(store)
     this.windowController = windowController
@@ -128,7 +127,7 @@ export class AppLifecycle extends EventEmitter {
    * 如果设置中启用，则创建托盘
    */
   private createTrayIfEnabled() {
-    const settings = this.store.get('settings', {}) as AppSettings
+    const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
     const minimizeToTray = settings.minimizeToTray !== false
     if (minimizeToTray) {
       this.trayController.createTray()
@@ -214,9 +213,6 @@ export class AppLifecycle extends EventEmitter {
     } catch (error) {
       console.error('[AppLifecycle] Shutdown error:', error)
       // 即使有错误也继续关闭
-    } finally {
-      // 清理所有 EventEmitter 监听器，防止内存泄漏
-      this.removeAllListeners()
     }
   }
 }

@@ -33,22 +33,21 @@ class TaskPersistenceService {
     this.loadPromise = this.loadFromBackend()
     try {
       await this.loadPromise
-    } finally {
+      // 仅成功时标记已加载；失败时保持 false，允许下次调用重试
       this.loaded = true
+    } catch (error) {
+      console.error('Failed to load persisted tasks from backend:', error)
+    } finally {
       this.loadPromise = null
     }
   }
 
   private async loadFromBackend(): Promise<void> {
     if (!window.electronAPI?.loadPersistedTasks) return
-    try {
-      const data = await window.electronAPI.loadPersistedTasks()
-      if (data && typeof data === 'object') {
-        this.persistedTasks = new Map(Object.entries(data))
-        console.log(`Loaded ${this.persistedTasks.size} persisted tasks from backend`)
-      }
-    } catch (error) {
-      console.error('Failed to load persisted tasks from backend:', error)
+    const data = await window.electronAPI.loadPersistedTasks()
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      this.persistedTasks = new Map<string, PersistedTask>(Object.entries(data) as [string, PersistedTask][])
+      console.log(`Loaded ${this.persistedTasks.size} persisted tasks from backend`)
     }
   }
 
@@ -58,11 +57,18 @@ class TaskPersistenceService {
       const stored = localStorage.getItem(this.STORAGE_KEY)
       if (stored) {
         const data = JSON.parse(stored)
+        // 防恶意/损坏存储：数组形态不是合法的键值对象
+        if (Array.isArray(data)) {
+          throw new Error('Invalid data format: expected object, got array')
+        }
         this.persistedTasks = new Map(Object.entries(data))
         console.log(`Loaded ${this.persistedTasks.size} persisted tasks from storage`)
       }
     } catch (error) {
       console.error('Failed to load persisted tasks from storage:', error)
+      // 清理损坏数据，避免下次启动仍反复 parse 失败
+      localStorage.removeItem(this.STORAGE_KEY)
+      this.persistedTasks = new Map()
     }
   }
 
@@ -241,6 +247,8 @@ class TaskPersistenceService {
   clearAllPersistedTasks() {
     this.persistedTasks.clear()
     localStorage.removeItem(this.STORAGE_KEY)
+    // 同步清空后端文件（Electron IPC 写文件），避免主进程残留旧记录
+    this.persist()
     console.log('Cleared all persisted tasks')
   }
 }

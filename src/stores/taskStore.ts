@@ -12,6 +12,9 @@ import type { Aria2ClientEvent } from '@/services/aria2Client'
 /** 单次拉取等待/停止任务的最大数量 */
 const MAX_TELL_COUNT = 1000
 
+/** WS 事件补刷的最大递归深度，避免事件密集时无界递归 */
+const MAX_RELOAD_DEPTH = 3
+
 export const useTaskStore = defineStore('task', () => {
   const connectionStore = useConnectionStore()
 
@@ -49,9 +52,31 @@ export const useTaskStore = defineStore('task', () => {
   // 避免每秒轮询全量替换数组触发表格无效 diff 与全量重排序
   let waitingFingerprint = ''
   let stoppedFingerprint = ''
+  // WS 事件到达时若正在轮询（isLoading 并发保护跳过），标记需要补刷一次
+  let needsReload = false
+  // 补刷递归深度计数（配合 MAX_RELOAD_DEPTH 限制无界递归）
+  let reloadDepth = 0
+
+  /**
+   * 计算任务列表指纹（djb2 滚动哈希）。
+   * 相比全量 stringify（map+join 生成 O(n) 大字符串），逐字符累加哈希，
+   * 大列表（1000+）每秒轮询时显著降低内存与 CPU 开销。
+   * 注：gid 为 16 位十六进制字符串，哈希碰撞概率可忽略。
+   */
+  function computeFingerprint(tasks: Aria2Task[]): string {
+    let hash = 5381
+    for (const task of tasks) {
+      const gid = task.gid
+      for (let j = 0; j < gid.length; j++) {
+        hash = ((hash << 5) + hash + gid.charCodeAt(j)) >>> 0
+      }
+      hash = ((hash << 5) + hash + task.status.charCodeAt(0)) >>> 0
+    }
+    return hash.toString(36)
+  }
 
   function setWaitingIfChanged(waiting: Aria2Task[]): void {
-    const fp = waiting.map(t => `${t.gid}:${t.status}`).join('|')
+    const fp = computeFingerprint(waiting)
     if (fp !== waitingFingerprint) {
       waitingFingerprint = fp
       waitingTasks.value = waiting
@@ -59,7 +84,7 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   function setStoppedIfChanged(stopped: Aria2Task[]): void {
-    const fp = stopped.map(t => `${t.gid}:${t.status}`).join('|')
+    const fp = computeFingerprint(stopped)
     if (fp !== stoppedFingerprint) {
       stoppedFingerprint = fp
       stoppedTasks.value = stopped
@@ -78,44 +103,74 @@ export const useTaskStore = defineStore('task', () => {
       const previousStopped = new Set(stoppedTasks.value.map(task => task.gid))
       const previousActive = new Set(activeTasks.value.map(task => task.gid))
 
-      const [active, waiting, stopped] = await Promise.all([
+      // Promise.allSettled：单个列表拉取失败不影响其他列表，失败的保留旧值
+      // 注：aria2Service.multicall 已实现但此处未使用——system.multicall 单方法失败时
+      // 解析结构复杂（返回 [null, code] 占位），会牺牲 allSettled 的单列表容错，
+      // 且只省 1 次 RPC 往返。权衡后维持独立三请求，保持健壮性优先。
+      const [activeResult, waitingResult, stoppedResult] = await Promise.allSettled([
         connectionStore.service.tellActive(),
         connectionStore.service.tellWaiting(0, MAX_TELL_COUNT),
         connectionStore.service.tellStopped(0, MAX_TELL_COUNT)
       ])
 
-      // 记录新出现的活动任务的添加时间
-      active.forEach(task => {
-        if (!previousActive.has(task.gid)) {
-          taskTimeService.recordTaskAdd(task.gid, getTaskName(task))
-        }
-      })
+      if (activeResult.status === 'fulfilled') {
+        const active = activeResult.value
+        // 记录新出现的活动任务的添加时间
+        active.forEach(task => {
+          if (!previousActive.has(task.gid)) {
+            taskTimeService.recordTaskAdd(task.gid, getTaskName(task))
+          }
+        })
+        activeTasks.value = active
+      } else {
+        console.warn('Failed to load active tasks:', activeResult.reason)
+      }
 
-      // 持久化已完成任务（合并记录时间与持久化逻辑）
-      stopped.forEach(task => {
-        if (task.status !== 'complete') return
-        if (taskPersistenceService.isTaskPersisted(task.gid)) return
+      if (waitingResult.status === 'fulfilled') {
+        // waiting 指纹相同时保留旧引用，避免无效响应式更新
+        setWaitingIfChanged(waitingResult.value)
+      } else {
+        console.warn('Failed to load waiting tasks:', waitingResult.reason)
+      }
 
-        const isNew = !previousStopped.has(task.gid)
-        if (isNew && !taskTimeService.getCompleteTime(task.gid)) {
-          taskTimeService.recordTaskComplete(task.gid, getTaskName(task))
-        }
-        // 新完成任务用记录时间/当前时间；启动时已存在的老任务估算为 24 小时前
-        const completeTime = taskTimeService.getCompleteTime(task.gid)
-          ?? (isNew ? Date.now() : Date.now() - 24 * 60 * 60 * 1000)
-        taskPersistenceService.persistCompletedTask(task, completeTime)
-      })
+      if (stoppedResult.status === 'fulfilled') {
+        const stopped = stoppedResult.value
+        // 持久化已完成任务（合并记录时间与持久化逻辑）
+        stopped.forEach(task => {
+          if (task.status !== 'complete') return
+          if (taskPersistenceService.isTaskPersisted(task.gid)) return
 
-      activeTasks.value = active
-      // waiting/stopped 指纹相同时保留旧引用，避免无效响应式更新
-      setWaitingIfChanged(waiting)
-      // error/complete 任务统一保留在 stoppedTasks，由对应 computed 过滤
-      setStoppedIfChanged(taskPersistenceService.mergeWithAria2Tasks(stopped))
+          const isNew = !previousStopped.has(task.gid)
+          if (isNew && !taskTimeService.getCompleteTime(task.gid)) {
+            taskTimeService.recordTaskComplete(task.gid, getTaskName(task))
+          }
+          // 新完成任务用记录时间/当前时间；启动时已存在的老任务估算为 24 小时前
+          const completeTime = taskTimeService.getCompleteTime(task.gid)
+            ?? (isNew ? Date.now() : Date.now() - 24 * 60 * 60 * 1000)
+          taskPersistenceService.persistCompletedTask(task, completeTime)
+        })
+        // error/complete 任务统一保留在 stoppedTasks，由对应 computed 过滤
+        setStoppedIfChanged(taskPersistenceService.mergeWithAria2Tasks(stopped))
+      } else {
+        console.warn('Failed to load stopped tasks:', stoppedResult.reason)
+      }
 
     } catch (error) {
       console.error('Failed to load tasks:', error)
     } finally {
       isLoading.value = false
+      // 轮询期间有 WS 事件到达（因 isLoading 并发保护被跳过）：补刷一次，避免丢失事件
+      // 限制递归深度，防止事件密集时无限补刷
+      if (needsReload) {
+        needsReload = false
+        if (reloadDepth < MAX_RELOAD_DEPTH) {
+          reloadDepth++
+          void loadAllTasks().finally(() => reloadDepth--)
+        } else {
+          reloadDepth = 0
+          console.warn('loadAllTasks reload depth exceeded, skipping extra reload')
+        }
+      }
     }
   }
 
@@ -129,20 +184,30 @@ export const useTaskStore = defineStore('task', () => {
     isLoading.value = true
 
     try {
-      const [active, waiting] = await Promise.all([
+      // Promise.allSettled：单个列表拉取失败不影响另一个，与 loadAllTasks 容错策略一致
+      const [activeResult, waitingResult] = await Promise.allSettled([
         connectionStore.service.tellActive(),
         connectionStore.service.tellWaiting(0, MAX_TELL_COUNT)
       ])
 
-      const previousActive = new Set(activeTasks.value.map(task => task.gid))
-      active.forEach(task => {
-        if (!previousActive.has(task.gid)) {
-          taskTimeService.recordTaskAdd(task.gid, getTaskName(task))
-        }
-      })
+      if (activeResult.status === 'fulfilled') {
+        const active = activeResult.value
+        const previousActive = new Set(activeTasks.value.map(task => task.gid))
+        active.forEach(task => {
+          if (!previousActive.has(task.gid)) {
+            taskTimeService.recordTaskAdd(task.gid, getTaskName(task))
+          }
+        })
+        activeTasks.value = active
+      } else {
+        console.warn('Failed to load active tasks:', activeResult.reason)
+      }
 
-      activeTasks.value = active
-      setWaitingIfChanged(waiting)
+      if (waitingResult.status === 'fulfilled') {
+        setWaitingIfChanged(waitingResult.value)
+      } else {
+        console.warn('Failed to load waiting tasks:', waitingResult.reason)
+      }
     } catch (error) {
       console.error('Failed to load active tasks:', error)
     } finally {
@@ -198,6 +263,54 @@ export const useTaskStore = defineStore('task', () => {
     return gids
   }
 
+  /**
+   * 收集要删除的文件路径（趁任务记录还在时获取，统一使用删除服务的路径处理逻辑）
+   * 失败时返回空数组并告警，不阻断主流程
+   */
+  function collectTaskFiles(task: Aria2Task | undefined, deleteFiles: boolean): string[] {
+    let taskFiles: string[] = []
+    if (deleteFiles && window.electronAPI && task) {
+      try {
+        taskFiles = completedTaskDeleteService.getTaskFilePaths(task)
+      } catch (error) {
+        console.warn('Failed to get files for deletion:', error)
+      }
+    }
+    return taskFiles
+  }
+
+  /**
+   * 删除任务文件：任一失败时抛出错误并保留任务记录，用户可重试。
+   * 由调用方保证 deleteFiles 与 window.electronAPI.deleteFiles 存在
+   */
+  async function removeTaskFiles(task: Aria2Task | undefined, taskFiles: string[]): Promise<void> {
+    const deleteResult = await window.electronAPI!.deleteFiles(taskFiles, task?.dir)
+    const failedItems = deleteResult?.results?.filter(r => !r.success) || []
+    if (!deleteResult || !deleteResult.success || failedItems.length > 0) {
+      const detail = failedItems[0]?.error || deleteResult?.error || 'unknown'
+      throw new Error(`文件删除失败: ${detail}`)
+    }
+  }
+
+  /** 清理 Aria2 侧任务记录（removeDownloadResult 可能失败，忽略） */
+  async function removeTaskRecord(gid: string): Promise<void> {
+    try {
+      await connectionStore.service!.removeDownloadResult(gid)
+    } catch {
+      // removeDownloadResult 可能失败（任务已不存在），忽略
+    }
+  }
+
+  /** 本地清理：从三个列表移除任务，并清理持久化记录与时间记录 */
+  function removeTaskLocal(gid: string): void {
+    activeTasks.value = activeTasks.value.filter(t => t.gid !== gid)
+    waitingTasks.value = waitingTasks.value.filter(t => t.gid !== gid)
+    stoppedTasks.value = stoppedTasks.value.filter(t => t.gid !== gid)
+
+    taskPersistenceService.removePersistedTask(gid)
+    taskTimeService.removeTaskTime(gid)
+  }
+
   async function removeTask(gid: string, deleteFiles = false) {
     if (!connectionStore.service) throw new Error('Not connected')
 
@@ -208,6 +321,7 @@ export const useTaskStore = defineStore('task', () => {
       if (persisted && deleteFiles) {
         await completedTaskDeleteService.deleteCompletedTask(persisted, true, connectionStore.service)
       } else {
+        // 持久化任务不在三个列表中，仅清理本地记录（等价于 removeTaskLocal 的持久化/时间部分）
         taskPersistenceService.removePersistedTask(gid)
         taskTimeService.removeTaskTime(gid)
       }
@@ -219,14 +333,7 @@ export const useTaskStore = defineStore('task', () => {
     const task = [...activeTasks.value, ...waitingTasks.value, ...stoppedTasks.value].find(t => t.gid === gid)
 
     // 收集要删除的文件路径（趁任务记录还在时获取，统一使用删除服务的路径处理逻辑）
-    let taskFiles: string[] = []
-    if (deleteFiles && window.electronAPI && task) {
-      try {
-        taskFiles = completedTaskDeleteService.getTaskFilePaths(task)
-      } catch (error) {
-        console.warn('Failed to get files for deletion:', error)
-      }
-    }
+    const taskFiles = collectTaskFiles(task, deleteFiles)
 
     const isActive = task && (task.status === 'active' || task.status === 'waiting' || task.status === 'paused')
 
@@ -242,30 +349,17 @@ export const useTaskStore = defineStore('task', () => {
     // 先删文件：任一失败时抛出错误并保留任务记录，用户可重试；
     // 避免旧顺序（先清记录后删文件）失败后留下无入口的孤儿文件
     if (deleteFiles && taskFiles.length > 0 && window.electronAPI?.deleteFiles) {
-      const deleteResult = await window.electronAPI.deleteFiles(taskFiles, task?.dir)
-      const failedItems = deleteResult.results?.filter(r => !r.success) || []
-      if (!deleteResult.success || failedItems.length > 0) {
-        const detail = failedItems[0]?.error || deleteResult.error || 'unknown'
-        throw new Error(`文件删除失败: ${detail}`)
-      }
+      await removeTaskFiles(task, taskFiles)
     }
 
     // 文件删除成功后再清理任务记录
-    try {
-      await connectionStore.service.removeDownloadResult(gid)
-    } catch {
-      // removeDownloadResult 可能失败（任务已不存在），忽略
-    }
+    await removeTaskRecord(gid)
 
     // 本地清理
-    activeTasks.value = activeTasks.value.filter(t => t.gid !== gid)
-    waitingTasks.value = waitingTasks.value.filter(t => t.gid !== gid)
-    stoppedTasks.value = stoppedTasks.value.filter(t => t.gid !== gid)
+    removeTaskLocal(gid)
 
-    taskPersistenceService.removePersistedTask(gid)
-    taskTimeService.removeTaskTime(gid)
-
-    try { await connectionStore.service.saveSession() } catch { /* 忽略会话保存失败 */ }
+    try { await connectionStore.service.saveSession() }
+    catch (error) { console.warn('saveSession after removeTask failed:', error) }
     await loadAllTasks()
   }
 
@@ -294,6 +388,8 @@ export const useTaskStore = defineStore('task', () => {
     let originalOptions: Aria2Option = { dir: taskInfo.dir }
     try {
       originalOptions = await connectionStore.service.getOption(gid)
+      // aria2 不允许 addUri 时指定 gid，透传会导致重试失败，需过滤
+      delete (originalOptions as Record<string, unknown>).gid
     } catch {
       // 获取选项失败时仅保留目录
     }
@@ -345,12 +441,21 @@ export const useTaskStore = defineStore('task', () => {
     'downloadError'
   ]
 
+  // WS 事件触发全量刷新；若正在轮询（isLoading 并发保护），标记补刷而非直接调用
+  function handleDownloadEvent() {
+    if (isLoading.value) {
+      needsReload = true
+    } else {
+      void loadAllTasks()
+    }
+  }
+
   watch(() => connectionStore.service, (service, oldService) => {
     if (oldService) {
-      downloadEvents.forEach(evt => oldService.off(evt, loadAllTasks))
+      downloadEvents.forEach(evt => oldService.off(evt, handleDownloadEvent))
     }
     if (service) {
-      downloadEvents.forEach(evt => service.on(evt, loadAllTasks))
+      downloadEvents.forEach(evt => service.on(evt, handleDownloadEvent))
     }
   }, { immediate: true })
 

@@ -26,7 +26,12 @@
     <n-card class="traffic-card" :bordered="false" :title="t('statusPage.trafficStats')">
       <!-- 实时流量图（位于所有小卡片上方） -->
       <div class="traffic-chart-section">
-        <div ref="trafficChartRef" class="traffic-chart" />
+        <div
+          ref="trafficChartRef"
+          class="traffic-chart"
+          role="img"
+          :aria-label="t('statusPage.trafficChartAria')"
+        />
       </div>
 
       <div class="traffic-grid">
@@ -63,6 +68,7 @@ import { useI18n } from 'vue-i18n'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useStatsStore } from '@/stores/statsStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { formatSpeed, formatSize } from '@/utils/taskFormatters'
 import { getTaskStats } from '@/utils/taskUtils'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
@@ -84,7 +90,14 @@ echarts.use([LineChart, TooltipComponent, GridComponent, CanvasRenderer])
 const connectionStore = useConnectionStore()
 const taskStore = useTaskStore()
 const statsStore = useStatsStore()
+const settingsStore = useSettingsStore()
 const { t } = useI18n()
+
+// 暗色模式判断（与 AppSidebar 一致）：dark 或 auto 跟随系统
+const isDark = computed(() => {
+  const theme = settingsStore.settings.theme
+  return theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+})
 
 const isConnected = computed(() => connectionStore.isConnected)
 const config = computed(() => connectionStore.config)
@@ -199,6 +212,11 @@ watch(speedHistory, () => {
   if (trafficChart) updateTrafficChart()
 })
 
+// 主题切换时同步刷新图表颜色（轴线/网格线/折线/渐变），无需重建实例
+watch(isDark, () => {
+  if (trafficChart) updateTrafficChart()
+})
+
 // 是否为整分钟节点（某分钟的 :00 秒）
 function isMinuteBoundary(index: number): boolean {
   const point = speedHistory.value[index]
@@ -211,8 +229,32 @@ function initTrafficChart() {
   updateTrafficChart()
 }
 
+// 读取主题 CSS 变量（随 data-theme 自动切换浅/暗色），读不到时回退到 isDark 对应色值
+function getCssVar(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value || fallback
+}
+
+// 将 #rrggbb 转为 rgba 字符串（用于图表渐变/半透明背景）
+function hexToRgba(hex: string, alpha: number): string {
+  const normalized = hex.replace('#', '')
+  if (normalized.length !== 6) return hex
+  const r = parseInt(normalized.slice(0, 2), 16)
+  const g = parseInt(normalized.slice(2, 4), 16)
+  const b = parseInt(normalized.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 function updateTrafficChart() {
   if (!trafficChart) return
+
+  // 按当前主题取色：图表主色跟随 --color-primary，轴文字/网格线跟随文本与边框色
+  const primaryColor = getCssVar('--color-primary', isDark.value ? '#6c86f5' : '#4f6ef2')
+  const axisTextColor = getCssVar('--text-secondary', isDark.value ? '#7d8597' : '#8a93a6')
+  const splitLineColor = getCssVar('--border-light', isDark.value ? '#2c323e' : '#ececf1')
+  const tooltipBgColor = getCssVar('--bg-secondary', isDark.value ? '#1e222b' : '#f6f7f9')
+  const tooltipTextColor = getCssVar('--text-primary', isDark.value ? '#e6e9ef' : '#1a1f2b')
+  const tooltipBorderColor = getCssVar('--border-light', isDark.value ? '#2c323e' : '#ececf1')
 
   // 根据实际数据计算合理的 y 轴上限，空闲时回退到 1KB/s，避免出现异常大刻度
   const speeds = speedHistory.value.map(item => item.speed)
@@ -222,6 +264,9 @@ function updateTrafficChart() {
   const option = {
     tooltip: {
       trigger: 'axis',
+      backgroundColor: tooltipBgColor,
+      borderColor: tooltipBorderColor,
+      textStyle: { color: tooltipTextColor },
       formatter: (params: { name: string; value: number; dataIndex: number } | { name: string; value: number; dataIndex: number }[]) => {
         const data = Array.isArray(params) ? params[0] : params
         const point = speedHistory.value[data.dataIndex]
@@ -239,15 +284,25 @@ function updateTrafficChart() {
       axisLabel: {
         fontSize: 10,
         interval: isMinuteBoundary,
+        color: axisTextColor,
         formatter: (value: string) => value.slice(0, 5)
       },
-      splitLine: { interval: isMinuteBoundary }
+      axisLine: { lineStyle: { color: splitLineColor } },
+      splitLine: {
+        interval: isMinuteBoundary,
+        lineStyle: { color: splitLineColor }
+      }
     },
     yAxis: {
       type: 'value',
       min: 0,
       max: yMax,
-      axisLabel: { formatter: (value: number) => formatSpeed(value) }
+      axisLabel: {
+        color: axisTextColor,
+        formatter: (value: number) => formatSpeed(value)
+      },
+      axisLine: { lineStyle: { color: splitLineColor } },
+      splitLine: { lineStyle: { color: splitLineColor } }
     },
     series: [
       {
@@ -258,12 +313,12 @@ function updateTrafficChart() {
         data: speedHistory.value.map(item => item.speed),
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(32, 128, 240, 0.3)' },
-            { offset: 1, color: 'rgba(32, 128, 240, 0.1)' }
+            { offset: 0, color: hexToRgba(primaryColor, 0.3) },
+            { offset: 1, color: hexToRgba(primaryColor, 0.1) }
           ])
         },
-        lineStyle: { color: '#2080f0' },
-        itemStyle: { color: '#2080f0' }
+        lineStyle: { color: primaryColor },
+        itemStyle: { color: primaryColor }
       }
     ]
   }
@@ -274,6 +329,17 @@ function updateTrafficChart() {
 <style scoped>
 .status-page {
   padding: 20px;
+  /* 流量统计图标的语义色：浅/暗色下分别取值，配合 color-mix 生成半透明背景 */
+  --stat-download: #2080f0;
+  --stat-upload: #18a058;
+  --stat-warning: #f0a020;
+}
+
+/* 暗色下提亮语义色，保证在深色背景上的可读性与对比度 */
+[data-theme='dark'] .status-page {
+  --stat-download: #6ea8ff;
+  --stat-upload: #34c98a;
+  --stat-warning: #f5b63f;
 }
 
 .status-header {
@@ -381,33 +447,33 @@ function updateTrafficChart() {
 }
 
 .traffic-stat-icon.download {
-  background: rgba(32, 128, 240, 0.12);
-  color: #2080f0;
+  background: color-mix(in srgb, var(--stat-download) 12%, transparent);
+  color: var(--stat-download);
 }
 
 .traffic-stat-icon.upload {
-  background: rgba(24, 160, 88, 0.12);
-  color: #18a058;
+  background: color-mix(in srgb, var(--stat-upload) 12%, transparent);
+  color: var(--stat-upload);
 }
 
 .traffic-stat-icon.active {
-  background: rgba(240, 160, 32, 0.12);
-  color: #f0a020;
+  background: color-mix(in srgb, var(--stat-warning) 12%, transparent);
+  color: var(--stat-warning);
 }
 
 .traffic-stat-icon.waiting {
-  background: rgba(144, 147, 153, 0.12);
+  background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
   color: var(--text-secondary);
 }
 
 .traffic-stat-icon.complete {
-  background: rgba(24, 160, 88, 0.12);
-  color: #18a058;
+  background: color-mix(in srgb, var(--stat-upload) 12%, transparent);
+  color: var(--stat-upload);
 }
 
 .traffic-stat-icon.all {
-  background: rgba(32, 128, 240, 0.12);
-  color: #2080f0;
+  background: color-mix(in srgb, var(--stat-download) 12%, transparent);
+  color: var(--stat-download);
 }
 
 .traffic-stat-meta {

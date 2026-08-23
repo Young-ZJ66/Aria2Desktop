@@ -15,7 +15,7 @@
         <n-descriptions-item :label="t('task.gid')">
           <div class="field-with-action">
             <span class="gid-text">{{ task.gid }}</span>
-            <n-button size="tiny" quaternary circle :title="t('taskDetail.copyGid')" @click="copyGid">
+            <n-button size="tiny" quaternary circle :title="t('taskDetail.copyGid')" :aria-label="t('taskDetail.copyGid')" @click="copyGid">
               <template #icon>
                 <n-icon><CopyOutline /></n-icon>
               </template>
@@ -45,7 +45,14 @@
         <!-- 进度条：占满整行 -->
         <n-descriptions-item :label="t('task.progress')" :span="2">
           <div class="progress-row">
-            <div class="progress-track">
+            <div
+              class="progress-track"
+              role="progressbar"
+              :aria-label="t('task.progress')"
+              :aria-valuenow="progressPercent"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
               <div
                 class="progress-fill"
                 :class="progressClass"
@@ -70,7 +77,7 @@
         <n-descriptions-item v-if="taskUris.length" :label="t('taskDetail.downloadUrl')" :span="2">
           <div class="path-with-action">
             <div class="mono-block uri-text">{{ taskUris[0].uri }}</div>
-            <n-button size="tiny" quaternary circle :title="t('taskDetail.copyLink')" @click="copyUri(taskUris[0].uri)">
+            <n-button size="tiny" quaternary circle :title="t('taskDetail.copyLink')" :aria-label="t('taskDetail.copyLink')" @click="copyUri(taskUris[0].uri)">
               <template #icon>
                 <n-icon><CopyOutline /></n-icon>
               </template>
@@ -165,21 +172,60 @@ const progressClass = computed(() => {
   }
 })
 
-function copyGid() {
-  if (props.task?.gid) {
-    navigator.clipboard.writeText(props.task.gid)
-    message.success(t('common.copied'))
+// 复制文本到剪贴板：优先使用 Clipboard API，旧环境/非 HTTPS 降级为 textarea + execCommand
+async function copyText(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      return fallbackCopyText(text)
+    }
+  }
+  return fallbackCopyText(text)
+}
+
+function fallbackCopyText(text: string): boolean {
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    // 隐藏 textarea 避免闪现（fixed + 透明 + 移出视口）
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    textarea.style.pointerEvents = 'none'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return ok
+  } catch {
+    return false
   }
 }
 
-function copyUri(uri: string) {
-  navigator.clipboard.writeText(uri)
-  message.success(t('common.copied'))
+async function copyGid() {
+  if (!props.task?.gid) return
+  const ok = await copyText(props.task.gid)
+  if (ok) {
+    message.success(t('common.copied'))
+  } else {
+    message.error(t('common.copyFailed'))
+  }
+}
+
+async function copyUri(uri: string) {
+  const ok = await copyText(uri)
+  if (ok) {
+    message.success(t('common.copied'))
+  } else {
+    message.error(t('common.copyFailed'))
+  }
 }
 
 function formatDate(timestamp: string | number | undefined): string {
   if (!timestamp || timestamp === '0' || timestamp === 0) return t('common.unknown')
-  const ts = typeof timestamp === 'string' ? parseInt(timestamp) : timestamp
+  const ts = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp
   const date = new Date(ts * 1000)
   return date.toLocaleString()
 }

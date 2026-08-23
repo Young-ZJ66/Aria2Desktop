@@ -4,6 +4,8 @@
     preset="card"
     :title="t('generalSettings.startupUpdatePrompt', { version: uiStore.updateVersion })"
     style="width: 520px"
+    :mask-closable="closable"
+    :closable="closable"
   >
     <div class="update-dialog">
       <!-- 更新日志始终保留展示（下载过程中也不隐藏） -->
@@ -64,6 +66,9 @@ const visible = computed({
 })
 
 const starting = ref(false)
+
+// 下载更新过程中禁止关闭对话框（mask/右上角关闭按钮均禁用），避免误关中断下载
+const closable = computed(() => uiStore.updateDialogState !== 'downloading')
 
 /**
  * 净化 GitHub Releases 的更新日志 HTML：

@@ -49,6 +49,7 @@ export class Aria2Service {
 
   // 添加URI下载
   async addUri(uris: string[], options?: Aria2Option, position?: number): Promise<string> {
+    if (!uris || uris.length === 0) throw new Error('URIs cannot be empty')
     const params: unknown[] = [uris]
     if (options && Object.keys(options).length > 0) {
       params.push(options)
@@ -63,7 +64,8 @@ export class Aria2Service {
   // 添加种子下载
   async addTorrent(torrent: string, uris?: string[], options?: Aria2Option, position?: number): Promise<string> {
     const params: unknown[] = [torrent]
-    if (uris) params.push(uris)
+    // uris 缺省时用空数组占位，防止 options 错位为 uris
+    params.push(uris || [])
     if (options) params.push(options)
     if (position !== undefined) params.push(position)
 

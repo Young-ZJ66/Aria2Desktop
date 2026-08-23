@@ -56,7 +56,7 @@ export const useConnectionStore = defineStore('connection', () => {
 
     const activeId = settingsStore.settings?.activeProfileId
     activeProfileId.value =
-      activeId && profiles.value.some(p => p.id === activeId) ? activeId : profiles.value[0].id
+      activeId && profiles.value.some(p => p.id === activeId) ? activeId : profiles.value[0]?.id ?? ''
   }
 
   // 持久化配置预设
@@ -81,7 +81,7 @@ export const useConnectionStore = defineStore('connection', () => {
   // 新建配置预设（不切换当前激活连接：未实际连接前不应把新配置标记为已连接）
   async function createProfile(name: string, baseConfig?: Aria2Config): Promise<ConnectionProfile> {
     const profile: ConnectionProfile = {
-      id: `profile_${Date.now().toString(36)}`,
+      id: `profile_${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       name: name.trim() || '未命名',
       config: { ...DEFAULT_CONFIG, ...(baseConfig || {}) }
     }
@@ -106,7 +106,7 @@ export const useConnectionStore = defineStore('connection', () => {
     if (index === -1) return
     profiles.value.splice(index, 1)
     if (activeProfileId.value === id) {
-      activeProfileId.value = profiles.value[0].id
+      activeProfileId.value = profiles.value[0]?.id ?? ''
     }
     await persistProfiles()
   }
@@ -135,7 +135,10 @@ export const useConnectionStore = defineStore('connection', () => {
     }
   }
 
-  async function connect(newConfig?: Partial<Aria2Config>) {
+  async function connect(newConfig?: Partial<Aria2Config>): Promise<boolean> {
+    // 并发保护：连接进行中时忽略重复调用，返回 false 供调用方感知被忽略
+    if (isConnecting.value) return false
+
     if (newConfig) {
       updateActiveConfig(newConfig)
     }
@@ -186,6 +189,8 @@ export const useConnectionStore = defineStore('connection', () => {
       // 连接成功后持久化配置预设
       await persistProfiles()
 
+      return true
+
     } catch (error) {
       connectionError.value = error instanceof Error ? error.message : 'Connection failed'
       isConnected.value = false
@@ -202,6 +207,9 @@ export const useConnectionStore = defineStore('connection', () => {
     }
     isConnected.value = false
     connectionError.value = null
+
+    // 清空全局配置缓存，避免重新连接后展示旧连接的数据
+    useStatsStore().clearCache()
 
     // 断开连接后清空前端缓存的任务，便于连接新服务时加载全新列表
     const taskStore = useTaskStore()

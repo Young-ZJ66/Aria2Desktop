@@ -135,8 +135,12 @@
     "pieceSize": "Piece Size",
     "completedPieces": "Completed Pieces",
     "pieceStatus": "Piece Status",
+    "piece": "Piece",
     "pieceDone": "Completed",
-    "piecePending": "Pending"
+    "piecePending": "Pending",
+    "pieceDownloading": "Downloading",
+    "noPeers": "No peers connected",
+    "piecesShown": "Showing first {count} pieces"
   },
   "delete": {
     "title": "Delete Task",
@@ -156,6 +160,7 @@
     "torrentTab": "Torrent File",
     "metalinkTab": "Metalink",
     "urls": "Download URLs",
+    "urisLabel": "Download URLs",
     "urlsPlaceholder": "Enter download URLs, one per line\nSupported: HTTP/HTTPS, FTP/SFTP, magnet links, etc.\n\nExample:\nhttps://example.com/file.zip\nmagnet:?xt=urn:btih:...",
     "torrentFile": "Torrent File",
     "selectTorrentFile": "Select Torrent File",
@@ -208,7 +213,9 @@
   "footer": {
     "active": "Active",
     "waiting": "Waiting",
-    "stopped": "Stopped"
+    "stopped": "Stopped",
+    "downloadSpeed": "Download Speed",
+    "uploadSpeed": "Upload Speed"
   },
   "statusPage": {
     "title": "Aria2 Status",
@@ -221,6 +228,7 @@
     "activeTasks": "Active Tasks",
     "waitingTasks": "Waiting Tasks",
     "trafficStats": "Traffic Statistics",
+    "trafficChartAria": "Download and upload speed trend chart",
     "enabledFeatures": "Enabled Features"
   },
   "stats": {
@@ -255,6 +263,8 @@
     "restored": "Default settings restored",
     "unknownError": "Unknown error",
     "valueRange": "Value must be between {min} and {max}",
+    "valueMin": "Value must be at least {min}",
+    "invalidUrl": "Please enter a valid URL (with a protocol like http://, https://)",
     "selectFileFailed": "Failed to select file",
     "engine": {
       "unavailable": "Unavailable",
@@ -294,6 +304,7 @@
       "maxUploadLimit": "Max Upload Speed per Task",
       "maxUploadLimitTip": "Maximum upload speed per task (KB/s, 0 means unlimited)",
       "noLimit": "0 means unlimited",
+      "kbPerSec": "KB/s",
       "diskAndMemory": "Disk & Storage",
       "diskCache": "Disk Cache",
       "diskCacheTip": "Disk cache size (MB), 0 means disabled",
@@ -354,6 +365,9 @@
       "noFileAllocationLimitPlaceholder": "0 means always pre-allocate",
       "downloadResult": "Download Result Format",
       "downloadResultTip": "Controls how download results are shown in logs.\ndefault: show default fields\nfull: show all details\nhide: suppress output",
+      "downloadResultDefault": "Default",
+      "downloadResultFull": "Full details",
+      "downloadResultHide": "Hide",
       "keepUnfinishedDownloadResult": "Keep Unfinished Results",
       "keepUnfinishedDownloadResultTip": "Keep unfinished download results even if exceeding max download results"
     },
@@ -543,6 +557,9 @@
       "groupMetadata": "Metadata & Files",
       "followTorrent": "Handle Torrent Links",
       "followTorrentTip": "How to handle .torrent files or magnet links.\ntrue: download as BT task\nfalse: download as regular file\nmem: process torrent in memory without writing to disk",
+      "followTorrentTrue": "Download as BT task",
+      "followTorrentFalse": "Download as regular file",
+      "followTorrentMem": "Memory only",
       "btSaveMetadata": "Save Metadata",
       "btSaveMetadataTip": "Save metadata fetched from magnet links as .torrent files",
       "btLoadSavedMetadata": "Load Saved Metadata",
@@ -592,6 +609,9 @@
       "groupBasic": "Metalink Matching",
       "followMetalink": "Handle Metalink Links",
       "followMetalinkTip": "How to handle .metalink files or links.\ntrue: parse as Metalink multi-source download\nfalse: download as regular file\nmem: parse in memory without writing to disk",
+      "followMetalinkTrue": "Parse as Metalink",
+      "followMetalinkFalse": "Download as regular file",
+      "followMetalinkMem": "Memory only",
       "metalinkPreferredProtocol": "Preferred Protocols",
       "metalinkPreferredProtocolPlaceholder": "e.g., https,http,ftp",
       "metalinkPreferredProtocolTip": "Preferred protocols when choosing Metalink mirrors",
@@ -819,6 +839,8 @@
     "connectionFailed": "Connection failed",
     "defaultProfileName": "Default",
     "profileList": "Connection Profiles",
+    "editProfile": "Edit Profile",
+    "noProfiles": "No connection profiles",
     "back": "Back",
     "newProfile": "New Profile",
     "renameProfile": "Rename",
@@ -932,6 +954,9 @@
     "none": "None",
     "unknown": "Unknown",
     "copy": "Copy",
-    "copied": "Copied to clipboard"
+    "copied": "Copied to clipboard",
+    "copyFailed": "Copy failed",
+    "yesterday": "Yesterday",
+    "today": "Today"
   }
 }

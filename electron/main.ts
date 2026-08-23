@@ -8,6 +8,7 @@ import { Aria2Controller } from './controllers/Aria2Controller'
 import { IpcController } from './controllers/IpcController'
 import { AppLifecycle } from './controllers/AppLifecycle'
 import { appState } from './utils/appState'
+import { decryptSettingsSecrets } from './utils/secretCipher'
 import type { StoreData, AppSettings } from './types/store'
 
 // ==========================================
@@ -79,8 +80,12 @@ migrateLegacyData()
 const configDir = getConfigDirectory()
 const store = new Store<StoreData>({
   cwd: configDir,
-  name: 'aria2-desktop-settings'
+  name: 'aria2-desktop-settings',
+  // 与 aria2.conf 保持一致：设置 JSON 可能包含 rpc-secret，限制为仅当前用户可读写
+  configFileMode: 0o600
 })
+// 安全说明：settings.aria2.secret 与 connectionProfiles[].config.secret 已通过 safeStorage
+// 加密存储（见 utils/secretCipher.ts），磁盘上不保存明文，并对旧明文数据透明兼容。
 
 console.log('Config directory:', configDir)
 console.log('Config file path:', store.path)
@@ -131,7 +136,7 @@ if (!gotTheLock) {
   })
 
   app.on('window-all-closed', () => {
-    const settings = store.get('settings', {}) as AppSettings
+    const settings = decryptSettingsSecrets(store.get('settings', {}) as AppSettings)
     const minimizeToTray = settings.minimizeToTray !== false
     const platform = process.platform
 
@@ -152,10 +157,10 @@ if (!gotTheLock) {
   })
 
   app.on('before-quit', async (e) => {
-    if (appState.isQuiting) return
+    if (appState.isQuitting()) return
 
     e.preventDefault()
-    appState.isQuiting = true
+    appState.markQuitting()
 
     console.log('App quitting, starting graceful shutdown...')
 

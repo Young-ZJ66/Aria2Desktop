@@ -99,14 +99,15 @@ export function useGlobalSettingsForm<T extends object>(
         rpcErrorMsg = error instanceof Error ? error.message : t('settings.unknownError')
         console.warn('RPC changeGlobalOption failed (startup options will apply after restart):', error)
       }
-      if (persisted) {
-        // 包含需重启选项或 RPC 未全部生效时，提示重启 Aria2 后生效
-        message.success(rpcOk && !needsRestart ? t('settings.saved') : t('settings.savedRestartAria2'))
-      } else if (rpcOk) {
-        message.success(needsRestart ? t('settings.savedRestartAria2') : t('settings.saved'))
-      } else {
+      if (!persisted && !rpcOk) {
         // 既无法写入配置文件（如连接外部 Aria2）又 RPC 失败，展示具体原因
         message.error(t('settings.saveFailed', { error: rpcErrorMsg || t('settings.unknownError') }))
+      } else if (persisted) {
+        // 已写入配置文件：包含需重启选项或 RPC 未全部生效时，提示重启 Aria2 后生效
+        message.success(rpcOk && !needsRestart ? t('settings.saved') : t('settings.savedRestartAria2'))
+      } else {
+        // 未写配置文件但 RPC 已生效
+        message.success(needsRestart ? t('settings.savedRestartAria2') : t('settings.saved'))
       }
     } catch (error) {
       // 展示具体失败原因（如 aria2 拒绝某选项），便于用户定位问题

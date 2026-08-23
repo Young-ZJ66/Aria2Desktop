@@ -11,7 +11,7 @@
       <!-- URI 下载 -->
       <n-tab-pane name="uri" :tab="t('newTask.uriTab')">
         <n-form ref="uriFormRef" :model="uriForm" :rules="uriRules">
-          <n-form-item path="uris">
+          <n-form-item path="uris" :label="t('newTask.urisLabel')" label-placement="top">
             <n-input
               v-model:value="uriForm.uris"
               type="textarea"
@@ -68,7 +68,11 @@
             <div
               class="file-drop-area"
               :class="{ 'drag-active': draggingTorrent }"
+              role="button"
+              tabindex="0"
+              :aria-label="t('newTask.selectTorrentFile')"
               @click="pickFile('torrent')"
+              @keydown.enter="pickFile('torrent')"
               @dragover.prevent="draggingTorrent = true"
               @dragleave.prevent="draggingTorrent = false"
               @drop.prevent="handleDrop('torrent', $event)"
@@ -97,7 +101,11 @@
             <div
               class="file-drop-area"
               :class="{ 'drag-active': draggingMetalink }"
+              role="button"
+              tabindex="0"
+              :aria-label="t('newTask.selectMetalinkFile')"
               @click="pickFile('metalink')"
+              @keydown.enter="pickFile('metalink')"
               @dragover.prevent="draggingMetalink = true"
               @dragleave.prevent="draggingMetalink = false"
               @drop.prevent="handleDrop('metalink', $event)"

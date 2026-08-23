@@ -114,13 +114,13 @@ class SettingsService {
         // Electron 环境：从 electron-store 加载
         const savedSettings = await window.electronAPI.getStoreValue('settings')
         if (savedSettings) {
-          this.settings = { ...defaultSettings, ...savedSettings }
+          this.settings = this.mergeWithDefaults(savedSettings)
         }
       } else {
         // 浏览器环境：从 localStorage 加载
         const savedSettings = localStorage.getItem('aria2-desktop-settings')
         if (savedSettings) {
-          this.settings = { ...defaultSettings, ...JSON.parse(savedSettings) }
+          this.settings = this.mergeWithDefaults(JSON.parse(savedSettings))
         }
       }
     } catch (error) {
@@ -129,6 +129,18 @@ class SettingsService {
     }
 
     this.notifyListeners()
+  }
+
+  // 深合并嵌套对象（aria2/ui/download），避免保存缺省字段时覆盖默认值；数组不深合
+  // saved 允许为 Partial：electron-store 读取到空对象/缺省字段（如 {}）时也能正常合并
+  private mergeWithDefaults(saved: Partial<AppSettings>): AppSettings {
+    return {
+      ...defaultSettings,
+      ...saved,
+      aria2: { ...defaultSettings.aria2, ...(saved.aria2 || {}) },
+      ui: { ...defaultSettings.ui, ...(saved.ui || {}) },
+      download: { ...defaultSettings.download, ...(saved.download || {}) }
+    }
   }
 
   // 创建纯 JavaScript 对象，移除 Vue 响应式属性
@@ -205,16 +217,43 @@ class SettingsService {
     })
   }
 
-  // 导出设置
+  // 导出设置（导出前对 RPC 密钥脱敏，避免密钥明文随备份文件外泄）
   exportSettings(): string {
-    return JSON.stringify(this.settings, null, 2)
+    const exported = this.toPlainObject(this.settings) as AppSettings
+    if (exported.aria2?.secret) {
+      exported.aria2.secret = '***'
+    }
+    exported.connectionProfiles?.forEach(profile => {
+      if (profile?.config?.secret) {
+        profile.config.secret = '***'
+      }
+    })
+    return JSON.stringify(exported, null, 2)
   }
 
   // 导入设置
   async importSettings(settingsJson: string): Promise<void> {
     try {
-      const importedSettings = JSON.parse(settingsJson)
-      await this.saveSettings(importedSettings)
+      const importedSettings: unknown = JSON.parse(settingsJson)
+      // 防原型污染：仅接受普通对象，排除 Array/Function/带有 __proto__/constructor 污染的对象
+      if (
+        typeof importedSettings !== 'object' ||
+        importedSettings === null ||
+        Object.getPrototypeOf(importedSettings) !== Object.prototype
+      ) {
+        throw new Error('invalid settings format')
+      }
+      const settings = importedSettings as Partial<AppSettings>
+      // 导入时忽略 secret 字段（导出时已脱敏为 '***'），避免将占位符写回并覆盖本地真实密钥
+      if (settings.aria2) {
+        settings.aria2.secret = ''
+      }
+      settings.connectionProfiles?.forEach(profile => {
+        if (profile?.config) {
+          profile.config.secret = ''
+        }
+      })
+      await this.saveSettings(settings)
     } catch (error) {
       console.error('Failed to import settings:', error)
       throw new Error('无效的设置文件格式')

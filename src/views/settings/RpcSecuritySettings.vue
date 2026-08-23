@@ -12,9 +12,16 @@
     @reload="loadSettings"
     @reset="handleReset"
   >
-    <!-- RPC 服务 -->
-    <n-card :title="t('settings.rpc.groupService')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+    <n-form
+      ref="formRef"
+      :model="settings"
+      :rules="rules"
+      label-placement="left"
+      :label-width="180"
+      label-align="left"
+      :show-feedback="false"
+    >
+      <n-card :title="t('settings.rpc.groupService')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.rpc.enableRpc')" :tip="t('settings.rpc.enableRpcTip')" />
@@ -22,7 +29,7 @@
           <AppSwitch v-model:value="settings.enableRpc" />
         </n-form-item>
 
-        <n-form-item>
+        <n-form-item path="rpcListenPort">
           <template #label>
             <TipLabel :label="t('settings.rpc.rpcListenPort')" :tip="t('settings.rpc.rpcListenPortTip')" />
           </template>
@@ -36,7 +43,7 @@
           <AppSwitch v-model:value="settings.rpcListenAll" />
         </n-form-item>
 
-        <n-form-item>
+        <n-form-item path="rpcMaxRequestSize">
           <template #label>
             <TipLabel :label="t('settings.rpc.rpcMaxRequestSize')" :tip="t('settings.rpc.rpcMaxRequestSizeTip')" />
           </template>
@@ -56,12 +63,10 @@
           </template>
           <AppSwitch v-model:value="settings.pauseMetadata" />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
 
-    <!-- RPC 安全 -->
-    <n-card :title="t('settings.rpc.groupSecurity')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+      <!-- RPC 安全 -->
+      <n-card :title="t('settings.rpc.groupSecurity')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.rpc.rpcSecret')" :tip="t('settings.rpc.rpcSecretTip')" />
@@ -88,12 +93,10 @@
           </template>
           <AppSwitch v-model:value="settings.forceSave" />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
 
-    <!-- TLS 加密 -->
-    <n-card :title="t('settings.rpc.groupTls')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+      <!-- TLS 加密 -->
+      <n-card :title="t('settings.rpc.groupTls')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.rpc.rpcCertificate')" :tip="t('settings.rpc.rpcCertificateTip')" />
@@ -121,26 +124,28 @@
             </n-button>
           </n-input-group>
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
+    </n-form>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import type { Aria2Option } from '@/types/aria2'
+import { ref, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
+import type { FormRules, FormInst } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
-import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
+import type { SettingSchema } from '@/types/settingSchema'
+import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
+const formRef = ref<FormInst | null>(null)
 
 const settings = reactive({
   enableRpc: true,
@@ -156,58 +161,60 @@ const settings = reactive({
   pauseMetadata: false
 })
 
-function applyOptionsToSettings(options: Aria2Option) {
-  settings.enableRpc = options['enable-rpc'] !== 'false'
-  settings.rpcListenPort = parseInt(options['rpc-listen-port'] || '6800')
-  settings.rpcListenAll = options['rpc-listen-all'] === 'true'
-  settings.rpcSecret = options['rpc-secret'] || ''
-  settings.rpcAllowOriginAll = options['rpc-allow-origin-all'] === 'true'
-  settings.rpcMaxRequestSize = parseSizeToUnit(options['rpc-max-request-size'] || '2M', 'M')
-  settings.rpcSaveUploadMetadata = options['rpc-save-upload-metadata'] !== 'false'
-  settings.rpcCertificate = options['rpc-certificate'] || ''
-  settings.rpcPrivateKey = options['rpc-private-key'] || ''
-  settings.forceSave = options['force-save'] === 'true'
-  settings.pauseMetadata = options['pause-metadata'] === 'true'
+// 表单验证规则
+const rules: FormRules = {
+  // RPC 监听端口取值范围 1024-65535
+  rpcListenPort: [
+    { type: 'number', min: 1024, max: 65535, message: () => t('settings.valueRange', { min: 1024, max: 65535 }), trigger: 'blur' }
+  ],
+  // rpc-max-request-size 单位 M，0 表示默认限制，仅校验非负
+  rpcMaxRequestSize: [
+    { type: 'number', min: 0, message: () => t('settings.valueMin', { min: 0 }), trigger: 'blur' }
+  ]
 }
 
-function toOptions(): Record<string, string> {
-  const options: Record<string, string> = {
-    'enable-rpc': settings.enableRpc ? 'true' : 'false',
-    'rpc-listen-port': settings.rpcListenPort.toString(),
-    'rpc-listen-all': settings.rpcListenAll ? 'true' : 'false',
-    'rpc-allow-origin-all': settings.rpcAllowOriginAll ? 'true' : 'false',
-    'rpc-max-request-size': formatSizeWithUnit(settings.rpcMaxRequestSize, 'M'),
-    'rpc-save-upload-metadata': settings.rpcSaveUploadMetadata ? 'true' : 'false',
-    'force-save': settings.forceSave ? 'true' : 'false',
-    'pause-metadata': settings.pauseMetadata ? 'true' : 'false'
-  }
-
-  if (settings.rpcSecret) options['rpc-secret'] = settings.rpcSecret
-  if (settings.rpcCertificate) options['rpc-certificate'] = settings.rpcCertificate
-  if (settings.rpcPrivateKey) options['rpc-private-key'] = settings.rpcPrivateKey
-  return options
+// aria2 选项 <-> 表单字段 的 schema 声明：type 决定默认转换规则，
+// rpc-allow-origin-all 原转换语义为「只有显式 'true' 才启用」（未返回时视为关闭），
+// 与默认值 true 不一致，保留自定义 optionToValue 维持原有行为
+const rpcSecuritySettingsSchema: SettingSchema = {
+  fields: [
+    { key: 'enableRpc', aria2Key: 'enable-rpc', type: 'boolean', default: true },
+    { key: 'rpcListenPort', aria2Key: 'rpc-listen-port', type: 'number', default: 6800 },
+    { key: 'rpcListenAll', aria2Key: 'rpc-listen-all', type: 'boolean', default: false },
+    { key: 'rpcSecret', aria2Key: 'rpc-secret', type: 'string', default: '' },
+    { key: 'rpcAllowOriginAll', aria2Key: 'rpc-allow-origin-all', type: 'boolean', default: true, optionToValue: (raw) => raw === 'true' },
+    { key: 'rpcMaxRequestSize', aria2Key: 'rpc-max-request-size', type: 'size', default: 2, unit: 'M' },
+    { key: 'rpcSaveUploadMetadata', aria2Key: 'rpc-save-upload-metadata', type: 'boolean', default: true },
+    { key: 'rpcCertificate', aria2Key: 'rpc-certificate', type: 'string', default: '' },
+    { key: 'rpcPrivateKey', aria2Key: 'rpc-private-key', type: 'string', default: '' },
+    { key: 'forceSave', aria2Key: 'force-save', type: 'boolean', default: false },
+    { key: 'pauseMetadata', aria2Key: 'pause-metadata', type: 'boolean', default: false }
+  ]
 }
 
-function defaults() {
-  return {
-    enableRpc: true,
-    rpcListenPort: 6800,
-    rpcListenAll: false,
-    rpcSecret: '',
-    rpcAllowOriginAll: true,
-    rpcMaxRequestSize: 2,
-    rpcSaveUploadMetadata: true,
-    rpcCertificate: '',
-    rpcPrivateKey: '',
-    forceSave: false,
-    pauseMetadata: false
+const { applyOptions, toOptions, defaults } = useSettingSchema(rpcSecuritySettingsSchema, settings)
+
+// 表单校验：失败时阻止保存并提示第一条错误
+async function validate(): Promise<boolean> {
+  if (!formRef.value) return true
+  try {
+    await formRef.value.validate()
+    return true
+  } catch (errors) {
+    const first = Array.isArray(errors) && errors.length > 0 ? errors[0] : undefined
+    const msg = Array.isArray(first) && first.length > 0 && first[0]?.message
+      ? first[0].message
+      : t('settings.saveFailedShort')
+    message.error(msg)
+    return false
   }
 }
 
 const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
-  applyOptions: applyOptionsToSettings,
+  applyOptions,
   toOptions,
-  defaults
+  defaults,
+  validate
 })
 
 // 选择证书/私钥文件

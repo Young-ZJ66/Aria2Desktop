@@ -1,13 +1,18 @@
-import { BrowserWindow, Menu, shell, screen, ipcMain, nativeTheme } from 'electron'
+import { BrowserWindow, Menu, shell, screen, ipcMain, nativeTheme, session, app } from 'electron'
 import { join } from 'path'
 import * as fs from 'fs'
 import Store from 'electron-store'
 import { appState } from '../utils/appState'
+import { decryptSettingsSecrets } from '../utils/secretCipher'
 import { createSenderValidator } from '../utils/ipcSecurity'
 import type { StoreData, AppSettings, WindowState } from '../types/store'
 
 /** 允许通过 shell.openExternal 打开的外部 URL 协议白名单 */
 const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
+
+/** 等待内容就绪的最大重试次数与间隔（100 次 × 100ms = 10 秒上限） */
+const MAX_SHOW_RETRIES = 100
+const SHOW_RETRY_INTERVAL = 100
 
 export class WindowController {
   private mainWindow: BrowserWindow | null = null
@@ -18,6 +23,10 @@ export class WindowController {
   constructor(store: Store<StoreData>) {
     this.store = store
 
+    // 注入 CSP 响应头（纵深防御）。注意：webRequest 仅对 http(s) 响应生效，
+    // 生产环境 file:// 页面仍依赖 index.html 中的 meta 标签兜底
+    this.setupCsp()
+
     // 监听渲染进程的 app-ready 消息（只注册一次，避免重复创建窗口时叠加监听器）
     ipcMain.on('app-ready', (event) => {
       // 校验来源为主窗口，防止其他 webContents 伪造就绪信号
@@ -27,8 +36,27 @@ export class WindowController {
     })
   }
 
+  /** 通过响应头注入 CSP，不依赖渲染层 meta（开发环境对 localhost:5173 生效） */
+  private setupCsp(): void {
+    // session.defaultSession 仅在 app ready 之后可用，构造函数执行时（whenReady 之前）调用
+    // 会抛 "Session can only be received when app is ready"，因此延迟到就绪后再注册。
+    app.whenReady().then(() => {
+      session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            // connect-src 放行 Vite HMR 的 websocket；生产加载 file:// 页面时本头不生效
+            'Content-Security-Policy': [
+              "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*"
+            ]
+          }
+        })
+      })
+    })
+  }
+
   public createWindow(): BrowserWindow {
-    console.log('Creating main window...')
+    console.log('[WindowController] Creating main window...')
 
     // 重置内容就绪标记（窗口重建场景，避免沿用旧值提前 show）
     this.isContentReady = false
@@ -37,7 +65,7 @@ export class WindowController {
     Menu.setApplicationMenu(null)
 
     // 如果启用，恢复窗口状态
-    const settings = this.store.get('settings', {}) as AppSettings
+    const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
     const keepWindowState = settings.keepWindowState !== false
     const savedState = this.store.get('windowState') as WindowState
 
@@ -127,7 +155,7 @@ export class WindowController {
       // 不在这里自动显示 - 让 AppLifecycle 控制显示时机
 
       // 初始化主题
-      const settings = this.store.get('settings', {}) as AppSettings
+      const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
       const isDarkTheme = settings.theme === 'dark'
       this.setWindowTheme(isDarkTheme)
 
@@ -137,11 +165,11 @@ export class WindowController {
 
     // 拦截关闭事件 - 如果启用了托盘，隐藏而不是关闭
     this.mainWindow.on('close', (event) => {
-      const settings = this.store.get('settings', {}) as AppSettings
+      const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
       const minimizeToTray = settings.minimizeToTray !== false
 
       // 如果启用了托盘且不是真正退出应用
-      if (minimizeToTray && !appState.isQuiting) {
+      if (minimizeToTray && !appState.isQuitting()) {
         event.preventDefault()
         this.hide()
         console.log('[WindowController] Window hidden to tray')
@@ -170,7 +198,7 @@ export class WindowController {
   private setupWindowStatePersistence() {
     if (!this.mainWindow) return
 
-    const settings = this.store.get('settings', {}) as AppSettings
+    const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
     const keepWindowState = settings.keepWindowState !== false
 
     if (!keepWindowState) return
@@ -260,12 +288,12 @@ export class WindowController {
         this.mainWindow.focus()
       } else {
         console.log('[WindowController] Waiting for content to be ready...')
-        // 等待 ready-to-show 事件，最多重试 100 次（10 秒），超时后强制显示
+        // 等待 ready-to-show 事件，最多重试 MAX_SHOW_RETRIES 次（10 秒），超时后强制显示
         let attempts = 0
         const showWhenReady = () => {
           // 窗口已销毁时终止重试
           if (!this.mainWindow || this.mainWindow.isDestroyed()) return
-          if (this.isContentReady || attempts >= 100) {
+          if (this.isContentReady || attempts >= MAX_SHOW_RETRIES) {
             if (!this.isContentReady) {
               console.warn('[WindowController] Timed out waiting for content, forcing show')
             }
@@ -273,7 +301,7 @@ export class WindowController {
             this.mainWindow.focus()
           } else {
             attempts++
-            setTimeout(showWhenReady, 100)
+            setTimeout(showWhenReady, SHOW_RETRY_INTERVAL)
           }
         }
         showWhenReady()
@@ -297,13 +325,13 @@ export class WindowController {
   public setWindowTheme(isDark: boolean) {
     if (!this.mainWindow) return
 
-    console.log(`Setting window theme: ${isDark ? 'dark' : 'light'}`)
+    console.log(`[WindowController] Setting window theme: ${isDark ? 'dark' : 'light'}`)
 
     try {
       // 原生主题始终生效
       nativeTheme.themeSource = isDark ? 'dark' : 'light'
     } catch (error) {
-      console.error('Failed to set window theme:', error)
+      console.error('[WindowController] Failed to set window theme:', error)
     }
   }
 }

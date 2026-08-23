@@ -15,6 +15,7 @@ export interface AppSettings {
   closeToTray?: boolean
   startMinimized?: boolean
   keepWindowState?: boolean
+  autoLaunch?: boolean
   aria2?: {
     host?: string
     port?: number
@@ -23,13 +24,35 @@ export interface AppSettings {
     path?: string
     autoStart?: boolean
     downloadDir?: string
-    [key: string]: unknown
   }
+  // 多连接配置预设（与 src/services/settingsService.ts 中的定义保持一致）
+  connectionProfiles?: Array<{
+    id: string
+    name: string
+    config: {
+      host: string
+      port: number
+      protocol: string
+      secret: string
+      path: string
+    }
+  }>
+  activeProfileId?: string
+  // 界面设置
+  ui?: {
+    showStatusBar?: boolean
+    showToolbar?: boolean
+    taskListColumns?: string[]
+    defaultView?: 'downloading' | 'waiting' | 'stopped'
+  }
+  // 下载设置
   download?: {
     defaultDir?: string
-    [key: string]: unknown
+    maxConcurrentDownloads?: number
+    maxConnectionPerServer?: number
+    minSplitSize?: string
+    autoStart?: boolean
   }
-  [key: string]: unknown
 }
 
 /** 窗口状态 */

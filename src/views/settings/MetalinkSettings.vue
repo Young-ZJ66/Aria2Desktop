@@ -12,8 +12,16 @@
     @reload="loadSettings"
     @reset="handleReset"
   >
-    <n-card :title="t('settings.metalink.groupBasic')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+    <n-form
+      ref="formRef"
+      :model="settings"
+      :rules="rules"
+      label-placement="left"
+      :label-width="180"
+      label-align="left"
+      :show-feedback="false"
+    >
+      <n-card :title="t('settings.metalink.groupBasic')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.metalink.followMetalink')" :tip="t('settings.metalink.followMetalinkTip')" />
@@ -75,35 +83,40 @@
           <n-input v-model:value="settings.metalinkVersion" :placeholder="t('settings.metalink.metalinkVersionPlaceholder')" clearable />
         </n-form-item>
 
-        <n-form-item>
+        <n-form-item path="metalinkBaseUri">
           <template #label>
             <TipLabel :label="t('settings.metalink.metalinkBaseUri')" :tip="t('settings.metalink.metalinkBaseUriTip')" />
           </template>
           <n-input v-model:value="settings.metalinkBaseUri" :placeholder="t('settings.metalink.metalinkBaseUriPlaceholder')" clearable />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
+    </n-form>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import type { Aria2Option } from '@/types/aria2'
+import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { message } from '@/utils/feedback'
+import type { FormRules, FormInst } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
+import type { SettingSchema } from '@/types/settingSchema'
+import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
+const formRef = ref<FormInst | null>(null)
 
-const followMetalinkOptions = [
-  { label: 'true', value: 'true' },
-  { label: 'false', value: 'false' },
-  { label: 'mem', value: 'mem' }
-]
+// follow-metalink 选项标签本地化，跟随语言实时切换
+const followMetalinkOptions = computed(() => [
+  { label: t('settings.metalink.followMetalinkTrue'), value: 'true' },
+  { label: t('settings.metalink.followMetalinkFalse'), value: 'false' },
+  { label: t('settings.metalink.followMetalinkMem'), value: 'mem' }
+])
 
 const settings = reactive({
   followMetalink: 'true',
@@ -117,52 +130,56 @@ const settings = reactive({
   metalinkBaseUri: ''
 })
 
-function applyOptionsToSettings(options: Aria2Option) {
-  settings.followMetalink = options['follow-metalink'] || 'true'
-  settings.metalinkPreferredProtocol = options['metalink-preferred-protocol'] || 'https,http,ftp'
-  settings.metalinkEnableUniqueProtocol = options['metalink-enable-unique-protocol'] !== 'false'
-  settings.metalinkServers = options['metalink-servers'] || ''
-  settings.metalinkLanguage = options['metalink-language'] || 'zh-CN,en-US'
-  settings.metalinkLocation = options['metalink-location'] || 'CN,US'
-  settings.metalinkOs = options['metalink-os'] || 'linux,windows'
-  settings.metalinkVersion = options['metalink-version'] || ''
-  settings.metalinkBaseUri = options['metalink-base-uri'] || ''
+// metalink-base-uri 校验：为空时跳过（让 aria2 保留旧值），非空时需为带协议头的合法 URL
+function isValidBaseUri(value: string): boolean {
+  return /^https?:\/\/\S+$/i.test(value.trim())
 }
 
-function toOptions(): Record<string, string> {
-  const options: Record<string, string> = {
-    'follow-metalink': settings.followMetalink,
-    'metalink-preferred-protocol': settings.metalinkPreferredProtocol,
-    'metalink-enable-unique-protocol': settings.metalinkEnableUniqueProtocol ? 'true' : 'false',
-    'metalink-language': settings.metalinkLanguage,
-    'metalink-location': settings.metalinkLocation,
-    'metalink-os': settings.metalinkOs
-  }
-
-  if (settings.metalinkServers) options['metalink-servers'] = settings.metalinkServers
-  if (settings.metalinkVersion) options['metalink-version'] = settings.metalinkVersion
-  if (settings.metalinkBaseUri) options['metalink-base-uri'] = settings.metalinkBaseUri
-  return options
+// 表单验证规则
+const rules: FormRules = {
+  metalinkBaseUri: [
+    { validator: (_rule, value) => (typeof value === 'string' && value.trim() && !isValidBaseUri(value) ? new Error(t('settings.invalidUrl')) : true), trigger: 'blur' }
+  ]
 }
 
-function defaults() {
-  return {
-    followMetalink: 'true',
-    metalinkPreferredProtocol: 'https,http,ftp',
-    metalinkEnableUniqueProtocol: true,
-    metalinkServers: '',
-    metalinkLanguage: 'zh-CN,en-US',
-    metalinkLocation: 'CN,US',
-    metalinkOs: 'linux,windows',
-    metalinkVersion: '',
-    metalinkBaseUri: ''
+// aria2 选项 <-> 表单字段 的 schema 声明：type 决定默认转换规则，本页全部走默认转换
+const metalinkSettingsSchema: SettingSchema = {
+  fields: [
+    { key: 'followMetalink', aria2Key: 'follow-metalink', type: 'select', default: 'true' },
+    { key: 'metalinkPreferredProtocol', aria2Key: 'metalink-preferred-protocol', type: 'string', default: 'https,http,ftp' },
+    { key: 'metalinkEnableUniqueProtocol', aria2Key: 'metalink-enable-unique-protocol', type: 'boolean', default: true },
+    { key: 'metalinkServers', aria2Key: 'metalink-servers', type: 'string', default: '' },
+    { key: 'metalinkLanguage', aria2Key: 'metalink-language', type: 'string', default: 'zh-CN,en-US' },
+    { key: 'metalinkLocation', aria2Key: 'metalink-location', type: 'string', default: 'CN,US' },
+    { key: 'metalinkOs', aria2Key: 'metalink-os', type: 'string', default: 'linux,windows' },
+    { key: 'metalinkVersion', aria2Key: 'metalink-version', type: 'string', default: '' },
+    { key: 'metalinkBaseUri', aria2Key: 'metalink-base-uri', type: 'string', default: '' }
+  ]
+}
+
+const { applyOptions, toOptions, defaults } = useSettingSchema(metalinkSettingsSchema, settings)
+
+// 表单校验：失败时阻止保存并提示第一条错误
+async function validate(): Promise<boolean> {
+  if (!formRef.value) return true
+  try {
+    await formRef.value.validate()
+    return true
+  } catch (errors) {
+    const first = Array.isArray(errors) && errors.length > 0 ? errors[0] : undefined
+    const msg = Array.isArray(first) && first.length > 0 && first[0]?.message
+      ? first[0].message
+      : t('settings.saveFailedShort')
+    message.error(msg)
+    return false
   }
 }
 
 const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
-  applyOptions: applyOptionsToSettings,
+  applyOptions,
   toOptions,
-  defaults
+  defaults,
+  validate
 })
 </script>
 

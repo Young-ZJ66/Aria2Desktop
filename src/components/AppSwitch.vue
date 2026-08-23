@@ -5,6 +5,8 @@
     :class="{ 'app-switch--active': value, 'app-switch--disabled': disabled }"
     role="switch"
     :aria-checked="value"
+    :aria-label="ariaLabel"
+    :aria-disabled="disabled"
     :disabled="disabled"
     @click="toggle"
   >
@@ -20,9 +22,10 @@
 </template>
 
 <script setup lang="ts">
-const props = withDefaults(defineProps<{ value?: boolean; disabled?: boolean }>(), {
+const props = withDefaults(defineProps<{ value?: boolean; disabled?: boolean; ariaLabel?: string }>(), {
   value: false,
-  disabled: false
+  disabled: false,
+  ariaLabel: undefined
 })
 
 const emit = defineEmits<{ (e: 'update:value', value: boolean): void }>()
@@ -42,10 +45,17 @@ function toggle() {
   border: none;
   background: transparent;
   cursor: pointer;
-  outline: none;
+  /* 透明 outline 兜底：支持 :focus-visible 时显示主色 outline，不支持时退化为无视觉边框 */
+  outline: 2px solid transparent;
   -webkit-appearance: none;
   user-select: none;
   -webkit-user-select: none;
+}
+
+.app-switch:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .app-switch:focus-visible .app-switch__rail {

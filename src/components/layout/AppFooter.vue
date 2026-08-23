@@ -1,26 +1,30 @@
 <template>
   <div class="app-footer">
-    <div class="footer-left">
-      <div class="global-stats">
-        <span class="stat-item">
-          <n-icon :size="14"><DownloadOutline /></n-icon>
-          {{ formatSpeed(globalStat.downloadSpeed) }}
-        </span>
-        <span class="stat-item">
-          <n-icon :size="14"><CloudUploadOutline /></n-icon>
-          {{ formatSpeed(globalStat.uploadSpeed) }}
-        </span>
-        <n-divider vertical />
-        <span class="stat-item">
-          {{ t('footer.active') }}: {{ globalStat.numActive }}
-        </span>
-        <span class="stat-item">
-          {{ t('footer.waiting') }}: {{ globalStat.numWaiting }}
-        </span>
-        <span class="stat-item">
-          {{ t('footer.stopped') }}: {{ globalStat.numStopped }}
-        </span>
-      </div>
+    <div class="global-stats">
+      <span
+        class="stat-item"
+        :aria-label="`${t('footer.downloadSpeed')}: ${formatSpeed(globalStat.downloadSpeed)}`"
+      >
+        <n-icon :size="14"><DownloadOutline /></n-icon>
+        {{ formatSpeed(globalStat.downloadSpeed) }}
+      </span>
+      <span
+        class="stat-item"
+        :aria-label="`${t('footer.uploadSpeed')}: ${formatSpeed(globalStat.uploadSpeed)}`"
+      >
+        <n-icon :size="14"><CloudUploadOutline /></n-icon>
+        {{ formatSpeed(globalStat.uploadSpeed) }}
+      </span>
+      <n-divider vertical />
+      <span class="stat-item" :aria-label="`${t('footer.active')}: ${globalStat.numActive}`">
+        {{ t('footer.active') }}: {{ globalStat.numActive }}
+      </span>
+      <span class="stat-item" :aria-label="`${t('footer.waiting')}: ${globalStat.numWaiting}`">
+        {{ t('footer.waiting') }}: {{ globalStat.numWaiting }}
+      </span>
+      <span class="stat-item" :aria-label="`${t('footer.stopped')}: ${globalStat.numStopped}`">
+        {{ t('footer.stopped') }}: {{ globalStat.numStopped }}
+      </span>
     </div>
   </div>
 </template>
@@ -50,10 +54,6 @@ const globalStat = computed(() => statsStore.globalStat)
   font-size: 12px;
   color: var(--text-regular);
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
-}
-
-.footer-left {
-  flex: 1;
 }
 
 .global-stats {

@@ -10,18 +10,34 @@
   --bg-hover: #f0f4ff;
   --text-primary: #1a1f2b;
   --text-regular: #4a5266;
-  --text-secondary: #8a93a6;
-  --text-placeholder: #b6bdca;
+  --text-secondary: #6b7280;
+  --text-placeholder: #9ca3af;
   --border-light: #ececf1;
   --border-base: #dde0e7;
   --border-dark: #c2c7d1;
   --color-primary: #4f6ef2;
   --color-success: #22c55e;
-  --color-warning: #f59e0b;
+  --color-warning: #d97706;
   --color-danger: #ef4444;
   --color-info: #64748b;
+  /* 间距 token */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  /* 字号 token */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 14px;
+  /* 圆角 token */
+  --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+  /* 动效 token */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+  --transition-slow: 0.3s ease;
   --shadow-light: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
   --shadow-base: 0 4px 16px rgba(16, 24, 40, 0.08);
   --shadow-dark: 0 8px 28px rgba(16, 24, 40, 0.14);
@@ -35,7 +51,7 @@
   --bg-hover: #232a3d;
   --text-primary: #e6e9ef;
   --text-regular: #b4bac8;
-  --text-secondary: #7d8597;
+  --text-secondary: #8b93a5;
   --text-placeholder: #5a6273;
   --border-light: #2c323e;
   --border-base: #3a4150;
@@ -45,6 +61,24 @@
   --color-warning: #fbbf24;
   --color-danger: #f87171;
   --color-info: #94a3b8;
+  /* 间距 token（与浅色主题一致） */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  /* 字号 token */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 14px;
+  /* 圆角 token */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  /* 动效 token */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+  --transition-slow: 0.3s ease;
   --shadow-light: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-base: 0 4px 16px rgba(0, 0, 0, 0.5);
   --shadow-dark: 0 8px 28px rgba(0, 0, 0, 0.6);

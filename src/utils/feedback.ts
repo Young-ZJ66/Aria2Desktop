@@ -37,7 +37,7 @@ function isDarkMode(): boolean {
     document.documentElement.getAttribute('data-theme') === 'dark'
 }
 
-type DiscreteApi = ReturnType<typeof createDiscreteApi<['message', 'dialog']>>
+type DiscreteApi = ReturnType<typeof createDiscreteApi<'message' | 'dialog'>>
 
 let cached: DiscreteApi | null = null
 let cachedIsDark: boolean | null = null
@@ -45,15 +45,20 @@ let cachedIsDark: boolean | null = null
 function getDiscreteApi(): DiscreteApi {
   const isDark = isDarkMode()
   // 主题切换后重建一次，确保颜色/圆角与当前主题一致
-  if (!cached || cachedIsDark !== isDark) {
-    cachedIsDark = isDark
-    cached = createDiscreteApi(['message', 'dialog'], {
-      configProviderProps: {
-        theme: isDark ? darkTheme : undefined,
-        themeOverrides: buildThemeOverrides(isDark)
-      }
-    })
+  if (cached && cachedIsDark === isDark) {
+    return cached
   }
+  // 先卸载旧实例，避免其 DOM 容器与事件监听残留在 document.body 造成内存泄漏
+  if (cached) {
+    cached.unmount?.()
+  }
+  cachedIsDark = isDark
+  cached = createDiscreteApi(['message', 'dialog'], {
+    configProviderProps: {
+      theme: isDark ? darkTheme : undefined,
+      themeOverrides: buildThemeOverrides(isDark)
+    }
+  })
   return cached
 }
 
@@ -70,8 +75,8 @@ export interface ConfirmOptions {
   type?: 'default' | 'warning' | 'error' | 'info' | 'success'
   positiveText?: string
   negativeText?: string
-  /** 返回 false 时保持弹窗不关闭（与 Naive UI 语义一致） */
-  onPositiveClick?: () => void | boolean
+  /** 返回 false 时保持弹窗不关闭（与 Naive UI 语义一致）；支持异步回调 */
+  onPositiveClick?: () => void | boolean | Promise<void | boolean>
   onNegativeClick?: () => void
 }
 
@@ -98,8 +103,9 @@ export function confirm(options: ConfirmOptions): void {
         ? h(NButton, {
           size: 'small',
           type: 'primary',
-          onClick: () => {
-            const result = options.onPositiveClick?.()
+          onClick: async () => {
+            // await 后再判断返回值，避免异步校验未完成时弹窗提前关闭
+            const result = await options.onPositiveClick?.()
             if (result !== false) instance?.destroy()
           }
         }, { default: () => options.positiveText })

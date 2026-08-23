@@ -21,12 +21,24 @@
       </div>
 
       <div class="profile-list">
+        <n-empty
+          v-if="connectionStore.profiles.length === 0"
+          :description="t('connection.noProfiles')"
+          size="small"
+          style="padding: 32px 0;"
+        />
         <div
           v-for="profile in connectionStore.profiles"
           :key="profile.id"
           class="profile-item"
           :class="{ connected: isProfileConnected(profile.id) }"
+          role="button"
+          tabindex="0"
+          :aria-label="`${t('connection.editProfile')}: ${profile.name || t('connection.defaultProfileName')}`"
           @click="openProfile(profile.id)"
+          @keydown.enter="openProfile(profile.id)"
+          @keydown.space.prevent
+          @keyup.space="openProfile(profile.id)"
         >
           <div class="profile-item-main">
             <div class="profile-item-name">

@@ -4,7 +4,8 @@
       <n-button
         size="small"
         type="default"
-        :disabled="!canBatchStart"
+        :disabled="operating || !canBatchStart"
+        :loading="operating"
         @click="$emit('batch-start')"
       >
         <template #icon>
@@ -16,7 +17,8 @@
       <n-button
         size="small"
         type="default"
-        :disabled="!canBatchPause"
+        :disabled="operating || !canBatchPause"
+        :loading="operating"
         @click="$emit('batch-pause')"
       >
         <template #icon>
@@ -30,6 +32,8 @@
         size="small"
         type="default"
         class="batch-delete-btn"
+        :disabled="deleting"
+        :loading="deleting"
         @click="$emit('batch-delete')"
       >
         <template #icon>
@@ -39,7 +43,7 @@
       </n-button>
     </div>
 
-    <span v-if="hasSelection" class="selected-count">{{ t('task.selectedCount', { count: selectedCount }) }}</span>
+    <span v-if="hasSelection" class="selected-count" aria-live="polite">{{ t('task.selectedCount', { count: selectedCount }) }}</span>
   </div>
 </template>
 
@@ -52,6 +56,10 @@ interface Props {
   hasSelection: boolean
   canBatchStart: boolean
   canBatchPause: boolean
+  /** 批量开始/暂停等操作进行中：禁用全部批量按钮，防止重复触发 */
+  operating?: boolean
+  /** 批量删除进行中：删除按钮显示 loading 并禁用 */
+  deleting?: boolean
 }
 
 interface Emits {
@@ -61,7 +69,10 @@ interface Emits {
 }
 
 const { t } = useI18n()
-defineProps<Props>()
+withDefaults(defineProps<Props>(), {
+  operating: false,
+  deleting: false
+})
 defineEmits<Emits>()
 </script>
 

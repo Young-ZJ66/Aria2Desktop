@@ -6,6 +6,17 @@ import { app } from 'electron'
 import { ResourceManager } from '../utils/resourceManager'
 import { Aria2ConfigManager } from '../utils/aria2ConfigManager'
 
+/** Aria2 stdout 中不重要的日志模式（运行时噪音，无需转发） */
+const IGNORED_STDOUT_PATTERNS = [
+  'Serialized session',
+  '[INFO]',
+  '[DEBUG]',
+  'Executing RPC method',
+  'RPC: Accepted the connection',
+  'Got EOF from peer',
+  'Error occurred while reading HTTP request'
+]
+
 export interface Aria2ProcessConfig {
   executablePath?: string
   configPath?: string
@@ -145,6 +156,10 @@ export class Aria2ProcessManager {
         }
       }
 
+      // 若已 spawn 成功但后续等待就绪失败，先强制终止进程再清引用，避免僵尸进程泄漏
+      if (this.process && !this.process.killed) {
+        try { this.process.kill('SIGKILL') } catch { /* 进程可能已退出，忽略 kill 失败 */ }
+      }
       this.process = null
       return false
     } finally {
@@ -244,18 +259,9 @@ export class Aria2ProcessManager {
 
     this.process.stdout?.on('data', (data) => {
       const output = data.toString().trim()
-      // 只输出有意义的内容，过滤空行和重复信息
-      if (output && !output.match(/^\s*$/)) {
-        // 过滤不重要的日志和RPC相关输出
-        if (!output.includes('Serialized session') &&
-            !output.includes('[INFO]') &&
-            !output.includes('[DEBUG]') &&
-            !output.includes('Executing RPC method') &&
-            !output.includes('RPC: Accepted the connection') &&
-            !output.includes('Got EOF from peer') &&
-            !output.includes('Error occurred while reading HTTP request')) {
-          console.log('[Aria2 stdout]:', output)
-        }
+      // 只输出有意义的内容，过滤空行和不重要的日志/RPC 相关输出
+      if (output && !output.match(/^\s*$/) && IGNORED_STDOUT_PATTERNS.every(p => !output.includes(p))) {
+        console.log('[Aria2 stdout]:', output)
       }
     })
 
@@ -410,7 +416,7 @@ export class Aria2ProcessManager {
       ...this.config,
       // 直接使用配置文件中的值
       downloadDir: actualConfigs.dir || '',
-      port: actualConfigs.port ? parseInt(actualConfigs.port) : this.config.port,
+      port: actualConfigs.port ? parseInt(actualConfigs.port, 10) : this.config.port,
       secret: actualConfigs.secret || ''
     }
 
@@ -463,11 +469,11 @@ export class Aria2ProcessManager {
         } catch (error) {
           console.error('自动重启 Aria2 失败:', error)
         }
-      }, 1500) // 增加到1.5秒，确保配置文件完全写入
+      }, 1500) // 1.5 秒缓冲，确保配置文件完全写入后再重启
     }
   }
 
-  // 新增：等待配置文件同步完成
+  // 等待配置文件同步完成
   private async waitForConfigFileSync(): Promise<void> {
     // 等待文件系统同步
     await new Promise(resolve => setTimeout(resolve, 800))

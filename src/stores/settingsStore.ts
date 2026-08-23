@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, onScopeDispose } from 'vue'
 import { settingsService, type AppSettings } from '@/services/settingsService'
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -16,8 +16,13 @@ export const useSettingsStore = defineStore('settings', () => {
   const language = computed(() => settings.value.language)
 
   // 监听设置变化（store 实例只创建一次，避免重复注册监听器）
-  settingsService.onSettingsChange((newSettings) => {
+  // 用具名函数并在 store 作用域销毁时移除，防止 HMR 时监听器泄漏
+  const handleSettingsChange = (newSettings: AppSettings) => {
     settings.value = newSettings
+  }
+  settingsService.onSettingsChange(handleSettingsChange)
+  onScopeDispose(() => {
+    settingsService.removeListener(handleSettingsChange)
   })
 
   // 初始化
@@ -159,10 +164,13 @@ export const useSettingsStore = defineStore('settings', () => {
       }
     }
 
-    // 自动模式下监听系统主题变化（只注册一次）
+    // 自动模式下监听系统主题变化（只注册一次）；切出自动模式时移除监听
     if (theme === 'auto' && !mediaListenerRegistered) {
       mediaQuery.addEventListener('change', handleSystemThemeChange)
       mediaListenerRegistered = true
+    } else if (theme !== 'auto' && mediaListenerRegistered) {
+      mediaQuery.removeEventListener('change', handleSystemThemeChange)
+      mediaListenerRegistered = false
     }
   }
 

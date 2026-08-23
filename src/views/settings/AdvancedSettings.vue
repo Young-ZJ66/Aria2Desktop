@@ -12,8 +12,16 @@
     @reload="loadSettings"
     @reset="handleReset"
   >
-    <n-card :title="t('settings.advanced.groupEventMemory')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+    <n-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-placement="left"
+      :label-width="180"
+      label-align="left"
+      :show-feedback="false"
+    >
+      <n-card :title="t('settings.advanced.groupEventMemory')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.advanced.eventPoll')" :tip="t('settings.advanced.eventPollTip')" :option="'event-poll'" />
@@ -35,7 +43,7 @@
           />
         </n-form-item>
 
-        <n-form-item>
+        <n-form-item path="maxMmapLimit">
           <template #label>
             <TipLabel :label="t('settings.advanced.maxMmapLimit')" :tip="t('settings.advanced.maxMmapLimitTip')" :option="'max-mmap-limit'" />
           </template>
@@ -46,11 +54,9 @@
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
 
-    <n-card :title="t('settings.advanced.groupLog')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+      <n-card :title="t('settings.advanced.groupLog')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.advanced.log')" :tip="t('settings.advanced.logTip')" />
@@ -94,7 +100,7 @@
           />
         </n-form-item>
 
-        <n-form-item>
+        <n-form-item path="summaryInterval">
           <template #label>
             <TipLabel :label="t('settings.advanced.summaryInterval')" :tip="t('settings.advanced.summaryIntervalTip')" :option="'summary-interval'" />
           </template>
@@ -125,26 +131,28 @@
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
+    </n-form>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import type { Aria2Option } from '@/types/aria2'
+import { ref, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
+import type { FormRules, FormInst } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
-import { parseSizeToUnit, formatSizeWithUnit } from '@/utils/size'
+import type { SettingSchema } from '@/types/settingSchema'
+import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
+const formRef = ref<FormInst | null>(null)
 
 const eventPollOptions = [
   { label: 'epoll', value: 'epoll' },
@@ -174,53 +182,58 @@ const form = reactive({
   humanReadable: true
 })
 
-function applyOptionsToSettings(options: Aria2Option) {
-  form.eventPoll = options['event-poll'] || 'select'
-  form.enableMmap = options['enable-mmap'] === 'true'
-  form.maxMmapLimit = parseSizeToUnit(options['max-mmap-limit'] || '0', 'G')
-  form.log = options['log'] || ''
-  form.logLevel = options['log-level'] || 'warn'
-  form.consoleLogLevel = options['console-log-level'] || 'notice'
-  form.summaryInterval = parseInt(options['summary-interval'] || '60')
-  form.enableColor = options['enable-color'] !== 'false'
-  form.humanReadable = options['human-readable'] !== 'false'
+// 表单验证规则
+const rules: FormRules = {
+  // max-mmap-limit 单位 GB，0 表示不限制，仅校验非负
+  maxMmapLimit: [
+    { type: 'number', min: 0, message: () => t('settings.valueMin', { min: 0 }), trigger: 'blur' }
+  ],
+  // summary-interval 取值范围 0-3600 秒
+  summaryInterval: [
+    { type: 'number', min: 0, max: 3600, message: () => t('settings.valueRange', { min: 0, max: 3600 }), trigger: 'blur' }
+  ]
 }
 
-function toOptions(): Record<string, string> {
-  const options: Record<string, string> = {
-    'event-poll': form.eventPoll,
-    'enable-mmap': form.enableMmap ? 'true' : 'false',
-    'log-level': form.logLevel,
-    'console-log-level': form.consoleLogLevel,
-    'summary-interval': form.summaryInterval.toString(),
-    'enable-color': form.enableColor ? 'true' : 'false',
-    'human-readable': form.humanReadable ? 'true' : 'false'
-  }
-
-  if (form.log) options['log'] = form.log
-  // 始终发送 max-mmap-limit（含 0=不限制），否则 aria2 会保留旧值导致"设 0 不生效"
-  options['max-mmap-limit'] = formatSizeWithUnit(form.maxMmapLimit, 'G')
-  return options
+// aria2 选项 <-> 表单字段 的 schema 声明：type 决定默认转换规则，
+// max-mmap-limit 为 size 类型，size 类型保存时始终写入（含 0=不限制），
+// 保证「设 0 不生效」问题不会回归
+const advancedSettingsSchema: SettingSchema = {
+  fields: [
+    { key: 'eventPoll', aria2Key: 'event-poll', type: 'select', default: 'select' },
+    { key: 'enableMmap', aria2Key: 'enable-mmap', type: 'boolean', default: false },
+    { key: 'maxMmapLimit', aria2Key: 'max-mmap-limit', type: 'size', default: 0, unit: 'G' },
+    { key: 'log', aria2Key: 'log', type: 'string', default: '' },
+    { key: 'logLevel', aria2Key: 'log-level', type: 'select', default: 'warn' },
+    { key: 'consoleLogLevel', aria2Key: 'console-log-level', type: 'select', default: 'notice' },
+    { key: 'summaryInterval', aria2Key: 'summary-interval', type: 'number', default: 60 },
+    { key: 'enableColor', aria2Key: 'enable-color', type: 'boolean', default: true },
+    { key: 'humanReadable', aria2Key: 'human-readable', type: 'boolean', default: true }
+  ]
 }
 
-function defaults() {
-  return {
-    eventPoll: 'select',
-    enableMmap: false,
-    maxMmapLimit: 0,
-    log: '',
-    logLevel: 'warn',
-    consoleLogLevel: 'notice',
-    summaryInterval: 60,
-    enableColor: true,
-    humanReadable: true
+const { applyOptions, toOptions, defaults } = useSettingSchema(advancedSettingsSchema, form)
+
+// 表单校验：失败时阻止保存并提示第一条错误
+async function validate(): Promise<boolean> {
+  if (!formRef.value) return true
+  try {
+    await formRef.value.validate()
+    return true
+  } catch (errors) {
+    const first = Array.isArray(errors) && errors.length > 0 ? errors[0] : undefined
+    const msg = Array.isArray(first) && first.length > 0 && first[0]?.message
+      ? first[0].message
+      : t('settings.saveFailedShort')
+    message.error(msg)
+    return false
   }
 }
 
 const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(form, {
-  applyOptions: applyOptionsToSettings,
+  applyOptions,
   toOptions,
-  defaults
+  defaults,
+  validate
 })
 
 // 选择日志文件

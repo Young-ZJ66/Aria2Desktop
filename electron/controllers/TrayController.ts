@@ -16,7 +16,7 @@ export class TrayController {
     if (this.tray) return
 
     const iconPath = this.getIconPath()
-    console.log('Creating tray with icon:', iconPath)
+    console.log('[TrayController] Creating tray with icon:', iconPath)
 
     try {
       // 图标路径不存在时回退到空图像，避免 Tray 构造抛错
@@ -69,7 +69,7 @@ export class TrayController {
       {
         label: labels.quit,
         click: () => {
-          appState.isQuiting = true
+          appState.markQuitting()
           app.quit()
         }
       }

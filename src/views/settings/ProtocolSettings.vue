@@ -12,8 +12,16 @@
     @reload="loadSettings"
     @reset="handleReset"
   >
-    <n-card :title="t('settings.protocol.groupHttpAuth')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+    <n-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-placement="left"
+      :label-width="180"
+      label-align="left"
+      :show-feedback="false"
+    >
+      <n-card :title="t('settings.protocol.groupHttpAuth')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.protocol.httpUser')" :tip="t('settings.protocol.httpUserTip')" />
@@ -47,11 +55,9 @@
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
 
-    <n-card :title="t('settings.protocol.groupHttpBehavior')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+      <n-card :title="t('settings.protocol.groupHttpBehavior')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.protocol.httpAcceptGzip')" :tip="t('settings.protocol.httpAcceptGzipTip')" />
@@ -85,7 +91,7 @@
           />
         </n-form-item>
 
-        <n-form-item>
+        <n-form-item path="referer">
           <template #label>
             <TipLabel :label="t('settings.protocol.referer')" :tip="t('settings.protocol.refererTip')" />
           </template>
@@ -125,11 +131,9 @@
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
 
-    <n-card :title="t('settings.protocol.groupTls')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+      <n-card :title="t('settings.protocol.groupTls')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.protocol.checkCertificate')" :tip="t('settings.protocol.checkCertificateTip')" />
@@ -213,11 +217,9 @@
             </n-button>
           </n-input-group>
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
 
-    <n-card :title="t('settings.protocol.groupFtp')" class="setting-group">
-      <n-form label-placement="left" :label-width="180" :show-feedback="false" label-align="left">
+      <n-card :title="t('settings.protocol.groupFtp')" class="setting-group">
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.protocol.ftpUser')" />
@@ -272,25 +274,28 @@
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
-      </n-form>
-    </n-card>
+      </n-card>
+    </n-form>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
-import { reactive, computed } from 'vue'
-import type { Aria2Option } from '@/types/aria2'
+import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
+import type { FormRules, FormInst } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
+import type { SettingSchema } from '@/types/settingSchema'
+import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
+const formRef = ref<FormInst | null>(null)
 
 const ftpTypeOptions = [
   { label: 'binary', value: 'binary' },
@@ -329,85 +334,67 @@ const form = reactive({
   ftpReuseConnection: true
 })
 
-function applyOptionsToSettings(options: Aria2Option) {
-  form.httpUser = options['http-user'] || ''
-  form.httpPasswd = options['http-passwd'] || ''
-  form.httpAuthChallenge = options['http-auth-challenge'] === 'true'
-  form.httpAcceptGzip = options['http-accept-gzip'] === 'true'
-  form.httpNoCache = options['http-no-cache'] === 'true'
-  form.header = options['header'] || ''
-  form.referer = options['referer'] || ''
-  form.enableHttpKeepAlive = options['enable-http-keep-alive'] !== 'false'
-  form.enableHttpPipelining = options['enable-http-pipelining'] === 'true'
-  form.contentDispositionDefaultUtf8 = options['content-disposition-default-utf8'] === 'true'
-  form.checkCertificate = options['check-certificate'] !== 'false'
-  form.minTlsVersion = options['min-tls-version'] || ''
-  form.caCertificate = options['ca-certificate'] || ''
-  form.certificate = options['certificate'] || ''
-  form.privateKey = options['private-key'] || ''
-  form.ftpUser = options['ftp-user'] || ''
-  form.ftpPasswd = options['ftp-passwd'] || ''
-  form.ftpType = options['ftp-type'] || 'binary'
-  form.ftpPasv = options['ftp-pasv'] !== 'false'
-  form.ftpReuseConnection = options['ftp-reuse-connection'] !== 'false'
+// referer 校验：为空时跳过（让 aria2 保留旧值），非空时需为带 http(s) 协议头的合法 URL
+function isValidReferer(value: string): boolean {
+  return /^https?:\/\/\S+$/i.test(value.trim())
 }
 
-function toOptions(): Record<string, string> {
-  const options: Record<string, string> = {
-    'http-auth-challenge': form.httpAuthChallenge ? 'true' : 'false',
-    'http-accept-gzip': form.httpAcceptGzip ? 'true' : 'false',
-    'http-no-cache': form.httpNoCache ? 'true' : 'false',
-    'enable-http-keep-alive': form.enableHttpKeepAlive ? 'true' : 'false',
-    'enable-http-pipelining': form.enableHttpPipelining ? 'true' : 'false',
-    'content-disposition-default-utf8': form.contentDispositionDefaultUtf8 ? 'true' : 'false',
-    'check-certificate': form.checkCertificate ? 'true' : 'false',
-    'ftp-type': form.ftpType,
-    'ftp-pasv': form.ftpPasv ? 'true' : 'false',
-    'ftp-reuse-connection': form.ftpReuseConnection ? 'true' : 'false'
-  }
-
-  if (form.httpUser) options['http-user'] = form.httpUser
-  if (form.httpPasswd) options['http-passwd'] = form.httpPasswd
-  if (form.header) options['header'] = form.header
-  if (form.referer) options['referer'] = form.referer
-  if (form.minTlsVersion) options['min-tls-version'] = form.minTlsVersion
-  if (form.caCertificate) options['ca-certificate'] = form.caCertificate
-  if (form.certificate) options['certificate'] = form.certificate
-  if (form.privateKey) options['private-key'] = form.privateKey
-  if (form.ftpUser) options['ftp-user'] = form.ftpUser
-  if (form.ftpPasswd) options['ftp-passwd'] = form.ftpPasswd
-  return options
+// 表单验证规则
+const rules: FormRules = {
+  referer: [
+    { validator: (_rule, value) => (typeof value === 'string' && value.trim() && !isValidReferer(value) ? new Error(t('settings.invalidUrl')) : true), trigger: 'blur' }
+  ]
 }
 
-function defaults() {
-  return {
-    httpUser: '',
-    httpPasswd: '',
-    httpAuthChallenge: false,
-    httpAcceptGzip: false,
-    httpNoCache: false,
-    header: '',
-    referer: '',
-    enableHttpKeepAlive: true,
-    enableHttpPipelining: false,
-    contentDispositionDefaultUtf8: false,
-    checkCertificate: true,
-    minTlsVersion: '',
-    caCertificate: '',
-    certificate: '',
-    privateKey: '',
-    ftpUser: '',
-    ftpPasswd: '',
-    ftpType: 'binary',
-    ftpPasv: true,
-    ftpReuseConnection: true
+// aria2 选项 <-> 表单字段 的 schema 声明：type 决定默认转换规则，本页全部走默认转换
+const protocolSettingsSchema: SettingSchema = {
+  fields: [
+    { key: 'httpUser', aria2Key: 'http-user', type: 'string', default: '' },
+    { key: 'httpPasswd', aria2Key: 'http-passwd', type: 'string', default: '' },
+    { key: 'httpAuthChallenge', aria2Key: 'http-auth-challenge', type: 'boolean', default: false },
+    { key: 'httpAcceptGzip', aria2Key: 'http-accept-gzip', type: 'boolean', default: false },
+    { key: 'httpNoCache', aria2Key: 'http-no-cache', type: 'boolean', default: false },
+    { key: 'header', aria2Key: 'header', type: 'string', default: '' },
+    { key: 'referer', aria2Key: 'referer', type: 'string', default: '' },
+    { key: 'enableHttpKeepAlive', aria2Key: 'enable-http-keep-alive', type: 'boolean', default: true },
+    { key: 'enableHttpPipelining', aria2Key: 'enable-http-pipelining', type: 'boolean', default: false },
+    { key: 'contentDispositionDefaultUtf8', aria2Key: 'content-disposition-default-utf8', type: 'boolean', default: false },
+    { key: 'checkCertificate', aria2Key: 'check-certificate', type: 'boolean', default: true },
+    { key: 'minTlsVersion', aria2Key: 'min-tls-version', type: 'select', default: '' },
+    { key: 'caCertificate', aria2Key: 'ca-certificate', type: 'string', default: '' },
+    { key: 'certificate', aria2Key: 'certificate', type: 'string', default: '' },
+    { key: 'privateKey', aria2Key: 'private-key', type: 'string', default: '' },
+    { key: 'ftpUser', aria2Key: 'ftp-user', type: 'string', default: '' },
+    { key: 'ftpPasswd', aria2Key: 'ftp-passwd', type: 'string', default: '' },
+    { key: 'ftpType', aria2Key: 'ftp-type', type: 'select', default: 'binary' },
+    { key: 'ftpPasv', aria2Key: 'ftp-pasv', type: 'boolean', default: true },
+    { key: 'ftpReuseConnection', aria2Key: 'ftp-reuse-connection', type: 'boolean', default: true }
+  ]
+}
+
+const { applyOptions, toOptions, defaults } = useSettingSchema(protocolSettingsSchema, form)
+
+// 表单校验：失败时阻止保存并提示第一条错误
+async function validate(): Promise<boolean> {
+  if (!formRef.value) return true
+  try {
+    await formRef.value.validate()
+    return true
+  } catch (errors) {
+    const first = Array.isArray(errors) && errors.length > 0 ? errors[0] : undefined
+    const msg = Array.isArray(first) && first.length > 0 && first[0]?.message
+      ? first[0].message
+      : t('settings.saveFailedShort')
+    message.error(msg)
+    return false
   }
 }
 
 const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(form, {
-  applyOptions: applyOptionsToSettings,
+  applyOptions,
   toOptions,
-  defaults
+  defaults,
+  validate
 })
 
 // 选择证书文件

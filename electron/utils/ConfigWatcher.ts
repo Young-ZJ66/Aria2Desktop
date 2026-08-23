@@ -3,9 +3,9 @@ import { EventEmitter } from 'events'
 import type { StoreData } from '../types/store'
 
 export interface ConfigChangeEvent {
-    key: string
-    newValue: unknown
-    oldValue: unknown
+  key: string
+  newValue: unknown
+  oldValue: unknown
 }
 
 /**
@@ -22,8 +22,8 @@ export class ConfigWatcher extends EventEmitter {
   }
 
   /**
-     * 监听特定配置键的变更
-     */
+   * 监听特定配置键的变更
+   */
   watch(key: string, callback: (newValue: unknown, oldValue: unknown) => void) {
     if (this.configListeners.has(key)) {
       console.warn(`[ConfigWatcher] Key "${key}" is already being watched`)
@@ -40,8 +40,8 @@ export class ConfigWatcher extends EventEmitter {
   }
 
   /**
-     * 停止监听特定键
-     */
+   * 停止监听特定键
+   */
   unwatch(key: string) {
     const unsubscribe = this.configListeners.get(key)
     if (unsubscribe) {
@@ -51,24 +51,10 @@ export class ConfigWatcher extends EventEmitter {
   }
 
   /**
-     * 停止监听所有键
-     */
+   * 停止监听所有键
+   */
   unwatchAll() {
     this.configListeners.forEach((unsubscribe) => unsubscribe())
     this.configListeners.clear()
-  }
-
-  /**
-     * 获取配置键的当前值
-     */
-  get(key: string, defaultValue?: unknown): unknown {
-    return this.store.get(key, defaultValue)
-  }
-
-  /**
-     * 设置配置值
-     */
-  set(key: string, value: unknown) {
-    this.store.set(key, value)
   }
 }

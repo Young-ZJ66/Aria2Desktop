@@ -101,13 +101,15 @@ class CompletedTaskDeleteService {
 
     // 检查是否有重复的目录路径（仅处理"盘符根后第一层目录紧接着重复"的已知 aria2 缺陷形态）
     if (isWindows) {
-      const match = normalizedPath.match(/^([a-zA-Z]:[\\/][^\\/]+)[\\/]\1(?:[\\/](.*))?$/i)
+      const match = normalizedPath.match(/^([a-zA-Z]:[\\/])([^\\/]+)[\\/]\2(?:[\\/](.*))?$/i)
       if (match) {
-        const duplicatedPart = match[1]
-        const remainingPart = match[2]
+        // 正则捕获组在匹配成功时必存在，用非空断言规避 noUncheckedIndexedAccess
+        const drivePart = match[1]!
+        const duplicatedPart = match[2]!
+        const remainingPart = match[3]
         const correctedPath = remainingPart !== undefined
-          ? duplicatedPart + separator + remainingPart
-          : duplicatedPart
+          ? drivePart + duplicatedPart + separator + remainingPart
+          : drivePart + duplicatedPart
         console.warn(`Detected duplicate path: "${normalizedPath}" -> "${correctedPath}"`)
         return correctedPath
       }
@@ -151,7 +153,7 @@ class CompletedTaskDeleteService {
             // 第二参数传任务实际目录，主进程据此放宽白名单（任务可下载到非默认目录）
             const deleteResult = await window.electronAPI.deleteFiles(filePaths, task.dir)
 
-            if (deleteResult.success && deleteResult.results) {
+            if (deleteResult.success && Array.isArray(deleteResult.results)) {
               const successfulDeletes = deleteResult.results.filter((r: FileDeleteItemResult) => r.success)
               result.filesDeleted = successfulDeletes.length
 

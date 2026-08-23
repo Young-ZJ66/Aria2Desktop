@@ -19,7 +19,7 @@ export type Aria2ClientEvent =
   | 'downloadError'
   | 'btDownloadComplete'
 
-type Aria2EventListener = (...args: unknown[]) => void
+export type Aria2EventListener = (...args: unknown[]) => void
 
 export class Aria2Client {
   private config: Aria2Config
@@ -66,6 +66,14 @@ export class Aria2Client {
   private buildRpcRequest(method: string, params: unknown[] = []): Aria2RpcRequest {
     // 如果有secret，添加到参数开头
     if (this.config.secret) {
+      // 安全提示：HTTP 协议 + 非本机地址时 secret 明文走线，存在泄露风险
+      const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(this.config.host)
+      if (this.config.protocol === 'http' && !isLocalHost) {
+        console.warn(
+          'Aria2 secret will be transmitted in plain text over HTTP to a non-local host. ' +
+          'Consider using HTTPS/WSS or a local connection.'
+        )
+      }
       params = [`token:${this.config.secret}`, ...params]
     }
 
@@ -84,6 +92,11 @@ export class Aria2Client {
     try {
       const response = await this.httpClient.post('', request)
       const rpcResponse: Aria2RpcResponse<T> = response.data
+
+      // 校验响应结构，避免非 JSON-RPC 响应（如 HTML 错误页）进入后续逻辑
+      if (!rpcResponse || typeof rpcResponse !== 'object') {
+        throw new Error('Invalid RPC response')
+      }
 
       if (rpcResponse.error) {
         console.error('Aria2 RPC Error:', rpcResponse.error)
@@ -213,25 +226,25 @@ export class Aria2Client {
     else if ('method' in data) {
       this.emit('notification', data)
 
-      // 处理特定的通知事件
+      // 处理特定的通知事件（params 可能缺失，使用可选链避免取下标抛错）
       switch (data.method) {
         case 'aria2.onDownloadStart':
-          this.emit('downloadStart', data.params[0])
+          this.emit('downloadStart', data.params?.[0])
           break
         case 'aria2.onDownloadPause':
-          this.emit('downloadPause', data.params[0])
+          this.emit('downloadPause', data.params?.[0])
           break
         case 'aria2.onDownloadStop':
-          this.emit('downloadStop', data.params[0])
+          this.emit('downloadStop', data.params?.[0])
           break
         case 'aria2.onDownloadComplete':
-          this.emit('downloadComplete', data.params[0])
+          this.emit('downloadComplete', data.params?.[0])
           break
         case 'aria2.onDownloadError':
-          this.emit('downloadError', data.params[0])
+          this.emit('downloadError', data.params?.[0])
           break
         case 'aria2.onBtDownloadComplete':
-          this.emit('btDownloadComplete', data.params[0])
+          this.emit('btDownloadComplete', data.params?.[0])
           break
       }
     }

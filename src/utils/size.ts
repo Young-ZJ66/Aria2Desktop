@@ -18,8 +18,8 @@ export function parseSizeToUnit(value: string | number | null | undefined, unit:
   if (!str || str === '0') return 0
   const matched = str.match(/^(\d+(?:\.\d+)?)([KMGT]?)$/)
   if (!matched) return 0
-  const num = parseFloat(matched[1])
-  const sourceUnit = matched[2] as SizeUnit | ''
+  const num = parseFloat(matched[1] ?? '0')
+  const sourceUnit = (matched[2] ?? '') as SizeUnit | ''
   const bytes = sourceUnit ? num * UNIT_BYTES[sourceUnit] : num
   return Math.round(bytes / UNIT_BYTES[unit])
 }
