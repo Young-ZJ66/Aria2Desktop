@@ -40,3 +40,7 @@
  - TypeScript 严格化：开启 noUncheckedIndexedAccess；三份 tsconfig 抽取公共 base 统一配置
  - 长方法拆分（removeTask / loadTaskDetail / saveConfig 等），行为完全等价
  - parseInt 统一补充 radix；ESLint 引入 max-warnings 门禁
+
+## 📦 构建与 CI
+ - 补全 unplugin-vue-components 依赖声明，修复 CI 环境因缺失依赖导致的构建失败
+ - Vite 构建配置优化：chunk 体积控制与 naive-ui 按需引入集成
