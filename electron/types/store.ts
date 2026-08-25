@@ -1,59 +1,11 @@
 /**
  * Electron Store 数据类型定义
  *
- * 注意：AppSettings 与 src/services/settingsService.ts 中的同名接口描述同一份
- * 持久化数据，枚举值（如 theme）必须保持一致，修改任一处时同步更新另一处。
+ * AppSettings 的单一事实来源在 src/shared/appSettings.ts（主进程与渲染层共用），
+ * 修改持久化数据结构时只改那一处，本文件仅 re-export。
  */
-
-/** 应用设置 */
-export interface AppSettings {
-  theme?: 'light' | 'dark' | 'auto'
-  language?: string
-  refreshInterval?: number
-  autoConnect?: boolean
-  minimizeToTray?: boolean
-  closeToTray?: boolean
-  startMinimized?: boolean
-  keepWindowState?: boolean
-  autoLaunch?: boolean
-  aria2?: {
-    host?: string
-    port?: number
-    secret?: string
-    protocol?: string
-    path?: string
-    autoStart?: boolean
-    downloadDir?: string
-  }
-  // 多连接配置预设（与 src/services/settingsService.ts 中的定义保持一致）
-  connectionProfiles?: Array<{
-    id: string
-    name: string
-    config: {
-      host: string
-      port: number
-      protocol: string
-      secret: string
-      path: string
-    }
-  }>
-  activeProfileId?: string
-  // 界面设置
-  ui?: {
-    showStatusBar?: boolean
-    showToolbar?: boolean
-    taskListColumns?: string[]
-    defaultView?: 'downloading' | 'waiting' | 'stopped'
-  }
-  // 下载设置
-  download?: {
-    defaultDir?: string
-    maxConcurrentDownloads?: number
-    maxConnectionPerServer?: number
-    minSplitSize?: string
-    autoStart?: boolean
-  }
-}
+export type { AppSettings } from '../../src/shared/appSettings'
+import type { AppSettings } from '../../src/shared/appSettings'
 
 /** 窗口状态 */
 export interface WindowState {

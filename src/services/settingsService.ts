@@ -1,56 +1,10 @@
 // 设置管理服务
 //
-// 注意：AppSettings 与 electron/types/store.ts 描述同一份持久化数据，
-// 枚举值（如 theme）必须保持一致，修改任一处时同步更新另一处。
-export interface AppSettings {
-  // 常规设置
-  language: string
-  theme: 'light' | 'dark' | 'auto'
-  refreshInterval: number
-  autoConnect: boolean
-  minimizeToTray: boolean
-  autoLaunch: boolean
+// AppSettings 的单一事实来源在 @/shared/appSettings，主进程（electron/types/store.ts）
+// 与渲染层共用同一份定义，修改数据结构时只改共享文件。
 
-  // 连接设置（保留兼容，实际使用 profiles）
-  aria2: {
-    host: string
-    port: number
-    protocol: 'http' | 'https' | 'ws' | 'wss'
-    secret: string
-    path: string
-  }
-
-  // 多连接配置预设
-  connectionProfiles: Array<{
-    id: string
-    name: string
-    config: {
-      host: string
-      port: number
-      protocol: 'http' | 'https' | 'ws' | 'wss'
-      secret: string
-      path: string
-    }
-  }>
-  activeProfileId: string
-
-  // 界面设置
-  ui: {
-    showStatusBar: boolean
-    showToolbar: boolean
-    taskListColumns: string[]
-    defaultView: 'downloading' | 'waiting' | 'stopped'
-  }
-
-  // 下载设置
-  download: {
-    defaultDir: string
-    maxConcurrentDownloads: number
-    maxConnectionPerServer: number
-    minSplitSize: string
-    autoStart: boolean
-  }
-}
+export type { AppSettings } from '@/shared/appSettings'
+import type { AppSettings } from '@/shared/appSettings'
 
 export const defaultSettings: AppSettings = {
   language: 'zh-CN',
@@ -148,9 +102,35 @@ class SettingsService {
     return JSON.parse(JSON.stringify(obj))
   }
 
+  /**
+   * 深合并嵌套对象（aria2/ui/download/connectionProfiles），
+   * 避免调用方传入局部嵌套（如 download: { defaultDir }）时覆盖同级其他字段。
+   * 数组与叶子值直接替换。
+   */
+  private deepMerge(base: AppSettings, patch: Partial<AppSettings>): AppSettings {
+    const merged: AppSettings = { ...base, ...patch }
+
+    if (patch.aria2) {
+      merged.aria2 = { ...base.aria2, ...patch.aria2 }
+    }
+    if (patch.ui) {
+      merged.ui = { ...base.ui, ...patch.ui }
+    }
+    if (patch.download) {
+      merged.download = { ...base.download, ...patch.download }
+    }
+    if (patch.connectionProfiles) {
+      merged.connectionProfiles = patch.connectionProfiles
+    }
+    if (patch.activeProfileId !== undefined) {
+      merged.activeProfileId = patch.activeProfileId
+    }
+    return merged
+  }
+
   // 保存设置
   async saveSettings(newSettings: Partial<AppSettings>): Promise<void> {
-    this.settings = { ...this.settings, ...newSettings }
+    this.settings = this.deepMerge(this.settings, newSettings)
 
     try {
       if (window.electronAPI) {
@@ -190,7 +170,8 @@ class SettingsService {
 
   // 重置设置
   async resetSettings(): Promise<void> {
-    await this.saveSettings(defaultSettings)
+    // 深拷贝默认值，避免后续修改污染默认设置对象本身
+    await this.saveSettings(structuredClone(defaultSettings))
   }
 
   // 监听设置变化

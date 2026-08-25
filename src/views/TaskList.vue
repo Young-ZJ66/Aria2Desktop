@@ -70,7 +70,10 @@
         class="task-table"
       >
         <template #empty>
-          <n-empty :description="t('task.noTasks')" size="small" />
+          <!-- 空状态出现时淡入（避免搜索结果/空列表切换时生硬闪出） -->
+          <transition name="fade-in">
+            <n-empty :description="t('task.noTasks')" size="small" />
+          </transition>
         </template>
       </n-data-table>
     </div>
@@ -103,10 +106,11 @@ import TaskCheckbox from '@/components/TaskCheckbox.vue'
 import DeleteTaskDialog from '@/components/dialogs/DeleteTaskDialog.vue'
 import TaskBatchActions from '@/components/task/TaskBatchActions.vue'
 import TaskRowActions from '@/components/task/TaskRowActions.vue'
-import type { Aria2Task, Aria2File, Aria2Uri } from '@/types/aria2'
+import type { Aria2Task } from '@/types/aria2'
 import {
   getTaskStats,
-  getTaskName as utilGetTaskName
+  getTaskName as utilGetTaskName,
+  searchTasks
 } from '@/utils/taskUtils'
 import {
   formatSize,
@@ -228,31 +232,9 @@ function sortTasksByStatus(tasks: Aria2Task[]): Aria2Task[] {
 const filteredTasks = computed(() => {
   let tasks = [...allTasks.value]
 
-  // 搜索过滤
+  // 搜索过滤（复用 taskUtils.searchTasks 的统一实现，避免两份过滤逻辑漂移）
   if (searchText.value.trim()) {
-    const searchTerm = searchText.value.toLowerCase().trim()
-    tasks = tasks.filter((task: Aria2Task) => {
-      const taskName = utilGetTaskName(task).toLowerCase()
-      if (taskName.includes(searchTerm)) return true
-
-      if (task.files && task.files.length > 0) {
-        const hasMatchingFile = task.files.some((file: Aria2File) =>
-          file.path && file.path.toLowerCase().includes(searchTerm)
-        )
-        if (hasMatchingFile) return true
-
-        const hasMatchingUri = task.files.some((file: Aria2File) =>
-          file.uris && file.uris.some((uri: Aria2Uri) =>
-            uri.uri && uri.uri.toLowerCase().includes(searchTerm)
-          )
-        )
-        if (hasMatchingUri) return true
-      }
-
-      if (task.gid.toLowerCase().includes(searchTerm)) return true
-
-      return false
-    })
+    tasks = searchTasks(tasks, searchText.value)
   }
 
   // 根据任务类型设置不同的排序规则
@@ -440,10 +422,14 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   }
 ])
 
-// 行点击选择任务
+// 行点击选择任务。忽略点击行内按钮/链接等交互元素的事件，避免误触发选中
 function rowProps(row: Aria2Task) {
   return {
-    onClick: () => handleRowSelect(row)
+    onClick: (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('button, a, input, textarea, select, .n-checkbox, .n-button')) return
+      handleRowSelect(row)
+    }
   }
 }
 
@@ -825,7 +811,10 @@ watch(
 
 .task-list-content {
   flex: 1;
-  overflow: auto;
+  /* min-height: 0 是 flex 子项能正确收缩、让内部表格 flex-height 生效的关键，否则内容区可能被撑塌/留白 */
+  min-height: 0;
+  /* flex-height 模式下表格内部自己处理滚动，外层无需滚动，避免双重滚动容器冲突 */
+  overflow: hidden;
   background: var(--bg-primary);
   border: 1px solid var(--border-light);
   border-radius: 8px;
@@ -898,7 +887,11 @@ watch(
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
-  word-break: break-all;
+  /* 单行省略：保证每行内容高度恒定（配合 virtual-scroll 的 min-row-height=60），
+     长文件名换行会撑高行导致虚拟滚动可视区错位/空白，全名通过 title 悬浮提示展示 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   line-height: 1.4;
 }
 

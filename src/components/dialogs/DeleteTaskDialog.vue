@@ -38,8 +38,10 @@
       <div class="dialog-footer">
         <n-space justify="end">
           <n-button :disabled="loading" @click="handleClose">{{ t('common.cancel') }}</n-button>
+          <!-- 与列表工具栏删除按钮保持一致的"描边红字"危险按钮风格（全局 .btn-danger-outline） -->
           <n-button
-            type="error"
+            type="default"
+            class="btn-danger-outline"
             :loading="loading"
             :disabled="deleting"
             @click="handleConfirm"
@@ -93,35 +95,12 @@ const showFileDeleteOption = computed(() => {
   return !!window.electronAPI?.deleteFiles && fileList.value.length > 0
 })
 
-// 获取所有任务的文件列表
+// 获取所有任务的文件列表（统一走删除服务的路径处理逻辑，避免两份实现漂移）
 const fileList = computed(() => {
   const files: string[] = []
-
   props.tasks.forEach((task) => {
-    if (props.taskType === 'stopped') {
-      // 已完成任务使用专门的服务获取文件路径
-      const taskFiles = completedTaskDeleteService.getTaskFilePaths(task)
-      files.push(...taskFiles)
-    } else {
-      // 其他任务使用原有逻辑，但也包含.aria2文件
-      if (task.files && task.files.length > 0) {
-        const taskFiles: string[] = []
-        task.files.forEach((file) => {
-          if (file.path && file.path.trim()) {
-            taskFiles.push(file.path)
-          }
-        })
-
-        // 添加对应的.aria2文件
-        const aria2Files = taskFiles
-          .filter(path => !path.endsWith('.aria2')) // 避免重复添加
-          .map(path => path + '.aria2')
-
-        files.push(...taskFiles, ...aria2Files)
-      }
-    }
+    files.push(...completedTaskDeleteService.getTaskFilePaths(task))
   })
-
   return files
 })
 

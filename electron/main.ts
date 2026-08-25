@@ -34,10 +34,14 @@ const getDataRoot = () => app.getPath('userData')
 /**
  * 一次性迁移旧版数据（exe 旁的 data/ 目录）到 userData。
  * 仅当旧数据存在且新位置尚无对应文件时复制，不删除旧文件。
+ * 完成一次后写入标记文件，避免每次启动重复扫描/复制。
  */
 function migrateLegacyData(): void {
   const legacyDataDir = path.join(getAppDirectory(), 'data')
   if (!fs.existsSync(legacyDataDir)) return
+
+  const flagFile = path.join(getDataRoot(), '.legacy-data-migrated')
+  if (fs.existsSync(flagFile)) return
 
   const migrations: Array<{ from: string; to: string }> = [
     // electron-store 设置文件
@@ -66,6 +70,13 @@ function migrateLegacyData(): void {
       console.warn(`[Migration] Failed to migrate ${from}:`, error)
     }
   }
+
+  // 无论单项迁移是否全部成功（单项失败已被吞掉），标记已完成，避免启动时重复扫描
+  try {
+    fs.writeFileSync(flagFile, Date.now().toString(), 'utf-8')
+  } catch (error) {
+    console.warn('[Migration] Failed to write migration flag:', error)
+  }
 }
 
 const getConfigDirectory = () => {
@@ -86,9 +97,6 @@ const store = new Store<StoreData>({
 })
 // 安全说明：settings.aria2.secret 与 connectionProfiles[].config.secret 已通过 safeStorage
 // 加密存储（见 utils/secretCipher.ts），磁盘上不保存明文，并对旧明文数据透明兼容。
-
-console.log('Config directory:', configDir)
-console.log('Config file path:', store.path)
 
 // ==========================================
 // 控制器初始化
@@ -157,10 +165,14 @@ if (!gotTheLock) {
   })
 
   app.on('before-quit', async (e) => {
-    if (appState.isQuitting()) return
+    // 优雅关闭只执行一次：首次 quit 达到时 preventDefault 并执行 shutdown，
+    // shutdown 完成后 finally 中的 app.quit() 再次触发本事件，此时直接放行。
+    // 托盘"退出"也走同一路径（TrayController 仅 markQuitting 放行窗口 close 拦截，不做关闭）。
+    if (appState.hasShutdownStarted()) return
 
     e.preventDefault()
     appState.markQuitting()
+    appState.markShutdownStarted()
 
     console.log('App quitting, starting graceful shutdown...')
 

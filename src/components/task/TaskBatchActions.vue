@@ -31,7 +31,7 @@
         v-if="hasSelection"
         size="small"
         type="default"
-        class="batch-delete-btn"
+        class="btn-danger-outline"
         :disabled="deleting"
         :loading="deleting"
         @click="$emit('batch-delete')"
@@ -106,24 +106,6 @@ defineEmits<Emits>()
 
 .action-buttons-group :deep(.n-button:active:not([disabled])) {
   transform: translateY(0);
-}
-
-/* 删除按钮：默认红字，悬浮时红字红框 */
-.action-buttons-group :deep(.batch-delete-btn) {
-  color: var(--color-danger) !important;
-}
-
-.action-buttons-group :deep(.batch-delete-btn:hover:not([disabled])) {
-  color: var(--color-danger) !important;
-}
-
-.action-buttons-group :deep(.batch-delete-btn:hover:not([disabled]) .n-button__state-border) {
-  border-color: var(--color-danger);
-}
-
-/* 删除按钮点击后的 focus 状态不显示蓝色边框，仅悬浮时边框变红 */
-.action-buttons-group :deep(.batch-delete-btn:focus:not(:hover) .n-button__state-border) {
-  border-color: transparent;
 }
 
 .selected-count {

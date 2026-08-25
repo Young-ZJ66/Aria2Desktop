@@ -71,22 +71,34 @@ const starting = ref(false)
 const closable = computed(() => uiStore.updateDialogState !== 'downloading')
 
 /**
- * 净化 GitHub Releases 的更新日志 HTML：
- * 移除脚本类标签、内联事件与 javascript: 链接，仅保留排版标签
+ * 净化 GitHub Releases 的更新日志 HTML（白名单式移除危险结构）：
+ * - 移除脚本/样式/内嵌对象类标签（含 SVG/MathML 等可携带事件、表单类标签）
+ * - 移除 on* 内联事件属性（含反引号等变体）
+ * - 移除 javascript:/vbscript:/data: 危险协议
+ * - 移除 style 属性（防 CSS 注入/内容遮挡）
+ * - 链接统一新窗口打开并隔离源
+ * 注意：内容来自本项目 GitHub Releases（低信任面），仍不放开任意标签，仅保留排版类元素。
  */
 const sanitizedNotes = computed(() => sanitizeHtml(uiStore.updateNotes))
+
+/** 整段移除的危险标签（含其内容） */
+const DANGEROUS_TAGS = 'script|style|iframe|object|embed|link|meta|svg|math|form|input|button|textarea|select|base'
 
 function sanitizeHtml(html: string): string {
   if (!html) return ''
   let result = html
   // 移除成对出现的危险标签及其内容
-  result = result.replace(/<(script|style|iframe|object|embed|link|meta)\b[\s\S]*?<\/\1\s*>/gi, '')
+  result = result.replace(new RegExp(`<(?:${DANGEROUS_TAGS})\\b[\\s\\S]*?<\\/\\1\\s*>`, 'gi'), '')
   // 移除未闭合的危险标签（如 <script ...> 后被截断）
-  result = result.replace(/<(script|style|iframe|object|embed|link|meta)\b[^>]*>/gi, '')
-  // 移除内联事件属性（on*="..." / on*'...'）
-  result = result.replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-  // 移除 javascript: 协议的 href/src
-  result = result.replace(/(href|src)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, '$1="#"')
+  result = result.replace(new RegExp(`<(?:${DANGEROUS_TAGS})\\b[^>]*>`, 'gi'), '')
+  // 移除内联事件属性（on*="..." / on*'...' / on*`...`）
+  result = result.replace(/\son[a-z]+\s*=\s*(`[^`]*`|"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+  // 移除 javascript:/vbscript:/data: 协议的 href/src/xlink:href
+  result = result.replace(/(?:href|src|xlink:href|action|formaction)\s*=\s*(["'])\s*(?:javascript|vbscript|data):[^"']*\1/gi, '$1="#"')
+  // 移除 style 属性
+  result = result.replace(/\sstyle\s*=\s*("[^"]*"|'[^']*')/gi, '')
+  // 链接新窗口打开并隔离源
+  result = result.replace(/<a\b/gi, '<a target="_blank" rel="noopener noreferrer"')
   return result
 }
 

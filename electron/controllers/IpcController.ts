@@ -285,12 +285,14 @@ export class IpcController {
             continue
           }
 
+          // 删除时使用校验阶段的 realpath 目标（target），而非二次 path.normalize，
+          // 减小 TOCTOU 窗口：符号链接在校验与被删之间被替换时，不会沿新链接删除目录外文件
           try {
-            const stats = await fs.promises.stat(normalized)
+            const stats = await fs.promises.stat(target)
             if (stats.isDirectory()) {
-              await fs.promises.rm(normalized, { recursive: true, force: true })
+              await fs.promises.rm(target, { recursive: true, force: true })
             } else {
-              await fs.promises.unlink(normalized)
+              await fs.promises.unlink(target)
             }
             results.push({ path: p, success: true })
           } catch (statErr) {
@@ -312,11 +314,12 @@ export class IpcController {
   private registerPersistedTasksHandlers() {
     const filePath = path.join(app.getPath('userData'), 'persisted-tasks.json')
 
-    ipcMain.handle('persisted-tasks-load', (event) => {
+    ipcMain.handle('persisted-tasks-load', async (event) => {
       if (!this.validateSender(event)) return {}
       try {
         if (!fs.existsSync(filePath)) return {}
-        const content = fs.readFileSync(filePath, 'utf-8')
+        // 使用异步 IO，避免大文件（上限 10MB）读写阻塞主进程事件循环
+        const content = await fs.promises.readFile(filePath, 'utf-8')
         return JSON.parse(content || '{}')
       } catch (e) {
         console.error('[IpcController] Failed to load persisted tasks:', e)
@@ -324,7 +327,7 @@ export class IpcController {
       }
     })
 
-    ipcMain.handle('persisted-tasks-save', (event, data: unknown) => {
+    ipcMain.handle('persisted-tasks-save', async (event, data: unknown) => {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
       try {
         const serialized = JSON.stringify(data ?? {})
@@ -332,7 +335,7 @@ export class IpcController {
         if (serialized.length > 10 * 1024 * 1024) return { success: false, error: 'Data too large' }
         const dir = path.dirname(filePath)
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-        fs.writeFileSync(filePath, serialized, { encoding: 'utf-8', mode: 0o600 })
+        await fs.promises.writeFile(filePath, serialized, { encoding: 'utf-8', mode: 0o600 })
         return { success: true }
       } catch (e) {
         return { success: false, error: String(e) }

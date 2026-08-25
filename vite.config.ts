@@ -47,9 +47,9 @@ export default defineConfig({
       }
     }
   },
-  // 预构建依赖，加速冷启动并固定依赖版本
+  // 预构建依赖，加速冷启动并固定依赖版本（dayjs 已被 vue-echarts 内部依赖解析，无需显式预构建）
   optimizeDeps: {
-    include: ['vue', 'vue-router', 'pinia', 'vue-i18n', 'naive-ui', 'echarts', 'axios', 'dayjs']
+    include: ['vue', 'vue-router', 'pinia', 'vue-i18n', 'naive-ui', 'echarts', 'axios']
   },
   resolve: {
     alias: {

@@ -202,7 +202,8 @@
     "requireTorrent": "请选择种子文件",
     "requireMetalink": "请选择 Metalink 文件",
     "dropTorrentHint": "点击选择或拖拽 .torrent 文件到此处",
-    "dropMetalinkHint": "点击选择或拖拽 .metalink / .meta4 文件到此处"
+    "dropMetalinkHint": "点击选择或拖拽 .metalink / .meta4 文件到此处",
+    "fileTooLarge": "文件过大（超过 1MB），aria2 RPC 无法直接接收，请放置到本地路径后改用链接添加"
   },
   "header": {
     "connection": "连接",

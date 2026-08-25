@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { darkTheme, zhCN, enUS, type GlobalThemeOverrides } from 'naive-ui'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { getLocale } from '@/i18n'
+import { buildThemeOverrides } from '@/styles/themeTokens'
 
 /**
  * Naive UI 主题管理：跟随 data-theme 设置（theme=auto 时实时跟随系统深浅色）。
@@ -39,21 +40,8 @@ export function useThemeManager() {
 
   const currentTheme = computed(() => (isDark.value ? darkTheme : null))
 
-  // 主题覆盖：主色与圆角
-  // 注意：Naive UI 内部会解析主题色（如计算 hover/按下等衍生色），必须传入具体的可解析色值，
-  // 不能使用 var(--xxx) 这类 CSS 变量，否则 seemless/rgba 解析会抛错导致渲染崩溃。
-  const themeOverrides = computed<GlobalThemeOverrides>(() => ({
-    common: {
-      primaryColor: isDark.value ? '#6c86f5' : '#4f6ef2',
-      primaryColorHover: isDark.value ? '#8499f7' : '#6279f4',
-      primaryColorPressed: isDark.value ? '#5465d8' : '#3d56d0',
-      primaryColorSuppl: isDark.value ? '#6c86f5' : '#4f6ef2',
-      borderRadius: '8px'
-    },
-    Card: {
-      borderRadius: '10px'
-    }
-  }))
+  // 主题覆盖：主色与圆角（单一来源：src/styles/themeTokens.ts）
+  const themeOverrides = computed<GlobalThemeOverrides>(() => buildThemeOverrides(isDark.value))
 
   // Naive UI 组件语言（跟随应用当前语言设置）
   const naiveLocale = computed(() => (getLocale() === 'zh-CN' ? zhCN : enUS))

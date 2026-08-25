@@ -445,12 +445,14 @@ function handleDeleteProfile() {
   border: 1px solid var(--border-light);
   border-radius: 10px;
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.18s var(--ease-out);
 }
 
 .profile-item:hover {
   border-color: var(--color-primary);
   background: var(--bg-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-base);
 }
 
 .profile-item.connected {

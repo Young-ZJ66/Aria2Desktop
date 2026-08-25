@@ -103,9 +103,9 @@ export function searchTasks(tasks: Aria2Task[], searchText: string): Aria2Task[]
       return true
     }
 
-    // 搜索 URI
+    // 搜索 URI（uri 字段可能缺失，需防御性访问，否则渲染期抛 TypeError 导致整个列表崩溃）
     if (task.files?.some(file =>
-      file.uris?.some(uri => uri.uri.toLowerCase().includes(text))
+      file.uris?.some(uri => uri.uri?.toLowerCase().includes(text))
     )) {
       return true
     }

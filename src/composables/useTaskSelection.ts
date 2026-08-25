@@ -11,8 +11,10 @@ export function useTaskSelection() {
   const selectedCount = computed(() => selectedTasksMap.value.size)
   const hasSelection = computed(() => selectedTasksMap.value.size > 0)
 
-  // gid 列表由 Map 派生，避免双数据结构同步维护不一致
-  const selectedTaskGids = computed(() => Array.from(selectedTasksMap.value.keys()))
+  // gid 集合由 Map 派生，避免双数据结构同步维护不一致。
+  // 使用 Set 语义：调用方（如 TaskList 的 allChecked）以 .has() 查询，
+  // 若返回数组会导致渲染期 TypeError（数组无 .has），且查找退化为 O(n)
+  const selectedTaskGids = computed(() => new Set(selectedTasksMap.value.keys()))
 
   const selectedTasks = computed(() => {
     return Array.from(selectedTasksMap.value.values())

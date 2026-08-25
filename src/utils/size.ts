@@ -11,6 +11,7 @@ export type SizeUnit = keyof typeof UNIT_BYTES
  * 将 aria2 的 SIZE 字符串（字节数或带 K/M/G/T 后缀）解析为目标单位下的数值。
  * 例：parseSizeToUnit('2097152', 'M') => 2；parseSizeToUnit('2M', 'M') => 2；
  *     parseSizeToUnit('1048576', 'K') => 1024；parseSizeToUnit('0', 'M') => 0
+ * 保留 1 位小数，避免 1.5M 这类带小数输入被四舍五入后回写失真。
  */
 export function parseSizeToUnit(value: string | number | null | undefined, unit: SizeUnit): number {
   if (value === null || value === undefined || value === '') return 0
@@ -21,7 +22,7 @@ export function parseSizeToUnit(value: string | number | null | undefined, unit:
   const num = parseFloat(matched[1] ?? '0')
   const sourceUnit = (matched[2] ?? '') as SizeUnit | ''
   const bytes = sourceUnit ? num * UNIT_BYTES[sourceUnit] : num
-  return Math.round(bytes / UNIT_BYTES[unit])
+  return Math.round((bytes / UNIT_BYTES[unit]) * 10) / 10
 }
 
 /**

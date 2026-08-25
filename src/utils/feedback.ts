@@ -11,25 +11,11 @@ import {
   createDiscreteApi,
   darkTheme,
   NButton,
-  type GlobalThemeOverrides,
   type MessageOptions,
   type DialogReactive
 } from 'naive-ui'
 import { h } from 'vue'
-
-/** 与 App.vue 的 themeOverrides 保持一致的主色与圆角 */
-function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
-  return {
-    common: {
-      primaryColor: isDark ? '#6c86f5' : '#4f6ef2',
-      primaryColorHover: isDark ? '#8499f7' : '#6279f4',
-      primaryColorPressed: isDark ? '#5465d8' : '#3d56d0',
-      primaryColorSuppl: isDark ? '#6c86f5' : '#4f6ef2',
-      borderRadius: '8px'
-    },
-    Card: { borderRadius: '10px' }
-  }
-}
+import { buildThemeOverrides } from '@/styles/themeTokens'
 
 function isDarkMode(): boolean {
   if (typeof document === 'undefined') return false

@@ -163,6 +163,31 @@ const draggingMetalink = ref(false)
 
 const isElectron = computed(() => !!window.electronAPI)
 
+/** aria2 支持的下载协议白名单 */
+const SUPPORTED_URI_SCHEMES = ['http:', 'https:', 'ftp:', 'sftp:', 'magnet:']
+
+/** 校验单个下载 URI：协议合法且（http/https/ftp/sftp）能被 URL 解析；magnet 为特殊格式 */
+function isSupportedDownloadUri(uri: string): boolean {
+  if (uri.startsWith('magnet:')) return true
+  try {
+    const { protocol } = new URL(uri)
+    return SUPPORTED_URI_SCHEMES.includes(protocol)
+  } catch {
+    return false
+  }
+}
+
+/** aria2 rpc-max-request-size 默认 1MiB，超出上限的种子/metalink 经 base64 上传必然失败 */
+const MAX_UPLOAD_FILE_BYTES = 1 * 1024 * 1024
+
+function checkFileSize(file: File): boolean {
+  if (file.size > MAX_UPLOAD_FILE_BYTES) {
+    message.error(t('newTask.fileTooLarge'))
+    return false
+  }
+  return true
+}
+
 const minSplitSizeOptions = [
   { label: '1M', value: '1M' },
   { label: '5M', value: '5M' },
@@ -250,6 +275,14 @@ async function handleUriSubmit() {
       return
     }
 
+    // 校验 URL 协议：仅允许 aria2 支持的下载协议，拦截 javascript:/file: 等非法输入
+    const invalidUri = uris.find(uri => !isSupportedDownloadUri(uri))
+    if (invalidUri) {
+      console.warn('[NewTaskDialog] Blocked unsupported URI:', invalidUri)
+      message.error(t('newTask.invalidUrl'))
+      return
+    }
+
     const options: Record<string, string> = {}
     if (uriForm.dir) options.dir = uriForm.dir
     if (uriForm.fileName) options.out = uriForm.fileName
@@ -286,14 +319,17 @@ async function handleTorrentSubmit() {
       return
     }
 
+    // 超过 aria2 RPC 大小上限的文件直接拒绝，避免大文件上传失败
+    if (!checkFileSize(torrentForm.torrentFile)) return
+
     submitting.value = true
 
     const torrentData = await readFileAsBase64(torrentForm.torrentFile)
 
     const options: Aria2Option = {}
     const downloadConfig = settingsStore.downloadConfig
-    if (downloadConfig.defaultDir) options.dir = downloadConfig.defaultDir
-    if (!downloadConfig.autoStart) options.pause = 'true'
+    if (downloadConfig?.defaultDir) options.dir = downloadConfig.defaultDir
+    if (downloadConfig && !downloadConfig.autoStart) options.pause = 'true'
 
     await taskStore.addTorrent(torrentData, [], options)
 
@@ -324,14 +360,17 @@ async function handleMetalinkSubmit() {
       return
     }
 
+    // 超过 aria2 RPC 大小上限的文件直接拒绝，避免大文件上传失败
+    if (!checkFileSize(metalinkForm.metalinkFile)) return
+
     submitting.value = true
 
     const metalinkData = await readFileAsBase64(metalinkForm.metalinkFile)
 
     const options: Aria2Option = {}
     const downloadConfig = settingsStore.downloadConfig
-    if (downloadConfig.defaultDir) options.dir = downloadConfig.defaultDir
-    if (!downloadConfig.autoStart) options.pause = 'true'
+    if (downloadConfig?.defaultDir) options.dir = downloadConfig.defaultDir
+    if (downloadConfig && !downloadConfig.autoStart) options.pause = 'true'
 
     const gids = await taskStore.addMetalink(metalinkData, options)
 
@@ -486,7 +525,7 @@ onMounted(async () => {
   background-color: var(--bg-tertiary);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease, transform 0.18s var(--ease-out);
 }
 
 .file-drop-area:hover,
@@ -494,6 +533,7 @@ onMounted(async () => {
   border-color: var(--color-primary);
   background-color: var(--bg-hover);
   color: var(--color-primary);
+  transform: scale(1.012);
 }
 
 .drop-text {

@@ -2,7 +2,8 @@ import { ipcMain, app } from 'electron'
 import Store from 'electron-store'
 import http from 'http'
 import * as path from 'path'
-import { getAria2ProcessManager, Aria2ProcessManager } from '../managers/Aria2ProcessManager'
+import { getAria2ProcessManager } from '../managers/Aria2ProcessManager'
+import type { Aria2ProcessManager } from '../managers/Aria2ProcessManager'
 import { WindowController } from './WindowController'
 import { createSenderValidator } from '../utils/ipcSecurity'
 import { encryptSettingsSecrets, decryptSettingsSecrets } from '../utils/secretCipher'
@@ -221,9 +222,9 @@ export class Aria2Controller {
         return { success: false, error: `配置文件写入失败: ${error}` }
       }
 
-      // 更新存储
+      // 更新存储（显式标注 AppSettings 类型，避免对象字面量中的字面量类型被拓宽）
       const currentSettings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
-      const updatedSettings = {
+      const updatedSettings: AppSettings = {
         ...currentSettings,
         aria2: {
           ...currentSettings.aria2,

@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process'
 import * as net from 'net'
 import * as http from 'http'
-import { existsSync } from 'fs'
+import { existsSync, statSync } from 'fs'
 import { app } from 'electron'
 import { ResourceManager } from '../utils/resourceManager'
 import { Aria2ConfigManager } from '../utils/aria2ConfigManager'
@@ -39,6 +39,8 @@ export class Aria2ProcessManager {
   private pendingRestartTimer: NodeJS.Timeout | null = null
   private resourceManager: ResourceManager
   private configManager: Aria2ConfigManager
+  /** 配置文件最后读取时的 mtime（供 getConfig 增量重载，避免每次 IPC 轮询全量读盘） */
+  private configMtimeMs = -1
   /**
    * 优雅关闭钩子（由 Aria2Controller 注入，通过 RPC aria2.shutdown 触发会话保存）。
    * Windows 上进程信号是强杀，先走 RPC 才能保存会话；所有停止/重启路径统一经过 stop()。
@@ -363,17 +365,29 @@ export class Aria2ProcessManager {
       }
 
       // 信号关闭（此时进程仍存在：waitForExit 返回 false 才走到这里）
-      const proc = this.process!
+      const proc = this.process
+      // 竞态兜底：等待期间进程恰好已退出（exit 处理器已清 this.process），视为停止成功
+      if (!proc) {
+        console.log('Aria2 进程已在优雅关闭等待期间退出')
+        this.process = null
+        return true
+      }
+      // 进程已在退出中（exitCode 已置位），无需再发信号
+      if (proc.exitCode !== null || proc.signalCode !== null) {
+        this.process = null
+        return true
+      }
+
       proc.kill('SIGTERM')
 
-      // 等待进程退出 - 确保完全退出
+      // 等待进程退出 - 确保完全退出（监听器挂在捕获的 proc 上，与 this.process 解耦）
       await new Promise<void>((resolve) => {
-        const proc = this.process!
         const timeout = setTimeout(() => {
           // 强制终止
-          if (this.process && !this.process.killed) {
+          const currentProc = this.process
+          if (currentProc && !currentProc.killed) {
             console.log('强制终止 Aria2 进程')
-            this.process.kill('SIGKILL')
+            currentProc.kill('SIGKILL')
           }
           finish()
         }, 8000) // 增加到8秒，给进程更多时间优雅退出
@@ -408,8 +422,18 @@ export class Aria2ProcessManager {
   }
 
   public getConfig(): Required<Aria2ProcessConfig> {
-    // 重载配置文件中的最新值（复用缓存实例，避免每次 IPC 调用都重建对象）
-    this.configManager.reload()
+    // 仅当配置文件 mtime 变化时才重载（复用缓存实例，避免每次 IPC 调用都读盘）
+    const configPath = this.configManager.getConfigFilePath()
+    try {
+      const mtime = statSync(configPath).mtimeMs
+      if (mtime !== this.configMtimeMs) {
+        this.configManager.reload()
+        this.configMtimeMs = mtime
+      }
+    } catch {
+      // 文件暂时不可读（如写入过程中）时仍尝试重载
+      this.configManager.reload()
+    }
     const actualConfigs = this.configManager.getRelevantConfigs()
 
     const result = {

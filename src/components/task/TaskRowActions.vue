@@ -51,26 +51,16 @@
       <n-icon class="action-icon"><FolderOpenOutline /></n-icon>
     </button>
 
-    <!-- 删除按钮（含二次确认，防止误删） -->
-    <n-popconfirm
-      :positive-text="t('delete.confirm')"
-      :negative-text="t('delete.cancel')"
+    <!-- 删除按钮（二次确认由父级的 DeleteTaskDialog / confirm 统一处理，此处直接触发删除入口） -->
+    <button
+      :title="t('task.deleteTask')"
+      :aria-label="t('task.deleteTask')"
+      class="task-action-btn"
       :disabled="operating"
-      @positive-click="$emit('remove', gid)"
+      @click.stop="$emit('remove', gid)"
     >
-      <template #trigger>
-        <button
-          :title="t('task.deleteTask')"
-          :aria-label="t('task.deleteTask')"
-          class="task-action-btn"
-          :disabled="operating"
-          @click.stop
-        >
-          <n-icon class="action-icon"><TrashOutline /></n-icon>
-        </button>
-      </template>
-      {{ t('delete.confirmSingle') }}
-    </n-popconfirm>
+      <n-icon class="action-icon"><TrashOutline /></n-icon>
+    </button>
 
     <!-- 详情按钮 -->
     <button
@@ -163,7 +153,16 @@ defineEmits<Emits>()
 .action-icon {
   font-size: 18px;
   color: var(--text-secondary);
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, transform 0.18s var(--ease-out);
+}
+
+/* 悬浮时图标轻微放大 + 上浮，按压时轻微回缩，提供明确的按钮反馈 */
+.task-action-btn:hover .action-icon {
+  transform: scale(1.15);
+}
+
+.task-action-btn:hover:active .action-icon {
+  transform: scale(0.92);
 }
 
 .task-action-btn:disabled {

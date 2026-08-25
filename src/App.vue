@@ -5,13 +5,17 @@
         <n-notification-provider placement="bottom-right">
           <div class="app-container" :class="{ 'windows-titlebar': isWindowsPlatform }">
             <!-- 主要内容区域 -->
-            <div class="main-container">
+            <div class="main-container" :class="{ 'is-entered': appEntered }">
               <!-- 侧边栏 -->
               <AppSidebar />
 
-              <!-- 内容区域 -->
+              <!-- 内容区域（路由切换时淡入上移过渡，见 theme.css 的 .page-fade） -->
               <div class="content-container">
-                <router-view />
+                <router-view v-slot="{ Component }">
+                  <transition name="page-fade" mode="out-in">
+                    <component :is="Component" />
+                  </transition>
+                </router-view>
               </div>
             </div>
 
@@ -40,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useThemeManager } from '@/composables/useThemeManager'
 import { useAppLifecycle } from '@/composables/useAppLifecycle'
@@ -60,6 +64,15 @@ const { currentTheme, themeOverrides, naiveLocale } = themeManager
 
 // 应用生命周期编排：设置初始化、更新检查、自动刷新、配置热重载、连接管理
 useAppLifecycle(themeManager)
+
+// 首载内容淡入：挂载后下一帧标记为已入场，驱动 .main-container 的淡入上移过渡
+// （用 JS 控制而非纯 CSS animation，避免 HMR/热刷新反复重播）
+const appEntered = ref(false)
+onMounted(() => {
+  requestAnimationFrame(() => {
+    appEntered.value = true
+  })
+})
 
 // 检测是否为 Windows 平台以调整标题栏布局
 const isWindowsPlatform = computed(() => {
@@ -93,6 +106,15 @@ const isWindowsPlatform = computed(() => {
   flex: 1;
   display: flex;
   overflow: hidden;
+  /* 首载淡入上移（由 appEntered 触发，悬挂在 is-entered 上避免启动白屏） */
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.45s var(--ease-smooth), transform 0.45s var(--ease-out);
+}
+
+.main-container.is-entered {
+  opacity: 1;
+  transform: none;
 }
 
 .content-container {

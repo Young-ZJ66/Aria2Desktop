@@ -14,6 +14,8 @@ export class Aria2ConfigManager {
   private configContent: Map<string, string> = new Map()
   /** 被注释掉的键及其在 rawLines 中的索引 */
   private commentedKeys: Map<string, number> = new Map()
+  /** 是否已有待执行的合批写盘（微任务合并同一同步帧内的多次修改为一次落盘） */
+  private saveQueued = false
 
   constructor(configPath: string) {
     this.configPath = configPath
@@ -111,16 +113,35 @@ max-mmap-limit=0
     return this.configContent.get(key)
   }
 
+  /** 返回配置文件路径（供外部做 mtime 增量检查等） */
+  public getConfigFilePath(): string {
+    return this.configPath
+  }
+
+  /**
+   * 合批落盘：同一同步帧内多次 set/comment 只触发一次全文件写入。
+   * 读取方（getConfigValue / getRelevantConfigs）始终读内存态，不等待落盘；
+   * 由 Aria2ProcessManager 的 waitForConfigFileSync 在重启前置确保文件已写入。
+   */
+  private scheduleSave(): void {
+    if (this.saveQueued) return
+    this.saveQueued = true
+    queueMicrotask(() => {
+      this.saveQueued = false
+      this.saveConfig()
+    })
+  }
+
   public setConfigValue(key: string, value: string | number) {
     this.configContent.set(key, String(value))
-    this.saveConfig()
+    this.scheduleSave()
   }
 
   public setMultipleConfigs(configs: Record<string, string | number>) {
     for (const [key, value] of Object.entries(configs)) {
       this.configContent.set(key, String(value))
     }
-    this.saveConfig()
+    this.scheduleSave()
   }
 
   /**
@@ -138,7 +159,7 @@ max-mmap-limit=0
         break
       }
     }
-    this.saveConfig()
+    this.scheduleSave()
   }
 
   /**
@@ -267,7 +288,7 @@ max-mmap-limit=0
       return !(k && k.trim() === key && rest.length > 0)
     })
     if (this.rawLines.length !== beforeLen) {
-      this.saveConfig()
+      this.scheduleSave()
       return true
     }
     return false

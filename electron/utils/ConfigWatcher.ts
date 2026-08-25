@@ -31,7 +31,7 @@ export class ConfigWatcher extends EventEmitter {
     }
 
     const unsubscribe = this.store.onDidChange(key as keyof StoreData, (newValue, oldValue) => {
-      console.log(`[ConfigWatcher] Config changed: ${key}`, { newValue, oldValue })
+      // 不为每次配置变更打印日志（高频噪音），由各订阅者按需记录
       callback(newValue, oldValue)
       this.emit('change', { key, newValue, oldValue })
     })

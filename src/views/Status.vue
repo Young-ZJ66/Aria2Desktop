@@ -262,6 +262,9 @@ function updateTrafficChart() {
   const yMax = maxSpeed > 0 ? Math.ceil((maxSpeed * 1.2) / 1024) * 1024 : 1024
 
   const option = {
+    // 数据每秒更新时曲线平滑过渡（而非瞬跳），默认缓动之外的显式声明以保证一致性
+    animationDurationUpdate: 600,
+    animationEasingUpdate: 'linear',
     tooltip: {
       trigger: 'axis',
       backgroundColor: tooltipBgColor,
@@ -429,11 +432,14 @@ function updateTrafficChart() {
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: 8px;
-  transition: border-color 0.2s ease;
+  /* 悬浮轻微抬升 + 柔和阴影过渡（提升统计卡片的可交互感知） */
+  transition: border-color 0.2s ease, transform 0.18s var(--ease-out), box-shadow 0.2s ease;
 }
 
 .traffic-stat:hover {
   border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-base);
 }
 
 .traffic-stat-icon {

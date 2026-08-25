@@ -69,6 +69,8 @@ export class TrayController {
       {
         label: labels.quit,
         click: () => {
+          // 先 markQuitting 放行窗口 close 拦截（minimizeToTray 时窗口仍可能可见）；
+          // 优雅关闭（Aria2 会话保存）由 main.ts 的 before-quit 统一执行
           appState.markQuitting()
           app.quit()
         }

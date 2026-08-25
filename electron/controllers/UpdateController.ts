@@ -186,8 +186,22 @@ export class UpdateController {
     return new Promise<void>((resolve, reject) => {
       // 每次下载使用唯一文件名，避免覆盖仍被占用（如安装器运行中/杀软扫描）的旧文件
       const filePath = path.join(app.getPath('temp'), `Aria2Desktop-${version}-${Date.now()}-Setup.exe`)
-      this.downloadWithRedirects(url, filePath, version, url, 0, resolve, reject)
+      // 任一环节失败（下载/写盘/校验）时先清理未完成的临时文件，避免残留占用磁盘
+      const rejectWithCleanup = (err: unknown) => {
+        this.cleanupTempFile(filePath)
+        reject(err)
+      }
+      this.downloadWithRedirects(url, filePath, version, url, 0, resolve, rejectWithCleanup)
     })
+  }
+
+  /** 删除未完成的临时安装包（存在时才删，忽略权限等清理失败） */
+  private cleanupTempFile(filePath: string): void {
+    try {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+    } catch (error) {
+      console.warn('[UpdateController] Failed to clean temp installer:', error)
+    }
   }
 
   /** 递归处理重定向并写盘（GitHub 资产下载会 302 到 CDN） */

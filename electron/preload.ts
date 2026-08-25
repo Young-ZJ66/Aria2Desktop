@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { Aria2UpdateConfig } from '../src/shared/electronBridge'
+import type { UpdateStatus } from '../src/types/electron'
 
 // 暴露给渲染进程的API
 const electronAPI = {
@@ -34,8 +36,8 @@ const electronAPI = {
   checkUpdatesOnStartup: () => ipcRenderer.invoke('check-updates-on-startup'),
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
   restartAndInstall: () => ipcRenderer.invoke('restart-and-install'),
-  onUpdateStatus: (callback: (status: unknown) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, status: unknown) => callback(status)
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: UpdateStatus) => callback(status)
     ipcRenderer.on('update:status', listener)
     return () => {
       ipcRenderer.removeListener('update:status', listener)
@@ -48,7 +50,7 @@ const electronAPI = {
     stop: () => ipcRenderer.invoke('aria2-stop'),
     restart: () => ipcRenderer.invoke('aria2-restart'),
     getStatus: () => ipcRenderer.invoke('aria2-status'),
-    updateConfig: (config: unknown) => ipcRenderer.invoke('aria2-update-config', config),
+    updateConfig: (config: Aria2UpdateConfig) => ipcRenderer.invoke('aria2-update-config', config),
     saveGlobalOptions: (options: Record<string, string | number>) => ipcRenderer.invoke('aria2-save-global-options', options)
   },
 

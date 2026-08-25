@@ -19,6 +19,8 @@ export class WindowController {
   private store: Store<StoreData>
   private isContentReady = false // 页面内容是否已加载完成
   private validateSender = createSenderValidator(() => this.mainWindow)
+  /** 等待内容就绪的重试定时器（去重：窗口重建/重复调用 show() 时避免叠加多次重试链） */
+  private pendingShowTimer: NodeJS.Timeout | null = null
 
   constructor(store: Store<StoreData>) {
     this.store = store
@@ -58,8 +60,12 @@ export class WindowController {
   public createWindow(): BrowserWindow {
     console.log('[WindowController] Creating main window...')
 
-    // 重置内容就绪标记（窗口重建场景，避免沿用旧值提前 show）
+    // 重置内容就绪标记与等待重试链（窗口重建场景，避免沿用旧值/旧定时器）
     this.isContentReady = false
+    if (this.pendingShowTimer) {
+      clearTimeout(this.pendingShowTimer)
+      this.pendingShowTimer = null
+    }
 
     // 完全移除应用菜单栏
     Menu.setApplicationMenu(null)
@@ -281,6 +287,8 @@ export class WindowController {
 
   public show() {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      // 已有等待内容就绪的重试链在跑，避免重复调用叠加多个 setTimeout 链
+      if (this.pendingShowTimer) return
       // 等待内容加载完成后再显示
       if (this.isContentReady) {
         console.log('[WindowController] Showing window (content ready)')
@@ -291,6 +299,7 @@ export class WindowController {
         // 等待 ready-to-show 事件，最多重试 MAX_SHOW_RETRIES 次（10 秒），超时后强制显示
         let attempts = 0
         const showWhenReady = () => {
+          this.pendingShowTimer = null
           // 窗口已销毁时终止重试
           if (!this.mainWindow || this.mainWindow.isDestroyed()) return
           if (this.isContentReady || attempts >= MAX_SHOW_RETRIES) {
@@ -301,7 +310,7 @@ export class WindowController {
             this.mainWindow.focus()
           } else {
             attempts++
-            setTimeout(showWhenReady, SHOW_RETRY_INTERVAL)
+            this.pendingShowTimer = setTimeout(showWhenReady, SHOW_RETRY_INTERVAL)
           }
         }
         showWhenReady()
@@ -325,11 +334,16 @@ export class WindowController {
   public setWindowTheme(isDark: boolean) {
     if (!this.mainWindow) return
 
-    console.log(`[WindowController] Setting window theme: ${isDark ? 'dark' : 'light'}`)
+    // 幂等：主题与当前值一致时直接返回。
+    // 该入口被多处调用（窗口初始化、配置热更新、渲染层 IPC），
+    // 避免重复设置与重复打印日志；且主题变化日志只在真正切换时输出一次。
+    const target: 'dark' | 'light' = isDark ? 'dark' : 'light'
+    if (nativeTheme.themeSource === target) return
 
     try {
       // 原生主题始终生效
-      nativeTheme.themeSource = isDark ? 'dark' : 'light'
+      nativeTheme.themeSource = target
+      console.log(`[WindowController] Window theme set to ${target}`)
     } catch (error) {
       console.error('[WindowController] Failed to set window theme:', error)
     }

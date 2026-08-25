@@ -10,6 +10,10 @@ export interface UpdateStatus {
 }
 
 // Electron API 类型定义（与 electron/preload.ts 暴露的接口对齐，唯一声明处）
+// 结构化参数类型见 @/shared/electronBridge（preload 与渲染层共用）
+import type { Aria2UpdateConfig } from '@/shared/electronBridge'
+export type { Aria2UpdateConfig } from '@/shared/electronBridge'
+
 export interface ElectronAPI {
   // 应用信息
   getAppVersion: () => Promise<string>
@@ -94,7 +98,7 @@ export interface ElectronAPI {
         exists: boolean
       }
     }>
-    updateConfig: (config: unknown) => Promise<{ success: boolean; error?: string }>
+    updateConfig: (config: Aria2UpdateConfig) => Promise<{ success: boolean; error?: string }>
     saveGlobalOptions: (options: Record<string, string | number>) => Promise<{ success: boolean; error?: string }>
   }
 

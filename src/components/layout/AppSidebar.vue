@@ -54,9 +54,10 @@
         @click="connectionStore.showConnectionDialog = true"
       >
         <n-icon :size="16" :class="connectionStatusClass">
-          <CloudDoneOutline v-if="isConnected" />
-          <CloudOfflineOutline v-else-if="!isConnecting" />
-          <SyncOutline v-else />
+          <!-- 连接/断开/连接中三个图标切换时做轻微缩放淡入过渡 -->
+          <transition name="icon-swap" mode="out-in">
+            <component :is="connectionIcon" :key="connectionStateKey" />
+          </transition>
         </n-icon>
         <span class="status-text" :class="connectionStatusClass">
           {{ connectionStatusText }}
@@ -138,6 +139,15 @@ function handleMenuSelect(key: string) {
 
 const isConnected = computed(() => connectionStore.isConnected)
 const isConnecting = computed(() => connectionStore.isConnecting)
+
+// 连接状态图标（供 Transition 动态切换）
+const connectionStateKey = computed(() =>
+  isConnected.value ? 'connected' : isConnecting.value ? 'connecting' : 'disconnected'
+)
+const connectionIcon = computed(() => {
+  if (isConnected.value) return CloudDoneOutline
+  return isConnecting.value ? SyncOutline : CloudOfflineOutline
+})
 const isDark = computed(() => {
   const theme = settingsStore.settings.theme
   return theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
@@ -254,12 +264,41 @@ const connectionStatusText = computed(() => {
   color: var(--text-regular);
   text-decoration: none;
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.18s var(--ease-out);
 }
 
 .footer-btn:hover {
   background: var(--bg-tertiary);
   color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.footer-btn:active {
+  transform: translateY(0) scale(0.96);
+}
+
+/* 底部按钮图标悬浮微动：放大 + 轻微上浮 */
+.footer-btn :deep(.n-icon) {
+  transition: transform 0.18s var(--ease-out);
+}
+
+.footer-btn:hover :deep(.n-icon) {
+  transform: scale(1.12);
+}
+
+/* 连接状态图标切换过渡（连接/断开/连接中） */
+.icon-swap-enter-active {
+  transition: opacity 0.16s ease, transform 0.16s var(--ease-out);
+}
+
+.icon-swap-leave-active {
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.icon-swap-enter-from,
+.icon-swap-leave-to {
+  opacity: 0;
+  transform: scale(0.72);
 }
 
 .footer-btn:focus-visible {

@@ -11,7 +11,7 @@
   --text-primary: #1a1f2b;
   --text-regular: #4a5266;
   --text-secondary: #6b7280;
-  --text-placeholder: #9ca3af;
+  --text-placeholder: #8a94a6;
   --border-light: #ececf1;
   --border-base: #dde0e7;
   --border-dark: #c2c7d1;
@@ -38,21 +38,25 @@
   --transition-fast: 0.15s ease;
   --transition-base: 0.2s ease;
   --transition-slow: 0.3s ease;
+  /* 缓动曲线 token：--ease-out 用于入场/位移（快起慢收），--ease-smooth 用于通用状态过渡 */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --shadow-light: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
   --shadow-base: 0 4px 16px rgba(16, 24, 40, 0.08);
   --shadow-dark: 0 8px 28px rgba(16, 24, 40, 0.14);
 }
 
-/* 深色主题 */
+/* 深色主题：占位符文本保证 3:1+ 的可读底线（深底不需过亮，避免炫光） */
 [data-theme="dark"] {
   --bg-primary: #171a21;
   --bg-secondary: #1e222b;
   --bg-tertiary: #262b36;
-  --bg-hover: #232a3d;
+  /* 悬停态略微亮于区块底色、独立于内嵌色 tertiary，保证交互反馈可感知 */
+  --bg-hover: #252d3c;
   --text-primary: #e6e9ef;
   --text-regular: #b4bac8;
   --text-secondary: #8b93a5;
-  --text-placeholder: #5a6273;
+  --text-placeholder: #677180;
   --border-light: #2c323e;
   --border-base: #3a4150;
   --border-dark: #4b5465;
@@ -79,9 +83,10 @@
   --transition-fast: 0.15s ease;
   --transition-base: 0.2s ease;
   --transition-slow: 0.3s ease;
-  --shadow-light: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-base: 0 4px 16px rgba(0, 0, 0, 0.5);
-  --shadow-dark: 0 8px 28px rgba(0, 0, 0, 0.6);
+  /* 阴影：深色背景下纯黑阴影不可见，用更低透明度 + 更大模糊制造柔和浮起感（层级主要靠 border 表达） */
+  --shadow-light: 0 1px 3px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-base: 0 3px 14px rgba(0, 0, 0, 0.4);
+  --shadow-dark: 0 8px 26px rgba(0, 0, 0, 0.5);
 }
 
 /* 全局基础 */
@@ -134,4 +139,96 @@ body {
 
 .n-button--default-type:focus:not(:hover):not(:focus-visible) .n-button__state-border {
   border: var(--n-border);
+}
+
+/* =========================================
+   危险操作按钮统一样式（删除等）：灰底描边 + 红字，
+   悬浮时边框与文字变红，点击后的 focus 不残留红框。
+   供工具栏批量删除、删除确认弹窗等处共用，保证两处视觉一致
+   ========================================= */
+.btn-danger-outline {
+  color: var(--color-danger) !important;
+}
+
+.btn-danger-outline:hover:not([disabled]) {
+  color: var(--color-danger) !important;
+}
+
+.btn-danger-outline:hover:not([disabled]) .n-button__state-border {
+  border-color: var(--color-danger);
+}
+
+.btn-danger-outline:focus:not(:hover):not(:focus-visible) .n-button__state-border {
+  border-color: transparent;
+}
+
+/* =========================================
+   主题切换平滑过渡
+   由 settingsStore.applyTheme 在每次真实切换前后于 <html> 上临时挂载
+   .theme-transition，覆盖全树元素的颜色类属性做一次平滑过渡，
+   完成后（≈300ms）移除，避免常驻全局 transition 带来的性能开销与
+   对组件自身 hover 过渡的干扰。
+   遵循系统"减少动态"偏好：prefers-reduced-motion 时不播放过渡。
+   ========================================= */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition: background-color 0.28s ease, color 0.28s ease,
+    border-color 0.28s ease, box-shadow 0.28s ease, fill 0.28s ease,
+    stroke 0.28s ease !important;
+}
+
+/* 滚动条滑块也随主题过渡（Chromium 支持 scrollbar 伪元素上的 background 过渡） */
+html.theme-transition ::-webkit-scrollbar-thumb {
+  transition: background-color 0.28s ease !important;
+}
+
+/* =========================================
+   通用动效类
+   - .fade-in：元素出现时的淡入（空状态、抽屉内容等轻量场景）
+   - .page-fade：路由页面切换的淡入上移过渡（配合 App.vue 的 <transition>）
+   ========================================= */
+.fade-in-enter-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-in-enter-from {
+  opacity: 0;
+}
+
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.22s var(--ease-smooth), transform 0.22s var(--ease-out);
+}
+
+.page-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
+}
+
+/* =========================================
+   全局"减少动态"兜底：
+   系统开启减少动态时，停用所有可与动效（动画、过渡），
+   覆盖上文 theme-transition 的个别规则，保证体验一致
+   ========================================= */
+@media (prefers-reduced-motion: reduce) {
+  html.theme-transition,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

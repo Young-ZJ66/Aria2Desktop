@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose } from 'vue'
-import { settingsService, type AppSettings } from '@/services/settingsService'
+import { settingsService, defaultSettings, type AppSettings } from '@/services/settingsService'
 
 export const useSettingsStore = defineStore('settings', () => {
   // 状态
@@ -8,10 +8,10 @@ export const useSettingsStore = defineStore('settings', () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // 计算属性
-  const aria2Config = computed(() => settings.value.aria2)
-  const uiConfig = computed(() => settings.value.ui)
-  const downloadConfig = computed(() => settings.value.download)
+  // 计算属性（共享类型字段可选；运行时始终与 defaultSettings 合并，这里回退默认值保证非空）
+  const aria2Config = computed(() => settings.value.aria2 ?? defaultSettings.aria2)
+  const uiConfig = computed(() => settings.value.ui ?? defaultSettings.ui)
+  const downloadConfig = computed(() => settings.value.download ?? defaultSettings.download)
   const theme = computed(() => settings.value.theme)
   const language = computed(() => settings.value.language)
 
@@ -145,6 +145,10 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   let mediaListenerRegistered = false
+  /** 是否已完成首次主题应用（首次不播放过渡，避免启动首帧闪烁） */
+  let themeAppliedOnce = false
+  /** 主题过渡计时器：切换完成后移除根节点上的 .theme-transition 类 */
+  let themeTransitionTimer: ReturnType<typeof setTimeout> | null = null
 
   // 应用主题
   async function applyTheme() {
@@ -152,8 +156,17 @@ export const useSettingsStore = defineStore('settings', () => {
     const isDark = theme === 'dark' ||
       (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
-    document.documentElement.classList.toggle('dark', isDark)
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+    const root = document.documentElement
+    // 真正切换主题（非首次初始化）时挂载全局过渡类，使整树颜色平滑过渡；
+    // 挂载后再写主题属性，CSS 才能从旧值过渡到新值
+    if (themeAppliedOnce) {
+      root.classList.add('theme-transition')
+      if (themeTransitionTimer) clearTimeout(themeTransitionTimer)
+      themeTransitionTimer = setTimeout(() => root.classList.remove('theme-transition'), 320)
+    }
+
+    root.classList.toggle('dark', isDark)
+    root.setAttribute('data-theme', isDark ? 'dark' : 'light')
 
     // 通知 Electron 主进程更新窗口主题
     if (window.electronAPI) {
@@ -172,6 +185,8 @@ export const useSettingsStore = defineStore('settings', () => {
       mediaQuery.removeEventListener('change', handleSystemThemeChange)
       mediaListenerRegistered = false
     }
+
+    themeAppliedOnce = true
   }
 
   // 获取特定设置值

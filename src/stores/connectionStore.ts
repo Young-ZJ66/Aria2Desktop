@@ -150,7 +150,8 @@ export const useConnectionStore = defineStore('connection', () => {
       if (service.value) {
         service.value.disconnect()
         service.value = null
-        // 从旧连接切换到新连接时清空前端缓存任务，加载全新列表（首次连接不清空，避免丢失本地已完成记录）
+        // 从旧连接切换到新连接时清空前端缓存任务，加载全新列表
+        // （本地已完成记录持久化保留，loadAllTasks 会重新合并）
         const taskStore = useTaskStore()
         taskStore.clearTasks()
       }

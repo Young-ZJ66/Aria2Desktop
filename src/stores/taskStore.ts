@@ -419,7 +419,7 @@ export const useTaskStore = defineStore('task', () => {
     await loadAllTasks()
   }
 
-  // 清空前端缓存的所有任务（断开连接 / 切换服务器时调用）
+  // 清空前端缓存的任务列表（断开连接 / 切换服务器时调用）
   function clearTasks() {
     activeTasks.value = []
     waitingTasks.value = []
@@ -427,8 +427,9 @@ export const useTaskStore = defineStore('task', () => {
     // 重置指纹，避免切换服务器后同 gid 序列误命中导致不更新
     waitingFingerprint = ''
     stoppedFingerprint = ''
-    taskPersistenceService.clearAllPersistedTasks()
-    taskTimeService.clearAll()
+    // 注意：不清空持久化历史（persisted-tasks，存于 userData）与任务时间记录——
+    // 它们是本地用户数据，切换/断开连接不应造成永久丢失；
+    // 重新连接后 loadAllTasks 会把持久化记录重新合并进列表。
   }
 
   // 监听器：service 变化时先移除旧监听器，避免重连后叠加刷新

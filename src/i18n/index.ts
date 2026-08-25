@@ -37,7 +37,12 @@ const i18n = createI18n({
  */
 export function setLocale(locale: AppLocale): void {
   i18n.global.locale.value = locale
-  localStorage.setItem(STORAGE_KEY, locale)
+  try {
+    localStorage.setItem(STORAGE_KEY, locale)
+  } catch (error) {
+    // 存储不可用（隐私模式/配额满）时仅影响下次默认语言，不影响本次切换
+    console.warn('Failed to persist locale:', error)
+  }
 }
 
 /**

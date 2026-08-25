@@ -202,7 +202,8 @@
     "requireTorrent": "Please select a torrent file",
     "requireMetalink": "Please select a Metalink file",
     "dropTorrentHint": "Click to select or drag a .torrent file here",
-    "dropMetalinkHint": "Click to select or drag a .metalink / .meta4 file here"
+    "dropMetalinkHint": "Click to select or drag a .metalink / .meta4 file here",
+    "fileTooLarge": "File too large (>1MB) for aria2 RPC upload. Place it at a local path and add it via URL instead"
   },
   "header": {
     "connection": "Connection",
