@@ -30,6 +30,10 @@
         </div>
       </template>
       <template v-else>
+        <!-- 未通过校验（存量 Release 无校验文件）时给出明确警示 -->
+        <div v-if="checksumUnavailable" class="update-unverified-warning">
+          {{ t('generalSettings.updateUnverifiedWarning') }}
+        </div>
         <div class="update-downloaded-text">{{ t('generalSettings.updateDownloaded') }}</div>
         <div class="update-dialog-actions">
           <n-button @click="visible = false">{{ t('generalSettings.updateLater') }}</n-button>
@@ -66,6 +70,8 @@ const visible = computed({
 })
 
 const starting = ref(false)
+/** 安装包未通过 SHA-256 校验（存量 Release 无校验文件）：下载页展示警示，安装前需二次确认 */
+const checksumUnavailable = ref(false)
 
 // 下载更新过程中禁止关闭对话框（mask/右上角关闭按钮均禁用），避免误关中断下载
 const closable = computed(() => uiStore.updateDialogState !== 'downloading')
@@ -127,11 +133,15 @@ onUnmounted(() => {
 async function startUpdateDownload() {
   if (!window.electronAPI?.downloadUpdate) return
   starting.value = true
+  checksumUnavailable.value = false
   uiStore.updateDialogState = 'downloading'
   uiStore.updatePercent = 0
   const result = await window.electronAPI.downloadUpdate()
   starting.value = false
-  if (!result.success) {
+  if (result.success) {
+    // 下载完成但无校验文件：标记未校验状态，由下载完成页展示警示并在安装前再次确认
+    checksumUnavailable.value = !!result.checksumUnavailable
+  } else if (result.error) {
     // 下载失败：回到确认页（可重试），并展示失败原因与 GitHub 手动下载指引
     uiStore.updateDialogState = 'prompt'
     confirm({
@@ -155,6 +165,20 @@ async function startUpdateDownload() {
 
 // 重启更新
 function restartToUpdate() {
+  // 未校验安装包（存量 Release 无校验文件）：安装前弹确认，明确告知风险后由用户决定
+  if (checksumUnavailable.value) {
+    confirm({
+      type: 'warning',
+      title: t('generalSettings.updateUnverifiedTitle'),
+      content: t('generalSettings.updateUnverifiedConfirm'),
+      positiveText: t('generalSettings.stillInstall'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: () => {
+        window.electronAPI?.restartAndInstall?.()
+      }
+    })
+    return
+  }
   window.electronAPI?.restartAndInstall?.()
 }
 </script>
@@ -235,5 +259,17 @@ function restartToUpdate() {
   margin-top: 12px;
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+/* 未校验警示条：醒目但不打断下载完成主状态 */
+.update-unverified-warning {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-warning);
+  border-radius: 8px;
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+  font-size: 12px;
+  line-height: 1.6;
 }
 </style>

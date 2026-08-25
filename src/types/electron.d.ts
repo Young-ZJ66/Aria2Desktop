@@ -66,7 +66,7 @@ export interface ElectronAPI {
     alreadyDownloaded?: boolean
     error?: string
   }>
-  downloadUpdate: () => Promise<{ success: boolean; error?: string }>
+  downloadUpdate: () => Promise<{ success: boolean; error?: string; checksumUnavailable?: boolean }>
   restartAndInstall: () => Promise<{ success: boolean; error?: string }>
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
 

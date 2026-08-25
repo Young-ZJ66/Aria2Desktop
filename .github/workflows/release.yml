@@ -62,7 +62,8 @@ jobs:
           }
           Write-Host "使用预写的 .github/release-notes.md 作为 Release 描述"
 
-      # 用 GitHub CLI 创建/更新 Release，只上传安装包与便携版（不含 latest.yml / blockmap）
+      # 用 GitHub CLI 创建/更新 Release，只上传安装包与便携版（不含 latest.yml / blockmap），
+      # 并为每个产物生成同名的 .sha256 校验文件一并上传（客户端应用内更新依赖它做完整性校验）
       - name: 创建 Release 并上传产物
         shell: pwsh
         run: |
@@ -72,11 +73,14 @@ jobs:
           } else {
             gh release edit ${{ github.ref_name }} --notes-file .github/release-notes.md
           }
-          Get-ChildItem release -Filter "*-Setup.exe" | ForEach-Object {
-            gh release upload ${{ github.ref_name }} $_.FullName --clobber
-          }
-          Get-ChildItem release -Filter "*-portable.zip" | ForEach-Object {
-            gh release upload ${{ github.ref_name }} $_.FullName --clobber
+          $assets = @(Get-ChildItem release -Filter "*-Setup.exe"; Get-ChildItem release -Filter "*-portable.zip")
+          foreach ($asset in $assets) {
+            # 生成纯 hex 形式的 SHA-256 校验文件（客户端兼容 "hash  filename" 与纯 hash 格式）
+            $hash = (Get-FileHash -LiteralPath $asset.FullName -Algorithm SHA256).Hash.ToLower()
+            $shaPath = "$($asset.FullName).sha256"
+            Set-Content -LiteralPath $shaPath -Value $hash -NoNewline -Encoding ascii
+            gh release upload ${{ github.ref_name }} $asset.FullName --clobber
+            gh release upload ${{ github.ref_name }} $shaPath --clobber
           }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

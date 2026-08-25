@@ -81,8 +81,9 @@ export class UpdateController {
     return this.checkForUpdates()
   }
 
-  /** 下载最新版本安装包（带进度推送），由用户在更新弹窗中确认后调用 */
-  async downloadUpdate(): Promise<{ success: boolean; error?: string }> {
+  /** 下载最新版本安装包（带进度推送），由用户在更新弹窗中确认后调用。
+    checksumUnavailable：安装包已下载但无校验文件可验证完整性（存量 Release 兼容） */
+  async downloadUpdate(): Promise<{ success: boolean; error?: string; checksumUnavailable?: boolean }> {
     if (!app.isPackaged) {
       return { success: false, error: 'Development mode does not support auto update' }
     }
@@ -103,9 +104,9 @@ export class UpdateController {
 
       this.isDownloading = true
       const downloadUrl = this.buildInstallerUrl(latestVersion)
-      await this.downloadInstaller(downloadUrl, latestVersion)
+      const { checksumUnavailable } = await this.downloadInstaller(downloadUrl, latestVersion)
       this.sendToRenderer({ state: 'downloaded', version: latestVersion })
-      return { success: true }
+      return { success: true, checksumUnavailable }
     } catch (error) {
       // 失败原因通过返回值交给渲染层展示（附 GitHub 手动下载指引），不再推送 error 状态避免重复提示
       return { success: false, error: error instanceof Error ? error.message : String(error) }
@@ -181,12 +182,13 @@ export class UpdateController {
     return `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${fileName}`
   }
 
-  /** 流式下载安装包到临时目录，并推送下载进度 */
-  private downloadInstaller(url: string, version: string): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+  /** 流式下载安装包到临时目录，并推送下载进度。
+    校验文件缺失时 resolve 携带 checksumUnavailable 标记（安装包保留，交由 UI 决定） */
+  private downloadInstaller(url: string, version: string): Promise<{ checksumUnavailable?: boolean }> {
+    return new Promise<{ checksumUnavailable?: boolean }>((resolve, reject) => {
       // 每次下载使用唯一文件名，避免覆盖仍被占用（如安装器运行中/杀软扫描）的旧文件
       const filePath = path.join(app.getPath('temp'), `Aria2Desktop-${version}-${Date.now()}-Setup.exe`)
-      // 任一环节失败（下载/写盘/校验）时先清理未完成的临时文件，避免残留占用磁盘
+      // 任一环节失败（下载/写盘/校验硬失败）时先清理未完成的临时文件，避免残留占用磁盘
       const rejectWithCleanup = (err: unknown) => {
         this.cleanupTempFile(filePath)
         reject(err)
@@ -211,7 +213,7 @@ export class UpdateController {
     version: string,
     originalUrl: string,
     redirectCount: number,
-    resolve: () => void,
+    resolve: (value: { checksumUnavailable?: boolean }) => void,
     reject: (reason?: unknown) => void
   ): void {
     if (redirectCount > MAX_REDIRECTS) {
@@ -267,12 +269,13 @@ export class UpdateController {
       res.on('end', () => {
         if (failed) return
         fileStream.end(() => {
-          // 写盘完成后校验 SHA-256（release 附带 .sha256 时强制校验，缺失则跳过）
+          // 写盘完成后校验 SHA-256（release 附带 .sha256 时强制校验；
+          // 缺失时 resolve 携带 checksumUnavailable，由 UI 提示并让用户显式决定）
           this.verifyChecksum(filePath, originalUrl)
-            .then(() => {
+            .then((checksumResult) => {
               this.downloadedPath = filePath
               this.downloadedVersion = version
-              resolve()
+              resolve(checksumResult)
             })
             .catch(reject)
         })
@@ -291,19 +294,23 @@ export class UpdateController {
   }
 
   /**
-   * 校验安装包 SHA-256：若 release 附带 `${url}.sha256` 文件则强制比对，
-   * 缺失（404 等）视为无校验文件、跳过校验以兼容现有 release。
-   */
-  private async verifyChecksum(installerPath: string, originalUrl: string): Promise<void> {
+ * 校验安装包 SHA-256：
+ * - release 附带 `${url}.sha256` 时强制比对，不匹配/格式异常则拒绝安装（安全红线，不放开）；
+ * - 校验文件缺失或获取失败（404/网络错误）时返回 { checksumUnavailable: true }，
+ *   不自动安装也不删除已下载的安装包，交由渲染层提示用户后由其显式决定是否安装
+ *   （用于兼容尚未附带校验文件的存量 Release）。
+ */
+  private async verifyChecksum(installerPath: string, originalUrl: string): Promise<{ checksumUnavailable?: boolean }> {
     let sha256Text: string | null = null
     try {
       sha256Text = await this.fetchText(`${originalUrl}.sha256`)
-    } catch {
-      // 缺少校验文件：拒绝自动安装，避免安装包被篡改无法被发现
-      throw new Error('安装包缺少 SHA-256 校验文件，已拒绝自动安装，请从 GitHub Release 手动下载')
+    } catch (error) {
+      console.warn('[UpdateController] Checksum file unavailable, installer left unverified:',
+        error instanceof Error ? error.message : error)
+      return { checksumUnavailable: true }
     }
     if (!sha256Text) {
-      throw new Error('安装包缺少 SHA-256 校验文件，已拒绝自动安装，请从 GitHub Release 手动下载')
+      return { checksumUnavailable: true }
     }
     // 兼容 "hash  filename" 与纯 hash 两种格式
     const expected = sha256Text.trim().split(/\s+/)[0].toLowerCase()
@@ -316,6 +323,7 @@ export class UpdateController {
       throw new Error(`SHA-256 校验失败：期望 ${expected.slice(0, 12)}…，实际 ${actual.slice(0, 12)}…`)
     }
     console.log('[UpdateController] Installer checksum verified')
+    return {}
   }
 
   /** GET 文本（用于拉取 .sha256），非 2xx 或不存在则 reject */
