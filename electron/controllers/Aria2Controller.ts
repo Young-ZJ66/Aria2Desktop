@@ -57,7 +57,11 @@ export class Aria2Controller {
         const success = await this.aria2Manager.start()
         console.log(`Aria2 auto-start result: ${success}`)
         if (!success) {
-          throw new Error('Aria2 进程启动失败，请检查可执行文件与配置')
+          // 附带 aria2 stderr，让错误弹窗能展示 aria2 自身的报错（端口占用/坏配置/杀软拦截等）
+          const stderr = this.aria2Manager.getLastStderr()
+          throw new Error(stderr
+            ? `Aria2 进程启动失败，请检查可执行文件与配置。\n\nAria2 输出:\n${stderr}`
+            : 'Aria2 进程启动失败，请检查可执行文件与配置')
         }
       }
     } catch (error) {
@@ -142,7 +146,9 @@ export class Aria2Controller {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
       if (!this.aria2Manager) await this.initialize()
       if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
-      return { success: await this.aria2Manager.start() }
+      const ok = await this.aria2Manager.start()
+      // 失败时附带 aria2 stderr，便于设置页展示具体原因
+      return { success: ok, error: ok ? undefined : (this.aria2Manager.getLastStderr() || 'Aria2 进程启动失败') }
     })
 
     ipcMain.handle('aria2-stop', async (event) => {

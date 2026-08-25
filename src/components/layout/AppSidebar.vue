@@ -328,7 +328,12 @@ const connectionStatusText = computed(() => {
 
 .status-connecting {
   color: var(--color-warning);
-  /* 连接中：图标持续旋转，提供明确的状态反馈 */
+  /* 连接中：仅图标旋转提供状态反馈（文字不参与旋转） */
+}
+
+/* 旋转动画只作用于连接状态图标；若写在上面的 .status-connecting 上，
+   会把"连接中"文字也一并旋转 */
+.footer-btn-connection :deep(.n-icon.status-connecting) {
   animation: sidebar-spin 1s linear infinite;
 }
 

@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUiStore } from '@/stores/uiStore'
 import { confirm } from '@/utils/feedback'
@@ -109,6 +109,23 @@ function sanitizeHtml(html: string): string {
 }
 
 let unsubscribeUpdateStatus: (() => void) | null = null
+
+// 弹窗打开时 n-modal 会自动聚焦到弹窗内第一个按钮（如"稍后"），
+// 使其呈现蓝色聚焦态（被误认为悬浮样式）。弹出瞬间将焦点从按钮移开，
+// 键盘 Tab 仍可正常聚焦交互
+watch(
+  () => uiStore.showUpdateDialog,
+  (show) => {
+    if (show) {
+      requestAnimationFrame(() => {
+        const el = document.activeElement as HTMLElement | null
+        if (el && el !== document.body && el.tagName !== 'BODY') {
+          el.blur()
+        }
+      })
+    }
+  }
+)
 
 onMounted(() => {
   // 监听主进程推送的下载进度，驱动弹窗状态

@@ -93,7 +93,7 @@ export default withVueTs(
 
   // ── Vite 配置文件 ──
   {
-    files: ['vite.config.ts'],
+    files: ['vite.config.mts'],
     rules: {
       'no-console': 'off'
     }

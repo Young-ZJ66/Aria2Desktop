@@ -326,22 +326,38 @@ export class UpdateController {
     return {}
   }
 
-  /** GET 文本（用于拉取 .sha256），非 2xx 或不存在则 reject */
-  private fetchText(url: string): Promise<string> {
+  /** GET 文本（用于拉取 .sha256）。GitHub 资产会 302 到 CDN，需手动跟随重定向，
+    否则 302 空响应体会被误判为"无校验文件" */
+  private fetchText(url: string, redirectCount = 0): Promise<string> {
     return new Promise<string>((resolve, reject) => {
+      const fail = (err: unknown) => {
+        reject(err instanceof Error ? err : new Error(String(err)))
+      }
       const req = https.request(this.buildRequestOptions(url), (res) => {
+        // 手动跟随重定向（releases/download 资产会 302 到 release-assets CDN）
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume()
+          if (redirectCount >= MAX_REDIRECTS) {
+            fail(new Error('Too many redirects'))
+            return
+          }
+          const nextUrl = new URL(res.headers.location, url).toString()
+          this.fetchText(nextUrl, redirectCount + 1).then(resolve).catch(fail)
+          return
+        }
+
         if (!res.statusCode || res.statusCode >= 400) {
           res.resume()
-          reject(new Error(`Fetch failed: ${res.statusCode}`))
+          fail(new Error(`Fetch failed: ${res.statusCode}`))
           return
         }
         const chunks: Buffer[] = []
         res.on('data', (c: Buffer) => chunks.push(c))
         res.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')))
-        res.on('error', reject)
+        res.on('error', (err) => fail(err))
       })
       req.setTimeout(15000, () => req.destroy(new Error('Fetch checksum timed out')))
-      req.on('error', reject)
+      req.on('error', (err) => fail(err))
       req.end()
     })
   }

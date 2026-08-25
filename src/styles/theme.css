@@ -132,13 +132,17 @@ body {
    这里让"鼠标点击导致的焦点"回落到默认灰（灰边框+深色文字），
    鼠标悬浮（hover）仍显示蓝色，键盘 Tab 聚焦（:focus-visible）也保留蓝色。
    ========================================= */
+/* 默认类型按钮点击后的焦点回落：
+   鼠标点击/程序化聚焦（如弹窗打开时自动聚焦）后按钮会保留 :focus 态，
+   若不强于 naive-ui 自身样式，会一直"卡"在蓝色聚焦态不恢复。
+   加 !important 确保非键盘聚焦统一回落为默认灰；键盘 Tab 聚焦（:focus-visible）仍保留蓝色。 */
 .n-button--default-type:focus:not(:hover):not(:focus-visible) {
-  background-color: var(--n-color);
-  color: var(--n-text-color);
+  background-color: var(--n-color) !important;
+  color: var(--n-text-color) !important;
 }
 
 .n-button--default-type:focus:not(:hover):not(:focus-visible) .n-button__state-border {
-  border: var(--n-border);
+  border: var(--n-border) !important;
 }
 
 /* =========================================

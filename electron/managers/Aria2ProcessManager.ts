@@ -41,6 +41,8 @@ export class Aria2ProcessManager {
   private configManager: Aria2ConfigManager
   /** 配置文件最后读取时的 mtime（供 getConfig 增量重载，避免每次 IPC 轮询全量读盘） */
   private configMtimeMs = -1
+  /** aria2 stderr 最近若干行（启动失败时透出给用户，用于精确定位原因，如端口占用/坏配置/杀软拦截） */
+  private stderrBuffer: string[] = []
   /**
    * 优雅关闭钩子（由 Aria2Controller 注入，通过 RPC aria2.shutdown 触发会话保存）。
    * Windows 上进程信号是强杀，先走 RPC 才能保存会话；所有停止/重启路径统一经过 stop()。
@@ -70,20 +72,21 @@ export class Aria2ProcessManager {
   }
 
   private ensureDownloadDirectory(): void {
-    // 简单检查：只确保会话文件路径在配置中正确设置
+    // 会话文件必须指向 userData 下的绝对路径。
+    // 旧版遗留的输入文件可能为相对路径（如 data/aria2/aria2.session），
+    // aria2 会以自身工作目录为基址解析导致 File not found、启动失败。
+    // 因此只要当前值与期望值不一致（含相对路径/缺失），即改写为绝对路径；等价时跳过写盘。
     const sessionPath = this.resourceManager.getSessionFilePath().replace(/\\/g, '/')
-    const currentInputFile = this.configManager.getConfigValue('input-file')
-    const currentSaveSession = this.configManager.getConfigValue('save-session')
 
-    if (!currentInputFile) {
-      console.log('设置会话输入文件路径:', sessionPath)
-      this.configManager.setConfigValue('input-file', sessionPath)
+    const setSessionKeyIfNeeded = (key: 'input-file' | 'save-session'): void => {
+      const current = this.configManager.getConfigValue(key)
+      if (current !== sessionPath) {
+        console.log(`设置会话文件路径: ${key} = ${sessionPath}${current ? `（原值: ${current}）` : ''}`)
+        this.configManager.setConfigValue(key, sessionPath)
+      }
     }
-
-    if (!currentSaveSession) {
-      console.log('设置会话保存文件路径:', sessionPath)
-      this.configManager.setConfigValue('save-session', sessionPath)
-    }
+    setSessionKeyIfNeeded('input-file')
+    setSessionKeyIfNeeded('save-session')
 
     // 清理曾被误写入、但当前 aria2c 不支持的选项残留，避免启动时 Unknown option 告警
     if (this.configManager.removeConfigKey('max-piece-length')) {
@@ -136,6 +139,7 @@ export class Aria2ProcessManager {
 
       console.log('Aria2 进程启动成功, PID:', this.process?.pid)
       this.retryCount = 0
+      this.stderrBuffer = [] // 清空历史错误，避免后续查询读到旧失败信息
       return true
 
     } catch (error) {
@@ -271,6 +275,9 @@ export class Aria2ProcessManager {
       const error = data.toString().trim()
       if (error && !error.match(/^\s*$/)) {
         console.error('[Aria2 stderr]:', error)
+        this.stderrBuffer.push(error)
+        // 只保留最近 30 行，避免长日志撑爆内存
+        if (this.stderrBuffer.length > 30) this.stderrBuffer.shift()
       }
     })
 
@@ -419,6 +426,11 @@ export class Aria2ProcessManager {
 
   public isRunning(): boolean {
     return this.process !== null && !this.process.killed
+  }
+
+  /** 返回 aria2 stderr 最近若干行（启动失败时由控制器拼入错误信息，方便定位原因） */
+  public getLastStderr(): string {
+    return this.stderrBuffer.join('\n')
   }
 
   public getConfig(): Required<Aria2ProcessConfig> {

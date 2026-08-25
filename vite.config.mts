@@ -36,7 +36,7 @@ export default defineConfig({
               test: /node_modules[\\/]*echarts/,
               priority: 15
             },
-            // Naive UI 单独拆分（全量注册，独立 chunk 利于缓存）
+            // Naive UI 单独拆分（独立 chunk 利于缓存）
             {
               name: 'naive-ui',
               test: /node_modules[\\/]naive-ui/,
@@ -53,7 +53,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
+      // .mts 为 ESM，无 __dirname，用 import.meta.dirname（Node >= 20.11）
+      '@': resolve(import.meta.dirname, 'src')
     }
   },
   server: {
