@@ -57,6 +57,21 @@ const electronAPI = {
   // 会话管理
   saveSession: () => ipcRenderer.invoke('aria2-save-session'),
 
+  // Tracker 订阅
+  tracker: {
+    getStatus: () => ipcRenderer.invoke('tracker-subscription-status'),
+    setAutoUpdate: (enabled: boolean, customSources?: string[], syncIntervalHours?: number) =>
+      ipcRenderer.invoke('tracker-set-auto-update', enabled, customSources, syncIntervalHours),
+    updateNow: (customSources?: string[]) => ipcRenderer.invoke('tracker-update-now', customSources),
+    onUpdated: (callback: (result: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, result: unknown) => callback(result)
+      ipcRenderer.on('tracker:updated', listener)
+      return () => {
+        ipcRenderer.removeListener('tracker:updated', listener)
+      }
+    }
+  },
+
   // 已完成任务持久化（替代 localStorage，存于 userData）
   loadPersistedTasks: () => ipcRenderer.invoke('persisted-tasks-load'),
   savePersistedTasks: (data: unknown) => ipcRenderer.invoke('persisted-tasks-save', data),

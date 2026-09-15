@@ -28,6 +28,10 @@
               </template>
             </n-input>
           </n-form-item>
+          <n-form-item path="category" :label="t('newTask.categoryLabel')" label-placement="top">
+            <n-select v-model:value="uriForm.category" :options="categoryOptions" />
+          </n-form-item>
+          <div v-if="uriTargetDir" class="dir-tip">{{ t('newTask.saveTo') }}：{{ uriTargetDir }}</div>
           <n-form-item path="fileName" :label="t('newTask.fileName')" label-placement="top">
             <n-input v-model:value="uriForm.fileName" :placeholder="t('newTask.fileNamePlaceholder')" />
           </n-form-item>
@@ -83,6 +87,9 @@
               </div>
             </div>
           </n-form-item>
+          <n-form-item :label="t('newTask.categoryLabel')" label-placement="top">
+            <n-select v-model:value="torrentForm.category" :options="categoryOptions" />
+          </n-form-item>
           <div class="form-actions">
             <n-space>
               <n-button type="primary" :loading="submitting" @click="handleTorrentSubmit">
@@ -115,6 +122,9 @@
                 {{ metalinkForm.metalinkFile ? metalinkForm.metalinkFile.name : t('newTask.dropMetalinkHint') }}
               </div>
             </div>
+          </n-form-item>
+          <n-form-item :label="t('newTask.categoryLabel')" label-placement="top">
+            <n-select v-model:value="metalinkForm.category" :options="categoryOptions" />
           </n-form-item>
           <div class="form-actions">
             <n-space>
@@ -149,6 +159,7 @@ import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import AppSwitch from '@/components/AppSwitch.vue'
 import type { Aria2Option } from '@/types/aria2'
+import { CATEGORY_AUTO, CATEGORY_GENERAL, getFileNameHintFromUri, resolveDownloadDir } from '@/shared/fileCategories'
 
 const uiStore = useUiStore()
 const { t } = useI18n()
@@ -220,17 +231,59 @@ const uriForm = reactive({
   fileName: '',
   maxConnectionPerServer: 5,
   minSplitSize: '20M',
-  autoStart: true
+  autoStart: true,
+  category: CATEGORY_AUTO
 })
 
 // 种子下载表单
 const torrentForm = reactive({
-  torrentFile: null as File | null
+  torrentFile: null as File | null,
+  category: CATEGORY_AUTO
 })
 
 // Metalink 下载表单
 const metalinkForm = reactive({
-  metalinkFile: null as File | null
+  metalinkFile: null as File | null,
+  category: CATEGORY_AUTO
+})
+
+// 分类下拉选项：智能识别 + 各分类（内置六类 + 用户自定义）+ 常规
+const categoryOptions = computed(() => {
+  const options: Array<{ label: string; value: string }> = [
+    { label: t('newTask.categoryAuto'), value: CATEGORY_AUTO }
+  ]
+  for (const c of settingsStore.categoryConfig.categories) {
+    if (c.id === CATEGORY_GENERAL) {
+      options.push({ label: t('newTask.categoryGeneral'), value: CATEGORY_GENERAL })
+    } else {
+      options.push({ label: c.name || t(`newTask.category.${c.id}`), value: c.id })
+    }
+  }
+  return options
+})
+
+// 按当前表单值计算最终保存目录（用于 URI 页实时提示 + 提交时计算）
+function computeTargetDir(
+  baseDir: string,
+  category: string,
+  fileNameHint: string
+): string {
+  return resolveDownloadDir(
+    baseDir,
+    category,
+    fileNameHint,
+    settingsStore.categoryConfig.categories,
+    settingsStore.categoryConfig.autoClassify
+  )
+}
+
+// URI 页提示将保存到的目录（baseDir = 手动目录，否则默认目录）
+const uriTargetDir = computed(() => {
+  const baseDir = uriForm.dir || settingsStore.downloadConfig?.defaultDir || ''
+  if (!baseDir) return ''
+  const firstUri = (uriForm.uris.split('\n').find(u => u.trim()) || '').trim()
+  const hint = uriForm.fileName || (firstUri ? getFileNameHintFromUri(firstUri) : '')
+  return computeTargetDir(baseDir, uriForm.category, hint)
 })
 
 // 验证规则
@@ -284,7 +337,10 @@ async function handleUriSubmit() {
     }
 
     const options: Record<string, string> = {}
-    if (uriForm.dir) options.dir = uriForm.dir
+    const baseDir = uriForm.dir || settingsStore.downloadConfig?.defaultDir || ''
+    const fileNameHint = uriForm.fileName || getFileNameHintFromUri(uris[0])
+    const targetDir = computeTargetDir(baseDir, uriForm.category, fileNameHint)
+    if (targetDir) options.dir = targetDir
     if (uriForm.fileName) options.out = uriForm.fileName
     options['max-connection-per-server'] = uriForm.maxConnectionPerServer.toString()
     options['min-split-size'] = uriForm.minSplitSize
@@ -328,7 +384,10 @@ async function handleTorrentSubmit() {
 
     const options: Aria2Option = {}
     const downloadConfig = settingsStore.downloadConfig
-    if (downloadConfig?.defaultDir) options.dir = downloadConfig.defaultDir
+    const baseDir = downloadConfig?.defaultDir || ''
+    const fileNameHint = torrentForm.torrentFile?.name || ''
+    const targetDir = computeTargetDir(baseDir, torrentForm.category, fileNameHint)
+    if (targetDir) options.dir = targetDir
     if (downloadConfig && !downloadConfig.autoStart) options.pause = 'true'
 
     await taskStore.addTorrent(torrentData, [], options)
@@ -369,7 +428,10 @@ async function handleMetalinkSubmit() {
 
     const options: Aria2Option = {}
     const downloadConfig = settingsStore.downloadConfig
-    if (downloadConfig?.defaultDir) options.dir = downloadConfig.defaultDir
+    const baseDir = downloadConfig?.defaultDir || ''
+    const fileNameHint = metalinkForm.metalinkFile?.name || ''
+    const targetDir = computeTargetDir(baseDir, metalinkForm.category, fileNameHint)
+    if (targetDir) options.dir = targetDir
     if (downloadConfig && !downloadConfig.autoStart) options.pause = 'true'
 
     const gids = await taskStore.addMetalink(metalinkData, options)
@@ -482,6 +544,14 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   margin-top: 8px;
+}
+
+.dir-tip {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: -8px 0 12px;
+  word-break: break-all;
+  line-height: 1.6;
 }
 
 .option-label {

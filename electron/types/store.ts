@@ -14,9 +14,26 @@ export interface WindowState {
   isFullScreen?: boolean
 }
 
+/** Tracker 订阅状态 */
+export interface TrackerSubscriptionState {
+  /** 是否启用每日自动更新 */
+  autoUpdate: boolean
+  /** 上次成功更新时间（ISO 字符串） */
+  lastUpdate: string | null
+  /** 上次成功更新的来源 URL */
+  lastSource: string
+  /** 上次成功更新的 Tracker 数量 */
+  lastCount: number
+  /** 自定义订阅源列表 */
+  customSources: string[]
+  /** 同步频率（小时） */
+  syncIntervalHours: number
+}
+
 /** Store 完整数据结构 */
 export interface StoreData {
   settings: AppSettings
   windowState: WindowState
+  trackerSubscription?: TrackerSubscriptionState
   [key: string]: unknown
 }

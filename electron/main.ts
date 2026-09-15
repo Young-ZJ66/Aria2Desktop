@@ -7,6 +7,7 @@ import { TrayController } from './controllers/TrayController'
 import { Aria2Controller } from './controllers/Aria2Controller'
 import { IpcController } from './controllers/IpcController'
 import { AppLifecycle } from './controllers/AppLifecycle'
+import { TrackerSubscriptionService } from './services/trackerSubscriptionService'
 import { appState } from './utils/appState'
 import { decryptSettingsSecrets } from './utils/secretCipher'
 import type { StoreData, AppSettings } from './types/store'
@@ -106,6 +107,7 @@ const windowController = new WindowController(store)
 const trayController = new TrayController(windowController)
 const aria2Controller = new Aria2Controller(store, windowController)
 const ipcController = new IpcController(windowController, trayController, aria2Controller, store)
+const trackerSubscriptionService = new TrackerSubscriptionService(store, aria2Controller, windowController)
 
 // 创建 AppLifecycle 协调器
 const appLifecycle = new AppLifecycle(
@@ -133,8 +135,12 @@ if (!gotTheLock) {
     console.log('App ready, starting initialization...')
 
     try {
+      // 注册 Tracker 订阅相关的 IPC（独立于 settings 页面的连接状态，随时可用）
+      trackerSubscriptionService.registerIpcHandlers()
       // 通过 AppLifecycle 初始化所有子系统
       await appLifecycle.initialize()
+      // App 就绪后启动 Tracker 每日订阅（含开机补拉 + 定时更新）
+      trackerSubscriptionService.initialize()
       console.log('Application initialized successfully')
     } catch (error) {
       console.error('Application initialization failed:', error)
@@ -178,6 +184,8 @@ if (!gotTheLock) {
 
     try {
       await appLifecycle.shutdown()
+      // 关闭 Tracker 订阅定时器，避免退出阻塞
+      trackerSubscriptionService.shutdown()
       console.log('Graceful shutdown complete')
     } catch (error) {
       console.error('Shutdown error:', error)

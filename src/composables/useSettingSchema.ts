@@ -9,19 +9,25 @@ import type { SettingSchema, SettingField } from '@/types/settingSchema'
  * - boolean：未返回（undefined）时按字段默认值；返回 'true'/'false' 时按真实值。
  *   默认值为 true 的字段（aria2 未设置时即启用）采用 `!== 'false'` 语义，
  *   默认值为 false 的字段采用 `=== 'true'` 语义，与原手写转换一致。
- * - number：Number() 解析，未返回时回退默认值。
- * - size：parseSizeToUnit 换算为目标单位下的数值，未返回时回退默认值。
+ * - number：Number() 解析，未返回时回退默认值；若声明了 min/max 则 clamp 到合法范围。
+ * - size：parseSizeToUnit 换算为目标单位下的数值，未返回时回退默认值；若声明了 min/max 则 clamp。
  * - string/select：空串（aria2 未设置）回退默认值，与原有 `|| default` 行为一致。
  */
+function clamp(value: number, min?: number, max?: number): number {
+  if (min !== undefined && value < min) return min
+  if (max !== undefined && value > max) return max
+  return value
+}
+
 function defaultOptionToValue(field: SettingField, raw: string | undefined): unknown {
   switch (field.type) {
     case 'boolean':
       return field.default !== false ? raw !== 'false' : raw === 'true'
     case 'number':
-      return Number(raw ?? field.default ?? 0)
+      return clamp(Number(raw ?? field.default ?? 0), field.min, field.max)
     case 'size':
       // 未返回时直接采用表单默认值（数字）；返回时解析为指定单位下的数值
-      return raw === undefined ? Number(field.default ?? 0) : parseSizeToUnit(raw, field.unit ?? 'M')
+      return clamp(raw === undefined ? Number(field.default ?? 0) : parseSizeToUnit(raw, field.unit ?? 'M'), field.min, field.max)
     case 'string':
     case 'select':
       return raw || String(field.default ?? '')

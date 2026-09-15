@@ -12,6 +12,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const aria2Config = computed(() => settings.value.aria2 ?? defaultSettings.aria2)
   const uiConfig = computed(() => settings.value.ui ?? defaultSettings.ui)
   const downloadConfig = computed(() => settings.value.download ?? defaultSettings.download)
+  const categoryConfig = computed(
+    () => settings.value.category ?? { autoClassify: true, categories: defaultSettings.category!.categories }
+  )
   const theme = computed(() => settings.value.theme)
   const language = computed(() => settings.value.language)
 
@@ -96,6 +99,13 @@ export const useSettingsStore = defineStore('settings', () => {
   async function updateDownloadConfig(downloadConfig: Partial<AppSettings['download']>) {
     await updateSettings({
       download: { ...settings.value.download, ...downloadConfig }
+    })
+  }
+
+  // 分类下载设置
+  async function updateCategoryConfig(category: Partial<NonNullable<AppSettings['category']>>) {
+    await updateSettings({
+      category: { ...settings.value.category, ...category } as AppSettings['category']
     })
   }
 
@@ -204,6 +214,7 @@ export const useSettingsStore = defineStore('settings', () => {
     aria2Config,
     uiConfig,
     downloadConfig,
+    categoryConfig,
     theme,
     language,
 
@@ -215,6 +226,7 @@ export const useSettingsStore = defineStore('settings', () => {
     updateAria2Config,
     updateUIConfig,
     updateDownloadConfig,
+    updateCategoryConfig,
     resetSettings,
     exportSettings,
     importSettings,

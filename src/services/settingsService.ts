@@ -5,6 +5,7 @@
 
 export type { AppSettings } from '@/shared/appSettings'
 import type { AppSettings } from '@/shared/appSettings'
+import { mergeCategoryRules } from '@/shared/fileCategories'
 
 export const defaultSettings: AppSettings = {
   language: 'zh-CN',
@@ -50,6 +51,12 @@ export const defaultSettings: AppSettings = {
     maxConnectionPerServer: 5,
     minSplitSize: '10M',
     autoStart: true
+  },
+
+  category: {
+    autoClassify: true,
+    // 拷贝一份，避免直接引用共享默认数组被后续修改污染
+    categories: mergeCategoryRules(undefined)
   }
 }
 
@@ -85,7 +92,7 @@ class SettingsService {
     this.notifyListeners()
   }
 
-  // 深合并嵌套对象（aria2/ui/download），避免保存缺省字段时覆盖默认值；数组不深合
+  // 深合并嵌套对象（aria2/ui/download/category），避免保存缺省字段时覆盖默认值；数组不深合
   // saved 允许为 Partial：electron-store 读取到空对象/缺省字段（如 {}）时也能正常合并
   private mergeWithDefaults(saved: Partial<AppSettings>): AppSettings {
     return {
@@ -93,7 +100,11 @@ class SettingsService {
       ...saved,
       aria2: { ...defaultSettings.aria2, ...(saved.aria2 || {}) },
       ui: { ...defaultSettings.ui, ...(saved.ui || {}) },
-      download: { ...defaultSettings.download, ...(saved.download || {}) }
+      download: { ...defaultSettings.download, ...(saved.download || {}) },
+      category: {
+        autoClassify: saved.category?.autoClassify ?? defaultSettings.category!.autoClassify,
+        categories: mergeCategoryRules(saved.category?.categories)
+      }
     }
   }
 
@@ -118,6 +129,12 @@ class SettingsService {
     }
     if (patch.download) {
       merged.download = { ...base.download, ...patch.download }
+    }
+    if (patch.category) {
+      merged.category = {
+        autoClassify: patch.category.autoClassify ?? base.category?.autoClassify,
+        categories: mergeCategoryRules(patch.category.categories ?? base.category?.categories)
+      }
     }
     if (patch.connectionProfiles) {
       merged.connectionProfiles = patch.connectionProfiles

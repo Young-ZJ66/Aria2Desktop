@@ -1,6 +1,9 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { app } from 'electron'
+// 注意：主进程产物是 CJS，运行时无法解析 @/ 别名；
+// 必须用相对路径引入 src/shared 下的共享常量（tsc 会将该依赖一并编译输出到 dist）
+import { DEFAULT_BT_TRACKERS_CSV } from '../../src/shared/btTrackers'
 
 /**
  * Aria2ConfigManager - 管理 Aria2 配置文件
@@ -83,6 +86,8 @@ continue=true
 save-session-interval=60
 log-level=warn
 max-mmap-limit=0
+# BT 公共 Tracker（首次生成时预填，可在应用 BT 设置页编辑/还原）
+bt-tracker=${DEFAULT_BT_TRACKERS_CSV}
 `
     try {
       const dir = path.dirname(this.configPath)

@@ -17,6 +17,10 @@ export interface SettingField {
   default?: unknown
   /** size 类型的单位（K/M/G/T），仅 type === 'size' 时生效 */
   unit?: SizeUnit
+  /** number/size 类型的最小值（从 aria2 加载时 clamp，防止越界导致校验失败） */
+  min?: number
+  /** number/size 类型的最大值（从 aria2 加载时 clamp，防止越界导致校验失败） */
+  max?: number
   /** 自定义 aria2 选项 → 表单值 转换，默认按 type 转换 */
   optionToValue?: (raw: string | undefined) => unknown
   /** 自定义 表单值 → aria2 选项字符串 转换，返回 undefined 表示不写入（让 aria2 保留旧值） */

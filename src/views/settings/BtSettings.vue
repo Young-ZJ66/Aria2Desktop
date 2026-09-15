@@ -169,27 +169,150 @@
 
       <!-- Tracker -->
       <n-card :title="t('settings.bt.groupTracker')" class="setting-group">
+        <!-- 第一项：官方来源 -->
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.trackerOfficialSources')" :tip="t('settings.bt.trackerOfficialSourcesTip')" />
+          </template>
+          <div class="tracker-official-sources">
+            <n-tooltip v-for="source in officialSources" :key="source.url" trigger="hover">
+              <template #trigger>
+                <div class="tracker-source-item">
+                  <n-checkbox
+                    :checked="source.enabled"
+                    :disabled="!trackerSupported"
+                    @update:checked="(val: boolean) => toggleOfficialSource(source.name, val)"
+                  />
+                  <span class="source-name">{{ source.name }}</span>
+                </div>
+              </template>
+              {{ source.url }}
+            </n-tooltip>
+          </div>
+        </n-form-item>
+
+        <!-- 第二项：自定义来源 -->
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.trackerCustomSources')" :tip="t('settings.bt.trackerCustomSourcesTip')" />
+          </template>
+          <div class="tracker-custom-sources">
+            <div
+              v-for="(url, index) in displayedCustomSources"
+              :key="index"
+              class="tracker-source-row"
+            >
+              <n-input
+                :value="url"
+                :placeholder="t('settings.bt.trackerSourcePlaceholder')"
+                :disabled="!trackerSupported"
+                @update:value="(val: string) => updateCustomSource(index, val)"
+              />
+              <n-button
+                size="small"
+                :disabled="!trackerSupported"
+                @click="removeCustomSource(index)"
+              >
+                <template #icon>
+                  <n-icon><CloseOutline /></n-icon>
+                </template>
+              </n-button>
+            </div>
+            <n-button
+              v-if="customTrackerSources.length > INITIAL_VISIBLE_SOURCES"
+              text
+              size="small"
+              class="tracker-expand-btn"
+              @click="toggleCustomSourcesExpanded"
+            >
+              {{ customSourcesExpanded ? t('settings.bt.collapseSources') : t('settings.bt.expandSources', { count: customTrackerSources.length }) }}
+            </n-button>
+            <div v-if="isAddingSource" class="tracker-source-row">
+              <n-input
+                ref="newSourceInputRef"
+                :value="newSourceUrl"
+                :placeholder="t('settings.bt.trackerSourcePlaceholder')"
+                :disabled="!trackerSupported"
+                @update:value="(val: string) => { newSourceUrl = val }"
+                @blur="onNewSourceBlur"
+              />
+              <n-button
+                size="small"
+                :disabled="!trackerSupported"
+                @click="cancelAddSource"
+              >
+                <template #icon>
+                  <n-icon><CloseOutline /></n-icon>
+                </template>
+              </n-button>
+            </div>
+            <n-button
+              v-else
+              size="small"
+              dashed
+              :disabled="!trackerSupported"
+              @click="startAddSource"
+            >
+              <template #icon>
+                <n-icon><AddOutline /></n-icon>
+              </template>
+              {{ t('settings.bt.addTrackerSource') }}
+            </n-button>
+          </div>
+        </n-form-item>
+
+        <!-- 立即更新按钮 -->
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.trackerUpdate')" :tip="t('settings.bt.trackerUpdateTip')" />
+          </template>
+          <div class="tracker-update-section">
+            <n-button
+              type="primary"
+              :loading="trackerUpdating"
+              :disabled="!trackerSupported"
+              @click="updateTrackersNow"
+            >
+              {{ t('settings.bt.trackerUpdateNow') }}
+            </n-button>
+            <div v-if="trackerLastUpdate" class="tracker-update-meta">
+              {{ t('settings.bt.trackerLastUpdate', { time: formatTrackerTime(trackerLastUpdate), count: trackerLastCount }) }}
+            </div>
+          </div>
+        </n-form-item>
+
+        <!-- 第三项：Tracker 服务器列表 -->
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.bt.btTracker')" :tip="t('settings.bt.btTrackerTip')" />
           </template>
           <n-input
-            v-model:value="settings.btTracker"
+            v-model:value="btTrackerText"
             type="textarea"
             :autosize="{ minRows: 4, maxRows: 8 }"
             :placeholder="t('settings.bt.btTrackerPlaceholder')"
+            spellcheck="false"
           />
         </n-form-item>
 
+        <!-- 第四项：自动同步开关 -->
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.bt.btExcludeTracker')" :tip="t('settings.bt.btExcludeTrackerTip')" />
+            <TipLabel :label="t('settings.bt.trackerAutoUpdate')" :tip="t('settings.bt.trackerAutoUpdateTip')" />
           </template>
-          <n-input
-            v-model:value="settings.btExcludeTracker"
-            type="textarea"
-            :autosize="{ minRows: 4, maxRows: 8 }"
-            :placeholder="t('settings.bt.btExcludeTrackerPlaceholder')"
+          <AppSwitch :value="trackerAutoUpdate" :disabled="!trackerSupported" @update:value="onAutoUpdateChange" />
+        </n-form-item>
+
+        <!-- 第五项：同步频率 -->
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.bt.trackerSyncInterval')" :tip="t('settings.bt.trackerSyncIntervalTip')" />
+          </template>
+          <n-select
+            v-model:value="trackerSyncInterval"
+            :options="syncIntervalOptions"
+            :disabled="!trackerSupported || !trackerAutoUpdate"
+            @update:value="onSyncIntervalChange"
           />
         </n-form-item>
 
@@ -347,9 +470,9 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed } from 'vue'
+import { reactive, computed, ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOpenOutline } from '@vicons/ionicons5'
+import { FolderOpenOutline, CloseOutline, AddOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
@@ -359,6 +482,7 @@ import { formatSizeWithUnit } from '@/utils/size'
 import type { SettingSchema } from '@/types/settingSchema'
 import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
+import { DEFAULT_BT_TRACKERS_CSV } from '@/shared/btTrackers'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
@@ -395,7 +519,6 @@ const settings = reactive({
   btRequireCrypto: false,
   btMinCryptoLevel: 'plain',
   btTracker: '',
-  btExcludeTracker: '',
   btTrackerConnectTimeout: 60,
   btTrackerInterval: 0,
   btTrackerTimeout: 60,
@@ -443,8 +566,7 @@ const btSettingsSchema: SettingSchema = {
     { key: 'enablePeerExchange', aria2Key: 'enable-peer-exchange', type: 'boolean', default: true },
     { key: 'btRequireCrypto', aria2Key: 'bt-require-crypto', type: 'boolean', default: false },
     { key: 'btMinCryptoLevel', aria2Key: 'bt-min-crypto-level', type: 'select', default: 'plain' },
-    { key: 'btTracker', aria2Key: 'bt-tracker', type: 'string', default: '' },
-    { key: 'btExcludeTracker', aria2Key: 'bt-exclude-tracker', type: 'string', default: '' },
+    { key: 'btTracker', aria2Key: 'bt-tracker', type: 'string', default: DEFAULT_BT_TRACKERS_CSV },
     { key: 'btTrackerConnectTimeout', aria2Key: 'bt-tracker-connect-timeout', type: 'number', default: 60 },
     { key: 'btTrackerInterval', aria2Key: 'bt-tracker-interval', type: 'number', default: 0 },
     { key: 'btTrackerTimeout', aria2Key: 'bt-tracker-timeout', type: 'number', default: 60 },
@@ -508,10 +630,254 @@ async function selectDhtFile(field: 'dhtFilePath' | 'dhtFilePath6') {
     message.error(t('settings.selectFileFailed'))
   }
 }
+
+// ---------- Tracker 订阅 ----------
+// 订阅能力依赖桌面环境（主进程负责拉取/写入 aria2 配置）
+const trackerSupported = computed(() => !!window.electronAPI?.tracker)
+const trackerAutoUpdate = ref(false)
+const trackerLastUpdate = ref<string | null>(null)
+const trackerLastCount = ref(0)
+const trackerUpdating = ref(false)
+const trackerSyncInterval = ref(24) // 默认每天同步一次
+
+// 同步频率选项
+const syncIntervalOptions = [
+  { label: '12 小时', value: 12 },
+  { label: '每天', value: 24 },
+  { label: '每周', value: 168 }
+]
+
+// 官方来源（带启用状态）
+const officialSources = ref([
+  { name: 'ngosang', url: 'https://cdn.jsdelivr.net/gh/ngosang/trackerslist/trackers_best.txt', enabled: true },
+  { name: 'XIU2', url: 'https://cdn.jsdelivr.net/gh/XIU2/TrackersListCollection/best.txt', enabled: true }
+])
+
+// 自定义来源列表
+const customTrackerSources = ref<string[]>([
+  'https://cdn.jsdelivr.net/gh/ngosang/trackerslist/trackers_best.txt',
+  'https://cdn.jsdelivr.net/gh/ngosang/trackerslist/trackers_best_ip.txt',
+  'https://cdn.jsdelivr.net/gh/ngosang/trackerslist/trackers_all.txt',
+  'https://cdn.jsdelivr.net/gh/ngosang/trackerslist/trackers_all_ip.txt',
+  'https://cdn.jsdelivr.net/gh/XIU2/TrackersListCollection/best.txt',
+  'https://cdn.jsdelivr.net/gh/XIU2/TrackersListCollection/all.txt',
+  'https://cdn.jsdelivr.net/gh/XIU2/TrackersListCollection/http.txt'
+])
+
+// 自定义来源折叠/展开状态
+const INITIAL_VISIBLE_SOURCES = 1
+const customSourcesExpanded = ref(false)
+const isAddingSource = ref(false)
+const newSourceUrl = ref('')
+const newSourceInputRef = ref<InstanceType<typeof import('naive-ui')['NInput']> | null>(null)
+
+const displayedCustomSources = computed(() =>
+  customSourcesExpanded.value ? customTrackerSources.value : customTrackerSources.value.slice(0, INITIAL_VISIBLE_SOURCES)
+)
+
+// 切换自定义来源展开/折叠
+function toggleCustomSourcesExpanded() {
+  customSourcesExpanded.value = !customSourcesExpanded.value
+}
+
+// 开始添加来源（显示输入框）
+function startAddSource() {
+  isAddingSource.value = true
+  newSourceUrl.value = ''
+  // 下一个 tick 聚焦输入框
+  void nextTick(() => {
+    newSourceInputRef.value?.focus()
+  })
+}
+
+// 取消添加来源
+function cancelAddSource() {
+  isAddingSource.value = false
+  newSourceUrl.value = ''
+}
+
+// 新来源输入框失去焦点时，如果有内容则添加到列表
+function onNewSourceBlur() {
+  if (newSourceUrl.value.trim()) {
+    customTrackerSources.value.push(newSourceUrl.value.trim())
+  }
+  isAddingSource.value = false
+  newSourceUrl.value = ''
+}
+
+// 切换官方来源启用状态
+function toggleOfficialSource(name: string, enabled: boolean) {
+  const source = officialSources.value.find(s => s.name === name)
+  if (source) source.enabled = enabled
+}
+
+// btTracker 内部以逗号分隔存储（aria2 bt-tracker 格式），编辑框按每行一条展示
+const btTrackerText = computed({
+  get: () => settings.btTracker.split(',').filter(Boolean).join('\n'),
+  set: (value: string) => {
+    const lines = value.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+    settings.btTracker = lines.join(',')
+  }
+})
+
+// 本地化更新时间展示，空/非法值回退为空串
+function formatTrackerTime(iso: string): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString()
+}
+
+// 获取所有启用的订阅来源 URL 列表
+function getAllEnabledSources(): string[] {
+  const enabledOfficial = officialSources.value.filter(s => s.enabled).map(s => s.url)
+  return [...enabledOfficial, ...customTrackerSources.value.filter(s => s.trim())]
+}
+
+// 手动触发一次更新：成功后回填列表并刷新状态（失败由 IPC 返回错误展示）
+async function updateTrackersNow() {
+  if (trackerUpdating.value || !trackerSupported.value) return
+  trackerUpdating.value = true
+  try {
+    const result = await window.electronAPI!.tracker.updateNow(getAllEnabledSources())
+    if (result.success) {
+      if (result.csv) settings.btTracker = result.csv
+      trackerLastUpdate.value = result.lastUpdate ?? null
+      trackerLastCount.value = result.count ?? 0
+      message.success(t('settings.bt.trackerUpdated', { count: result.count ?? 0 }))
+    } else {
+      message.error(t('settings.bt.trackerUpdateFailed', { error: result.error || t('settings.unknownError') }))
+    }
+  } catch (_error) {
+    message.error(t('settings.bt.trackerUpdateFailed', { error: t('settings.unknownError') }))
+  } finally {
+    trackerUpdating.value = false
+  }
+}
+
+// 移除自定义来源
+function removeCustomSource(index: number) {
+  customTrackerSources.value.splice(index, 1)
+}
+
+// 更新自定义来源
+function updateCustomSource(index: number, value: string) {
+  customTrackerSources.value[index] = value
+}
+
+// 切换每日自动更新（持久化到主进程，开启时主进程立即拉取一次）
+async function onAutoUpdateChange(value: boolean) {
+  trackerAutoUpdate.value = value
+  if (!trackerSupported.value) return
+  const result = await window.electronAPI!.tracker.setAutoUpdate(value, getAllEnabledSources(), trackerSyncInterval.value)
+  trackerLastUpdate.value = result.lastUpdate ?? null
+  trackerLastCount.value = result.lastCount ?? 0
+}
+
+// 更改同步频率
+async function onSyncIntervalChange(value: number) {
+  trackerSyncInterval.value = value
+  if (!trackerSupported.value || !trackerAutoUpdate.value) return
+  const result = await window.electronAPI!.tracker.setAutoUpdate(true, getAllEnabledSources(), value)
+  trackerLastUpdate.value = result.lastUpdate ?? null
+  trackerLastCount.value = result.lastCount ?? 0
+}
+
+// 订阅主进程推送（后台自更/手动更新），保持列表与状态同步
+let unsubscribeTracker = () => {}
+
+onMounted(async () => {
+  if (!trackerSupported.value) return
+  const result = await window.electronAPI!.tracker.getStatus()
+  if (result.success) {
+    trackerAutoUpdate.value = !!result.autoUpdate
+    trackerLastUpdate.value = result.lastUpdate ?? null
+    trackerLastCount.value = result.lastCount ?? 0
+    if (result.syncIntervalHours) trackerSyncInterval.value = result.syncIntervalHours
+    if (result.customSources?.length) customTrackerSources.value = result.customSources
+  }
+  unsubscribeTracker = window.electronAPI!.tracker.onUpdated((res) => {
+    trackerUpdating.value = false
+    if (res.success) {
+      if (res.csv) settings.btTracker = res.csv
+      trackerLastUpdate.value = res.lastUpdate ?? null
+      trackerLastCount.value = res.count ?? 0
+    }
+  })
+})
+
+onBeforeUnmount(() => {
+  unsubscribeTracker()
+})
 </script>
 
 <style scoped>
 .setting-group {
   margin-bottom: 16px;
+}
+
+.tracker-official-sources {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+}
+
+.tracker-source-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--hover-color, #f5f5f5);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.source-name {
+  font-weight: 600;
+}
+
+.tracker-custom-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 80%;
+}
+
+.tracker-source-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tracker-source-row .n-input {
+  flex: 1;
+}
+
+.tracker-expand-btn {
+  align-self: flex-start;
+  font-size: 12px;
+  color: inherit;
+}
+
+.tracker-expand-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: inherit;
+}
+
+.tracker-source-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tracker-update-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tracker-update-meta {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
 }
 </style>

@@ -105,6 +105,46 @@ export interface ElectronAPI {
   // 会话管理
   saveSession: () => Promise<{ success: boolean; error?: string }>
 
+  // Tracker 订阅
+  tracker: {
+    getStatus: () => Promise<{
+      success: boolean
+      autoUpdate?: boolean
+      lastUpdate?: string | null
+      lastSource?: string
+      lastCount?: number
+      customSources?: string[]
+      syncIntervalHours?: number
+      error?: string
+    }>
+    setAutoUpdate: (enabled: boolean, customSources?: string[], syncIntervalHours?: number) => Promise<{
+      success: boolean
+      autoUpdate?: boolean
+      lastUpdate?: string | null
+      lastSource?: string
+      lastCount?: number
+      customSources?: string[]
+      syncIntervalHours?: number
+      error?: string
+    }>
+    updateNow: (customSources?: string[]) => Promise<{
+      success: boolean
+      csv?: string
+      count?: number
+      lastUpdate?: string | null
+      lastSource?: string
+      error?: string
+    }>
+    onUpdated: (callback: (result: {
+      success: boolean
+      csv?: string
+      count?: number
+      lastUpdate?: string | null
+      lastSource?: string
+      error?: string
+    }) => void) => () => void
+  }
+
   // 已完成任务持久化（存于 userData，替代 localStorage）
   loadPersistedTasks: () => Promise<Record<string, unknown>>
   savePersistedTasks: (data: unknown) => Promise<{ success: boolean; error?: string }>

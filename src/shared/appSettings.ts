@@ -66,4 +66,32 @@ export interface AppSettings {
     minSplitSize?: string
     autoStart?: boolean
   }
+
+  // 分类下载设置
+  category?: {
+    /** 是否按文件类型自动分类到子目录 */
+    autoClassify?: boolean
+    /** 分类规则（结构固定：general + Video/Music/Images/Documents/Compressed/Programs，可编辑目录名与扩展名） */
+    categories?: CategoryRule[]
+  }
+}
+
+/** 单个分类规则。id 固定为系统预定义值，dir 为子目录名，extensions 为用户可编辑的扩展名集合 */
+export interface CategoryRule {
+  /** 分类标识：general | video | music | images | documents | compressed | programs；自定义规则为生成值 */
+  id: string
+  /** 子目录名（英文），general 为空字符串表示不归入子目录 */
+  dir: string
+  /** 匹配的文件扩展名（不含点，小写），空数组表示无匹配 */
+  extensions: string[]
+  /**
+   * 自定义完整目标目录（可选）。为空时：
+   * - general 落到主下载目录；其他分类落到 下载目录/子目录名
+   * 设置了值则覆盖默认，直接使用该目录
+   */
+  customDir?: string
+  /** 自定义规则的显示名（内置规则为空，用 i18n 文案展示） */
+  name?: string
+  /** 是否用户自定义规则（内置规则由系统提供，用户可删可改） */
+  custom?: boolean
 }

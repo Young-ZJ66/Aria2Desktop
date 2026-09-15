@@ -8,9 +8,9 @@
     :saving="saving"
     :loading="loading"
     :disabled="!connectionStore.isConnected"
-    @save="handleSave"
+    @save="onSave"
     @reload="loadSettings"
-    @reset="handleReset"
+    @reset="onReset"
   >
     <n-form
       ref="formRef"
@@ -348,13 +348,94 @@
         </n-form-item>
       </n-card>
     </n-form>
+
+    <!-- 分类下载设置（独立于 aria2 选项，存入应用设置） -->
+    <n-card :title="t('settings.category.cardTitle')" class="setting-group">
+      <n-form label-placement="left" :label-width="180" label-align="left" :show-feedback="false">
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.category.enable')" :tip="t('settings.category.enableTip')" />
+          </template>
+          <AppSwitch v-model:value="categoryAutoClassify" />
+        </n-form-item>
+
+        <n-form-item :label="t('settings.category.ruleLabel')">
+          <div class="category-setup">
+            <div class="category-rule-bar">
+              <n-select
+                v-model:value="selectedCategoryId"
+                :options="categoryRuleOptions"
+                style="flex: 1"
+              />
+              <n-button
+                size="small"
+                :disabled="selectedCategoryId === CATEGORY_GENERAL"
+                :aria-label="t('settings.category.deleteRule')"
+                @click="removeRule(selectedCategoryId)"
+              >
+                <template #icon><n-icon><RemoveOutline /></n-icon></template>
+              </n-button>
+              <n-button
+                size="small"
+                type="primary"
+                :aria-label="t('settings.category.addRule')"
+                @click="openNewRule"
+              >
+                <template #icon><n-icon><AddOutline /></n-icon></template>
+              </n-button>
+            </div>
+            <template v-if="selectedRule">
+              <div class="category-field-label">{{ t('settings.category.nameField') }}</div>
+              <n-input
+                :value="selectedRuleName"
+                :placeholder="t('settings.category.namePlaceholder')"
+                @update:value="(v: string) => onNameChange(selectedRule!, v)"
+              />
+              <div class="category-field-label">{{ t('settings.category.dirField') }}</div>
+              <n-input
+                :value="selectedRuleEcho"
+                :placeholder="t('settings.category.dirPlaceholder')"
+                @update:value="(v: string) => onDirChange(selectedRule!, v)"
+              />
+              <div class="category-filetype-box">
+                <div class="category-filetype-title">{{ t('settings.category.fileTypes') }}</div>
+                <n-dynamic-tags v-model:value="selectedRule.extensions" />
+              </div>
+            </template>
+          </div>
+        </n-form-item>
+      </n-form>
+    </n-card>
+
+    <n-modal
+      v-model:show="showNewRuleModal"
+      :title="t('settings.category.newRuleTitle')"
+      preset="card"
+      style="width: 420px"
+      :bordered="false"
+    >
+      <n-form ref="newRuleFormRef" :model="newRuleForm" :rules="newRuleRules" label-placement="top">
+        <n-form-item path="name" :label="t('settings.category.nameField')">
+          <n-input v-model:value="newRuleForm.name" :placeholder="t('settings.category.namePlaceholder')" />
+        </n-form-item>
+        <n-form-item path="dir" :label="t('settings.category.dirField')">
+          <n-input v-model:value="newRuleForm.dir" :placeholder="t('settings.category.dirPlaceholder')" />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showNewRuleModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" @click="confirmNewRule">{{ t('settings.save') }}</n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOutline } from '@vicons/ionicons5'
+import { FolderOutline, AddOutline, RemoveOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import type { FormRules, FormInst } from 'naive-ui'
 
@@ -365,7 +446,15 @@ import { parseSizeToUnit } from '@/utils/size'
 import type { SettingSchema } from '@/types/settingSchema'
 import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useConnectionStore } from '@/stores/connectionStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
+import type { CategoryRule } from '@/shared/appSettings'
+import {
+  CATEGORY_GENERAL,
+  DEFAULT_CATEGORIES,
+  mergeCategoryRules,
+  resolveTargetDir
+} from '@/shared/fileCategories'
 
 const connectionStore = useConnectionStore()
 const { t } = useI18n()
@@ -478,8 +567,8 @@ const downloadSettingsSchema: SettingSchema = {
       key: 'dir', aria2Key: 'dir', type: 'string', default: '',
       valueToOption: (value) => (value ? String(value) : '')
     },
-    { key: 'maxConcurrentDownloads', aria2Key: 'max-concurrent-downloads', type: 'number', default: 5 },
-    { key: 'maxConnectionPerServer', aria2Key: 'max-connection-per-server', type: 'number', default: 16 },
+    { key: 'maxConcurrentDownloads', aria2Key: 'max-concurrent-downloads', type: 'number', default: 5, min: 1, max: 16 },
+    { key: 'maxConnectionPerServer', aria2Key: 'max-connection-per-server', type: 'number', default: 16, min: 1, max: 16 },
     { key: 'split', aria2Key: 'split', type: 'number', default: 16 },
     {
       key: 'minSplitSize', aria2Key: 'min-split-size', type: 'string', default: '10M',
@@ -493,14 +582,14 @@ const downloadSettingsSchema: SettingSchema = {
     },
     { key: 'continue', aria2Key: 'continue', type: 'boolean', default: true, optionToValue: (raw) => raw === 'true' },
     { key: 'saveSession', aria2Key: 'save-session', type: 'boolean', default: true },
-    { key: 'saveSessionInterval', aria2Key: 'save-session-interval', type: 'number', default: 60 },
+    { key: 'saveSessionInterval', aria2Key: 'save-session-interval', type: 'number', default: 60, min: 60, max: 3600 },
     { key: 'maxOverallDownloadLimit', aria2Key: 'max-overall-download-limit', type: 'size', default: 0, unit: 'K' },
     { key: 'maxOverallUploadLimit', aria2Key: 'max-overall-upload-limit', type: 'size', default: 0, unit: 'K' },
     { key: 'maxDownloadLimit', aria2Key: 'max-download-limit', type: 'size', default: 0, unit: 'K' },
     { key: 'maxUploadLimit', aria2Key: 'max-upload-limit', type: 'size', default: 0, unit: 'K' },
-    { key: 'diskCache', aria2Key: 'disk-cache', type: 'size', default: 16, unit: 'M' },
+    { key: 'diskCache', aria2Key: 'disk-cache', type: 'size', default: 16, unit: 'M', min: 0, max: 1024 },
     { key: 'fileAllocation', aria2Key: 'file-allocation', type: 'select', default: 'prealloc' },
-    { key: 'maxDownloadResult', aria2Key: 'max-download-result', type: 'number', default: 1000 },
+    { key: 'maxDownloadResult', aria2Key: 'max-download-result', type: 'number', default: 1000, min: 0, max: 10000 },
     { key: 'realtimeChunkChecksum', aria2Key: 'realtime-chunk-checksum', type: 'boolean', default: true },
     { key: 'uriSelector', aria2Key: 'uri-selector', type: 'select', default: 'feedback' },
     { key: 'streamPieceSelector', aria2Key: 'stream-piece-selector', type: 'select', default: 'default' },
@@ -557,6 +646,150 @@ const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSett
   }
 })
 
+// ---------- 分类下载设置（独立于 aria2 全局选项，存入 AppSettings.category） ----------
+const settingsStore = useSettingsStore()
+const categoryAutoClassify = ref(true)
+/** 全部分类规则（general + 6 类），含 extensions 与可选的 customDir */
+const categoryItems = reactive<CategoryRule[]>([])
+/** 当前正在查看/编辑的分类规则 id，默认"常规" */
+const selectedCategoryId = ref(CATEGORY_GENERAL)
+
+function loadCategoryConfig() {
+  const cfg = settingsStore.categoryConfig
+  categoryAutoClassify.value = cfg.autoClassify
+  categoryItems.length = 0
+  for (const c of cfg.categories) {
+    categoryItems.push({ id: c.id, dir: c.dir, extensions: [...c.extensions], customDir: c.customDir })
+  }
+}
+loadCategoryConfig()
+
+async function saveCategoryConfig() {
+  const merged = mergeCategoryRules(categoryItems)
+  await settingsStore.updateCategoryConfig({
+    autoClassify: categoryAutoClassify.value,
+    categories: merged
+  })
+}
+
+function resetCategoryConfig() {
+  categoryAutoClassify.value = true
+  categoryItems.length = 0
+  for (const c of DEFAULT_CATEGORIES) {
+    categoryItems.push({ id: c.id, dir: c.dir, extensions: [...c.extensions], customDir: undefined })
+  }
+}
+
+/** 分类子目录的基目录（优先级：aria2 下载目录 dir > 应用默认下载目录），用于完整路径预览 */
+const categoryBaseDir = computed(
+  () => settings.dir || settingsStore.downloadConfig?.defaultDir || ''
+)
+
+/** 分类规则显示名：自定义规则用 name，内置规则用 i18n 文案 */
+function ruleLabel(c: CategoryRule): string {
+  if (c.id === CATEGORY_GENERAL) return t('newTask.categoryGeneral')
+  return c.custom || c.name ? (c.name || c.dir || c.id) : t(`newTask.category.${c.id}`)
+}
+
+/** 分类规则下拉选项：常规 + 内置六类 + 用户自定义 */
+const categoryRuleOptions = computed(() => categoryItems.map((c) => ({
+  label: ruleLabel(c),
+  value: c.id
+})))
+
+const selectedRule = computed<CategoryRule | undefined>(
+  () => categoryItems.find((c) => c.id === selectedCategoryId.value)
+)
+
+/** 当前规则的显示名（自定义规则优先 name，内置规则回落 i18n 文案） */
+const selectedRuleName = computed(() => {
+  const rule = selectedRule.value
+  return rule ? ruleLabel(rule) : ''
+})
+
+/** 修改规则名称：自定义规则直接写 name；内置规则编辑后同样写 name（覆盖 i18n 文案）；清空回落默认 */
+function onNameChange(rule: CategoryRule, value: string) {
+  const v = (value || '').trim()
+  const builtin = t(`newTask.category.${rule.id}`)
+  rule.name = !v || v === builtin ? undefined : v
+}
+
+/** 当前规则的目标目录回显：customDir 优先，否则按默认（下载目录 / 下载目录+子目录名） */
+const selectedRuleEcho = computed(() => {
+  const rule = selectedRule.value
+  return rule ? resolveTargetDir(categoryBaseDir.value, rule) : ''
+})
+
+/**
+ * 编辑目标目录：
+ * - 输入为空或等于当前默认目标（customDir 未配置时的默认值）→ 清除自定义，沿用默认
+ * - 其他输入 → 存为该分类的自定义完整目录（customDir）
+ */
+function onDirChange(rule: CategoryRule, value: string) {
+  const v = (value || '').trim()
+  const defaultTarget = resolveTargetDir(categoryBaseDir.value, rule)
+  if (!v || v === defaultTarget) {
+    rule.customDir = undefined
+    return
+  }
+  rule.customDir = v
+}
+
+/** 保存：先保存 aria2 全局选项，再保存分类配置 */
+async function onSave() {
+  await Promise.all([handleSave(), saveCategoryConfig()])
+}
+
+/** 重置：先重置分类配置，再重置 aria2 选项 */
+async function onReset() {
+  resetCategoryConfig()
+  await handleReset()
+  loadCategoryConfig()
+}
+
+// ---------- 自定义规则的添加 / 删除 ----------
+const showNewRuleModal = ref(false)
+const newRuleFormRef = ref<FormInst | null>(null)
+const newRuleForm = reactive({ name: '', dir: '' })
+const newRuleRules: FormRules = {
+  name: [{ required: true, message: () => t('settings.category.newRuleNameReq'), trigger: 'blur' }],
+  dir: [{ required: true, message: () => t('settings.category.newRuleDirReq'), trigger: 'blur' }]
+}
+
+function openNewRule() {
+  newRuleForm.name = ''
+  newRuleForm.dir = ''
+  showNewRuleModal.value = true
+}
+
+async function confirmNewRule() {
+  if (newRuleFormRef.value) {
+    try {
+      await newRuleFormRef.value.validate()
+    } catch {
+      return
+    }
+  }
+  const id = `custom-${Date.now()}`
+  categoryItems.push({
+    id,
+    dir: newRuleForm.dir.trim(),
+    extensions: [],
+    name: newRuleForm.name.trim(),
+    custom: true
+  })
+  selectedCategoryId.value = id
+  showNewRuleModal.value = false
+}
+
+/** 删除规则（general 不允许删除）；选中项被删时回落到常规 */
+function removeRule(id: string) {
+  if (id === CATEGORY_GENERAL) return
+  const i = categoryItems.findIndex((c) => c.id === id)
+  if (i > -1) categoryItems.splice(i, 1)
+  if (selectedCategoryId.value === id) selectedCategoryId.value = CATEGORY_GENERAL
+}
+
 async function selectDirectory() {
   if (!window.electronAPI) {
     message.warning(t('task.desktopOnly'))
@@ -581,5 +814,49 @@ async function selectDirectory() {
 <style scoped>
 .setting-group {
   margin-bottom: 16px;
+}
+
+.category-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.category-rule-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* 与设置页其他输入框同宽（80%），下拉+按钮整体对齐 */
+  width: 80%;
+}
+
+.category-field-label {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  margin-bottom: -4px;
+}
+
+/* "文件类型"整体作为一个带边框的分区：内部为标题 + 后缀标签列表。
+   与 SettingsPage 里统一为 80% 的表单控件宽度保持一致 */
+.category-filetype-box {
+  box-sizing: border-box;
+  width: 80%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-base);
+  border-radius: 6px;
+}
+
+.category-filetype-box :deep(.n-dynamic-tags) {
+  width: 100%;
+}
+
+.category-filetype-title {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  user-select: none;
 }
 </style>

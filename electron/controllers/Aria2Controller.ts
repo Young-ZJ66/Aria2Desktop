@@ -134,6 +134,23 @@ export class Aria2Controller {
     return this.aria2Manager
   }
 
+  /**
+   * 将最新 Tracker 列表写入 aria2 配置文件（bt-tracker），供重启后生效。
+   * 尝试通过 RPC 立即应用到运行中的 aria2，失败不影响写配置（下次重启生效）。
+   */
+  public applyTrackerList(csv: string): { success: boolean; error?: string } {
+    if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
+    try {
+      this.aria2Manager.saveGlobalOptionsToConfig({ 'bt-tracker': csv })
+      // 尽力立即生效：bt-tracker 为运行时可变全局选项，失败时配置已持久化、重启后仍有效
+      void this.callAria2Rpc(this.getRpcSettings().port, this.getRpcSettings().secret, 'aria2.changeGlobalOption', [{ 'bt-tracker': csv }])
+        .catch(() => {})
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
   public async stop() {
     if (this.aria2Manager && this.aria2Manager.isRunning()) {
       // stop 内部会先执行注入的 RPC 优雅关闭（保存会话），失败时回退信号关闭
