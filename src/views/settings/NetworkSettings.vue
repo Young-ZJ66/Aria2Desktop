@@ -128,7 +128,13 @@
             v-model:value="form.allProxy"
             placeholder="http://proxy.example.com:8080"
             :disabled="!connectionStore.isConnected"
-          />
+          >
+            <template #suffix>
+              <n-button text size="small" :loading="detectingProxy" @click="detectSystemProxy" :title="t('settings.network.detectSystemProxy')">
+                <template #icon><n-icon><GlobeOutline /></n-icon></template>
+              </n-button>
+            </template>
+          </n-input>
         </n-form-item>
 
         <n-form-item>
@@ -356,6 +362,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { GlobeOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import type { FormRules, FormInst } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
@@ -409,6 +416,30 @@ const form = reactive({
 // 代理地址校验：为空时跳过（让 aria2 保留旧值），非空时需为带协议头的合法 URL
 function isValidProxyUrl(value: string): boolean {
   return /^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(value.trim())
+}
+
+// 系统代理检测
+const detectingProxy = ref(false)
+
+async function detectSystemProxy() {
+  detectingProxy.value = true
+  try {
+    if (window.electronAPI?.detectSystemProxy) {
+      const result = await window.electronAPI.detectSystemProxy()
+      if (result.success && result.proxy) {
+        form.allProxy = result.proxy
+        message.success(t('settings.network.systemProxyDetected', { proxy: result.proxy }))
+      } else {
+        message.info(t('settings.network.systemProxyNone'))
+      }
+    } else {
+      message.info(t('settings.network.systemProxyNone'))
+    }
+  } catch {
+    message.info(t('settings.network.systemProxyNone'))
+  } finally {
+    detectingProxy.value = false
+  }
 }
 
 // 表单验证规则

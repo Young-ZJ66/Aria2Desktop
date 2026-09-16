@@ -47,6 +47,12 @@ export class Aria2Client {
     this.httpClient = this.createHttpClient()
   }
 
+  /** 构建 WebSocket URL（统一协议判定逻辑，避免 connectWebSocket 与 scheduleReconnect 重复） */
+  private getWsUrl(): string {
+    const wsProto = this.config.protocol === 'https' || this.config.protocol === 'wss' ? 'wss' : 'ws'
+    return `${wsProto}://${this.config.host}:${this.config.port}${this.config.path || '/jsonrpc'}`
+  }
+
   private createHttpClient(): AxiosInstance {
     const baseURL = `${this.config.protocol}://${this.config.host}:${this.config.port}${this.config.path || '/jsonrpc'}`
 
@@ -114,9 +120,7 @@ export class Aria2Client {
 
   // WebSocket连接
   async connectWebSocket(): Promise<void> {
-    // wss 用于 https/wss 协议，其余用 ws
-    const wsProto = this.config.protocol === 'https' || this.config.protocol === 'wss' ? 'wss' : 'ws'
-    const wsUrl = `${wsProto}://${this.config.host}:${this.config.port}${this.config.path || '/jsonrpc'}`
+    const wsUrl = this.getWsUrl()
 
     // 标记允许断线自动重连（手动 disconnect 时取消）
     this.shouldReconnect = true
@@ -193,9 +197,7 @@ export class Aria2Client {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       if (!this.shouldReconnect) return
-      const wsProto = this.config.protocol === 'https' || this.config.protocol === 'wss' ? 'wss' : 'ws'
-      const wsUrl = `${wsProto}://${this.config.host}:${this.config.port}${this.config.path || '/jsonrpc'}`
-      this.createSocket(wsUrl, () => { /* 重连结果由事件驱动，无需结束任何 Promise */ })
+      this.createSocket(this.getWsUrl(), () => { /* 重连结果由事件驱动，无需结束任何 Promise */ })
     }, delay)
   }
 

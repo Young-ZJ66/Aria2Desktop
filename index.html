@@ -5,25 +5,36 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- 内容安全策略：阻止内联脚本注入；connect-src 放开以支持远程 aria2 与 dev HMR -->
+  <!-- 内容安全策略：阻止内联脚本注入；connect-src 放开以支持远程 aria2 与 dev HMR（下载管理器需连接任意远程 aria2 实例） -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src http: https: ws: wss:; object-src 'none'; base-uri 'self'" />
   <title>Aria2 Desktop</title>
   <style>
-    /* 预加载样式，避免白色闪烁 */
+    /* 预加载样式：根据系统深浅色主题设置背景，避免闪烁 */
     html,
     body {
       margin: 0;
       padding: 0;
-      background-color: #1a1a1a;
-      color: #ffffff;
+      background-color: #ffffff;
+      color: #333333;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      html,
+      body {
+        background-color: #1a1a1a;
+        color: #ffffff;
+      }
+      #app {
+        background-color: #1a1a1a;
+      }
     }
 
     #app {
       height: 100vh;
       overflow: hidden;
-      background-color: #1a1a1a;
+      background-color: #ffffff;
     }
 
     /* 滚动条样式 */

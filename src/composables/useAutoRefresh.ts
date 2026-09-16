@@ -73,10 +73,17 @@ export function useAutoRefresh() {
     }
   }
 
+  /** 停止全部定时刷新（高频 + 低频 + 可见性监听） */
+  function stopAll() {
+    stopAutoUpdate()
+    stopSlowUpdate()
+  }
+
   return {
     startAutoUpdate,
     startSlowUpdate,
     stopAutoUpdate,
-    stopSlowUpdate
+    stopSlowUpdate,
+    stopAll
   }
 }

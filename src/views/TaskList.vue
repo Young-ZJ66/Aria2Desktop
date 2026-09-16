@@ -41,11 +41,18 @@
       </div>
 
       <div class="action-right">
+        <!-- 任务导出/导入 -->
+        <n-button size="small" quaternary @click="exportTasks" :title="t('task.exportTasks')">
+          <template #icon><n-icon><ExportIcon /></n-icon></template>
+        </n-button>
+        <n-button size="small" quaternary @click="importTasks" :title="t('task.importTasks')">
+          <template #icon><n-icon><ImportIcon /></n-icon></template>
+        </n-button>
         <n-input
           v-model:value="searchText"
           :placeholder="t('task.searchPlaceholder')"
           clearable
-          style="width: 220px;"
+          style="min-width: 180px; max-width: 280px;"
         >
           <template #prefix>
             <n-icon><SearchOutline /></n-icon>
@@ -72,7 +79,11 @@
         <template #empty>
           <!-- 空状态出现时淡入（避免搜索结果/空列表切换时生硬闪出） -->
           <transition name="fade-in">
-            <n-empty :description="t('task.noTasks')" size="small" />
+            <n-empty :description="t('task.noTasks')" size="small">
+              <template #extra>
+                <span class="empty-hint">{{ t('task.emptyHint') }}</span>
+              </template>
+            </n-empty>
           </transition>
         </template>
       </n-data-table>
@@ -95,12 +106,15 @@ import { computed, h, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon, NProgress, NTag, NCheckbox, type DataTableColumns } from 'naive-ui'
 import { AddOutline, SearchOutline, VideocamOutline, MusicalNotesOutline, ImageOutline, ArchiveOutline, DocumentTextOutline, CodeSlashOutline, DocumentOutline } from '@vicons/ionicons5'
+import { ExportIcon, ImportIcon } from '@/components/icons/ExportImportIcons'
 import { message, confirm } from '@/utils/feedback'
+import { getUserFriendlyError } from '@/utils/errorMessages'
 import { useTaskStore } from '@/stores/taskStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { taskTimeService } from '@/services/taskTimeService'
+import { taskPersistenceService } from '@/services/taskPersistenceService'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
 import TaskCheckbox from '@/components/TaskCheckbox.vue'
 import DeleteTaskDialog from '@/components/dialogs/DeleteTaskDialog.vue'
@@ -112,6 +126,7 @@ import {
   getTaskName as utilGetTaskName,
   searchTasks
 } from '@/utils/taskUtils'
+import { getFileCategory } from '@/utils/fileTypeIcons'
 import {
   formatSize,
   formatSpeed,
@@ -237,7 +252,7 @@ const filteredTasks = computed(() => {
     tasks = searchTasks(tasks, searchText.value)
   }
 
-  // 根据任务类型设置不同的排序规则
+  // 默认排序：根据任务类型（列头排序由 Naive UI DataTable 内置处理）
   if (props.taskType === 'stopped') {
     return tasks.sort((a: Aria2Task, b: Aria2Task) => {
       const aCompleteTime = taskTimeService.getCompleteTime(a.gid)
@@ -278,37 +293,20 @@ function getTaskName(task: Aria2Task): string {
   return utilGetTaskName(task)
 }
 
-// 获取文件类型图标（基于文件扩展名）
-function getFileTypeIcon(task: Aria2Task): Component {
-  const name = getTaskName(task).toLowerCase()
-  const ext = name.split('.').pop() || ''
+// 获取文件类型图标（基于文件扩展名，复用共享分类映射）
+const CATEGORY_ICON_MAP: Record<string, Component> = {
+  video: VideocamOutline,
+  audio: MusicalNotesOutline,
+  image: ImageOutline,
+  archive: ArchiveOutline,
+  document: DocumentTextOutline,
+  code: CodeSlashOutline
+}
 
-  // 视频
-  if (['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'ts', 'm4v', '3gp'].includes(ext)) {
-    return VideocamOutline
-  }
-  // 音频
-  if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'opus'].includes(ext)) {
-    return MusicalNotesOutline
-  }
-  // 图片
-  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'psd'].includes(ext)) {
-    return ImageOutline
-  }
-  // 压缩包
-  if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'].includes(ext)) {
-    return ArchiveOutline
-  }
-  // 文档
-  if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv'].includes(ext)) {
-    return DocumentTextOutline
-  }
-  // 代码
-  if (['js', 'ts', 'py', 'java', 'cpp', 'c', 'h', 'css', 'html', 'vue', 'json', 'xml', 'yaml', 'yml', 'sh', 'bat', 'go', 'rs', 'php', 'rb'].includes(ext)) {
-    return CodeSlashOutline
-  }
-  // 默认
-  return DocumentOutline
+function getFileTypeIcon(task: Aria2Task): Component {
+  const name = getTaskName(task)
+  const category = getFileCategory(name)
+  return CATEGORY_ICON_MAP[category] || DocumentOutline
 }
 
 // 格式化完成时间标签
@@ -343,6 +341,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     key: 'name',
     title: t('task.fileName'),
     width: 280,
+    sorter: (a: Aria2Task, b: Aria2Task) => getTaskName(a).localeCompare(getTaskName(b)),
     render: (row: Aria2Task) => {
       const name = getTaskName(row)
       return h('div', { class: 'file-info' }, [
@@ -358,12 +357,14 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     key: 'size',
     title: t('task.size'),
     width: 100,
+    sorter: (a: Aria2Task, b: Aria2Task) => (parseInt(a.totalLength, 10) || 0) - (parseInt(b.totalLength, 10) || 0),
     render: (row: Aria2Task) => formatSize(row.totalLength)
   },
   {
     key: 'progress',
     title: t('task.progress'),
     width: 140,
+    sorter: (a: Aria2Task, b: Aria2Task) => getProgress(a) - getProgress(b),
     render: (row: Aria2Task) =>
       h(NProgress, {
         type: 'line',
@@ -377,6 +378,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     key: 'status',
     title: t('task.status'),
     width: 130,
+    sorter: (a: Aria2Task, b: Aria2Task) => a.status.localeCompare(b.status),
     render: (row: Aria2Task) =>
       h(NTag, { type: getStatusType(row.status), size: 'small' }, { default: () => t('status.' + row.status) })
   },
@@ -384,6 +386,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     key: 'downloadSpeed',
     title: t('task.downloadSpeed'),
     width: 120,
+    sorter: (a: Aria2Task, b: Aria2Task) => (parseInt(a.downloadSpeed, 10) || 0) - (parseInt(b.downloadSpeed, 10) || 0),
     render: (row: Aria2Task) => formatSpeed(row.downloadSpeed)
   },
   props.taskType === 'stopped'
@@ -391,12 +394,20 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
       key: 'completeTime',
       title: t('task.completeTime'),
       width: 150,
+      sorter: (a: Aria2Task, b: Aria2Task) => (taskTimeService.getCompleteTime(a.gid) || 0) - (taskTimeService.getCompleteTime(b.gid) || 0),
       render: (row: Aria2Task) => formatCompleteTimeLabel(row)
     }
     : {
       key: 'remainingTime',
       title: t('task.remainingTime'),
       width: 120,
+      sorter: (a: Aria2Task, b: Aria2Task) => {
+        const aSpeed = parseInt(a.downloadSpeed, 10) || 0
+        const bSpeed = parseInt(b.downloadSpeed, 10) || 0
+        const aRemain = aSpeed > 0 ? (parseInt(a.totalLength, 10) - parseInt(a.completedLength, 10)) / aSpeed : 0
+        const bRemain = bSpeed > 0 ? (parseInt(b.totalLength, 10) - parseInt(b.completedLength, 10)) / bSpeed : 0
+        return aRemain - bRemain
+      },
       render: (row: Aria2Task) => formatRemainingTime(row)
     },
   {
@@ -445,7 +456,7 @@ async function pauseTask(gid: string) {
     message.success(t('task.taskPaused'))
   } catch (error: unknown) {
     console.error('暂停任务失败:', error)
-    message.error(t('task.pauseFailed', { error: (error as Error).message || error }))
+    message.error(t('task.pauseFailed', { error: getUserFriendlyError(error) }))
     await taskStore.loadAllTasks()
   } finally {
     operatingTasks.value.delete(gid)
@@ -462,7 +473,7 @@ async function unpauseTask(gid: string) {
     message.success(t('task.taskStarted'))
   } catch (error: unknown) {
     console.error('开始任务失败:', error)
-    message.error(t('task.startFailed', { error: (error as Error).message || error }))
+    message.error(t('task.startFailed', { error: getUserFriendlyError(error) }))
     await taskStore.loadAllTasks()
   } finally {
     operatingTasks.value.delete(gid)
@@ -480,7 +491,7 @@ async function retryTask(gid: string) {
     await taskStore.loadAllTasks()
   } catch (error: unknown) {
     console.error('重试任务失败:', error)
-    message.error(t('task.retryFailed', { error: (error as Error).message || error }))
+    message.error(t('task.retryFailed', { error: getUserFriendlyError(error) }))
     await taskStore.loadAllTasks()
   } finally {
     operatingTasks.value.delete(gid)
@@ -641,7 +652,7 @@ async function batchStart() {
     clearSelection()
   } catch (error) {
     console.error('开始任务失败:', error)
-    message.error(t('task.startFailed', { error: '' }))
+    message.error(t('task.startFailed', { error: getUserFriendlyError(error) }))
   } finally {
     batchOperating.value = false
   }
@@ -668,7 +679,7 @@ async function batchPause() {
     clearSelection()
   } catch (error) {
     console.error('暂停任务失败:', error)
-    message.error(t('task.pauseFailed', { error: '' }))
+    message.error(t('task.pauseFailed', { error: getUserFriendlyError(error) }))
   } finally {
     batchOperating.value = false
   }
@@ -768,6 +779,98 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
     batchDeleting.value = false
     showBatchDeleteDialog.value = false
   }
+}
+
+// ── 任务导出/导入（方案 B：两个页面不同行为） ──
+// 下载任务页：导出未完成任务 URI 用于迁移，导入时重新创建下载
+// 下载完成页：导出历史记录用于备份，导入时仅恢复记录（不重新下载）
+
+function exportTasks() {
+  const tasks = filteredTasks.value.map(task => ({
+    gid: task.gid,
+    status: task.status,
+    files: task.files,
+    dir: task.dir,
+    totalLength: task.totalLength,
+    completedLength: task.completedLength,
+    bittorrent: task.bittorrent
+  }))
+
+  const json = JSON.stringify({ version: 1, type: props.taskType, tasks }, null, 2)
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const prefix = props.taskType === 'stopped' ? 'aria2-history' : 'aria2-tasks'
+  a.download = `${prefix}-${new Date().toISOString().slice(0, 10)}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  message.success(t('task.exportSuccess', { count: tasks.length }))
+}
+
+function importTasks() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  input.onchange = async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      // 兼容旧格式（纯数组）和新格式（{ version, type, tasks }）
+      const data: Array<Record<string, unknown>> = Array.isArray(parsed) ? parsed : (parsed.tasks || [])
+      if (!Array.isArray(data) || data.length === 0) {
+        message.error(t('task.importFailed'))
+        return
+      }
+
+      if (props.taskType === 'stopped') {
+        // 下载完成页：仅恢复历史记录（写入持久化存储，不重新下载）
+        let restored = 0
+        for (const task of data) {
+          const gid = String(task.gid || '')
+          if (!gid) continue
+          if (taskPersistenceService.isTaskPersisted(gid)) continue
+          const completedAt = Number(task.completedAt) || taskTimeService.getCompleteTime(gid) || Date.now()
+          taskPersistenceService.persistCompletedTask(task as unknown as Aria2Task, completedAt)
+          taskTimeService.recordTaskComplete(gid, String(task.fileName || ''))
+          restored++
+        }
+        if (restored > 0) {
+          message.success(t('task.importRestored', { count: restored }))
+          await taskStore.loadAllTasks()
+        } else {
+          message.warning(t('task.importNoTasks'))
+        }
+      } else {
+        // 下载任务页：提取 URI 重新创建下载任务
+        let imported = 0
+        for (const task of data) {
+          const uris = (task.files as Array<{ uris?: Array<{ uri: string }> }> | undefined)
+            ?.flatMap(f => f.uris?.map(u => u.uri) || []).filter(Boolean)
+          if (uris && uris.length > 0) {
+            try {
+              const options: Record<string, string> = {}
+              if (task.dir) options.dir = String(task.dir)
+              await taskStore.addUri(uris, options)
+              imported++
+            } catch {
+              // 跳过导入失败的任务
+            }
+          }
+        }
+        if (imported > 0) {
+          message.success(t('task.importSuccess', { count: imported }))
+        } else {
+          message.warning(t('task.importNoTasks'))
+        }
+      }
+    } catch {
+      message.error(t('task.importFailed'))
+    }
+  }
+  input.click()
 }
 
 // 监听任务数据变化，更新选中任务的数据
@@ -926,6 +1029,12 @@ watch(
 
 :deep(.app-action-btn:active:not([disabled])) {
   transform: translateY(0);
+}
+
+.empty-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 4px;
 }
 
 :deep(.app-action-btn--primary-type) {

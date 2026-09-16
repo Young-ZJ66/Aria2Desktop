@@ -10,6 +10,10 @@
 
     <!-- 一级：连接配置列表 -->
     <div v-if="view === 'list'" class="profile-list-view">
+      <!-- 首次使用引导 -->
+      <n-alert v-if="!connectionStore.isConnected" type="info" :bordered="false" style="margin-bottom: 12px;">
+        {{ t('connection.firstTimeGuide') }}
+      </n-alert>
       <div class="list-header">
         <span class="list-title">{{ t('connection.profileList') }}</span>
         <n-button size="small" type="primary" class="app-action-btn" @click="openNameDialog('new')">
@@ -190,6 +194,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message, confirm } from '@/utils/feedback'
+import { getUserFriendlyError } from '@/utils/errorMessages'
 import type { FormInst, FormRules, SelectOption } from 'naive-ui'
 import { ArrowBackOutline, AddOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
 import { useConnectionStore } from '@/stores/connectionStore'
@@ -236,7 +241,7 @@ const rules = computed<FormRules>(() => ({
   ],
   port: [
     { required: true, type: 'number', message: () => t('connection.requirePort'), trigger: 'blur' },
-    { type: 'number', min: 1, max: 65535, message: () => t('connection.portRange'), trigger: 'blur' }
+    { type: 'number', min: 1024, max: 65535, message: () => t('connection.portRange'), trigger: 'blur' }
   ]
 }))
 
@@ -347,7 +352,7 @@ async function handleConnect() {
     visible.value = false
   } catch (error) {
     console.error('Connection failed:', error)
-    message.error(error instanceof Error ? error.message : t('connection.connectionFailed'))
+    message.error(getUserFriendlyError(error, t('connection.connectionFailed')))
   } finally {
     connecting.value = false
   }

@@ -125,8 +125,11 @@ export class UpdateController {
       if (errMsg) {
         return { success: false, error: errMsg }
       }
-      // 稍作延迟确保安装程序已启动，再退出应用
-      setTimeout(() => app.quit(), 1500)
+      // 使用 app.exit() 而非 app.quit()：跳过 before-quit 中的 Aria2 优雅关闭（RPC shutdown + 等待退出），
+      // 让进程立即退出。NSIS 安装程序会等待旧进程退出后才继续安装，
+      // app.quit() 会触发耗时的优雅关闭导致安装程序与旧进程死锁。
+      // 新版本启动时会自行初始化 Aria2，无需在此保存会话。
+      setTimeout(() => app.exit(0), 500)
       return { success: true }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) }

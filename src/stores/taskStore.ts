@@ -98,7 +98,7 @@ export const useTaskStore = defineStore('task', () => {
     isLoading.value = true
 
     try {
-      // 确保本地持久化任务已从主进程加载完成，避免首次合并时丢失历史记录
+      // 确保本地持久化数据已从主进程加载完成
       await taskPersistenceService.ensureLoaded()
       const previousStopped = new Set(stoppedTasks.value.map(task => task.gid))
       const previousActive = new Set(activeTasks.value.map(task => task.gid))
@@ -182,6 +182,13 @@ export const useTaskStore = defineStore('task', () => {
     if (!connectionStore.service) return
     if (isLoading.value) return
     isLoading.value = true
+
+    try {
+      // 确保本地持久化任务已加载，避免首次轻量刷新时持久化任务未合并
+      await taskPersistenceService.ensureLoaded()
+    } catch {
+      // 加载失败不阻断轻量刷新
+    }
 
     try {
       // Promise.allSettled：单个列表拉取失败不影响另一个，与 loadAllTasks 容错策略一致
@@ -387,9 +394,11 @@ export const useTaskStore = defineStore('task', () => {
     // 读取原任务的选项（out、split、header 等），避免重试后行为与原任务不一致
     let originalOptions: Aria2Option = { dir: taskInfo.dir }
     try {
-      originalOptions = await connectionStore.service.getOption(gid)
+      const fullOptions = await connectionStore.service.getOption(gid)
       // aria2 不允许 addUri 时指定 gid，透传会导致重试失败，需过滤
-      delete (originalOptions as Record<string, unknown>).gid
+      const { gid: _ignored, ...rest } = fullOptions as Record<string, unknown>
+      void _ignored
+      originalOptions = rest as Aria2Option
     } catch {
       // 获取选项失败时仅保留目录
     }
@@ -451,12 +460,39 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  // 下载完成回调列表（供外部注册，如系统通知）
+  type DownloadCompleteCallback = (gid: string) => void
+  const downloadCompleteCallbacks: DownloadCompleteCallback[] = []
+
+  function onDownloadComplete(callback: DownloadCompleteCallback): () => void {
+    downloadCompleteCallbacks.push(callback)
+    return () => {
+      const idx = downloadCompleteCallbacks.indexOf(callback)
+      if (idx > -1) downloadCompleteCallbacks.splice(idx, 1)
+    }
+  }
+
+  async function handleDownloadComplete(event: unknown) {
+    // 先等任务列表刷新完成，确保回调能拿到最新数据（任务名等）
+    await loadAllTasks()
+    // 通知所有注册的回调
+    const payload = event as { gid?: string } | undefined
+    const gid = payload?.gid || ''
+    for (const cb of downloadCompleteCallbacks) {
+      try { cb(gid) } catch { /* 忽略回调异常 */ }
+    }
+  }
+
   watch(() => connectionStore.service, (service, oldService) => {
     if (oldService) {
       downloadEvents.forEach(evt => oldService.off(evt, handleDownloadEvent))
+      oldService.off('downloadComplete', handleDownloadComplete)
     }
     if (service) {
       downloadEvents.forEach(evt => service.on(evt, handleDownloadEvent))
+      // downloadComplete 额外触发通知回调
+      service.off('downloadComplete', handleDownloadEvent)
+      service.on('downloadComplete', handleDownloadComplete)
     }
   }, { immediate: true })
 
@@ -481,6 +517,7 @@ export const useTaskStore = defineStore('task', () => {
     retryErrorTask,
     pauseAllTasks,
     unpauseAllTasks,
-    clearTasks
+    clearTasks,
+    onDownloadComplete
   }
 })

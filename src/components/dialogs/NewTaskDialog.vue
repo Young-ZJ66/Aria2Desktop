@@ -136,6 +136,41 @@
           </div>
         </n-form>
       </n-tab-pane>
+
+      <!-- 流媒体下载（yt-dlp） -->
+      <n-tab-pane name="stream" :tab="t('newTask.streamTab')">
+        <n-alert v-if="!ytdlpAvailable" type="warning" :bordered="false" style="margin-bottom: 12px;">
+          {{ t('newTask.streamUrlTip') }}
+        </n-alert>
+        <template v-else>
+          <n-form>
+            <n-form-item :label="t('newTask.urisLabel')" label-placement="top">
+              <n-input
+                v-model:value="streamUrl"
+                :placeholder="t('newTask.streamUrlPlaceholder')"
+                @keyup.enter="fetchStreamInfo"
+              />
+            </n-form-item>
+            <n-button type="primary" :loading="streamFetching" :disabled="!streamUrl.trim()" @click="fetchStreamInfo">
+              {{ t('newTask.streamSelectFormat') }}
+            </n-button>
+          </n-form>
+
+          <div v-if="streamFormats.length > 0" style="margin-top: 16px;">
+            <n-form-item :label="t('newTask.streamSelectFormat')" label-placement="top">
+              <n-select
+                v-model:value="selectedFormatId"
+                :options="streamFormatOptions"
+              />
+            </n-form-item>
+            <div class="form-actions">
+              <n-button type="primary" :loading="streamDownloading" :disabled="!selectedFormatId" @click="handleStreamDownload">
+                {{ t('newTask.streamDownload') }}
+              </n-button>
+            </div>
+          </div>
+        </template>
+      </n-tab-pane>
     </n-tabs>
 
     <input
@@ -148,10 +183,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CloudUploadOutline, FolderOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
+import { getUserFriendlyError } from '@/utils/errorMessages'
 import type { FormInst, FormRules } from 'naive-ui'
 import { useUiStore } from '@/stores/uiStore'
 import { useTaskStore } from '@/stores/taskStore'
@@ -215,6 +251,30 @@ const visible = computed({
   }
 })
 
+// 剪贴板检测到 URL 时自动填入 URI 输入框（切换到 URI 标签页）
+watch(() => uiStore.newTaskPrefilledUrl, (url) => {
+  if (url) {
+    activeTab.value = 'uri'
+    uriForm.uris = url
+  }
+})
+
+// 拖拽 .torrent/.metalink 文件到主窗口时自动填入（切换到对应标签页）
+watch(() => uiStore.newTaskPrefilledFile, (file) => {
+  if (!file) return
+  const name = file.name.toLowerCase()
+  if (name.endsWith('.torrent')) {
+    activeTab.value = 'torrent'
+    torrentForm.torrentFile = file
+  } else if (name.endsWith('.metalink') || name.endsWith('.meta4')) {
+    activeTab.value = 'metalink'
+    metalinkForm.metalinkFile = file
+  } else {
+    // 非 torrent/metalink 文件，尝试作为 URI（不太可能，但兜底）
+    activeTab.value = 'uri'
+  }
+})
+
 // 隐藏的文件输入框，用于点击选择文件
 const fileInputRef = ref<HTMLInputElement>()
 let pendingType: 'torrent' | 'metalink' | null = null
@@ -246,6 +306,80 @@ const metalinkForm = reactive({
   metalinkFile: null as File | null,
   category: CATEGORY_AUTO
 })
+
+// ── 流媒体下载（yt-dlp） ──
+
+const ytdlpAvailable = ref(false)
+const streamUrl = ref('')
+const streamFetching = ref(false)
+const streamDownloading = ref(false)
+const streamFormats = ref<Array<{ formatId: string; ext: string; resolution: string; filesize: number | null; note: string }>>([])
+const selectedFormatId = ref<string | null>(null)
+const streamTitle = ref('')
+
+const streamFormatOptions = computed(() =>
+  streamFormats.value.map(f => ({
+    label: `${f.resolution || f.ext} ${f.note ? `(${f.note})` : ''} ${f.filesize ? ` - ${Math.round(f.filesize / 1024 / 1024)}MB` : ''}`,
+    value: f.formatId
+  }))
+)
+
+// 检查 yt-dlp 是否可用
+onMounted(async () => {
+  if (window.electronAPI?.ytdlpCheck) {
+    try {
+      const result = await window.electronAPI.ytdlpCheck()
+      ytdlpAvailable.value = result.available
+    } catch { /* 忽略 */ }
+  }
+})
+
+async function fetchStreamInfo() {
+  if (!streamUrl.value.trim() || !window.electronAPI?.ytdlpVideoInfo) return
+  streamFetching.value = true
+  streamFormats.value = []
+  selectedFormatId.value = null
+  try {
+    const result = await window.electronAPI.ytdlpVideoInfo(streamUrl.value.trim())
+    if (result.success && result.info) {
+      streamTitle.value = result.info.title
+      streamFormats.value = result.info.formats
+      // 自动选择最佳格式
+      if (streamFormats.value.length > 0) {
+        selectedFormatId.value = streamFormats.value[streamFormats.value.length - 1].formatId
+      }
+    } else {
+      message.error(result.error || t('newTask.streamParseFailed'))
+    }
+  } catch (error) {
+    message.error(t('newTask.streamParseFailed'))
+  } finally {
+    streamFetching.value = false
+  }
+}
+
+async function handleStreamDownload() {
+  if (!selectedFormatId.value || !window.electronAPI?.ytdlpFormatUrl) return
+  streamDownloading.value = true
+  try {
+    const result = await window.electronAPI.ytdlpFormatUrl(streamUrl.value.trim(), selectedFormatId.value)
+    if (result.success && result.downloadUrl) {
+      const options: Record<string, string> = {}
+      if (result.title) options.out = `${result.title}.${result.ext || 'mp4'}`
+      const baseDir = settingsStore.downloadConfig?.defaultDir || ''
+      if (baseDir) options.dir = baseDir
+      await taskStore.addUri([result.downloadUrl], options)
+      message.success(t('newTask.addedCount', { count: 1 }))
+      uiStore.closeNewTask()
+    } else {
+      message.error(result.error || t('newTask.streamParseFailed'))
+    }
+  } catch (error) {
+    message.error(t('newTask.streamParseFailed'))
+  } finally {
+    streamDownloading.value = false
+  }
+}
 
 // 分类下拉选项：智能识别 + 各分类（内置六类 + 用户自定义）+ 常规
 const categoryOptions = computed(() => {
@@ -352,8 +486,7 @@ async function handleUriSubmit() {
     uiStore.closeNewTask()
   } catch (error) {
     console.error('Failed to add URI task:', error)
-    const errorMessage = error instanceof Error ? error.message : t('newTask.addFailed')
-    message.error(`${t('newTask.addFailed')}: ${errorMessage}`)
+    message.error(getUserFriendlyError(error, t('newTask.addFailed')))
   } finally {
     submitting.value = false
   }
@@ -396,8 +529,7 @@ async function handleTorrentSubmit() {
     uiStore.closeNewTask()
   } catch (error) {
     console.error('Failed to add torrent task:', error)
-    const errorMessage = error instanceof Error ? error.message : t('newTask.addTorrentFailed')
-    message.error(`${t('newTask.addTorrentFailed')}: ${errorMessage}`)
+    message.error(getUserFriendlyError(error, t('newTask.addTorrentFailed')))
   } finally {
     submitting.value = false
   }
@@ -440,8 +572,7 @@ async function handleMetalinkSubmit() {
     uiStore.closeNewTask()
   } catch (error) {
     console.error('Failed to add metalink task:', error)
-    const errorMessage = error instanceof Error ? error.message : t('newTask.addMetalinkFailed')
-    message.error(`${t('newTask.addMetalinkFailed')}: ${errorMessage}`)
+    message.error(getUserFriendlyError(error, t('newTask.addMetalinkFailed')))
   } finally {
     submitting.value = false
   }
@@ -534,9 +665,6 @@ function readFileAsBase64(file: File): Promise<string> {
   })
 }
 
-onMounted(async () => {
-  await settingsStore.initialize()
-})
 </script>
 
 <style scoped>

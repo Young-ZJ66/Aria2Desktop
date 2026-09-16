@@ -68,7 +68,7 @@ export function mergeCategoryRules(custom: CategoryRule[] | undefined): Category
     sanitized.unshift({ id: CATEGORY_GENERAL, dir: '', extensions: [], customDir: undefined })
   } else if (gi !== 0) {
     const [g] = sanitized.splice(gi, 1)
-    sanitized.unshift(g)
+    if (g) sanitized.unshift(g)
   }
   return sanitized
 }

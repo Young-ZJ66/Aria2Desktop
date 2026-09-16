@@ -32,6 +32,7 @@ resources/aria2c.exe
 .augment
 .sanshu-memory
 .workbuddy
+.mimosa
 
 # 系统文件
 .DS_Store

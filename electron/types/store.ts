@@ -4,7 +4,7 @@
  * AppSettings 的单一事实来源在 src/shared/appSettings.ts（主进程与渲染层共用），
  * 修改持久化数据结构时只改那一处，本文件仅 re-export。
  */
-export type { AppSettings } from '../../src/shared/appSettings'
+export type { AppSettings, SpeedScheduleRule } from '../../src/shared/appSettings'
 import type { AppSettings } from '../../src/shared/appSettings'
 
 /** 窗口状态 */
@@ -35,5 +35,6 @@ export interface StoreData {
   settings: AppSettings
   windowState: WindowState
   trackerSubscription?: TrackerSubscriptionState
+  disabledPlugins?: string[]
   [key: string]: unknown
 }

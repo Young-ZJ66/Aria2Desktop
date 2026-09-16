@@ -79,6 +79,17 @@
 
         <n-form-item>
           <template #label>
+            <TipLabel :label="t('generalSettings.downloadCompleteAction')" :tip="t('generalSettings.downloadCompleteActionTip')" />
+          </template>
+          <n-select
+            v-model:value="form.downloadCompleteAction"
+            :options="downloadCompleteActionOptions"
+            @update:value="handleDownloadCompleteActionChange"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
             <TipLabel :label="t('generalSettings.checkForUpdates')" :tip="t('generalSettings.updateCheckTooltip')" />
           </template>
           <div class="update-section">
@@ -220,8 +231,16 @@ const form = reactive({
   refreshInterval: 1000,
   autoConnect: true,
   minimizeToTray: true,
-  autoLaunch: false
+  autoLaunch: false,
+  downloadCompleteAction: 'none' as 'none' | 'shutdown' | 'hibernate' | 'close'
 })
+
+const downloadCompleteActionOptions = [
+  { label: t('generalSettings.actionNone'), value: 'none' },
+  { label: t('generalSettings.actionShutdown'), value: 'shutdown' },
+  { label: t('generalSettings.actionHibernate'), value: 'hibernate' },
+  { label: t('generalSettings.actionClose'), value: 'close' }
+]
 
 // 自动更新状态
 const updating = ref(false)
@@ -300,7 +319,8 @@ function loadFormData() {
     refreshInterval: settingsStore.settings.refreshInterval,
     autoConnect: settingsStore.settings.autoConnect,
     minimizeToTray: settingsStore.settings.minimizeToTray,
-    autoLaunch: settingsStore.settings.autoLaunch
+    autoLaunch: settingsStore.settings.autoLaunch,
+    downloadCompleteAction: settingsStore.settings.downloadCompleteAction || 'none'
   })
 }
 
@@ -581,6 +601,16 @@ async function handleAutoLaunchChange() {
     // 恢复开关状态
     form.autoLaunch = settingsStore.settings.autoLaunch
     message.error(t('generalSettings.autoLaunchFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
+  }
+}
+
+// 下载完成后操作变化处理
+async function handleDownloadCompleteActionChange(value: string) {
+  form.downloadCompleteAction = value as 'none' | 'shutdown' | 'hibernate' | 'close'
+  try {
+    await settingsStore.updateSetting('downloadCompleteAction', form.downloadCompleteAction)
+  } catch (error) {
+    console.error('Download complete action change error:', error)
   }
 }
 

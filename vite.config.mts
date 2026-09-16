@@ -59,6 +59,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: 'localhost'
+    host: 'localhost',
+    // 端口被占用时直接报错而非静默切换到 5174，避免 Electron 连接错误端口
+    strictPort: true
   }
 })

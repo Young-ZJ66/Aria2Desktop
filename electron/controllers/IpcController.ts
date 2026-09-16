@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell, app } from 'electron'
+import { ipcMain, dialog, shell, app, Notification } from 'electron'
 import { WindowController } from './WindowController'
 import { TrayController } from './TrayController'
 import { Aria2Controller } from './Aria2Controller'
@@ -8,6 +8,8 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { createSenderValidator } from '../utils/ipcSecurity'
 import { encryptSettingsSecrets, decryptSettingsSecrets } from '../utils/secretCipher'
+import { checkYtdlpAvailable, getVideoInfo, getFormatUrl } from '../services/ytdlpService'
+import { PluginManager } from '../services/pluginManager'
 import type { StoreData, AppSettings } from '../types/store'
 
 /** 允许通过 get/set-store-value 访问的 store 键白名单 */
@@ -22,6 +24,7 @@ export class IpcController {
   private aria2Controller: Aria2Controller
   private updateController: UpdateController
   private store: Store<StoreData>
+  private pluginManager: PluginManager
 
   constructor(
     windowController: WindowController,
@@ -34,20 +37,32 @@ export class IpcController {
     this.aria2Controller = aria2Controller
     this.updateController = new UpdateController(() => windowController.getMainWindow())
     this.store = store
+    this.pluginManager = new PluginManager(store)
+  }
+
+  /** 关闭插件管理器（应用退出时调用） */
+  public shutdown(): void {
+    this.pluginManager.shutdown()
   }
 
   public registerHandlers() {
     this.registerAppHandlers()
     this.registerFileHandlers()
     this.registerPersistedTasksHandlers()
+    this.registerYtdlpHandlers()
+    this.registerPluginHandlers()
     this.aria2Controller.registerIpcHandlers()
+    this.pluginManager.loadAll()
   }
 
   // 校验 IPC 调用来源是否为主窗口（复用 ipcSecurity 工厂，防止恶意页面或外部进程调用敏感 IPC 通道）
   private validateSender = createSenderValidator(() => this.windowController.getMainWindow())
 
   private registerAppHandlers() {
-    ipcMain.handle('get-app-version', () => app.getVersion())
+    ipcMain.handle('get-app-version', (event) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      return app.getVersion()
+    })
 
     // 应用默认下载目录（Windows 系统"下载"文件夹）
     ipcMain.handle('get-default-download-dir', (event) => {
@@ -121,6 +136,96 @@ export class IpcController {
       if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
       this.windowController.setWindowTheme(isDark)
       return { success: true }
+    })
+
+    ipcMain.handle('set-taskbar-progress', (event, progress: number, mode?: string) => {
+      if (!this.validateSender(event)) return
+      this.windowController.setTaskbarProgress(progress, (mode as 'normal' | 'error' | 'paused') || 'normal')
+    })
+
+    ipcMain.handle('system-shutdown', async (event) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      try {
+        const { exec } = require('child_process')
+        if (process.platform === 'win32') {
+          exec('shutdown /s /t 60') // 60 秒后关机
+        } else if (process.platform === 'darwin') {
+          exec('osascript -e \'tell app "System Events" to shut down\'')
+        } else {
+          exec('shutdown -h +1')
+        }
+        return { success: true }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    })
+
+    ipcMain.handle('system-hibernate', async (event) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      try {
+        const { exec } = require('child_process')
+        if (process.platform === 'win32') {
+          exec('shutdown /h')
+        } else if (process.platform === 'darwin') {
+          exec('osascript -e \'tell app "System Events" to sleep\'')
+        } else {
+          exec('systemctl suspend')
+        }
+        return { success: true }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    })
+
+    ipcMain.handle('detect-system-proxy', async (event) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      try {
+        const { session } = require('electron')
+        const proxy = await session.defaultSession.resolveProxy('http://www.google.com')
+        if (proxy && proxy !== 'DIRECT') {
+          // proxy 格式如 "PROXY host:port" 或 "SOCKS5 host:port"
+          const match = proxy.match(/^(?:PROXY|SOCKS5?|HTTPS)\s+(.+)$/i)
+          const proxyUrl = match ? match[1] : proxy
+          const protocol = proxy.startsWith('SOCKS') ? 'socks5' : 'http'
+          return { success: true, proxy: `${protocol}://${proxyUrl}` }
+        }
+        return { success: true, proxy: '' }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    })
+
+    // 系统通知（通过 Electron Notification API，比 Web API 更可靠）
+    ipcMain.handle('send-notification', (event, title: string, body: string) => {
+      if (!this.validateSender(event)) return
+      try {
+        if (Notification.isSupported()) {
+          const notification = new Notification({ title, body, silent: false })
+          notification.show()
+          notification.on('click', () => {
+            const win = this.windowController.getMainWindow()
+            if (win && !win.isDestroyed()) {
+              win.show()
+              win.focus()
+            }
+          })
+        }
+      } catch (e) {
+        console.warn('[IpcController] Failed to send notification:', e)
+      }
+    })
+
+    ipcMain.handle('system-cancel-shutdown', async (event) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      try {
+        if (process.platform === 'win32') {
+          const { exec } = require('child_process')
+          exec('shutdown /a')
+        }
+        return { success: true }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
     })
 
     ipcMain.handle('get-store-value', (event, key: string) => {
@@ -340,6 +445,47 @@ export class IpcController {
       } catch (e) {
         return { success: false, error: String(e) }
       }
+    })
+  }
+
+  /** yt-dlp 流媒体支持（可选外部引擎） */
+  private registerYtdlpHandlers() {
+    ipcMain.handle('ytdlp-check', async (event) => {
+      if (!this.validateSender(event)) return { available: false, error: 'Unauthorized' }
+      return checkYtdlpAvailable()
+    })
+
+    ipcMain.handle('ytdlp-video-info', async (event, url: string) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      return getVideoInfo(url)
+    })
+
+    ipcMain.handle('ytdlp-format-url', async (event, url: string, formatId: string) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      return getFormatUrl(url, formatId)
+    })
+  }
+
+  /** 插件管理 */
+  private registerPluginHandlers() {
+    ipcMain.handle('plugins-list', (event) => {
+      if (!this.validateSender(event)) return []
+      return this.pluginManager.getPlugins()
+    })
+
+    ipcMain.handle('plugins-enable', (event, pluginId: string) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      return { success: this.pluginManager.enable(pluginId) }
+    })
+
+    ipcMain.handle('plugins-disable', (event, pluginId: string) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      return { success: this.pluginManager.disable(pluginId) }
+    })
+
+    ipcMain.handle('plugins-uninstall', (event, pluginId: string) => {
+      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+      return { success: this.pluginManager.uninstall(pluginId) }
     })
   }
 }

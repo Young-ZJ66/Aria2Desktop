@@ -36,8 +36,8 @@
         </div>
         <div class="update-downloaded-text">{{ t('generalSettings.updateDownloaded') }}</div>
         <div class="update-dialog-actions">
-          <n-button @click="visible = false">{{ t('generalSettings.updateLater') }}</n-button>
-          <n-button type="primary" @click="restartToUpdate">{{ t('generalSettings.restartToUpdate') }}</n-button>
+          <n-button :disabled="restarting" @click="visible = false">{{ t('generalSettings.updateLater') }}</n-button>
+          <n-button type="primary" :loading="restarting" @click="restartToUpdate">{{ t('generalSettings.restartToUpdate') }}</n-button>
         </div>
       </template>
     </div>
@@ -70,6 +70,7 @@ const visible = computed({
 })
 
 const starting = ref(false)
+const restarting = ref(false)
 /** 安装包未通过 SHA-256 校验（存量 Release 无校验文件）：下载页展示警示，安装前需二次确认 */
 const checksumUnavailable = ref(false)
 
@@ -182,6 +183,9 @@ async function startUpdateDownload() {
 
 // 重启更新
 function restartToUpdate() {
+  // 防止重复点击（app.exit 会立即退出，但启动安装程序前有短暂延迟）
+  if (restarting.value) return
+
   // 未校验安装包（存量 Release 无校验文件）：安装前弹确认，明确告知风险后由用户决定
   if (checksumUnavailable.value) {
     confirm({
@@ -191,11 +195,13 @@ function restartToUpdate() {
       positiveText: t('generalSettings.stillInstall'),
       negativeText: t('common.cancel'),
       onPositiveClick: () => {
+        restarting.value = true
         window.electronAPI?.restartAndInstall?.()
       }
     })
     return
   }
+  restarting.value = true
   window.electronAPI?.restartAndInstall?.()
 }
 </script>

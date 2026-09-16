@@ -8,6 +8,7 @@ import { Aria2Controller } from './controllers/Aria2Controller'
 import { IpcController } from './controllers/IpcController'
 import { AppLifecycle } from './controllers/AppLifecycle'
 import { TrackerSubscriptionService } from './services/trackerSubscriptionService'
+import { SpeedScheduler } from './services/speedScheduler'
 import { appState } from './utils/appState'
 import { decryptSettingsSecrets } from './utils/secretCipher'
 import type { StoreData, AppSettings } from './types/store'
@@ -108,6 +109,7 @@ const trayController = new TrayController(windowController)
 const aria2Controller = new Aria2Controller(store, windowController)
 const ipcController = new IpcController(windowController, trayController, aria2Controller, store)
 const trackerSubscriptionService = new TrackerSubscriptionService(store, aria2Controller, windowController)
+const speedScheduler = new SpeedScheduler(store)
 
 // 创建 AppLifecycle 协调器
 const appLifecycle = new AppLifecycle(
@@ -124,11 +126,48 @@ const appLifecycle = new AppLifecycle(
 
 const gotTheLock = app.requestSingleInstanceLock()
 
+/** 从命令行参数或协议 URL 中提取待处理的下载链接 */
+function extractPendingUrl(argv: string[]): string | null {
+  // Windows: 协议链接作为命令行参数传入（如 magnet:?xt=urn:btih:...）
+  for (const arg of argv) {
+    if (arg.startsWith('magnet:')) return arg
+  }
+  return null
+}
+
+/** 将待处理的下载链接推送给渲染进程（窗口就绪后由渲染层打开新建下载弹窗） */
+function sendPendingUrl(url: string): void {
+  const win = windowController.getMainWindow()
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('pending-download-url', url)
+  }
+}
+
 if (!gotTheLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  // 注册 magnet: 协议处理器（生产环境才注册，避免干扰开发环境）
+  if (app.isPackaged) {
+    app.setAsDefaultProtocolClient('magnet')
+  }
+
+  // macOS/Linux: 通过 open-url 事件接收协议链接
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    if (url && url.startsWith('magnet:')) {
+      windowController.show()
+      // 窗口可能尚未就绪，延迟发送
+      setTimeout(() => sendPendingUrl(url), 500)
+    }
+  })
+
+  app.on('second-instance', (_event, argv) => {
     windowController.show()
+    // Windows: 从 second-instance 的 argv 中提取协议链接
+    const pendingUrl = extractPendingUrl(argv)
+    if (pendingUrl) {
+      sendPendingUrl(pendingUrl)
+    }
   })
 
   app.whenReady().then(async () => {
@@ -141,6 +180,15 @@ if (!gotTheLock) {
       await appLifecycle.initialize()
       // App 就绪后启动 Tracker 每日订阅（含开机补拉 + 定时更新）
       trackerSubscriptionService.initialize()
+      // 启动速度调度器（每分钟检查是否需要切换限速）
+      speedScheduler.start()
+
+      // 处理启动时的协议链接（Windows 首次启动通过 argv 传入）
+      const startupUrl = extractPendingUrl(process.argv)
+      if (startupUrl) {
+        setTimeout(() => sendPendingUrl(startupUrl), 1000)
+      }
+
       console.log('Application initialized successfully')
     } catch (error) {
       console.error('Application initialization failed:', error)
@@ -186,6 +234,7 @@ if (!gotTheLock) {
       await appLifecycle.shutdown()
       // 关闭 Tracker 订阅定时器，避免退出阻塞
       trackerSubscriptionService.shutdown()
+      speedScheduler.stop()
       console.log('Graceful shutdown complete')
     } catch (error) {
       console.error('Shutdown error:', error)

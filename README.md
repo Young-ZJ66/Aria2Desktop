@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Aria2 Desktop](https://img.shields.io/badge/Aria2%20Desktop-v1.0.0-blue?style=for-the-badge)
+![Aria2 Desktop](https://img.shields.io/badge/Aria2%20Desktop-v1.0.6-blue?style=for-the-badge)
 ![Electron](https://img.shields.io/badge/Electron-43.x-47848F?style=for-the-badge&logo=electron)
 ![Vue.js](https://img.shields.io/badge/Vue.js-3.x-4FC08D?style=for-the-badge&logo=vue.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178C6?style=for-the-badge&logo=typescript)
@@ -34,24 +34,38 @@
 - **可视化管理**: 直观的下载任务管理界面，支持列表/详情视图
 - **实时监控**: 下载速度、进度、连接数、Peer 信息实时展示
 - **多协议支持**: HTTP/HTTPS、FTP、BitTorrent、磁力链接、Metalink 全支持
+- **流媒体下载**: 集成 yt-dlp，支持 YouTube、Bilibili 等 1000+ 站点的 HLS/DASH 流媒体下载
+- **浏览器扩展**: Chrome/Edge 扩展，右键菜单一键发送下载链接，可选拦截所有浏览器下载
+- **插件系统**: 基于 VM 沙箱的插件框架，支持权限隔离与生命周期管理
 
 ### 下载功能
 - **多线程下载**: 最大化利用网络带宽
 - **断点续传**: 下载中断后自动恢复
-- **实时监控**: 下载速度、进度、连接数实时显示
-- **速度控制**: 全局和单任务速度限制
+- **速度控制**: 全局和单任务速度限制，底部状态栏一键切换
+- **速度调度**: 按星期/时间段自动切换限速（如工作日白天限速）
+- **分类下载**: 按文件类型自动归类到子目录（视频/音乐/图片/文档/压缩包/程序）
+- **BT Tracker 订阅**: 自动从公共源聚合最新 Tracker 列表
+- **magnet: 协议**: 注册为系统默认磁力链接处理器
+- **拖拽下载**: 直接拖拽 URL 或 .torrent/.metalink 文件到窗口创建任务
+- **任务排序**: 点击列头切换升序/降序排序
+- **任务导出/导入**: 下载任务页导出未完成任务用于迁移，下载完成页导出/恢复历史记录
 
 ### 界面体验
-- **深色/浅色主题**: 支持主题切换，保护眼睛
+- **深色/浅色主题**: 支持主题切换，跟随系统主题
 - **响应式设计**: 适配不同窗口大小
 - **多语言支持**: 中文、英文界面
 - **实时状态面板**: 通过图表直观展示实时流量与连接情况
+- **全局键盘快捷键**: Ctrl+N 新建、Ctrl+F 搜索、Ctrl+Shift+P 暂停全部等
+- **下载完成通知**: 窗口不可见时弹出系统通知
+- **任务栏进度条**: 下载时 Windows 任务栏图标显示整体进度
+- **剪贴板检测**: 复制下载链接后回到应用自动弹出新建窗口
 
 ### 系统集成
 - **开机启动**: 支持系统启动时自动运行
-- **配置持久化**: 基于 electron-store 的设置和任务数据自动保存
 - **系统托盘**: 最小化到托盘，后台保持下载任务运行
-- **断点续传**: 下载中断后自动恢复，支持会话保存
+- **下载完成后操作**: 可设置下载全部完成后自动关机、休眠或关闭应用
+- **系统代理检测**: 一键检测并填入系统代理配置
+- **自动更新**: 应用内检查更新并下载安装
 
 ## 技术架构
 
@@ -79,7 +93,65 @@
    - 点击 "+" 按钮添加下载链接
    - 支持批量添加多个链接
    - 新建任务对话框内可直接拖拽 `.torrent` / `.metalink` 文件，或拖放链接进行添加
-4. **管理任务**: 在任务列表中通过操作按钮或右键菜单进行暂停、恢复、删除、打开所在目录等操作
+   - 直接拖拽 URL 或文件到主窗口即可创建下载任务
+   - 从浏览器复制下载链接后回到应用，自动弹出新建下载窗口
+4. **管理任务**: 在任务列表中通过操作按钮进行暂停、恢复、删除、打开所在目录等操作
+5. **浏览器扩展**: 安装 `extension/` 目录为 Chrome/Edge 扩展，右键链接可直接发送到 Aria2 Desktop 下载
+
+### 流媒体下载（可选）
+应用集成了 yt-dlp 作为外部引擎，支持 YouTube、Bilibili 等 1000+ 站点的流媒体下载。
+1. 安装 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 并确保在系统 PATH 中
+2. 在新建下载弹窗中切换到「流媒体」标签页
+3. 粘贴视频链接，选择画质后下载
+
+### 浏览器扩展安装
+1. 打开 Chrome/Edge，进入 `chrome://extensions/`
+2. 开启「开发者模式」
+3. 点击「加载已解压的扩展程序」，选择项目中的 `extension/` 目录
+4. 扩展图标出现在工具栏后，右键任意链接即可发送到 Aria2 Desktop
+
+### 插件系统
+插件存放在 `%APPDATA%/aria2-desktop/plugins/` 目录下，每个插件一个文件夹：
+```
+my-plugin/
+├── manifest.json    # 插件元数据（id、name、version、permissions）
+└── index.js         # 插件入口脚本
+```
+
+**manifest.json 示例**：
+```json
+{
+  "id": "com.example.my-plugin",
+  "name": "My Plugin",
+  "version": "1.0.0",
+  "description": "插件描述",
+  "main": "index.js",
+  "permissions": ["aria2:read", "notify"]
+}
+```
+
+**index.js 示例**：
+```js
+module.exports = {
+  onActivate: function() { console.log('Plugin activated!') },
+  onDownloadComplete: function(task) {
+    notify.send('下载完成', task.name)
+  }
+}
+```
+
+**权限类型**：`aria2:read`（读取下载状态）、`aria2:write`（控制下载）、`settings:read/write`（读写设置）、`notify`（发送通知）、`network`（网络请求）
+
+### 键盘快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| `Ctrl+N` | 新建下载 |
+| `Ctrl+F` | 搜索任务 |
+| `Ctrl+Shift+P` | 暂停全部 |
+| `Ctrl+Shift+R` | 恢复全部 |
+| `Ctrl+,` | 打开设置 |
+| `Escape` | 关闭当前弹窗 |
 
 ## 开发指南
 
@@ -119,28 +191,32 @@ npm run dist:win-all
 ```
 Aria2Desktop/
 ├── src/                    # 渲染进程源代码
-│   ├── components/         # Vue 组件
-│   ├── composables/        # 组合式函数（服务、设置表单、任务选择、流量监控等）
-│   ├── views/              # 页面视图
-│   ├── stores/             # Pinia 状态管理
-│   ├── services/           # API 服务
+│   ├── components/         # Vue 组件（对话框、布局、任务操作、自定义图标）
+│   ├── composables/        # 组合式函数（生命周期、刷新、流量监控、剪贴板检测、快捷键）
+│   ├── views/              # 页面视图（任务列表、状态页、设置子页面）
+│   ├── stores/             # Pinia 状态管理（连接、任务、设置、统计、UI）
+│   ├── services/           # 服务层（Aria2 RPC、设置、持久化、会话管理）
+│   ├── shared/             # 主进程/渲染层共享模块（设置类型、文件分类、Tracker 列表）
 │   ├── router/             # 路由配置
-│   ├── styles/             # 全局样式
+│   ├── styles/             # 全局样式与主题 Token
 │   ├── i18n/               # 国际化初始化
 │   ├── locales/            # 语言文件（zh-CN / en-US）
-│   ├── types/              # 类型定义
-│   └── utils/              # 工具函数
+│   ├── types/              # TypeScript 类型定义
+│   └── utils/              # 工具函数（格式化、错误映射、文件类型图标）
 ├── electron/               # Electron 主进程代码
 │   ├── controllers/        # 控制器（窗口/托盘/Aria2/IPC/更新/生命周期）
-│   ├── managers/           # 进程管理
-│   ├── types/              # 类型定义
-│   ├── utils/              # 工具函数（配置管理、资源定位等）
+│   ├── managers/           # 进程管理（Aria2 子进程生命周期）
+│   ├── services/           # 服务（Tracker 订阅、速度调度、yt-dlp、插件管理）
+│   ├── types/              # 类型定义（Store、Plugin）
+│   ├── utils/              # 工具函数（IPC 安全、加密、配置监听、资源管理）
 │   ├── main.ts             # 主进程入口
-│   └── preload.ts          # 预加载脚本
+│   └── preload.ts          # 预加载脚本（contextBridge API）
+├── extension/              # Chrome/Edge 浏览器扩展（Manifest V3）
+├── plugins/                # 示例插件
 ├── resources/              # 资源文件（Aria2 引擎二进制、默认配置）
-├── scripts/                # 构建辅助脚本（Aria2 二进制准备、Release 更新说明生成）
+├── scripts/                # 构建辅助脚本
 ├── build/                  # 打包配置与图标
-├── dist/                   # 编译产物（Vue / Electron 主进程）
+├── dist/                   # 编译产物
 └── release/                # electron-builder 打包输出目录
 ```
 
@@ -171,6 +247,8 @@ Aria2Desktop/
 
 - [AriaNg](https://github.com/mayswind/AriaNg) - 现代化的 Aria2 Web 前端
 - [Aria2](https://github.com/aria2/aria2) - 强大的命令行下载工具
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - 功能丰富的视频下载工具
+- [Motrix](https://github.com/agalwood/Motrix) - 全功能下载管理器（功能参考）
 - [Electron](https://www.electronjs.org/) - 跨平台桌面应用开发框架
 - [Vue.js](https://vuejs.org/) - 渐进式 JavaScript 框架
 - [Naive UI](https://www.naiveui.com/) - 基于 Vue.js 的组件库

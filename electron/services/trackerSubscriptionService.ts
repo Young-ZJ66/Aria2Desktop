@@ -8,9 +8,6 @@ import { createSenderValidator } from '../utils/ipcSecurity'
 import { parseTrackerText } from '../../src/shared/btTrackers'
 import type { StoreData, TrackerSubscriptionState } from '../types/store'
 
-/** 默认同步间隔（毫秒）- 24小时 */
-const DEFAULT_INTERVAL_MS = 24 * 60 * 60 * 1000
-
 /** 最小同步间隔（小时） */
 const MIN_INTERVAL_HOURS = 12
 
@@ -88,7 +85,8 @@ export class TrackerSubscriptionService {
     const state = this.getState()
     this.scheduleNext()
     if (!state.autoUpdate) return
-    const stale = !state.lastUpdate || Date.now() - new Date(state.lastUpdate).getTime() > DEFAULT_INTERVAL_MS
+    const intervalMs = (state.syncIntervalHours || 24) * 60 * 60 * 1000
+    const stale = !state.lastUpdate || Date.now() - new Date(state.lastUpdate).getTime() > intervalMs
     if (stale) {
       void this.update(false, state.customSources).catch(() => {})
     }

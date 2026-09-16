@@ -209,6 +209,10 @@ export class AppLifecycle {
       console.log('[AppLifecycle] Step 4: Destroying tray...')
       this.trayController.destroy()
 
+      // 步骤 5: 关闭插件管理器
+      console.log('[AppLifecycle] Step 5: Closing plugins...')
+      this.ipcController.shutdown()
+
       console.log('[AppLifecycle] Shutdown complete')
     } catch (error) {
       console.error('[AppLifecycle] Shutdown error:', error)

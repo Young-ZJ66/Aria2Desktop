@@ -1,0 +1,9 @@
+{
+  "id": "com.aria2desktop.download-notifier",
+  "name": "Download Notifier",
+  "version": "1.0.0",
+  "description": "Logs download events to console and shows notifications on completion",
+  "author": "Aria2Desktop",
+  "main": "index.js",
+  "permissions": ["aria2:read", "notify"]
+}

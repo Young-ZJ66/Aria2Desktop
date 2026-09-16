@@ -86,6 +86,8 @@ class SettingsService {
       }
     } catch (error) {
       console.error('Failed to load settings:', error)
+      // 清理损坏数据，避免下次启动仍反复 parse 失败
+      try { localStorage.removeItem('aria2-desktop-settings') } catch { /* 忽略清理失败 */ }
       this.settings = { ...defaultSettings }
     }
 

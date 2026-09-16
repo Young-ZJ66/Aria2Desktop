@@ -3,7 +3,13 @@
     <n-message-provider placement="top">
       <n-dialog-provider>
         <n-notification-provider placement="bottom-right">
-          <div class="app-container" :class="{ 'windows-titlebar': isWindowsPlatform }">
+          <div
+            class="app-container"
+            :class="{ 'windows-titlebar': isWindowsPlatform }"
+            @dragover.prevent="onDragOver"
+            @dragleave.prevent="onDragLeave"
+            @drop.prevent="onDrop"
+          >
             <!-- 主要内容区域 -->
             <div class="main-container" :class="{ 'is-entered': appEntered }">
               <!-- 侧边栏 -->
@@ -36,6 +42,16 @@
 
             <!-- 全局更新弹窗（启动检查与设置页手动检查共用） -->
             <UpdateDialog />
+
+            <!-- 拖拽下载覆盖层 -->
+            <transition name="fade-in">
+              <div v-if="isDragging" class="drop-overlay">
+                <div class="drop-overlay-content">
+                  <n-icon :size="48"><CloudDownloadOutline /></n-icon>
+                  <span>{{ t('task.dropToDownload') }}</span>
+                </div>
+              </div>
+            </transition>
           </div>
         </n-notification-provider>
       </n-dialog-provider>
@@ -45,7 +61,10 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { CloudDownloadOutline } from '@vicons/ionicons5'
 import { useConnectionStore } from '@/stores/connectionStore'
+import { useUiStore } from '@/stores/uiStore'
 import { useThemeManager } from '@/composables/useThemeManager'
 import { useAppLifecycle } from '@/composables/useAppLifecycle'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
@@ -57,6 +76,8 @@ import TaskDetailDrawer from '@/components/dialogs/TaskDetailDrawer.vue'
 import UpdateDialog from '@/components/dialogs/UpdateDialog.vue'
 
 const connectionStore = useConnectionStore()
+const uiStore = useUiStore()
+const { t } = useI18n()
 
 // Naive UI 主题 / 语言（跟随设置与系统深浅色）
 const themeManager = useThemeManager()
@@ -81,6 +102,51 @@ const isWindowsPlatform = computed(() => {
   if (platform) return platform === 'win32'
   return navigator.userAgent.toLowerCase().includes('win')
 })
+
+// ── 全局拖拽下载 ──
+
+const isDragging = ref(false)
+let dragCounter = 0 // 嵌套 dragenter/leave 计数，避免子元素触发闪烁
+
+function onDragOver(event: DragEvent) {
+  // 仅在拖入了文件或文本时显示覆盖层
+  const types = event.dataTransfer?.types
+  if (types && (types.includes('Files') || types.includes('text/plain'))) {
+    event.dataTransfer.dropEffect = 'copy'
+    if (!isDragging.value) isDragging.value = true
+  }
+}
+
+function onDragLeave() {
+  dragCounter--
+  if (dragCounter <= 0) {
+    isDragging.value = false
+    dragCounter = 0
+  }
+}
+
+function onDrop(event: DragEvent) {
+  isDragging.value = false
+  dragCounter = 0
+
+  const dt = event.dataTransfer
+  if (!dt) return
+
+  // 优先处理文件拖拽（.torrent / .metalink）
+  if (dt.files.length > 0) {
+    const file = dt.files[0]
+    if (file) {
+      uiStore.openNewTaskWithFile(file)
+      return
+    }
+  }
+
+  // 处理文本拖拽（URL）
+  const text = dt.getData('text/plain')?.trim()
+  if (text && /^(https?|ftp|magnet):/.test(text)) {
+    uiStore.openNewTaskWithUrl(text)
+  }
+}
 </script>
 
 <style scoped>
@@ -122,5 +188,44 @@ const isWindowsPlatform = computed(() => {
   overflow: auto;
   padding: 16px;
   background-color: var(--bg-secondary);
+}
+
+/* 拖拽下载覆盖层 */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--bg-primary));
+  backdrop-filter: blur(4px);
+  border: 3px dashed var(--color-primary);
+  border-radius: 12px;
+  margin: 8px;
+}
+
+.drop-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* 覆盖层淡入动画 */
+.fade-in-enter-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-in-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.fade-in-enter-from,
+.fade-in-leave-to {
+  opacity: 0;
 }
 </style>

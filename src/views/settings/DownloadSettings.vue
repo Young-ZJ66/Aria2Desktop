@@ -161,6 +161,36 @@
 
       </n-card>
 
+      <!-- 速度调度 -->
+      <n-card :title="t('settings.download.speedSchedule')" class="setting-group">
+        <n-alert type="info" :bordered="false" style="margin-bottom: 12px;">
+          {{ t('settings.download.speedScheduleTip') }}
+        </n-alert>
+
+        <n-form-item>
+          <template #label>{{ t('settings.download.speedScheduleEnabled') }}</template>
+          <n-switch v-model:value="scheduleEnabled" />
+        </n-form-item>
+
+        <div v-if="scheduleEnabled" class="schedule-rules">
+          <div v-for="(rule, index) in scheduleRules" :key="index" class="schedule-rule">
+            <n-input v-model:value="rule.name" :placeholder="t('settings.download.scheduleRuleName')" size="small" style="width: 120px;" />
+            <n-select v-model:value="rule.days" :options="dayOptions" multiple size="small" style="min-width: 180px;" :placeholder="t('settings.download.everyDay')" />
+            <n-time-picker v-model:value="rule.startTimestamp" format="HH:mm" size="small" style="width: 100px;" :placeholder="t('settings.download.startTime')" />
+            <span style="color: var(--text-secondary);">-</span>
+            <n-time-picker v-model:value="rule.endTimestamp" format="HH:mm" size="small" style="width: 100px;" :placeholder="t('settings.download.endTime')" />
+            <n-input-number v-model:value="rule.downloadLimitKB" :min="0" size="small" style="width: 120px;" :suffix="t('settings.download.kbPerSec')" :placeholder="t('settings.download.downloadLimit')" />
+            <n-button size="small" quaternary type="error" @click="removeScheduleRule(index)">
+              <template #icon><n-icon><TrashOutline /></n-icon></template>
+            </n-button>
+          </div>
+          <n-button size="small" dashed @click="addScheduleRule" style="width: 100%;">
+            <template #icon><n-icon><AddOutline /></n-icon></template>
+            {{ t('settings.download.addScheduleRule') }}
+          </n-button>
+        </div>
+      </n-card>
+
       <!-- 磁盘与存储 -->
       <n-card :title="t('settings.download.diskAndMemory')" class="setting-group">
 
@@ -435,7 +465,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOutline, AddOutline, RemoveOutline } from '@vicons/ionicons5'
+import { FolderOutline, AddOutline, RemoveOutline, TrashOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import type { FormRules, FormInst } from 'naive-ui'
 
@@ -735,9 +765,9 @@ function onDirChange(rule: CategoryRule, value: string) {
   rule.customDir = v
 }
 
-/** 保存：先保存 aria2 全局选项，再保存分类配置 */
+/** 保存：先保存 aria2 全局选项，再保存分类配置和速度调度 */
 async function onSave() {
-  await Promise.all([handleSave(), saveCategoryConfig()])
+  await Promise.all([handleSave(), saveCategoryConfig(), saveScheduleConfig()])
 }
 
 /** 重置：先重置分类配置，再重置 aria2 选项 */
@@ -809,6 +839,89 @@ async function selectDirectory() {
     message.error(t('settings.download.selectDirFailed'))
   }
 }
+
+// ---------- 速度调度设置（独立于 aria2 全局选项，存入 AppSettings.speedSchedule） ----------
+
+interface ScheduleRuleUI {
+  name: string
+  days: number[]
+  startTimestamp: number
+  endTimestamp: number
+  downloadLimitKB: number
+}
+
+const scheduleEnabled = ref(false)
+const scheduleRules = reactive<ScheduleRuleUI[]>([])
+
+const dayOptions = [
+  { label: t('settings.download.mon'), value: 1 },
+  { label: t('settings.download.tue'), value: 2 },
+  { label: t('settings.download.wed'), value: 3 },
+  { label: t('settings.download.thu'), value: 4 },
+  { label: t('settings.download.fri'), value: 5 },
+  { label: t('settings.download.sat'), value: 6 },
+  { label: t('settings.download.sun'), value: 0 }
+]
+
+function timestampToHHmm(ts: number): string {
+  const d = new Date(ts)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function hhmmToTimestamp(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number)
+  const d = new Date()
+  d.setHours(h || 0, m || 0, 0, 0)
+  return d.getTime()
+}
+
+function loadScheduleConfig() {
+  const cfg = settingsStore.settings.speedSchedule
+  scheduleEnabled.value = cfg?.enabled ?? false
+  scheduleRules.length = 0
+  if (cfg?.rules) {
+    for (const r of cfg.rules) {
+      scheduleRules.push({
+        name: r.name || '',
+        days: r.days || [],
+        startTimestamp: hhmmToTimestamp(r.startTime || '00:00'),
+        endTimestamp: hhmmToTimestamp(r.endTime || '00:00'),
+        downloadLimitKB: Math.round((r.downloadLimit || 0) / 1024)
+      })
+    }
+  }
+}
+loadScheduleConfig()
+
+async function saveScheduleConfig() {
+  await settingsStore.updateSettings({
+    speedSchedule: {
+      enabled: scheduleEnabled.value,
+      rules: scheduleRules.map(r => ({
+        name: r.name,
+        days: r.days,
+        startTime: timestampToHHmm(r.startTimestamp),
+        endTime: timestampToHHmm(r.endTimestamp),
+        downloadLimit: r.downloadLimitKB * 1024,
+        uploadLimit: 0
+      }))
+    }
+  })
+}
+
+function addScheduleRule() {
+  scheduleRules.push({
+    name: '',
+    days: [],
+    startTimestamp: hhmmToTimestamp('09:00'),
+    endTimestamp: hhmmToTimestamp('18:00'),
+    downloadLimitKB: 512
+  })
+}
+
+function removeScheduleRule(index: number) {
+  scheduleRules.splice(index, 1)
+}
 </script>
 
 <style scoped>
@@ -858,5 +971,21 @@ async function selectDirectory() {
   color: var(--text-secondary);
   margin-bottom: 8px;
   user-select: none;
+}
+
+.schedule-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.schedule-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
 }
 </style>

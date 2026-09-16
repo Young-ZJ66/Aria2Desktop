@@ -78,8 +78,6 @@ class TaskTimeService {
     })
 
     this.saveToStorage()
-    // 记录类信息日志：项目 lint 仅允许 warn/error 级 console，这里用 warn 表示"注意"
-    console.warn(`Recorded add time for task ${gid}:`, new Date(now))
   }
 
   /**
@@ -89,10 +87,7 @@ class TaskTimeService {
     const existing = this.taskTimes.get(gid)
 
     // 如果已经有完成时间，不要覆盖
-    if (existing?.completeTime) {
-      console.warn(`Task ${gid} already has complete time, skipping update`)
-      return
-    }
+    if (existing?.completeTime) return
 
     const now = Date.now()
 
@@ -104,8 +99,6 @@ class TaskTimeService {
     })
 
     this.saveToStorage()
-    // 记录类信息日志：项目 lint 仅允许 warn/error 级 console，这里用 warn 表示"注意"
-    console.warn(`Recorded complete time for task ${gid}:`, new Date(now))
   }
 
   /**
@@ -154,8 +147,6 @@ class TaskTimeService {
 
     if (cleaned > 0) {
       this.saveToStorage()
-      // 记录类信息日志：项目 lint 仅允许 warn/error 级 console，这里用 warn 表示"注意"
-      console.warn(`Cleaned up ${cleaned} old task time records`)
     }
   }
 

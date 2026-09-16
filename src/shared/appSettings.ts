@@ -23,6 +23,22 @@ export interface ConnectionProfile {
   config: ConnectionProfileConfig
 }
 
+/** 单条速度调度规则 */
+export interface SpeedScheduleRule {
+  /** 规则名称（如"工作时段限速"） */
+  name: string
+  /** 星期几生效（0=周日，1=周一...6=周六），空数组表示每天 */
+  days: number[]
+  /** 开始时间（HH:mm 格式，如 "09:00"） */
+  startTime: string
+  /** 结束时间（HH:mm 格式，如 "18:00"），跨午夜时 endTime < startTime */
+  endTime: string
+  /** 该时段的下载限速（字节/秒），0 表示无限制 */
+  downloadLimit: number
+  /** 该时段的上传限速（字节/秒），0 表示无限制 */
+  uploadLimit: number
+}
+
 export interface AppSettings {
   // 常规设置
   language?: string
@@ -34,6 +50,8 @@ export interface AppSettings {
   startMinimized?: boolean
   keepWindowState?: boolean
   autoLaunch?: boolean
+  /** 下载全部完成后执行的操作：none=不操作，shutdown=关机，hibernate=休眠，close=关闭应用 */
+  downloadCompleteAction?: 'none' | 'shutdown' | 'hibernate' | 'close'
 
   // 连接设置（保留兼容，实际使用 profiles）
   aria2?: {
@@ -65,6 +83,12 @@ export interface AppSettings {
     maxConnectionPerServer?: number
     minSplitSize?: string
     autoStart?: boolean
+  }
+
+  // 速度调度规则（按时段自动切换限速）
+  speedSchedule?: {
+    enabled: boolean
+    rules: SpeedScheduleRule[]
   }
 
   // 分类下载设置

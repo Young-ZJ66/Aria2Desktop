@@ -1,4 +1,4 @@
-import { BrowserWindow, Menu, shell, screen, ipcMain, nativeTheme, session, app } from 'electron'
+import { BrowserWindow, Menu, shell, screen, ipcMain, nativeTheme, session, app, clipboard } from 'electron'
 import { join } from 'path'
 import * as fs from 'fs'
 import Store from 'electron-store'
@@ -182,6 +182,19 @@ export class WindowController {
       }
     })
 
+    // 窗口获得焦点时读取剪贴板并推送给渲染层（用于智能检测下载链接）
+    // 比渲染层的 visibilitychange/focus 事件更可靠，覆盖 Alt+Tab、托盘恢复等场景
+    this.mainWindow.on('focus', () => {
+      try {
+        const text = clipboard.readText() || ''
+        if (text && /^(https?|ftp|magnet):/i.test(text.trim()) && text.trim().length <= 2048) {
+          this.mainWindow?.webContents.send('clipboard-url-detected', text.trim())
+        }
+      } catch {
+        // 剪贴板读取失败，静默忽略
+      }
+    })
+
     this.mainWindow.webContents.setWindowOpenHandler((details) => {
       // 仅放行安全的协议，防止 file://、自定义协议等触发系统级处理程序
       try {
@@ -277,6 +290,8 @@ export class WindowController {
       if (!loaded) {
         console.error('[WindowController] Could not find index.html in any expected location')
         console.error('[WindowController] Tried paths:', possiblePaths)
+        // 加载失败提示页面，避免用户看到空白窗口
+        this.mainWindow.loadURL(`data:text/html,<html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>应用资源加载失败</h2><p>未找到 index.html，请重新安装应用。</p></body></html>`)
       }
     }
   }
@@ -329,6 +344,24 @@ export class WindowController {
       return false
     }
     return this.mainWindow.isVisible()
+  }
+
+  /**
+   * 设置任务栏进度条（Windows/macOS）。
+   * @param progress 0-1 之间的进度值，-1 表示不确定状态，0 表示无进度（清除）
+   * @param mode 'normal' | 'error' | 'paused' 进度条颜色模式
+   */
+  public setTaskbarProgress(progress: number, mode: 'normal' | 'error' | 'paused' = 'normal'): void {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return
+    try {
+      if (progress <= 0) {
+        this.mainWindow.setProgressBar(-1) // 清除进度条
+      } else {
+        this.mainWindow.setProgressBar(Math.min(1, progress), { mode })
+      }
+    } catch {
+      // 非所有平台都支持，忽略
+    }
   }
 
   public setWindowTheme(isDark: boolean) {

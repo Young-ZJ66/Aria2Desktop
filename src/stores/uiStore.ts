@@ -11,6 +11,10 @@ export type UpdateDialogState = 'prompt' | 'downloading' | 'downloaded'
 export const useUiStore = defineStore('ui', () => {
   // 新建下载弹窗
   const showNewTask = ref(false)
+  // 剪贴板检测 / 拖拽填入的预填 URL（由 useClipboardMonitor / App.vue 写入，NewTaskDialog 读取后清空）
+  const newTaskPrefilledUrl = ref('')
+  // 拖拽 .torrent / .metalink 文件到主窗口时预填的文件对象
+  const newTaskPrefilledFile = ref<File | null>(null)
 
   // 设置弹窗（页内弹窗承载全部设置页面）
   const showSettings = ref(false)
@@ -30,8 +34,24 @@ export const useUiStore = defineStore('ui', () => {
     showNewTask.value = true
   }
 
+  /** 打开新建下载弹窗并预填 URL（剪贴板检测 / 拖拽 URL 调用） */
+  function openNewTaskWithUrl(url: string) {
+    newTaskPrefilledUrl.value = url
+    newTaskPrefilledFile.value = null
+    showNewTask.value = true
+  }
+
+  /** 打开新建下载弹窗并预填文件（拖拽 .torrent/.metalink 文件调用） */
+  function openNewTaskWithFile(file: File) {
+    newTaskPrefilledFile.value = file
+    newTaskPrefilledUrl.value = ''
+    showNewTask.value = true
+  }
+
   function closeNewTask() {
     showNewTask.value = false
+    newTaskPrefilledUrl.value = ''
+    newTaskPrefilledFile.value = null
   }
 
   function openSettings() {
@@ -67,6 +87,8 @@ export const useUiStore = defineStore('ui', () => {
 
   return {
     showNewTask,
+    newTaskPrefilledUrl,
+    newTaskPrefilledFile,
     showSettings,
     showTaskDetail,
     taskDetailGid,
@@ -76,6 +98,8 @@ export const useUiStore = defineStore('ui', () => {
     updateNotes,
     updatePercent,
     openNewTask,
+    openNewTaskWithUrl,
+    openNewTaskWithFile,
     closeNewTask,
     openSettings,
     closeSettings,

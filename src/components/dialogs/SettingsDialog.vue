@@ -39,13 +39,19 @@
         <n-tab-pane name="metalink" :tab="t('nav.metalinkSettings')">
           <MetalinkSettings />
         </n-tab-pane>
-        <n-tab-pane name="rpc-security" :tab="t('nav.rpcSecuritySettings')">
-          <RpcSecuritySettings />
-        </n-tab-pane>
-        <n-tab-pane name="advanced" :tab="t('nav.advancedSettings')">
-          <AdvancedSettings />
-        </n-tab-pane>
+        <template v-if="showAdvanced">
+          <n-tab-pane name="rpc-security" :tab="t('nav.rpcSecuritySettings')">
+            <RpcSecuritySettings />
+          </n-tab-pane>
+          <n-tab-pane name="advanced" :tab="t('nav.advancedSettings')">
+            <AdvancedSettings />
+          </n-tab-pane>
+        </template>
       </n-tabs>
+      <div class="settings-advanced-toggle">
+        <n-switch v-model:value="showAdvanced" size="small" />
+        <span class="settings-advanced-label">{{ t('settings.showAdvanced') }}</span>
+      </div>
     </div>
   </n-modal>
 </template>
@@ -70,6 +76,7 @@ const uiStore = useUiStore()
 const { t } = useI18n()
 
 const activeTab = ref('general')
+const showAdvanced = ref(false)
 
 const visible = computed({
   get: () => uiStore.showSettings,
@@ -100,5 +107,18 @@ const visible = computed({
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.settings-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border-light);
+}
+
+.settings-advanced-label {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 </style>

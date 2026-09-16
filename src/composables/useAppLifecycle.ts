@@ -1,4 +1,5 @@
 import { onMounted, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { setLocale, type AppLocale } from '@/i18n'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
@@ -8,6 +9,10 @@ import { useUiStore } from '@/stores/uiStore'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
 import { initLocalService, stopStatusCheck } from '@/composables/useAria2LocalService'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
+import { useClipboardMonitor } from '@/composables/useClipboardMonitor'
+import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
+import { stopCleanupTimer } from '@/services/taskPersistenceService'
+import { stopTimeCleanupTimer } from '@/services/taskTimeService'
 import type { useThemeManager } from '@/composables/useThemeManager'
 
 /**
@@ -21,16 +26,85 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   const statsStore = useStatsStore()
   const taskStore = useTaskStore()
   const settingsStore = useSettingsStore()
+  const { t } = useI18n()
   const uiStore = useUiStore()
   const trafficMonitor = useTrafficMonitor()
   const autoRefresh = useAutoRefresh()
-  const { startAutoUpdate, startSlowUpdate, stopAutoUpdate, stopSlowUpdate } = autoRefresh
+  const clipboardMonitor = useClipboardMonitor()
+  const keyboardShortcuts = useKeyboardShortcuts()
+  const { startAutoUpdate, startSlowUpdate, stopAutoUpdate, stopAll: stopAllRefresh } = autoRefresh
 
   // 本会话是否已成功连接过一次：用于区分"首次连接"与"自动重连"，
   // 避免重连时把用户正在编辑的连接对话框关掉
   let hasConnectedOnce = false
 
   let unsubscribeConfig: (() => void) | null = null
+  let unsubscribeDownloadComplete: (() => void) | null = null
+  let unsubscribePendingUrl: (() => void) | null = null
+  let unsubscribeClipboardUrl: (() => void) | null = null
+
+  // Windows 任务栏进度条：活动任务数 > 0 时显示整体进度
+  function updateTaskbarProgress() {
+    if (!window.electronAPI?.setTaskbarProgress) return
+    const tasks = taskStore.activeTasks
+    if (tasks.length === 0) {
+      window.electronAPI.setTaskbarProgress(-1) // 清除
+      return
+    }
+    // 计算所有活动任务的整体进度
+    let totalSize = 0
+    let completedSize = 0
+    for (const task of tasks) {
+      totalSize += parseInt(task.totalLength, 10) || 0
+      completedSize += parseInt(task.completedLength, 10) || 0
+    }
+    const progress = totalSize > 0 ? completedSize / totalSize : 0
+    window.electronAPI.setTaskbarProgress(progress)
+  }
+  // 监听活动任务列表变化（引用变化时触发，每次轮询都会替换数组）
+  watch(() => taskStore.activeTasks, updateTaskbarProgress)
+
+  // 下载完成系统通知：通过主进程 Electron Notification API 发送（比 Web API 可靠）
+  function showDownloadNotification(gid: string) {
+
+    const task = taskStore.allTasks.find(t => t.gid === gid)
+    const taskName = task?.bittorrent?.info?.name ||
+      task?.files?.[0]?.path?.split(/[\\/]/).pop() || gid
+    const size = task ? Math.round(parseInt(task.totalLength || '0', 10) / 1024 / 1024) : 0
+    const sizeText = size > 0 ? ` (${size} MB)` : ''
+
+    if (window.electronAPI?.sendNotification) {
+      window.electronAPI.sendNotification(t('notification.downloadComplete'), `${taskName}${sizeText}`)
+    }
+  }
+
+  // 下载全部完成后执行配置的操作（关机/休眠/关闭应用）
+  let hadActiveTasks = false
+  let downloadCompleteActionPending = false
+  watch(() => taskStore.activeTasks.length, (count) => {
+    if (count > 0) {
+      hadActiveTasks = true
+      downloadCompleteActionPending = false
+    } else if (hadActiveTasks && count === 0) {
+      // 曾经有活动任务，现在全部完成
+      hadActiveTasks = false
+      const action = settingsStore.getSetting('downloadCompleteAction') || 'none'
+      if (action === 'none') return
+      // 延迟 3 秒执行，给用户时间看到完成状态
+      downloadCompleteActionPending = true
+      setTimeout(() => {
+        if (!downloadCompleteActionPending) return
+        downloadCompleteActionPending = false
+        if (action === 'shutdown') {
+          window.electronAPI?.systemShutdown?.()
+        } else if (action === 'hibernate') {
+          window.electronAPI?.systemHibernate?.()
+        } else if (action === 'close') {
+          window.electronAPI?.close?.()
+        }
+      }, 3000)
+    }
+  })
 
   // 连接状态统一管理自动刷新：连接成功即启动刷新；仅在首次连接时关闭残留对话框，
   // 自动重连成功（已连过一次）不触碰对话框，避免打断用户编辑另一个配置
@@ -46,15 +120,28 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       taskStore.loadAllTasks()
       // 后台持续采集流量数据（不依赖状态页是否打开）
       trafficMonitor.startMonitor()
+      // 启动剪贴板下载链接检测（渲染层 visibilitychange/focus + 主进程窗口焦点推送双重保障）
+      clipboardMonitor.start()
+      if (window.electronAPI?.onClipboardUrlDetected) {
+        unsubscribeClipboardUrl = window.electronAPI.onClipboardUrlDetected((url: string) => {
+          clipboardMonitor.handleDetectedUrl(url)
+        })
+      }
+      // 注册下载完成系统通知
+      unsubscribeDownloadComplete = taskStore.onDownloadComplete(showDownloadNotification)
       if (!hasConnectedOnce) {
         hasConnectedOnce = true
         // 自动关闭对话框（处理启动时竞态导致的对话框未关闭问题）
         connectionStore.showConnectionDialog = false
       }
     } else {
-      stopAutoUpdate()
-      stopSlowUpdate()
+      stopAllRefresh()
       trafficMonitor.stopMonitor()
+      clipboardMonitor.stop()
+      unsubscribeClipboardUrl?.()
+      unsubscribeClipboardUrl = null
+      unsubscribeDownloadComplete?.()
+      unsubscribeDownloadComplete = null
     }
   })
 
@@ -96,8 +183,20 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     // 尽早通知主进程渲染进程已就绪，窗口显示不再依赖后续耗时操作（连接、更新检查）
     window.electronAPI?.notifyAppReady()
 
+    // 注册全局键盘快捷键
+    keyboardShortcuts.start()
+
+    // 监听主进程推送的协议链接（magnet: 等），自动打开新建下载弹窗
+    if (window.electronAPI?.onPendingDownloadUrl) {
+      unsubscribePendingUrl = window.electronAPI.onPendingDownloadUrl((url: string) => {
+        if (url && (url.startsWith('magnet:') || url.startsWith('http'))) {
+          uiStore.openNewTaskWithUrl(url)
+        }
+      })
+    }
+
     // 启动时后台检查更新：放在自动连接之前执行，确保真实启动（含退出后重开）时
-    // 立即触发、不被后续可能耗时的连接流程阻塞
+    // 立即触发、不被后续可能耗时的连接流程阻塞（有意不 await，后台静默执行）
     runStartupUpdateCheck()
 
     // 后台预加载本地引擎状态（让设置页直接渲染最新状态，避免闪烁）
@@ -143,10 +242,15 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   })
 
   onUnmounted(() => {
-    stopAutoUpdate()
-    stopSlowUpdate()
+    stopAllRefresh()
     stopStatusCheck()
+    stopCleanupTimer()
+    stopTimeCleanupTimer()
+    keyboardShortcuts.stop()
     unsubscribeConfig?.()
+    unsubscribeDownloadComplete?.()
+    unsubscribeClipboardUrl?.()
+    unsubscribePendingUrl?.()
     themeManager.disposeSystemThemeListener()
     connectionStore.disconnect()
   })

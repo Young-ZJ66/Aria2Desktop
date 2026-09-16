@@ -152,6 +152,26 @@ export interface ElectronAPI {
   // 平台信息
   platform: string
 
+  // 剪贴板读取（同步，preload 进程直接调用 electron clipboard）
+  readClipboard: () => string
+
+  // 系统通知（通过主进程 Electron Notification API，比 Web API 更可靠）
+  sendNotification: (title: string, body: string) => Promise<void>
+
+  // 主进程窗口焦点时推送的剪贴板 URL
+  onClipboardUrlDetected: (callback: (url: string) => void) => () => void
+
+  // 插件管理
+  pluginsList: () => Promise<Array<{ manifest: { id: string; name: string; version: string; description?: string; author?: string; permissions?: string[] }; enabled: boolean; path: string; error?: string }>>
+  pluginsEnable: (id: string) => Promise<{ success: boolean }>
+  pluginsDisable: (id: string) => Promise<{ success: boolean }>
+  pluginsUninstall: (id: string) => Promise<{ success: boolean }>
+
+  // yt-dlp 流媒体支持（可选外部引擎）
+  ytdlpCheck: () => Promise<{ available: boolean; version?: string; error?: string }>
+  ytdlpVideoInfo: (url: string) => Promise<{ success: boolean; info?: { title: string; url: string; ext: string; filesize: number | null; format: string; formats: Array<{ formatId: string; ext: string; resolution: string; fps: number | null; filesize: number | null; vcodec: string; acodec: string; note: string }> }; error?: string }>
+  ytdlpFormatUrl: (url: string, formatId: string) => Promise<{ success: boolean; downloadUrl?: string; title?: string; ext?: string; error?: string }>
+
   // 通知主进程渲染进程已就绪
   notifyAppReady: () => void
 
@@ -160,8 +180,22 @@ export interface ElectronAPI {
   maximize: () => void
   close: () => void
 
+  // 系统电源操作
+  systemShutdown: () => Promise<{ success: boolean; error?: string }>
+  systemHibernate: () => Promise<{ success: boolean; error?: string }>
+  systemCancelShutdown: () => Promise<{ success: boolean; error?: string }>
+
+  // 系统代理检测
+  detectSystemProxy: () => Promise<{ success: boolean; proxy?: string; error?: string }>
+
+  // 任务栏进度条（Windows/macOS，progress: 0-1 或 -1 清除，mode: normal/error/paused）
+  setTaskbarProgress: (progress: number, mode?: string) => Promise<void>
+
   // 配置热重载（返回取消订阅函数）
   onConfigChanged: (callback: (data: { key: string; value: unknown }) => void) => () => void
+
+  // 待处理的下载链接（magnet: 等协议链接）
+  onPendingDownloadUrl: (callback: (url: string) => void) => () => void
 }
 
 declare global {

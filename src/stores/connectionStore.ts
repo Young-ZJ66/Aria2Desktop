@@ -182,6 +182,7 @@ export const useConnectionStore = defineStore('connection', () => {
       // 验证连接
       await service.value.getVersion()
       isConnected.value = true
+      connectionError.value = null
 
       // 连接成功后预热全局配置缓存，供设置页首次渲染直接使用，避免初次切换时的空白闪烁
       const statsStore = useStatsStore()

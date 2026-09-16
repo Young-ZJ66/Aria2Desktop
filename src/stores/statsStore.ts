@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useConnectionStore } from './connectionStore'
 import type { Aria2GlobalStat, Aria2Version, Aria2Option } from '@/types/aria2'
 
@@ -109,6 +109,39 @@ export const useStatsStore = defineStore('stats', () => {
     version.value = null
   }
 
+  // ── 限速快捷开关 ──
+
+  /** 记忆上次限速值（字节/秒），切换时恢复；默认 1MB/s */
+  let rememberedSpeedLimit = '1048576'
+
+  /** 当前是否处于限速状态（max-overall-download-limit 非空且非零） */
+  const isSpeedLimited = computed(() => {
+    const limit = globalOptions.value['max-overall-download-limit']
+    return !!limit && limit !== '0' && limit !== ''
+  })
+
+  /** 当前限速值的友好显示（KB/s 或 MB/s） */
+  const speedLimitDisplay = computed(() => {
+    if (!isSpeedLimited.value) return ''
+    const bytes = parseInt(globalOptions.value['max-overall-download-limit'] as string, 10) || 0
+    if (bytes <= 0) return ''
+    if (bytes >= 1048576) return `${Math.round(bytes / 1048576)} MB/s`
+    return `${Math.round(bytes / 1024)} KB/s`
+  })
+
+  /** 切换限速开关 */
+  async function toggleSpeedLimit(): Promise<void> {
+    if (!connectionStore.service) return
+    if (isSpeedLimited.value) {
+      // 关闭限速：记住当前值后清零
+      rememberedSpeedLimit = (globalOptions.value['max-overall-download-limit'] as string) || rememberedSpeedLimit
+      await changeGlobalOptions({ 'max-overall-download-limit': '0' })
+    } else {
+      // 开启限速：恢复上次记忆值
+      await changeGlobalOptions({ 'max-overall-download-limit': rememberedSpeedLimit })
+    }
+  }
+
   return {
     globalStat,
     version,
@@ -119,6 +152,9 @@ export const useStatsStore = defineStore('stats', () => {
     getGlobalOptions,
     changeGlobalOptions,
     clearGlobalOptions,
-    clearCache
+    clearCache,
+    isSpeedLimited,
+    speedLimitDisplay,
+    toggleSpeedLimit
   }
 })
