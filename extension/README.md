@@ -1,38 +1,67 @@
 # Aria2 Desktop Browser Extension
 
-Chrome/Edge browser extension that intercepts downloads and sends them to Aria2 Desktop.
+Chrome/Edge 扩展：把浏览器里的下载交给 Aria2 Desktop 处理。
 
-## Installation
+## 安装（开发模式）
 
-### Development Mode
-1. Open Chrome/Edge and navigate to `chrome://extensions/`
-2. Enable "Developer mode" (top right)
-3. Click "Load unpacked" and select this `extension/` directory
-4. The extension icon will appear in your toolbar
+1. 打开 Chrome/Edge，进入 `chrome://extensions/`
+2. 打开右上角「开发者模式」
+3. 点「加载已解压的扩展程序」，选择本 `extension/` 目录
+4. 工具栏出现扩展图标即安装完成
 
-### Icons
-Before publishing, replace the placeholder icons in `icons/` with proper PNG icons:
-- `icon16.png` (16x16)
-- `icon48.png` (48x48)
-- `icon128.png` (128x128)
+> 图标由 **App 图标**自动生成（保证与桌面端品牌一致）：
+> `build/Icon.ico` → `icons/icon16.png` / `icon48.png` / `icon128.png`，
+> 换 App 图标后重跑 `node scripts/sync-extension-icons.mjs` 即可。
+> manifest 里不直接引用 `.ico`：Chrome 虽支持 ICO，但 `icons` 是「尺寸 → 文件」的映射，
+> 多尺寸容器需要 Chrome 自行挑帧/缩放（工具栏 24px、Windows 32px 等未声明尺寸高分屏容易糊），
+> Chrome Web Store 上传也要求单独的 128×128 PNG。**不要把 `.ico` 副本放进本目录**：
+> manifest 不引用它，还会随 Release 多打包 200KB+。
+> 扩展版本号见 `manifest.json`，按自身节奏维护（本次随实质改动同步到 1.0.7，与 App 版本一致属巧合）。
 
-## Features
+## 功能
 
-- **Context Menu**: Right-click any link, video, or audio and select "Download with Aria2 Desktop"
-- **Download Interception**: Optionally intercept all browser downloads and send them to Aria2
-- **Connection Management**: Configure Aria2 RPC host, port, and secret
-- **Status Indicator**: Shows connection status to Aria2 Desktop
+- **弹窗内直接发送**：点扩展图标 → 粘贴下载/磁力链接 → 「发送到 Aria2」。
+  弹窗会自动填入当前标签页的地址（仅 `http(s)`），因此对着直链页面点一下就能发。
+- **右键菜单**：在链接、视频、音频上右键 → 「用 Aria2 Desktop 下载」。
+- **拦截浏览器下载**（可选）：开启后，浏览器发起的下载会被取消并转交 Aria2；
+  若转交失败，会自动重新发起浏览器下载，避免"下载凭空消失"。
+- **分类下载**: 发送的下载会按**内置的默认分类规则**归类到引擎下载目录下的子目录
+  （Video / Music / Images / Documents / Compressed / Programs）。
+  注意：App 里自定义的分类规则扩展无法感知，仍按内置规则归类。
+- **真实文件名探测**（可选开关）：链接里没有文件名时（如网盘直链 `.../file/<hash>?...`），
+  向文件服务器获取响应头里的真实文件名，用于分类与命名。
+  这同时修复了一个 aria2 的兼容问题：否则中文文件名会被存成乱码（如 `èµæ.rar`）。
+  开启需授予站点访问权限。
+- **连接管理**：配置 Aria2 RPC 主机、端口、密钥，并可一键测试连接。
+- **状态指示**：弹窗顶部实时显示与引擎的连接状态；连得上但扩展被停用时也会明确提示。
 
-## Configuration
+## 配置说明
 
-Click the extension icon to open the popup where you can:
-- Set Aria2 RPC host and port (default: localhost:6800)
-- Set RPC secret (if configured)
-- Enable/disable the extension
-- Toggle download interception
-- Test the connection
+点扩展图标打开弹窗：
 
-## Requirements
+| 项 | 说明 |
+| --- | --- |
+| 主机 / 端口 | 默认 `localhost:6800`。连接非本机地址时，扩展会**按需**申请该地址的访问权限 |
+| 密钥 | 可选项。应用首次启动会自动生成密钥，可在 Aria2 Desktop 的「设置 → RPC 安全设置」中查看 |
+| 启用扩展 | 关闭后右键菜单与拦截都不生效（弹窗内仍可看到连接状态） |
+| 拦截所有下载 | 见上文「拦截浏览器下载」 |
+| 探测真实文件名 | 见上文「真实文件名探测」；开启时会弹出站点访问权限申请，关闭时自动收回 |
 
-- Aria2 Desktop must be running with RPC enabled
-- Default RPC endpoint: `http://localhost:6800/jsonrpc`
+## 权限说明（为什么需要这些权限）
+
+| 权限 | 用途 |
+| --- | --- |
+| `downloads` | 拦截/取消浏览器下载，并在转交失败时重新发起 |
+| `contextMenus` | 提供右键菜单项 |
+| `storage` | 保存连接配置 |
+| `activeTab` | 打开弹窗时读取当前标签页地址，用于自动填入 |
+| `notifications` | 发送"已发送/已拦截"等结果通知 |
+| `host_permissions`（本机） | 访问 `localhost` / `127.0.0.1` 上的 RPC |
+| `optional_host_permissions`（可选） | 仅当你把主机改成非本机地址时，才申请该地址的权限 |
+
+扩展不注入任何页面脚本、不读取网页内容，也不会把数据发送到 Aria2 Desktop 之外的任何地方。
+
+## 依赖
+
+- Aria2 Desktop 需要处于运行状态，且下载引擎已启动
+- 默认 RPC 端点：`http://localhost:6800/jsonrpc`
