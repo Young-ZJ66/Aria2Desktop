@@ -1,27 +1,26 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "lib": ["ES2020"],
-    "outDir": "dist/electron",
-    "rootDir": ".",
+    "noEmit": true,
+    "types": ["node"],
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "declaration": false,
-    "sourceMap": false,
     "paths": {
       "@/*": ["./src/*"]
     }
   },
   "include": [
-    "electron/**/*"
+    "electron/**/*.test.ts",
+    "src/**/*.test.ts",
+    "vitest.config.mts"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "electron/**/*.test.ts",
-    "electron/**/__tests__/**"
+    "release"
   ]
 }

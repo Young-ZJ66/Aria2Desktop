@@ -1,6 +1,6 @@
 {
   "name": "aria2-desktop",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "集成 Aria2 引擎的现代化桌面下载管理器",
   "main": "dist/electron/electron/main.js",
   "author": "Young-ZJ66",
@@ -9,8 +9,9 @@
   "scripts": {
     "dev": "concurrently --kill-others --kill-others-on-fail \"npm run dev:vue\" \"npm run dev:electron\"",
     "dev:vue": "vite",
-    "dev:electron": "cross-env NODE_ENV=development electron .",
-    "build": "npm run build:vue && npm run build:electron",
+    "dev:electron": "npm run build:electron && cross-env NODE_ENV=development electron .",
+    "dev:electron:watch": "tsc -p tsconfig.electron.json --watch --preserveWatchOutput",
+    "build": "npm run build:vue && npm run build:electron && node scripts/verify-resources.mjs",
     "build:vue": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "dist": "npm run build && electron-builder",
@@ -25,9 +26,14 @@
     "dist:win32:portable": "electron-builder --win --ia32 --config.win.target=zip --config.win.artifactName=\"Aria2Desktop-${version}-x86-portable.${ext}\"",
     "dist:win-all": "npm run dist:win64 && npm run dist:win32",
     "preview": "vite preview",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "tsc -p tsconfig.electron.json --noEmit && tsc -p tsconfig.test.json && vue-tsc -p tsconfig.json --noEmit",
+    "typecheck:vue": "vue-tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-pattern .gitignore"
   },
   "dependencies": {
+    "electron-log": "^5.4.4",
     "electron-store": "^8.2.0"
   },
   "devDependencies": {
@@ -52,10 +58,12 @@
     "typescript": "^6.0.3",
     "unplugin-vue-components": "^32.1.0",
     "vite": "^8.2.1",
+    "vitest": "^5.0.1",
     "vue": "^3.5.13",
     "vue-echarts": "^8.1.0",
     "vue-i18n": "^11.4.8",
     "vue-router": "^4.2.5",
+    "vue-tsc": "^3.3.11",
     "wait-on": "^7.2.0"
   },
   "build": {
