@@ -16,6 +16,7 @@ declare module 'vue' {
     AppSwitch: typeof import('./components/AppSwitch.vue')['default']
     ConnectionDialog: typeof import('./components/dialogs/ConnectionDialog.vue')['default']
     DeleteTaskDialog: typeof import('./components/dialogs/DeleteTaskDialog.vue')['default']
+    MetalinkPane: typeof import('./components/newTask/MetalinkPane.vue')['default']
     NAlert: typeof import('naive-ui')['NAlert']
     NButton: typeof import('naive-ui')['NButton']
     NCard: typeof import('naive-ui')['NCard']
@@ -57,6 +58,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SettingsDialog: typeof import('./components/dialogs/SettingsDialog.vue')['default']
     SettingsPage: typeof import('./components/settings/SettingsPage.vue')['default']
+    StreamPane: typeof import('./components/newTask/StreamPane.vue')['default']
     TaskBasicInfo: typeof import('./components/task/TaskBasicInfo.vue')['default']
     TaskBatchActions: typeof import('./components/task/TaskBatchActions.vue')['default']
     TaskCheckbox: typeof import('./components/TaskCheckbox.vue')['default']
@@ -66,6 +68,8 @@ declare module 'vue' {
     TaskRowActions: typeof import('./components/task/TaskRowActions.vue')['default']
     TaskServerInfo: typeof import('./components/task/TaskServerInfo.vue')['default']
     TipLabel: typeof import('./components/settings/TipLabel.vue')['default']
+    TorrentPane: typeof import('./components/newTask/TorrentPane.vue')['default']
     UpdateDialog: typeof import('./components/dialogs/UpdateDialog.vue')['default']
+    UriPane: typeof import('./components/newTask/UriPane.vue')['default']
   }
 }
