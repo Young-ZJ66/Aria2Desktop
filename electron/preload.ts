@@ -91,6 +91,9 @@ const electronAPI = {
   // 官方白名单仅含 contextBridge/crashReporter/ipcRenderer/nativeImage/webFrame/webUtils）
   readClipboard: (): Promise<string> => ipcRenderer.invoke('read-clipboard'),
 
+  // 剪贴板写入（同样经主进程：sandbox:true 下 preload 不可直接用 clipboard 模块）
+  writeClipboard: (text: string): Promise<boolean> => ipcRenderer.invoke('write-clipboard', text),
+
   // 系统通知（通过主进程 Electron Notification API）
   sendNotification: (title: string, body: string) => ipcRenderer.invoke('send-notification', title, body),
 

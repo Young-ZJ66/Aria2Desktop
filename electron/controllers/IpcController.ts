@@ -13,6 +13,8 @@ import { probeDownloadFileName, resolveConflictingFileName } from '../utils/down
 import { checkYtdlpAvailable, getVideoInfo, getFormatUrl } from '../services/ytdlpService'
 import { PluginManager } from '../services/pluginManager'
 import { createLogger } from '../utils/logger'
+// 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
+import { resolveBaseDownloadDir } from '../../src/shared/fileCategories'
 import type { StoreData, AppSettings } from '../types/store'
 
 // 本文件日志文案自带 [IpcController] 前缀（历史风格），故 scope 传空避免前缀重复
@@ -209,6 +211,18 @@ export class IpcController {
       }
     }, { getMainWindow: this.windowRef, failureValue: '' })
 
+    // 写剪贴板：sandbox:true 下渲染层 preload 拿不到 clipboard 模块，统一经主进程。
+    // 用途：设置页「复制密钥」——用户要把 RPC 密钥填进浏览器扩展，手工选中很费劲。
+    registerSecureHandler('write-clipboard', (_event, text: string) => {
+      try {
+        // 只接受字符串并限制长度：剪贴板是共享资源，避免被塞入异常内容
+        clipboard.writeText(String(text ?? '').slice(0, 64 * 1024))
+        return true
+      } catch {
+        return false
+      }
+    }, { getMainWindow: this.windowRef, failureValue: false })
+
     registerSecureHandler('detect-system-proxy', async () => {
       try {
         for (const target of PROXY_PROBE_URLS) {
@@ -382,12 +396,13 @@ export class IpcController {
     )
 
     registerSecureHandler('delete-files', async (event, filePaths: string[], taskDir?: string) => {
-      // 允许删除文件的根目录集合：默认下载目录 + 调用方传入的任务实际目录
+      // 允许删除文件的根目录集合：基础下载目录 + 调用方传入的任务实际目录
       // （任务可下载到非默认目录，按任务目录放宽白名单）
-      // 走**直读**：此值参与安全判定，用户刚改完下载目录就点删除时不能用到旧值
+      // 走**直读**：此值参与安全判定，用户刚改完下载目录就点删除时不能用到旧值。
+      // 基础目录口径与渲染层/扩展接口统一走 resolveBaseDownloadDir
       const settings = getSettingsFresh()
       const allowedRoots: string[] = []
-      const settingDir = settings?.aria2?.downloadDir || settings?.download?.defaultDir || ''
+      const settingDir = resolveBaseDownloadDir(settings ?? undefined)
       if (settingDir) allowedRoots.push(path.resolve(settingDir))
       // 未配置任何允许目录时拒绝所有删除操作，防止任意路径被删
       if (allowedRoots.length === 0) {

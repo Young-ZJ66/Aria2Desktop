@@ -71,13 +71,21 @@
           <template #label>
             <TipLabel :label="t('settings.rpc.rpcSecret')" :tip="t('settings.rpc.rpcSecretTip')" />
           </template>
-          <n-input
-            v-model:value="settings.rpcSecret"
-            type="password"
-            show-password-on="click"
-            clearable
-            :placeholder="t('settings.rpc.rpcSecretPlaceholder')"
-          />
+          <n-input-group>
+            <n-input
+              v-model:value="settings.rpcSecret"
+              type="password"
+              show-password-on="click"
+              clearable
+              :placeholder="t('settings.rpc.rpcSecretPlaceholder')"
+            />
+            <n-button :disabled="!settings.rpcSecret" @click="copySecret">
+              <template #icon>
+                <n-icon><CopyOutline /></n-icon>
+              </template>
+              {{ t('settings.rpc.copySecret') }}
+            </n-button>
+          </n-input-group>
         </n-form-item>
 
         <n-form-item>
@@ -132,7 +140,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOpenOutline } from '@vicons/ionicons5'
+import { FolderOpenOutline, CopyOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import type { FormRules, FormInst } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
@@ -219,6 +227,23 @@ const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSett
   defaults,
   validate
 })
+
+/**
+ * 复制 RPC 密钥。
+ * 扩展与本地接口都要填同一个密钥，而密钥是密码框（手工选中复制很别扭），
+ * 因此提供一键复制——放在本页而非扩展侧：密钥的事实来源始终是这里。
+ */
+async function copySecret() {
+  if (!settings.rpcSecret) return
+  // 防御：旧版 preload 没有写入通道（升级后未重启时会走到这里），此时退化为手动复制
+  if (!window.electronAPI || typeof window.electronAPI.writeClipboard !== 'function') {
+    message.warning(t('settings.rpc.secretCopyFailed'))
+    return
+  }
+  const ok = await window.electronAPI.writeClipboard(settings.rpcSecret)
+  if (ok) message.success(t('settings.rpc.secretCopied'))
+  else message.error(t('settings.rpc.secretCopyFailed'))
+}
 
 // 选择证书/私钥文件
 async function selectFile(field: 'rpcCertificate' | 'rpcPrivateKey', title: string) {

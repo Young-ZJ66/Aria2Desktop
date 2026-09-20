@@ -64,6 +64,18 @@ jobs:
       - name: 准备对应架构的 aria2c
         run: node scripts/prepare-aria2c.mjs ${{ matrix.res_arch }}
 
+      # 扩展静态校验（语言包结构 / manifest 引用 / i18n 一致性 / 接口端口一致性），
+      # 这类问题只能在浏览器里暴露，必须在构建期拦住
+      - name: 扩展静态校验
+        run: npm run check:extension
+
+      # 本地接口的端到端验证（桩化 settings + 真实 aria2 引擎，跑编译产物），
+      # 需要先编译主进程；Windows 运行器自带浏览器与 aria2 资源
+      - name: 本地接口端到端验证
+        run: |
+          npm run build:electron
+          npm run verify:extension-api
+
       # 构建安装包（不发布，产物含 Setup.exe 与 blockmap，仅上传 Setup.exe）
       - name: 构建安装包
         shell: pwsh
@@ -92,8 +104,26 @@ jobs:
           name: browser-extension
           path: release/
 
-      # 用 GitHub CLI 创建/更新 Release，上传安装包、便携版与扩展压缩包，
-      # 并为安装包产物生成同名的 .sha256 校验文件一并上传（客户端应用内更新依赖它做完整性校验）
+      # 打包已签名的扩展 .crx（用户旁加载用，比 zip 少几步手动操作）。
+      # 签名密钥来自 Secret：扩展 ID 由密钥决定，密钥必须固定，否则已安装用户无法升级。
+      # 未配置密钥时跳过，不影响其它产物（但产物里不会有 .crx）。
+      - name: 打包扩展 .crx
+        if: matrix.suffix == 'x64'
+        shell: pwsh
+        run: |
+          if (-not $env:EXTENSION_CRX_KEY) {
+            Write-Warning "未配置 EXTENSION_CRX_KEY，跳过 .crx 打包"
+            exit 0
+          }
+          New-Item -ItemType Directory -Force -Path .crx | Out-Null
+          # 用 ASCII 写入：PowerShell 5.1 的 utf8 会带 BOM，会导致 PEM 解析失败
+          Set-Content -LiteralPath .crx/extension-key.pem -Value $env:EXTENSION_CRX_KEY -NoNewline -Encoding ascii
+          node scripts/pack-extension-crx.mjs
+        env:
+          EXTENSION_CRX_KEY: ${{ secrets.EXTENSION_CRX_KEY }}
+
+      # 用 GitHub CLI 创建/更新 Release，上传安装包、便携版、扩展压缩包与扩展 .crx，
+      # 并为每个产物生成同名的 .sha256 校验文件一并上传（客户端应用内更新依赖它做完整性校验）
       - name: 创建 Release 并上传产物
         shell: pwsh
         run: |
@@ -103,7 +133,7 @@ jobs:
           } else {
             gh release edit ${{ github.ref_name }} --notes-file .github/release-notes.md
           }
-          $assets = @(Get-ChildItem release -Filter "*-Setup.exe"; Get-ChildItem release -Filter "*-portable.zip"; Get-ChildItem release -Filter "*.zip" | Where-Object { $_.Name -like "Aria2Desktop-Extension*" })
+          $assets = @(Get-ChildItem release -Filter "*-Setup.exe"; Get-ChildItem release -Filter "*-portable.zip"; Get-ChildItem release -Filter "*.zip" | Where-Object { $_.Name -like "Aria2Desktop-Extension*" }; Get-ChildItem release -Filter "*.crx")
           foreach ($asset in $assets) {
             $hash = (Get-FileHash -LiteralPath $asset.FullName -Algorithm SHA256).Hash.ToLower()
             $shaPath = "$($asset.FullName).sha256"

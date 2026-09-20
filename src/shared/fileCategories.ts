@@ -129,6 +129,20 @@ export function resolveTargetDir(baseDir: string, rule: CategoryRule): string {
 }
 
 /**
+ * 新建任务的基础下载目录（分类子目录都挂在它下面）：下载设置 → 引擎设置 → 空串。
+ *
+ * 两个设置项历史上不同步（老用户的 download.defaultDir 常为空、只看它会静默不分类），
+ * 而渲染层 store、主进程删除白名单、扩展本地接口都要用同一口径判断"基础目录是谁"，
+ * 因此抽到这里作为唯一实现，不要再各写一份。
+ */
+export function resolveBaseDownloadDir(settings: {
+  download?: { defaultDir?: string } | undefined
+  aria2?: { downloadDir?: string } | undefined
+} | undefined): string {
+  return settings?.download?.defaultDir || settings?.aria2?.downloadDir || ''
+}
+
+/**
  * 计算最终下载目录（新建任务时按所选分类解析）：
  * - 选择"智能识别"且自动分类开启：按文件名估算分类；否则视为常规
  * - 最终目录遵循 resolveTargetDir 的 customDir / 默认子目录 规则

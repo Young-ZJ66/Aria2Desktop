@@ -162,8 +162,11 @@ export interface ElectronAPI {
   // 平台信息
   platform: string
 
-  // 剪贴板读取（同步，preload 进程直接调用 electron clipboard）
+  // 剪贴板读取（经主进程 IPC：sandbox:true 下 preload 拿不到 clipboard 模块）
   readClipboard: () => Promise<string>
+
+  // 剪贴板写入（同上，经主进程）
+  writeClipboard: (text: string) => Promise<boolean>
 
   // 系统通知（通过主进程 Electron Notification API，比 Web API 更可靠）
   sendNotification: (title: string, body: string) => Promise<void>

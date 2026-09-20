@@ -128,10 +128,118 @@ async function getEngineDownloadDir(config) {
   return cachedEngineDir
 }
 
+/** 本机 App 本地接口地址：端口与 electron/utils/extensionApiCore.ts 的 EXTENSION_API_PORT 一致 */
+const APP_API_BASE = 'http://127.0.0.1:6801'
+/** 建任务请求超时：App 侧可能要做一次文件名探测（只取响应头）+ 一次本机 RPC，留足余量 */
+const APP_ADD_TIMEOUT_MS = 20000
+
+/** App 本地接口统一鉴权头（Bearer 方案，与 App 侧 isAuthorizedExtensionRequest 对应） */
+function buildAppApiHeaders(secret) {
+  return { Authorization: 'Bearer ' + secret }
+}
+
 /**
- * 解析分类子目录。优先用 fileNameHint（如浏览器已确定的文件名，比 URL 可靠——跳转链接的 URL
- * 往往没有扩展名），其次看 URL 本身。
- * 返回 { dir, subdir }（命中）或 { skip: 原因 }（未命中，便于向用户解释为什么没分类）。
+ * 把接口返回的错误码翻译成用户能看懂的话。
+ * 直接透传引擎原始报文（如 aria2 的英文报错）对用户没有价值，故按码映射；
+ * 未知码才回落到服务端原文。
+ */
+function apiErrorMessage(data) {
+  switch (data?.code) {
+    case 'engine_unavailable':
+      return i18n('errEngineUnavailable')
+    case 'unauthorized':
+      return i18n('errUnauthorized')
+    case 'invalid_url':
+      return i18n('errApiInvalidUrl')
+    default:
+      return data?.error || i18n('errUnknown')
+  }
+}
+
+/**
+ * 让 App 直接建任务：解析目录、重名改名、选项套用（连接数/分片/是否自动开始）全部在 App 侧完成。
+ * 这样扩展建的任务与 App 内新建的任务**行为一致**，扩展也不必再自己维护一份分类规则。
+ *
+ * @returns null 表示接口不可用（App 未运行 / 未授权 / 版本较旧）→ 调用方回落直连 aria2；
+ *          返回 {success:false} 表示失败且**不应回落**（见下方超时说明）。
+ */
+async function addViaApp(url, config, fileNameHint = '') {
+  if (!config.secret) return null
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), APP_ADD_TIMEOUT_MS)
+  try {
+    const response = await fetch(`${APP_API_BASE}/api/add`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.secret}`
+      },
+      body: JSON.stringify(fileNameHint ? { url, fileName: fileNameHint } : { url }),
+      signal: controller.signal
+    })
+    // 鉴权失败 / 路由不存在（App 版本较旧）→ 视为接口不可用，走直连
+    if (response.status === 401 || response.status === 404 || response.status === 405) return null
+
+    const data = await response.json().catch(() => null)
+    if (!data) return null
+    if (!data.ok) return { success: false, error: apiErrorMessage(data) }
+
+    return {
+      success: true,
+      gid: data.gid,
+      subdir: data.subdir || null,
+      conflict: data.conflict === true,
+      renamed: data.renamed || '',
+      resolvedBy: 'app'
+    }
+  } catch (error) {
+    // 超时**绝不能**回落：App 可能已经建好任务（只是回包慢），再走直连会重复建一个。
+    // 只有"连接失败"类错误（App 没运行）才是真正该回落的场景，它不会走到这里——
+    // 那种情况下 fetch 立即抛 TypeError 且请求未送达。为稳妥起见，用 abort 与否区分：
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return { success: false, error: i18n('errTimeout') }
+    }
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** 回落路径：内置默认规则（与 App 的内置默认一致）+ 本地探测（需用户开启探测开关） */
+async function resolveWithBuiltinRules(url, config, fileNameHint = '') {
+  let resolved = await resolveCategoryDir(url, config, fileNameHint)
+  let out = ''
+  if (!resolved.dir && config.allowProbe && /^https?:\/\//i.test(url)) {
+    const probedName = await probeDownloadFileName(url)
+    if (probedName) {
+      resolved = await resolveCategoryDir(url, config, probedName)
+      out = probedName
+    }
+  }
+  return { dir: resolved.dir || '', subdir: resolved.subdir || null, out, conflict: false }
+}
+
+/**
+ * 解析目标目录与文件名。**仅用于回落路径**：App 接口不可用时的内置默认规则 + 本地探测。
+ * @returns {{dir: string, subdir: string|null, out: string, conflict: boolean, source: string}}
+ */
+async function resolveTarget(url, config, fileNameHint = '') {
+  return { ...(await resolveWithBuiltinRules(url, config, fileNameHint)), source: 'builtin' }
+}
+
+/**
+ * 组装"已发送"通知文案：重名改名优先展示（用户最需要知道没覆盖原文件），
+ * 其次报告分类子目录。
+ */
+function buildSentMessage(result, keys) {
+  if (result.conflict && result.renamed) return i18n(keys.renamed, [result.renamed])
+  if (result.subdir) return i18n(keys.subdir, [result.subdir])
+  return i18n(keys.plain)
+}
+/**
+ * 按扩展名解析分类子目录（**回落路径专用**：App 接口不可用时用内置默认规则）。
+ * 优先用 fileNameHint（如浏览器已确定的文件名，比 URL 可靠——跳转链接的 URL 往往没有扩展名），
+ * 其次看 URL 本身。返回 { dir, subdir }（命中）或 { skip: 原因 }。
  */
 async function resolveCategoryDir(url, config, fileNameHint = '') {
   const base = await getEngineDownloadDir(config)
@@ -153,6 +261,52 @@ async function getConfig() {
 // Save config to storage
 async function saveConfig(config) {
   await chrome.storage.local.set({ config })
+}
+
+/**
+ * 一键配对（**必须在 Service Worker 里执行**，这是本次弹窗重构的关键修复）：
+ * 点击「配对」后用户要切到 Aria2 Desktop 点「允许」，而浏览器 action 弹窗一失去焦点就被销毁，
+ * 在 popup 里发 fetch 会随之中止——配对永远无法在弹窗内完成。挪到 SW：
+ * 弹窗可关、浏览器可最小化，请求照常进行；结果写入 storage 并发系统通知。
+ *
+ * 结果三态：{ ok:true }（已写入配置）；{ ok:false, error }（失败原因）。
+ * 同时把最近一次结果存到 storage.lastPairing，供重新打开的弹窗展示。
+ */
+async function startPairing() {
+  let result
+  try {
+    const response = await fetch(`${APP_API_BASE}/api/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+      // App 侧等待用户确认无超时；给用户留足切换窗口与点击的时间
+      signal: AbortSignal.timeout(120000)
+    })
+    const data = await response.json().catch(() => null)
+    if (response.ok && data?.ok) {
+      const config = await getConfig()
+      await saveConfig({
+        ...config,
+        secret: data.secret || '',
+        host: 'localhost',
+        port: Number.isInteger(data.port) && data.port > 0 ? data.port : config.port
+      })
+      result = { ok: true }
+      showNotification('pairingDoneTitle', i18n('pairingDoneDesc'))
+    } else if (data?.code === 'pairing_denied') {
+      result = { ok: false, error: i18n('pairingDenied') }
+    } else if (data?.code === 'pairing_forbidden') {
+      result = { ok: false, error: i18n('pairingForbidden') }
+    } else {
+      result = { ok: false, error: i18n('pairingFailed') }
+    }
+  } catch (error) {
+    result = error instanceof DOMException && error.name === 'AbortError'
+      ? { ok: false, error: i18n('pairingTimeout') }
+      : { ok: false, error: i18n('pairingUnreachable') }
+  }
+  await chrome.storage.local.set({ lastPairing: { ...result, at: Date.now() } })
+  return result
 }
 
 // Build Aria2 JSON-RPC request
@@ -215,33 +369,33 @@ async function sendToAria2(url, options = {}, fileNameHint = '') {
   if (!config.enabled) return { success: false, error: i18n('errDisabled') }
 
   try {
-    // 调用方已指定目录时不做分类；否则按扩展名归类（与 App 内置默认分类一致）
     const callerSpecifiedDir = Object.keys(options).includes('dir')
-    let resolved = callerSpecifiedDir
-      ? { skip: 'callerSpecified' }
-      : await resolveCategoryDir(url, config, fileNameHint)
-    let probedName = ''
 
-    // URL 里识别不出分类（网盘直链等：URL 没有文件名），且用户开启了探测：
-    // 向文件服务器取一次真实文件名（只取响应头，不下载正文）。这一步同时修复右键下载
-    // 网盘直链时文件名乱码的问题——乱码来自 aria2 对 Content-Disposition 里
-    // 非 ASCII 字节的兼容缺陷，显式传 out 即可绕开。
-    if (!callerSpecifiedDir && !resolved.dir && config.allowProbe && /^https?:\/\//i.test(url)) {
-      probedName = await probeDownloadFileName(url)
-      if (probedName) {
-        resolved = await resolveCategoryDir(url, config, probedName)
-      }
+    // 1) 优先让 App 建任务：用户自定义分类规则生效、重名统一处理，
+    //    且套用与 App 内新建一致的 aria2 选项（连接数/分片/是否自动开始）
+    if (!callerSpecifiedDir) {
+      const viaApp = await addViaApp(url, config, fileNameHint || options.out || '')
+      if (viaApp) return viaApp
     }
 
+    // 2) 回落：扩展直连 aria2（内置默认规则 + 本地探测），保证 App 未运行/未授权时仍可用
+    const target = callerSpecifiedDir
+      ? { dir: '', subdir: null, out: '', conflict: false, source: 'caller' }
+      : await resolveTarget(url, config, fileNameHint)
+
     const finalOptions = { ...options }
-    if (resolved.dir) finalOptions.dir = resolved.dir
-    if (probedName && !options.out) finalOptions.out = probedName
+    if (target.dir) finalOptions.dir = target.dir
+    // out 优先级：调用方给定（如浏览器解析出的文件名）> 本地探测结果
+    if (!options.out && target.out) finalOptions.out = target.out
 
     const gid = await rpcCall('aria2.addUri', [[url], finalOptions], config)
     return {
       success: true,
       gid,
-      subdir: resolved.subdir || null,
+      subdir: target.subdir,
+      conflict: target.conflict,
+      renamed: target.out || '',
+      resolvedBy: target.source,
       engineDirKnown: cachedEngineDir !== null && cachedEngineDir !== ''
     }
   } catch (error) {
@@ -257,6 +411,33 @@ async function testConnection() {
     return { success: true, version: result.version, enabled: config.enabled }
   } catch (error) {
     return { success: false, error: describeError(error, config), enabled: config.enabled }
+  }
+}
+
+/**
+ * 经 App 本地接口查询引擎状态（弹窗状态条优先走这里，能区分"引擎未启动"与"接口不可达"）。
+ * @returns {handled:boolean, engineRunning?:boolean, engineVersion?:string}
+ *          handled=false 表示接口不可用（App 未运行/未授权/版本较旧），调用方应回落直连 RPC
+ */
+async function getAppStatus() {
+  const config = await getConfig()
+  if (!config.secret) return { handled: false }
+  try {
+    const response = await fetch(`${APP_API_BASE}/api/status`, {
+      headers: buildAppApiHeaders(config.secret),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(3000)
+    })
+    if (!response.ok) return { handled: false }
+    const data = await response.json().catch(() => null)
+    if (!data?.ok || !data.engine) return { handled: false }
+    return {
+      handled: true,
+      engineRunning: data.engine.running === true,
+      engineVersion: data.engine.version ? String(data.engine.version) : ''
+    }
+  } catch {
+    return { handled: false }
   }
 }
 
@@ -299,8 +480,12 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
 
   const result = await sendToAria2(url)
   if (result.success) {
-    // 分类结果直接告诉用户：既是有用信息，也让"没分类"立刻可见、可排查
-    showNotification('downloadSent', result.subdir ? i18n('downloadSentToSubdir', [result.subdir]) : i18n('downloadSentDesc'))
+    // 分类/重名结果直接告诉用户：既是有用信息，也让"没分类/被改名"立刻可见、可排查
+    showNotification('downloadSent', buildSentMessage(result, {
+      plain: 'downloadSentDesc',
+      subdir: 'downloadSentToSubdir',
+      renamed: 'downloadSentRenamed'
+    }))
   } else {
     showNotification('downloadFailed', result.error, true)
   }
@@ -322,7 +507,11 @@ chrome.downloads.onDeterminingFilename.addListener(async (downloadItem) => {
   const result = await sendToAria2(downloadItem.url, options, downloadItem.filename)
 
   if (result.success) {
-    showNotification('intercepted', result.subdir ? i18n('interceptedToSubdir', [result.subdir]) : i18n('interceptedDesc'))
+    showNotification('intercepted', buildSentMessage(result, {
+      plain: 'interceptedDesc',
+      subdir: 'interceptedToSubdir',
+      renamed: 'interceptedRenamed'
+    }))
     // 抹掉浏览器下载列表里那条"已取消"记录，避免用户看到一条吓人的失败项
     chrome.downloads.erase({ id: downloadItem.id }, () => { void chrome.runtime.lastError })
   } else {
@@ -352,8 +541,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
+  if (message.action === 'getAppStatus') {
+    getAppStatus().then(sendResponse)
+    return true
+  }
+
   if (message.action === 'sendToAria2') {
     sendToAria2(message.url, message.options || {}).then(sendResponse)
+    return true
+  }
+
+  if (message.action === 'startPairing') {
+    startPairing().then(sendResponse)
     return true
   }
 })

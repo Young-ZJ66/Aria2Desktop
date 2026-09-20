@@ -20,6 +20,10 @@ resources/aria2c.exe
 .env
 .env.*
 
+# 扩展签名密钥（决定扩展 ID，泄露=任何人都能签发同 ID 的扩展；CI 用 GitHub Secret 注入）
+.crx/
+*.pem
+
 # 日志
 *.log
 

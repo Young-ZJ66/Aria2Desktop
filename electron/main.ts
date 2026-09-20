@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, dialog } from 'electron'
 import Store from 'electron-store'
 import * as path from 'path'
 import * as fs from 'fs'
@@ -9,6 +9,7 @@ import { IpcController } from './controllers/IpcController'
 import { AppLifecycle } from './controllers/AppLifecycle'
 import { TrackerSubscriptionService } from './services/trackerSubscriptionService'
 import { SpeedScheduler } from './services/speedScheduler'
+import { ExtensionApiServer } from './services/extensionApiServer'
 import { appState } from './utils/appState'
 import { bindSettingsStore, getSettings } from './utils/settingsAccessor'
 import { setupLogging, createLogger } from './utils/logger'
@@ -133,6 +134,33 @@ const ipcController = new IpcController(windowController, trayController, aria2C
 const trackerSubscriptionService = new TrackerSubscriptionService(store, aria2Controller, windowController)
 const speedScheduler = new SpeedScheduler()
 
+/**
+ * 浏览器扩展本地接口：扩展把链接交给 App 解析（分类/重名/选项统一由 App 决策）。
+ * 依赖以回调注入，服务本身不反向依赖控制器；鉴权/来源判定见 utils/extensionApiCore。
+ */
+const extensionApiServer = new ExtensionApiServer({
+  getAppVersion: () => app.getVersion(),
+  getEngineProcessInfo: () => aria2Controller.getProcessInfo(),
+  // 配对确认：原生对话框（回车/Esc 一律视为拒绝——放行必须是有意识的点击）。
+  // 文案为固定提示语，不携带请求侧任何数据（扩展 ID 只进日志）。
+  confirmPairing: async () => {
+    const choice = await dialog.showMessageBox({
+      type: 'question',
+      title: 'Aria2 Desktop',
+      buttons: ['允许配对 / Allow', '拒绝 / Deny'],
+      defaultId: 1,
+      cancelId: 1,
+      message: '浏览器扩展请求与 Aria2 Desktop 配对\nA browser extension requests pairing',
+      detail:
+        '允许后，该扩展将获得本机 RPC 访问密钥，可直接发送下载。\n' +
+        'Allowing grants the extension the local RPC access secret.\n\n' +
+        '仅在你刚刚安装扩展时允许；不明来历请拒绝。\n' +
+        'Only allow this while installing your own extension — deny unknown requests.'
+    })
+    return choice.response === 0
+  }
+})
+
 // 创建 AppLifecycle 协调器
 const appLifecycle = new AppLifecycle(
   store,
@@ -204,6 +232,8 @@ if (!gotTheLock) {
       trackerSubscriptionService.initialize()
       // 启动速度调度器（每分钟检查是否需要切换限速）
       speedScheduler.start()
+      // 启动浏览器扩展本地接口（失败不影响其它功能，扩展侧会自动回落）
+      extensionApiServer.start()
 
       // 处理启动时的协议链接（Windows 首次启动通过 argv 传入）
       const startupUrl = extractPendingUrl(process.argv)
@@ -257,6 +287,8 @@ if (!gotTheLock) {
       // 关闭 Tracker 订阅定时器，避免退出阻塞
       trackerSubscriptionService.shutdown()
       speedScheduler.stop()
+      // 关闭浏览器扩展本地接口
+      extensionApiServer.stop()
       logger.info('优雅关闭完成')
     } catch (error) {
       logger.error('优雅关闭出错:', error)

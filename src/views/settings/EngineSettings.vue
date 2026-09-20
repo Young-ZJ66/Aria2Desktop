@@ -428,7 +428,8 @@ function buildConfigPayload(): Aria2LocalConfig {
 }
 
 // 错误处理辅助函数
-function handleConfigError(error: unknown) {  const errorMessage = error instanceof Error ? error.message : String(error)
+function handleConfigError(error: unknown) {
+  const errorMessage = error instanceof Error ? error.message : String(error)
   console.error('保存配置失败:', error)
 
   if (errorMessage.includes('下载目录验证失败')) {

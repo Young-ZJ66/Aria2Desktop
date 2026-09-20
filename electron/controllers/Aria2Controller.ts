@@ -297,6 +297,16 @@ export class Aria2Controller {
     }
   }
 
+  /**
+   * 引擎进程状态（供浏览器扩展本地接口等非 IPC 消费者使用）。
+   * 口径与 `aria2-status` 通道一致，只取必要字段：本地接口不需要配置文件、资源信息等内部细节。
+   */
+  public getProcessInfo(): { isRunning: boolean; pid?: number } {
+    if (!this.aria2Manager) return { isRunning: false }
+    const info = this.aria2Manager.getProcessInfo()
+    return { isRunning: info.isRunning, pid: info.pid }
+  }
+
   public registerIpcHandlers() {
     // 统一经 ipcSecurity 的工厂注册：来源校验由工厂在结构上保证，
     // failureValue 逐一对应迁移前的失败形态（渲染层依赖这些语义）

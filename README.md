@@ -30,7 +30,7 @@
 - **实时监控**: 下载速度、进度、连接数、Peer 信息实时展示
 - **多协议支持**: HTTP/HTTPS、FTP、BitTorrent、磁力链接、Metalink 全支持
 - **流媒体下载**: 集成 yt-dlp，支持 YouTube、Bilibili 等 1000+ 站点的 HLS/DASH 流媒体下载
-- **浏览器扩展**: Chrome/Edge 扩展，弹窗内可直接粘贴链接发送下载（自动填入当前页面地址），或右键菜单一键发送链接；可选拦截所有浏览器下载
+- **浏览器扩展**: Chrome/Edge 扩展，弹窗内可直接粘贴链接发送下载（自动填入当前页面地址），或右键菜单一键发送链接；可选拦截所有浏览器下载。**扩展与 App 打通**：在 App 运行时，扩展的分类、命名、重名处理全部交由 App 执行——你在 App 里自定义的分类规则、子目录与下载选项对扩展同样生效
 - **插件系统**: 插件框架，支持权限裁剪与生命周期管理（插件在主进程运行，属完全可信代码，请勿安装来源不明的插件）
 
 ### 下载功能
@@ -103,10 +103,20 @@
 3. 粘贴视频链接，选择画质后下载
 
 ### 浏览器扩展安装
-1. 打开 Chrome/Edge，进入 `chrome://extensions/`
-2. 开启「开发者模式」
-3. 点击「加载已解压的扩展程序」，选择项目中的 `extension/` 目录
-4. 扩展图标出现在工具栏后，右键任意链接即可发送到 Aria2 Desktop
+在 [Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases) 页面下载扩展包，二选一：
+
+- **`.crx`（推荐）**：`chrome://extensions/` → 开启「开发者模式」→ 把 `.crx` 文件拖入页面即可。
+  会提示「未在 Chrome 网上应用店中列出」或 Edge 上的「不是来自任何已知来源」，属**正常提示**
+  （安装包自签名、无商店签名），确认继续即可。
+  **Edge 需先放行非商店来源**：`edge://extensions/` → 打开「允许来自其他应用商店的扩展」→
+  **重启浏览器**；若拖拽 `.crx` 无效，改用下面的 `.zip` 方式。
+- **`.zip`**：解压后按「加载解压的扩展程序」选择解压目录（Edge 上更稳妥的方式）。
+
+安装后扩展图标出现在工具栏，右键任意链接即可发送到 Aria2 Desktop。
+
+> 扩展与 App 是**协作**关系：App 在运行时，扩展会通过本机回环接口（`127.0.0.1:6801`，
+> 需带 RPC 密钥鉴权）把链接交给 App 解析，因此**你在 App 里自定义的分类规则、子目录与下载选项都会生效**；
+> App 未运行时扩展回落到内置规则直连引擎，功能不受影响。
 
 ### 插件系统
 插件存放在 `%APPDATA%/aria2-desktop/plugins/` 目录下，每个插件一个文件夹：
@@ -189,6 +199,12 @@ npm run test:run    # 单次运行
 # 类型检查
 npm run typecheck       # 全量：主进程 + 测试代码 + 渲染层（含 .vue）
 npm run typecheck:vue   # 仅渲染层（vue-tsc）
+
+# 浏览器扩展
+npm run check:extension     # 扩展静态校验（语言包结构/manifest 引用/i18n 一致性/端口一致）
+npm run pack:extension      # 打包已签名 .crx（需本机装有 Chrome 或 Edge）
+npm run pack:extension-zip  # 打包商店用 zip（无需系统 zip 工具）
+npm run verify:extension-api # 本地接口端到端验证（先 build:electron；桩化 settings + 真实 aria2 引擎）
 ```
 
 > **开发注意**：Electron 主进程入口是编译产物 `dist/electron/electron/main.js`，不是 TS 源码。

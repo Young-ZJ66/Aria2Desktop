@@ -1,49 +1,283 @@
 {
-  "extName": { "message": "Aria2 Desktop" },
-  "extDesc": { "message": "将下载发送到 Aria2 Desktop 下载管理器" },
-  "contextMenuTitle": { "message": "用 Aria2 Desktop 下载" },
-  "notConnected": { "message": "未连接" },
-  "notConnectedShort": { "message": "未连接" },
-  "testing": { "message": "检测中…" },
-  "host": { "message": "主机" },
-  "port": { "message": "端口" },
-  "secret": { "message": "密钥（可选）" },
-  "secretHint": { "message": "应用首次启动会自动生成密钥；可在 Aria2 Desktop 的「设置 → RPC 安全设置」中查看" },
-  "enableExt": { "message": "启用扩展" },
-  "interceptAll": { "message": "拦截所有下载" },
-  "allowProbe": { "message": "探测下载链接的真实文件名" },
-  "allowProbeHint": { "message": "链接里没有文件名时（如网盘直链），向文件服务器获取真实文件名用于分类与命名，避免中文乱码；开启需授予站点访问权限" },
-  "probeEnabled": { "message": "已开启文件名探测" },
-  "probeDisabled": { "message": "已关闭文件名探测" },
-  "probePermissionDenied": { "message": "未授予站点访问权限，无法开启文件名探测" },
-  "sectionConnection": { "message": "连接设置" },
-  "sectionOptions": { "message": "扩展设置" },
-  "quickSendTitle": { "message": "发送下载" },
-  "quickSendPlaceholder": { "message": "粘贴下载链接或磁力链接" },
-  "sendBtn": { "message": "发送到 Aria2" },
-  "sending": { "message": "发送中…" },
-  "sendSuccessSubdir": { "message": "已发送，保存到 $SUBDIR$ 子目录", "placeholders": { "subdir": { "content": "$1" } } },
-  "sendSuccessUnclassified": { "message": "已发送（未识别到分类，保存到默认目录）" },
-  "sendEmpty": { "message": "请先输入下载链接" },
-  "saveSettings": { "message": "保存设置" },
-  "testConnection": { "message": "测试连接" },
-  "settingsSaved": { "message": "设置已保存" },
-  "connectedVersion": { "message": "已连接 (v$VERSION$)", "placeholders": { "version": { "content": "$1" } } },
-  "connectedButDisabled": { "message": "已连接，但扩展当前处于停用状态" },
-  "invalidPort": { "message": "端口需为 1–65535 之间的数字" },
-  "permissionDenied": { "message": "未授予访问 $1 的权限，无法连接该地址" },
-  "errDisabled": { "message": "扩展已停用：请在弹窗中启用后再试" },
-  "errCannotConnect": { "message": "无法连接到 $1 —— 请确认 Aria2 Desktop 正在运行，且已启动下载引擎" },
-  "errUnauthorized": { "message": "密钥不正确：请到 Aria2 Desktop 的「设置 → RPC 安全设置」复制密钥后填入" },
-  "errTimeout": { "message": "连接超时：请检查主机与端口是否正确" },
-  "errUnknown": { "message": "操作失败，请稍后重试" },
-  "downloadSent": { "message": "已发送下载" },
-  "downloadSentDesc": { "message": "已添加到 Aria2 Desktop" },
-  "downloadSentToSubdir": { "message": "已添加到 Aria2 Desktop（保存到 $SUBDIR$ 子目录）", "placeholders": { "subdir": { "content": "$1" } } },
-  "downloadFailed": { "message": "下载发送失败" },
-  "intercepted": { "message": "已拦截下载" },
-  "interceptedDesc": { "message": "已交给 Aria2 Desktop 下载" },
-  "interceptedToSubdir": { "message": "已交给 Aria2 Desktop（保存到 $SUBDIR$ 子目录）", "placeholders": { "subdir": { "content": "$1" } } },
-  "interceptFailed": { "message": "拦截失败" },
-  "rightClickHint": { "message": "也可以右键点击链接、视频或音频，选择「用 Aria2 Desktop 下载」" }
+  "extName": {
+    "message": "Aria2 Desktop"
+  },
+  "extDesc": {
+    "message": "将下载发送到 Aria2 Desktop 下载管理器"
+  },
+  "contextMenuTitle": {
+    "message": "用 Aria2 Desktop 下载"
+  },
+  "notConnected": {
+    "message": "未连接"
+  },
+  "notConnectedShort": {
+    "message": "未连接"
+  },
+  "testing": {
+    "message": "检测中…"
+  },
+  "host": {
+    "message": "主机"
+  },
+  "port": {
+    "message": "端口"
+  },
+  "secret": {
+    "message": "密钥（可选）"
+  },
+  "secretHint": {
+    "message": "点上方「一键配对」可自动获取，无需手动填写；也可在 Aria2 Desktop 的「设置 → RPC 安全设置」中复制（应用首次启动会自动生成密钥）"
+  },
+  "enableExt": {
+    "message": "启用扩展"
+  },
+  "interceptAll": {
+    "message": "拦截所有下载"
+  },
+  "allowProbe": {
+    "message": "探测下载链接的真实文件名"
+  },
+  "allowProbeHint": {
+    "message": "链接里没有文件名时（如网盘直链），向文件服务器获取真实文件名用于分类与命名，避免中文乱码。应用在运行时由应用侧完成，无需开启；仅在应用未运行、扩展直连引擎时才需要（此时需授予站点访问权限）"
+  },
+  "probeEnabled": {
+    "message": "已开启文件名探测"
+  },
+  "probeDisabled": {
+    "message": "已关闭文件名探测"
+  },
+  "probePermissionDenied": {
+    "message": "未授予站点访问权限，无法开启文件名探测"
+  },
+  "sectionConnection": {
+    "message": "连接设置"
+  },
+  "sectionOptions": {
+    "message": "扩展设置"
+  },
+  "quickSendTitle": {
+    "message": "发送下载"
+  },
+  "quickSendPlaceholder": {
+    "message": "粘贴下载链接或磁力链接"
+  },
+  "sendBtn": {
+    "message": "发送到 Aria2"
+  },
+  "sending": {
+    "message": "发送中…"
+  },
+  "sendSuccessSubdir": {
+    "message": "已发送，保存到 $SUBDIR$ 子目录",
+    "placeholders": {
+      "subdir": {
+        "content": "$1"
+      }
+    }
+  },
+  "sendSuccessUnclassified": {
+    "message": "已发送（未识别到分类，保存到默认目录）"
+  },
+  "sendSuccessRenamed": {
+    "message": "已发送（同名文件已存在，已另存为 $NAME$）",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "sendEmpty": {
+    "message": "请先输入下载链接"
+  },
+  "saveSettings": {
+    "message": "保存设置"
+  },
+  "testConnection": {
+    "message": "测试连接"
+  },
+  "settingsSaved": {
+    "message": "设置已保存"
+  },
+  "connectedVersion": {
+    "message": "已连接 (v$VERSION$)",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "engineReady": {
+    "message": "引擎已就绪"
+  },
+  "engineNotRunning": {
+    "message": "引擎未启动 —— 请在 Aria2 Desktop 中点「启动引擎」"
+  },
+  "connectedButDisabled": {
+    "message": "已连接，但扩展当前处于停用状态"
+  },
+  "invalidPort": {
+    "message": "端口需为 1–65535 之间的数字"
+  },
+  "permissionDenied": {
+    "message": "未授予访问 $1 的权限，无法连接该地址"
+  },
+  "errDisabled": {
+    "message": "扩展已停用：请在弹窗中启用后再试"
+  },
+  "errCannotConnect": {
+    "message": "无法连接到 $1 —— 请确认 Aria2 Desktop 正在运行，且已启动下载引擎"
+  },
+  "errUnauthorized": {
+    "message": "密钥不正确：请到 Aria2 Desktop 的「设置 → RPC 安全设置」复制密钥后填入"
+  },
+  "errTimeout": {
+    "message": "连接超时：请检查主机与端口是否正确"
+  },
+  "errEngineUnavailable": {
+    "message": "下载引擎未启动：请在 Aria2 Desktop 中启动引擎后重试"
+  },
+  "errApiInvalidUrl": {
+    "message": "这个链接不受支持（仅支持 http / https / ftp / sftp / magnet）"
+  },
+  "errUnknown": {
+    "message": "操作失败，请稍后重试"
+  },
+  "downloadSent": {
+    "message": "已发送下载"
+  },
+  "downloadSentDesc": {
+    "message": "已添加到 Aria2 Desktop"
+  },
+  "downloadSentToSubdir": {
+    "message": "已添加到 Aria2 Desktop（保存到 $SUBDIR$ 子目录）",
+    "placeholders": {
+      "subdir": {
+        "content": "$1"
+      }
+    }
+  },
+  "downloadSentRenamed": {
+    "message": "已添加到 Aria2 Desktop（同名文件已存在，已另存为 $NAME$）",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "downloadFailed": {
+    "message": "下载发送失败"
+  },
+  "intercepted": {
+    "message": "已拦截下载"
+  },
+  "interceptedDesc": {
+    "message": "已交给 Aria2 Desktop 下载"
+  },
+  "interceptedToSubdir": {
+    "message": "已交给 Aria2 Desktop（保存到 $SUBDIR$ 子目录）",
+    "placeholders": {
+      "subdir": {
+        "content": "$1"
+      }
+    }
+  },
+  "interceptedRenamed": {
+    "message": "已交给 Aria2 Desktop（同名文件已存在，已另存为 $NAME$）",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "interceptFailed": {
+    "message": "拦截失败"
+  },
+  "rightClickHint": {
+    "message": "也可以右键点击链接、视频或音频，选择「用 Aria2 Desktop 下载」"
+  },
+  "pairWithApp": {
+    "message": "一键配对"
+  },
+  "pairHint": {
+    "message": "点击后请在应用弹窗中点「允许」，密钥将自动填入，无需手动复制"
+  },
+  "pairingWaiting": {
+    "message": "正在等待应用确认…请在 Aria2 Desktop 的弹窗中点「允许」"
+  },
+  "pairingSuccess": {
+    "message": "配对成功！密钥已自动填入并保存"
+  },
+  "pairingDenied": {
+    "message": "你在应用中选择了拒绝，未获取密钥"
+  },
+  "pairingForbidden": {
+    "message": "配对请求被拒绝（应用版本过旧或来源不受支持）"
+  },
+  "pairingTimeout": {
+    "message": "等待确认超时，请重新点击配对"
+  },
+  "pairingUnreachable": {
+    "message": "未检测到 Aria2 Desktop（未运行或版本过旧），可先手动填写密钥"
+  },
+  "pairingFailed": {
+    "message": "配对失败，请尝试手动填写密钥"
+  },
+  "tabSend": {
+    "message": "发送下载"
+  },
+  "tabConnect": {
+    "message": "配对与设置"
+  },
+  "unpair": {
+    "message": "解除配对"
+  },
+  "unpairConfirm": {
+    "message": "确定解除配对？\n扩展将清除已保存的访问密钥与连接配置（随时可重新配对）"
+  },
+  "unpairDone": {
+    "message": "已解除配对，连接配置已恢复默认"
+  },
+  "unpairHint": {
+    "message": "解除配对只清除扩展侧的密钥；如需彻底撤销授权（让旧密钥作废），请在 Aria2 Desktop 的「设置 → RPC 安全设置」中更换访问密钥"
+  },
+  "sectionPairing": {
+    "message": "配对"
+  },
+  "manualTitle": {
+    "message": "高级设置（手动配置）"
+  },
+  "paste": {
+    "message": "粘贴"
+  },
+  "pasteEmpty": {
+    "message": "剪贴板中没有链接"
+  },
+  "pasteFailed": {
+    "message": "无法读取剪贴板，请手动粘贴"
+  },
+  "sendNeedPairing": {
+    "message": "尚未与 Aria2 Desktop 配对，配对后即可一键发送"
+  },
+  "goPair": {
+    "message": "去配对"
+  },
+  "pairingInBackground": {
+    "message": "配对进行中：请切换到 Aria2 Desktop 点击「允许」；此窗口可以关闭，完成后会自动保存"
+  },
+  "unpairReconfirm": {
+    "message": "再次点击确认解除"
+  },
+  "interceptAllDesc": {
+    "message": "浏览器开始下载时自动转交给 Aria2 Desktop（原浏览器下载取消）"
+  },
+  "allowProbeDesc": {
+    "message": "链接里没有文件名时（如网盘直链）向服务器获取真实文件名；应用运行时无需开启"
+  },
+  "pairingDoneTitle": {
+    "message": "配对成功"
+  },
+  "pairingDoneDesc": {
+    "message": "扩展已连接到 Aria2 Desktop，可以发送下载了"
+  }
 }

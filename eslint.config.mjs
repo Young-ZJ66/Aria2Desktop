@@ -91,6 +91,44 @@ export default withVueTs(
     }
   },
 
+  // ── 浏览器扩展与插件（MV3 Service Worker / 沙箱脚本：浏览器 + chrome 全局变量） ──
+  {
+    files: ['extension/**/*.js', 'plugins/**/*.js'],
+    languageOptions: {
+      globals: {
+        chrome: 'readonly',
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        fetch: 'readonly',
+        AbortController: 'readonly',
+        AbortSignal: 'readonly',
+        DOMException: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
+        FormData: 'readonly',
+        Headers: 'readonly',
+        Request: 'readonly',
+        Response: 'readonly',
+        // 插件沙箱注入的 API（plugins/**，由 PluginManager 提供）
+        module: 'writable',
+        exports: 'writable',
+        aria2: 'readonly',
+        settings: 'readonly',
+        notify: 'readonly'
+      }
+    },
+    rules: {
+      'no-console': 'off'
+    }
+  },
+
   // ── Vite 配置文件 ──
   {
     files: ['vite.config.mts'],

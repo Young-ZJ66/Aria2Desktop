@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <style>
-    /* 用 CSS 变量组织配色：跟随系统深浅色，避免浅色系统下弹窗仍是刺眼的深色 */
+    /* 跟随系统深浅色；主色与 Aria2 Desktop 品牌一致 */
     :root {
       --bg: #1a1a2e;
       --panel: #0f0f23;
@@ -16,7 +16,11 @@
       --secondary: #2a2a4a;
       --secondary-hover: #3a3a5a;
       --success: #4caf50;
+      --success-bg: rgba(76, 175, 80, 0.12);
       --danger: #f44336;
+      --danger-bg: rgba(244, 67, 54, 0.12);
+      --warn: #e8a33d;
+      --warn-bg: rgba(232, 163, 61, 0.12);
     }
     @media (prefers-color-scheme: light) {
       :root {
@@ -29,73 +33,179 @@
         --secondary: #eef0f4;
         --secondary-hover: #e2e5ec;
         --success: #2e7d32;
+        --success-bg: rgba(46, 125, 50, 0.1);
         --danger: #d32f2f;
+        --danger-bg: rgba(211, 47, 47, 0.08);
+        --warn: #b97a12;
+        --warn-bg: rgba(185, 122, 18, 0.1);
       }
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      width: 320px;
+      width: 340px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      padding: 16px;
+      padding: 14px 14px 12px;
     }
+
     .header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 14px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--border);
+      gap: 9px;
+      margin-bottom: 12px;
     }
-    .header img { width: 32px; height: 32px; border-radius: 6px; }
-    .header h1 { font-size: 16px; font-weight: 600; }
+    .header img { width: 28px; height: 28px; border-radius: 6px; }
+    .header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
+
+    /* 状态条：spinner + 文案；连接/断开/检测中三态 */
     .status {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 12px;
+      padding: 7px 11px;
       border-radius: 8px;
-      margin-bottom: 14px;
-      font-size: 13px;
+      margin-bottom: 12px;
+      font-size: 12.5px;
       word-break: break-word;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
     }
-    .status.connected { background: rgba(76, 175, 80, 0.15); color: var(--success); }
-    .status.disconnected { background: rgba(244, 67, 54, 0.15); color: var(--danger); }
-    .status-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+    .status.connected { background: var(--success-bg); border-color: transparent; color: var(--success); }
+    .status.disconnected { background: var(--danger-bg); border-color: transparent; color: var(--danger); }
+    .status-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
     .status.connected .status-dot { background: var(--success); }
     .status.disconnected .status-dot { background: var(--danger); }
-    .section { margin-bottom: 14px; }
-    .section-title { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; }
+    .status.loading .status-dot {
+      background: var(--primary);
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.72); }
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      padding: 3px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .tab {
+      flex: 1;
+      padding: 7px 8px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tab:hover:not(.active) { color: var(--text); background: var(--secondary); }
+    .tab.active { background: var(--primary); color: #fff; }
+    .pane { display: none; }
+    .pane.active { display: block; }
+
+    /* 未配对引导横幅：出现在发送页顶部，把"下一步做什么"直接告诉用户 */
+    .banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 11px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      background: var(--warn-bg);
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--warn);
+    }
+    .banner button {
+      flex: none;
+      padding: 5px 12px;
+      border: none;
+      border-radius: 6px;
+      background: var(--primary);
+      color: #fff;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .banner button:hover { background: var(--primary-hover); }
+
+    .section { margin-bottom: 13px; }
+    .section-title {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 7px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
     .form-group { margin-bottom: 10px; }
     .form-group label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
-    .form-group input {
+    .input-wrap { position: relative; }
+    .input-wrap input {
       width: 100%;
       padding: 8px 10px;
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 7px;
       color: var(--text);
       font-size: 13px;
+      transition: border-color 0.15s;
     }
-    .form-group input:focus { border-color: var(--primary); outline: none; }
+    .input-wrap input:focus { border-color: var(--primary); outline: none; }
+    .input-wrap input.invalid { border-color: var(--danger); }
+    /* 输入框内嵌的次要按钮（粘贴/显示密钥） */
+    .input-suffix {
+      position: absolute;
+      right: 5px;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 3px 8px;
+      border: none;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 11.5px;
+      cursor: pointer;
+    }
+    .input-suffix:hover { color: var(--text); background: var(--secondary); }
     .hint {
-      margin-top: 6px;
+      margin-top: 5px;
       font-size: 11px;
-      line-height: 1.5;
+      line-height: 1.55;
       color: var(--text-dim);
     }
     .row { display: flex; gap: 8px; }
     .row .form-group { flex: 1; }
+
     .toggle-group {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 8px 0;
+      padding: 7px 0;
     }
-    .toggle-group label { font-size: 13px; }
-    .toggle { position: relative; flex: none; width: 40px; height: 22px; cursor: pointer; }
+    .toggle-group + .toggle-group { border-top: 1px solid var(--border); }
+    .toggle-group .t-label { font-size: 13px; }
+    .toggle-group .t-desc {
+      margin-top: 2px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--text-dim);
+    }
+    .toggle { position: relative; flex: none; width: 38px; height: 21px; cursor: pointer; }
     .toggle input { opacity: 0; width: 0; height: 0; }
     .toggle .slider {
       position: absolute;
@@ -107,8 +217,8 @@
     .toggle .slider::before {
       content: '';
       position: absolute;
-      width: 16px;
-      height: 16px;
+      width: 15px;
+      height: 15px;
       left: 3px;
       bottom: 3px;
       background: #fff;
@@ -116,27 +226,63 @@
       transition: 0.2s;
     }
     .toggle input:checked + .slider { background: var(--primary); }
-    .toggle input:checked + .slider::before { transform: translateX(18px); }
+    .toggle input:checked + .slider::before { transform: translateX(17px); }
+
     .btn {
       width: 100%;
-      padding: 10px;
+      padding: 9px 10px;
       border: none;
       border-radius: 8px;
+      font-family: inherit;
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
-      transition: background 0.2s, opacity 0.2s;
+      transition: background 0.15s, opacity 0.15s;
     }
-    .btn:disabled { opacity: 0.6; cursor: default; }
+    .btn:disabled { opacity: 0.55; cursor: default; }
     .btn-primary { background: var(--primary); color: #fff; }
     .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
     .btn-secondary { background: var(--secondary); color: var(--text); }
     .btn-secondary:hover:not(:disabled) { background: var(--secondary-hover); }
+    .btn-danger-ghost {
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid var(--border);
+    }
+    .btn-danger-ghost:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger); }
+    .btn-danger-ghost.armed {
+      background: var(--danger);
+      color: #fff;
+      border-color: var(--danger);
+    }
     .btn-row { display: flex; gap: 8px; }
-    /* 反馈区固定占位，避免出现/消失时弹窗高度跳动 */
-    .feedback {
-      min-height: 18px;
+    .btn-row .btn { flex: 1; }
+    .btn + .btn { margin-top: 8px; }
+    .btn-row .btn + .btn { margin-top: 0; }
+
+    /* 手动配置折叠区：默认收起，日常只看到一键配对 */
+    details.manual {
       margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    details.manual summary {
+      padding: 8px 11px;
+      font-size: 12px;
+      color: var(--text-dim);
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+    }
+    details.manual summary::-webkit-details-marker { display: none; }
+    details.manual summary:hover { color: var(--text); }
+    details.manual[open] summary { border-bottom: 1px solid var(--border); }
+    details.manual .manual-body { padding: 11px; }
+
+    .feedback {
+      min-height: 17px;
+      margin-top: 9px;
       font-size: 12px;
       line-height: 1.5;
       word-break: break-word;
@@ -144,22 +290,20 @@
     }
     .feedback.success { color: var(--success); }
     .feedback.error { color: var(--danger); }
+
     .footer {
-      margin-top: 10px;
-      padding-top: 12px;
+      margin-top: 8px;
+      padding-top: 10px;
       border-top: 1px solid var(--border);
       text-align: center;
       font-size: 11px;
       line-height: 1.6;
       color: var(--text-dim);
     }
-    /* 仅供读屏使用的标签（视觉上隐藏但保留语义，避免快捷发送的输入框没有名字） */
     .visually-hidden {
       position: absolute;
-      width: 1px;
-      height: 1px;
-      margin: -1px;
-      padding: 0;
+      width: 1px; height: 1px;
+      margin: -1px; padding: 0;
       overflow: hidden;
       clip: rect(0 0 0 0);
       white-space: nowrap;
@@ -173,73 +317,107 @@
     <h1>Aria2 Desktop</h1>
   </div>
 
-  <div id="status" class="status disconnected" role="status" aria-live="polite">
+  <div id="status" class="status loading" role="status" aria-live="polite">
     <span class="status-dot"></span>
     <span id="statusText"></span>
   </div>
 
-  <!-- 快速发送：把最常用的动作放在最上面（原先只能靠右键菜单，弹窗里没有任何发送入口） -->
-  <div class="section">
-    <div class="section-title" id="quickSendTitle"></div>
-    <div class="form-group">
-      <label for="quickUrl" class="visually-hidden" id="quickUrlLabel"></label>
-      <input type="text" id="quickUrl" spellcheck="false">
-    </div>
-    <button class="btn btn-primary" id="sendBtn" type="button"></button>
+  <div class="tabs" role="tablist">
+    <button class="tab active" id="tabSend" type="button" role="tab" aria-selected="true" aria-controls="paneSend"></button>
+    <button class="tab" id="tabConnect" type="button" role="tab" aria-selected="false" aria-controls="paneConnect"></button>
   </div>
 
-  <div class="section">
-    <div class="section-title" id="connectionTitle"></div>
-    <div class="row">
+  <!-- 模式一：发送下载 -->
+  <div class="pane active" id="paneSend" role="tabpanel">
+    <div id="pairBanner" class="banner" hidden>
+      <span id="pairBannerText"></span>
+      <button id="bannerPairBtn" type="button"></button>
+    </div>
+    <div class="section">
+      <div class="section-title" id="quickSendTitle"></div>
       <div class="form-group">
-        <label for="host" id="hostLabel"></label>
-        <input type="text" id="host" value="localhost" spellcheck="false">
+        <label for="quickUrl" class="visually-hidden" id="quickUrlLabel"></label>
+        <div class="input-wrap">
+          <input type="text" id="quickUrl" spellcheck="false">
+          <button class="input-suffix" id="pasteBtn" type="button" title=""></button>
+        </div>
       </div>
-      <div class="form-group">
-        <label for="port" id="portLabel"></label>
-        <input type="number" id="port" value="6800" min="1" max="65535">
-      </div>
+      <button class="btn btn-primary" id="sendBtn" type="button"></button>
     </div>
-    <div class="form-group">
-      <label for="secret" id="secretLabel"></label>
-      <input type="password" id="secret" placeholder="RPC Secret" autocomplete="off">
-      <p class="hint" id="secretHint"></p>
-    </div>
+    <div class="footer" id="footerHint"></div>
   </div>
 
-  <div class="section">
-    <div class="section-title" id="optionsTitle"></div>
-    <div class="toggle-group">
-      <label for="enabled" id="enableLabel"></label>
-      <label class="toggle">
-        <input type="checkbox" id="enabled" checked>
-        <span class="slider"></span>
-      </label>
+  <!-- 模式二：配对与设置 -->
+  <div class="pane" id="paneConnect" role="tabpanel">
+    <div class="section">
+      <div class="section-title" id="pairingTitle"></div>
+      <button class="btn btn-primary" id="pairBtn" type="button"></button>
+      <p class="hint" id="pairHint"></p>
+      <button class="btn btn-danger-ghost" id="unpairBtn" type="button" hidden></button>
     </div>
-    <div class="toggle-group">
-      <label for="interceptAll" id="interceptLabel"></label>
-      <label class="toggle">
-        <input type="checkbox" id="interceptAll">
-        <span class="slider"></span>
-      </label>
-    </div>
-    <div class="toggle-group">
-      <label for="allowProbe" id="allowProbeLabel"></label>
-      <label class="toggle">
-        <input type="checkbox" id="allowProbe">
-        <span class="slider"></span>
-      </label>
-    </div>
-    <p class="hint" id="allowProbeHint"></p>
-  </div>
 
-  <div class="btn-row">
-    <button class="btn btn-primary" id="saveBtn" type="button"></button>
-    <button class="btn btn-secondary" id="testBtn" type="button"></button>
+    <div class="section">
+      <div class="section-title" id="optionsTitle"></div>
+      <div class="toggle-group">
+        <div>
+          <div class="t-label" id="enableLabel"></div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="enabled" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="toggle-group">
+        <div>
+          <div class="t-label" id="interceptLabel"></div>
+          <div class="t-desc" id="interceptDesc"></div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="interceptAll">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="toggle-group">
+        <div>
+          <div class="t-label" id="allowProbeLabel"></div>
+          <div class="t-desc" id="allowProbeDesc"></div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="allowProbe">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <details class="manual" id="manualDetails">
+      <summary id="manualTitle"></summary>
+      <div class="manual-body">
+        <div class="row">
+          <div class="form-group">
+            <label for="host" id="hostLabel"></label>
+            <div class="input-wrap"><input type="text" id="host" value="localhost" spellcheck="false"></div>
+          </div>
+          <div class="form-group">
+            <label for="port" id="portLabel"></label>
+            <div class="input-wrap"><input type="number" id="port" value="6800" min="1" max="65535"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="secret" id="secretLabel"></label>
+          <div class="input-wrap">
+            <input type="password" id="secret" placeholder="RPC Secret" autocomplete="off">
+          </div>
+          <p class="hint" id="secretHint"></p>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="testBtn" type="button"></button>
+          <button class="btn btn-primary" id="saveBtn" type="button"></button>
+        </div>
+      </div>
+    </details>
   </div>
 
   <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
-  <div class="footer" id="footerHint"></div>
 
   <script src="popup.js"></script>
 </body>

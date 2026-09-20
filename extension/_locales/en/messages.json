@@ -1,49 +1,283 @@
 {
-  "extName": { "message": "Aria2 Desktop" },
-  "extDesc": { "message": "Send downloads to the Aria2 Desktop download manager" },
-  "contextMenuTitle": { "message": "Download with Aria2 Desktop" },
-  "notConnected": { "message": "Not connected" },
-  "notConnectedShort": { "message": "Not connected" },
-  "testing": { "message": "Checking…" },
-  "host": { "message": "Host" },
-  "port": { "message": "Port" },
-  "secret": { "message": "Secret (optional)" },
-  "secretHint": { "message": "Aria2 Desktop generates a secret on first launch; view it in the app under Settings → RPC Security" },
-  "enableExt": { "message": "Enable extension" },
-  "interceptAll": { "message": "Intercept all downloads" },
-  "allowProbe": { "message": "Probe real file names of download links" },
-  "allowProbeHint": { "message": "When a link has no file name (e.g. cloud-drive direct links), fetch it from the file server for categorisation and naming; requires site access permission" },
-  "probeEnabled": { "message": "File name probing enabled" },
-  "probeDisabled": { "message": "File name probing disabled" },
-  "probePermissionDenied": { "message": "Site access permission was not granted, so file name probing cannot be enabled" },
-  "sectionConnection": { "message": "Connection" },
-  "sectionOptions": { "message": "Options" },
-  "quickSendTitle": { "message": "Send a download" },
-  "quickSendPlaceholder": { "message": "Paste a download or magnet link" },
-  "sendBtn": { "message": "Send to Aria2" },
-  "sending": { "message": "Sending…" },
-  "sendSuccessSubdir": { "message": "Sent — saved to the $SUBDIR$ folder", "placeholders": { "subdir": { "content": "$1" } } },
-  "sendSuccessUnclassified": { "message": "Sent (no category matched — saved to the default folder)" },
-  "sendEmpty": { "message": "Enter a download link first" },
-  "saveSettings": { "message": "Save settings" },
-  "testConnection": { "message": "Test connection" },
-  "settingsSaved": { "message": "Settings saved" },
-  "connectedVersion": { "message": "Connected (v$VERSION$)", "placeholders": { "version": { "content": "$1" } } },
-  "connectedButDisabled": { "message": "Connected, but the extension is currently disabled" },
-  "invalidPort": { "message": "Port must be a number between 1 and 65535" },
-  "permissionDenied": { "message": "Permission to access $1 was not granted, so this address cannot be used" },
-  "errDisabled": { "message": "The extension is disabled — enable it in the popup and try again" },
-  "errCannotConnect": { "message": "Cannot connect to $1 — make sure Aria2 Desktop is running and its engine is started" },
-  "errUnauthorized": { "message": "Wrong secret — copy it from Aria2 Desktop under Settings → RPC Security" },
-  "errTimeout": { "message": "Connection timed out — check the host and port" },
-  "errUnknown": { "message": "Something went wrong, please try again" },
-  "downloadSent": { "message": "Download sent" },
-  "downloadSentDesc": { "message": "Added to Aria2 Desktop" },
-  "downloadSentToSubdir": { "message": "Added to Aria2 Desktop (saved to the $SUBDIR$ folder)", "placeholders": { "subdir": { "content": "$1" } } },
-  "downloadFailed": { "message": "Could not send download" },
-  "intercepted": { "message": "Download intercepted" },
-  "interceptedDesc": { "message": "Handed over to Aria2 Desktop" },
-  "interceptedToSubdir": { "message": "Handed over to Aria2 Desktop (saved to the $SUBDIR$ folder)", "placeholders": { "subdir": { "content": "$1" } } },
-  "interceptFailed": { "message": "Interception failed" },
-  "rightClickHint": { "message": "You can also right-click a link, video or audio and choose “Download with Aria2 Desktop”" }
+  "extName": {
+    "message": "Aria2 Desktop"
+  },
+  "extDesc": {
+    "message": "Send downloads to the Aria2 Desktop download manager"
+  },
+  "contextMenuTitle": {
+    "message": "Download with Aria2 Desktop"
+  },
+  "notConnected": {
+    "message": "Not connected"
+  },
+  "notConnectedShort": {
+    "message": "Not connected"
+  },
+  "testing": {
+    "message": "Checking…"
+  },
+  "host": {
+    "message": "Host"
+  },
+  "port": {
+    "message": "Port"
+  },
+  "secret": {
+    "message": "Secret (optional)"
+  },
+  "secretHint": {
+    "message": "Use \"Pair with Aria2 Desktop\" above to fill this automatically, or copy it from Settings → RPC Security in the app (the app generates one on first launch)"
+  },
+  "enableExt": {
+    "message": "Enable extension"
+  },
+  "interceptAll": {
+    "message": "Intercept all downloads"
+  },
+  "allowProbe": {
+    "message": "Probe real file names of download links"
+  },
+  "allowProbeHint": {
+    "message": "When a link has no file name (e.g. cloud-drive direct links), fetch the real name from the file server for naming and sorting. Not needed while the app is running — the app does this itself; only used when the app is not running and the extension talks to the engine directly (that requires site access permission)"
+  },
+  "probeEnabled": {
+    "message": "File name probing enabled"
+  },
+  "probeDisabled": {
+    "message": "File name probing disabled"
+  },
+  "probePermissionDenied": {
+    "message": "Site access permission was not granted, so file name probing cannot be enabled"
+  },
+  "sectionConnection": {
+    "message": "Connection"
+  },
+  "sectionOptions": {
+    "message": "Options"
+  },
+  "quickSendTitle": {
+    "message": "Send a download"
+  },
+  "quickSendPlaceholder": {
+    "message": "Paste a download or magnet link"
+  },
+  "sendBtn": {
+    "message": "Send to Aria2"
+  },
+  "sending": {
+    "message": "Sending…"
+  },
+  "sendSuccessSubdir": {
+    "message": "Sent — saved to the $SUBDIR$ folder",
+    "placeholders": {
+      "subdir": {
+        "content": "$1"
+      }
+    }
+  },
+  "sendSuccessUnclassified": {
+    "message": "Sent (no category matched — saved to the default folder)"
+  },
+  "sendSuccessRenamed": {
+    "message": "Sent (existing file kept, saved as $NAME$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "sendEmpty": {
+    "message": "Enter a download link first"
+  },
+  "saveSettings": {
+    "message": "Save settings"
+  },
+  "testConnection": {
+    "message": "Test connection"
+  },
+  "settingsSaved": {
+    "message": "Settings saved"
+  },
+  "connectedVersion": {
+    "message": "Connected (v$VERSION$)",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "engineReady": {
+    "message": "Engine ready"
+  },
+  "engineNotRunning": {
+    "message": "Engine not running — click Start Engine in Aria2 Desktop"
+  },
+  "connectedButDisabled": {
+    "message": "Connected, but the extension is currently disabled"
+  },
+  "invalidPort": {
+    "message": "Port must be a number between 1 and 65535"
+  },
+  "permissionDenied": {
+    "message": "Permission to access $1 was not granted, so this address cannot be used"
+  },
+  "errDisabled": {
+    "message": "The extension is disabled — enable it in the popup and try again"
+  },
+  "errCannotConnect": {
+    "message": "Cannot connect to $1 — make sure Aria2 Desktop is running and its engine is started"
+  },
+  "errUnauthorized": {
+    "message": "Wrong secret — copy it from Aria2 Desktop under Settings → RPC Security"
+  },
+  "errTimeout": {
+    "message": "Connection timed out — check the host and port"
+  },
+  "errEngineUnavailable": {
+    "message": "The download engine is not running — start it in Aria2 Desktop and retry"
+  },
+  "errApiInvalidUrl": {
+    "message": "This link is not supported (http / https / ftp / sftp / magnet only)"
+  },
+  "errUnknown": {
+    "message": "Something went wrong, please try again"
+  },
+  "downloadSent": {
+    "message": "Download sent"
+  },
+  "downloadSentDesc": {
+    "message": "Added to Aria2 Desktop"
+  },
+  "downloadSentToSubdir": {
+    "message": "Added to Aria2 Desktop (saved to the $SUBDIR$ folder)",
+    "placeholders": {
+      "subdir": {
+        "content": "$1"
+      }
+    }
+  },
+  "downloadSentRenamed": {
+    "message": "Added to Aria2 Desktop (existing file kept, saved as $NAME$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "downloadFailed": {
+    "message": "Could not send download"
+  },
+  "intercepted": {
+    "message": "Download intercepted"
+  },
+  "interceptedDesc": {
+    "message": "Handed over to Aria2 Desktop"
+  },
+  "interceptedToSubdir": {
+    "message": "Handed over to Aria2 Desktop (saved to the $SUBDIR$ folder)",
+    "placeholders": {
+      "subdir": {
+        "content": "$1"
+      }
+    }
+  },
+  "interceptedRenamed": {
+    "message": "Handed over to Aria2 Desktop (existing file kept, saved as $NAME$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "interceptFailed": {
+    "message": "Interception failed"
+  },
+  "rightClickHint": {
+    "message": "You can also right-click a link, video or audio and choose “Download with Aria2 Desktop”"
+  },
+  "pairWithApp": {
+    "message": "One-click pairing"
+  },
+  "pairHint": {
+    "message": "Click, then press Allow in the app's dialog — the secret is filled in automatically"
+  },
+  "pairingWaiting": {
+    "message": "Waiting for the app to confirm… press Allow in the Aria2 Desktop dialog"
+  },
+  "pairingSuccess": {
+    "message": "Paired! The secret has been filled in and saved"
+  },
+  "pairingDenied": {
+    "message": "You pressed Deny in the app — no secret was granted"
+  },
+  "pairingForbidden": {
+    "message": "Pairing rejected (app too old, or unsupported source)"
+  },
+  "pairingTimeout": {
+    "message": "Timed out waiting for confirmation — try pairing again"
+  },
+  "pairingUnreachable": {
+    "message": "Aria2 Desktop not detected (not running or too old) — you can type the secret manually"
+  },
+  "pairingFailed": {
+    "message": "Pairing failed — you can type the secret manually"
+  },
+  "tabSend": {
+    "message": "Send download"
+  },
+  "tabConnect": {
+    "message": "Pair & settings"
+  },
+  "unpair": {
+    "message": "Unpair"
+  },
+  "unpairConfirm": {
+    "message": "Unpair?\nThis clears the saved access secret and connection settings. You can pair again anytime."
+  },
+  "unpairDone": {
+    "message": "Unpaired — connection settings restored to defaults"
+  },
+  "unpairHint": {
+    "message": "Unpairing only clears the secret stored in this extension. To fully revoke access, change the access secret in Aria2 Desktop under Settings → RPC Security"
+  },
+  "sectionPairing": {
+    "message": "Pairing"
+  },
+  "manualTitle": {
+    "message": "Advanced (manual setup)"
+  },
+  "paste": {
+    "message": "Paste"
+  },
+  "pasteEmpty": {
+    "message": "No link in clipboard"
+  },
+  "pasteFailed": {
+    "message": "Cannot read clipboard, please paste manually"
+  },
+  "sendNeedPairing": {
+    "message": "Pair with Aria2 Desktop first to start sending downloads"
+  },
+  "goPair": {
+    "message": "Pair now"
+  },
+  "pairingInBackground": {
+    "message": "Pairing in progress: switch to Aria2 Desktop and click Allow. This window can be closed — settings save automatically."
+  },
+  "unpairReconfirm": {
+    "message": "Click again to confirm"
+  },
+  "interceptAllDesc": {
+    "message": "Browser downloads are handed to Aria2 Desktop automatically (original download cancelled)"
+  },
+  "allowProbeDesc": {
+    "message": "Fetch real file names for links without one (e.g. cloud-drive direct links). Not needed while the app is running."
+  },
+  "pairingDoneTitle": {
+    "message": "Pairing complete"
+  },
+  "pairingDoneDesc": {
+    "message": "Extension connected to Aria2 Desktop — you can send downloads now"
+  }
 }
