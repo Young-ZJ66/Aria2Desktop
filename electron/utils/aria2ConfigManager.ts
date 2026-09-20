@@ -4,6 +4,9 @@ import { app } from 'electron'
 // 注意：主进程产物是 CJS，运行时无法解析 @/ 别名；
 // 必须用相对路径引入 src/shared 下的共享常量（tsc 会将该依赖一并编译输出到 dist）
 import { DEFAULT_BT_TRACKERS_CSV } from '../../src/shared/btTrackers'
+import { createLogger } from './logger'
+
+const logger = createLogger('Aria2ConfigManager')
 
 /**
  * Aria2ConfigManager - 管理 Aria2 配置文件
@@ -65,7 +68,7 @@ export class Aria2ConfigManager {
         this.createDefaultConfig()
       }
     } catch (error) {
-      console.error('Failed to load Aria2 config:', error)
+      logger.error('Failed to load Aria2 config:', error)
       this.createDefaultConfig()
     }
   }
@@ -110,7 +113,7 @@ bt-tracker=${DEFAULT_BT_TRACKERS_CSV}
         }
       }
     } catch (error) {
-      console.error('Failed to create default config:', error)
+      logger.error('Failed to create default config:', error)
     }
   }
 
@@ -132,9 +135,22 @@ bt-tracker=${DEFAULT_BT_TRACKERS_CSV}
     if (this.saveQueued) return
     this.saveQueued = true
     queueMicrotask(() => {
+      // 期间若已被 flushSave() 同步落盘，这里不再重复写盘
+      if (!this.saveQueued) return
       this.saveQueued = false
       this.saveConfig()
     })
+  }
+
+  /**
+   * 立即落盘待写的修改（微任务合批会被进程启动等时序打断时调用）。
+   * 典型场景：启动前写入 rpc-secret，若依赖微任务异步落盘，aria2 进程可能
+   * 在配置写盘前 spawn 并读到不含密钥的旧文件。
+   */
+  public flushSave(): void {
+    if (!this.saveQueued) return
+    this.saveQueued = false
+    this.saveConfig()
   }
 
   public setConfigValue(key: string, value: string | number) {

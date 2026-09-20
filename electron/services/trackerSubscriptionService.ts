@@ -1,12 +1,15 @@
-import { ipcMain } from 'electron'
 import Store from 'electron-store'
 import * as https from 'https'
 import { Aria2Controller } from '../controllers/Aria2Controller'
 import { WindowController } from '../controllers/WindowController'
-import { createSenderValidator } from '../utils/ipcSecurity'
+import { registerSecureHandler } from '../utils/ipcSecurity'
 // 注意：主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import { parseTrackerText } from '../../src/shared/btTrackers'
+import { createLogger } from '../utils/logger'
 import type { StoreData, TrackerSubscriptionState } from '../types/store'
+
+// 本文件日志文案自带 [TrackerSubscription] 前缀（历史风格），故 scope 传空避免前缀重复
+const logger = createLogger('')
 
 /** 最小同步间隔（小时） */
 const MIN_INTERVAL_HOURS = 12
@@ -50,6 +53,13 @@ export class TrackerSubscriptionService {
   private windowController: WindowController
   private timer: NodeJS.Timeout | null = null
   private updating = false
+
+  /**
+   * 供 ipcSecurity 工厂使用的窗口取值器。
+   * 此前是在 registerIpcHandlers() 内临时创建校验闭包（全仓唯一不一致的写法），
+   * 现收敛为实例字段，与各 controller 口径统一；判定逻辑本身不变。
+   */
+  private windowRef = () => this.windowController.getMainWindow()
 
   constructor(
     store: Store<StoreData>,
@@ -136,11 +146,16 @@ export class TrackerSubscriptionService {
     this.updating = true
 
     const sources = customSources ?? this.getState().customSources
-    const validSources = sources.filter(s => s.trim())
+    // 仅接受 https:// 订阅源：http:// 源会被本服务按 TLS 请求导致困惑失败，且明文拉取的
+    // tracker 列表可被中间人篡改（tracker 会被写入 aria2 配置并影响 BT 网络行为）
+    const validSources = sources.filter(s => s.trim() && /^https:\/\//i.test(s.trim()))
 
     if (validSources.length === 0) {
       this.updating = false
-      return { success: false, error: '没有可用的订阅源' }
+      const result: TrackerUpdateResult = { success: false, error: '没有可用的订阅源（仅支持 https:// 地址）' }
+      // 与其它失败分支保持一致：推送给渲染层，避免设置页只看到"保存成功"却不知为何未更新
+      this.notifyRenderer(result)
+      return result
     }
 
     try {
@@ -157,7 +172,7 @@ export class TrackerSubscriptionService {
           }
         } catch (error) {
           lastError = error instanceof Error ? error.message : String(error)
-          console.warn('[TrackerSubscription] 更新失败（尝试下一个源）:', source, lastError)
+          logger.warn('[TrackerSubscription] 更新失败（尝试下一个源）:', source, lastError)
         }
       }
 
@@ -208,6 +223,11 @@ export class TrackerSubscriptionService {
       const fail = (err: unknown) => {
         reject(err instanceof Error ? err : new Error(String(err)))
       }
+      // 防御性校验：仅支持 https（重定向目标也强制要求 TLS，防止降级攻击）
+      if (!/^https:\/\//i.test(url)) {
+        fail(new Error(`仅支持 https:// 订阅源: ${url}`))
+        return
+      }
       const req = https.request(this.buildRequestOptions(url), (res) => {
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           res.resume()
@@ -247,22 +267,16 @@ export class TrackerSubscriptionService {
   }
 
   registerIpcHandlers(): void {
-    const validateSender = createSenderValidator(() => this.windowController.getMainWindow())
-
-    ipcMain.handle('tracker-subscription-status', (event) => {
-      if (!validateSender(event)) return { success: false, error: 'Unauthorized' }
-      return { success: true, ...this.getState() }
+    registerSecureHandler('tracker-subscription-status', () => ({ success: true, ...this.getState() }), {
+      getMainWindow: this.windowRef
     })
 
-    ipcMain.handle('tracker-set-auto-update', (event, enabled: boolean, customSources?: string[], syncIntervalHours?: number) => {
-      if (!validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('tracker-set-auto-update', (event, enabled: boolean, customSources?: string[], syncIntervalHours?: number) => {
       this.setAutoUpdate(!!enabled, customSources, syncIntervalHours)
       return { success: true, ...this.getState() }
-    })
+    }, { getMainWindow: this.windowRef })
 
-    ipcMain.handle('tracker-update-now', async (event, customSources?: string[]) => {
-      if (!validateSender(event)) return { success: false, error: 'Unauthorized' }
-      return this.update(true, customSources)
-    })
+    registerSecureHandler('tracker-update-now', async (event, customSources?: string[]) =>
+      await this.update(true, customSources), { getMainWindow: this.windowRef })
   }
 }

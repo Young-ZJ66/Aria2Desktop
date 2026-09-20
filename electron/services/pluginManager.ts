@@ -1,25 +1,64 @@
 /**
  * 插件管理器
- * 负责插件的加载、卸载、启用、禁用和沙箱执行。
- * 使用 Node.js vm 模块实现沙箱隔离，限制插件对系统资源的访问。
+ * 负责插件的加载、卸载、启用、禁用和权限裁剪。
+ *
+ * 【信任模型说明 —— 重要】
+ * 插件代码在主进程通过 Node.js vm 模块执行。vm 不是安全边界：
+ * 注入的宿主原生对象（setTimeout/Error 等）可通过 constructor 链逃逸，
+ * 因此插件必须被视为"与本机用户等权的完全可信代码"，权限裁剪（permissions）
+ * 仅是防误操作约束，不构成对恶意插件的防护。
+ * 请勿安装来源不明的插件；插件目录位于 userData/plugins。
+ *
+ * 后续如需真正的隔离，应将插件迁移到 Electron utilityProcess（官方推荐），
+ * 通过 IPC 代理受限 API。
  */
 
 import { app } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as vm from 'vm'
-import * as http from 'http'
 import Store from 'electron-store'
+import { callAria2Rpc } from '../utils/aria2Rpc'
+import { getSettingsFresh } from '../utils/settingsAccessor'
+import { createLogger } from '../utils/logger'
 import type { PluginManifest, PluginInstance, PluginInfo, PluginContext } from '../types/plugin'
 import type { StoreData, AppSettings } from '../types/store'
-import { decryptSettingsSecrets } from '../utils/secretCipher'
 
 const PLUGIN_DIR_NAME = 'plugins'
+
+// 本文件日志文案自带 [PluginManager] / [Plugin:<id>] 前缀（含动态插件名，无法用固定 scope），
+// 故 scope 传空避免前缀重复
+const logger = createLogger('')
+
+/**
+ * 构造提供给插件的设置快照。
+ * 插件读取应用配置属常规需求（若只放行固定几个键会破坏既有插件），
+ * 因此保留完整配置结构，但必须剔除密钥类字段——RPC 凭据不能进入插件上下文。
+ */
+function toPluginSafeSettings(settings: AppSettings): Record<string, unknown> {
+  const safe: Record<string, unknown> = { ...settings }
+  if (settings.aria2) {
+    const { secret: _aria2Secret, ...aria2Rest } = settings.aria2
+    void _aria2Secret
+    safe.aria2 = aria2Rest
+  }
+  if (Array.isArray(settings.connectionProfiles)) {
+    safe.connectionProfiles = settings.connectionProfiles.map(profile => {
+      if (!profile?.config) return profile
+      const { secret: _profileSecret, ...configRest } = profile.config
+      void _profileSecret
+      return { ...profile, config: configRest }
+    })
+  }
+  return safe
+}
 
 export class PluginManager {
   private store: Store<StoreData>
   private plugins: Map<string, { manifest: PluginManifest; instance: PluginInstance; enabled: boolean; path: string }> = new Map()
   private pluginDir: string
+  /** 每个插件注册的定时器（禁用时统一清理，防止插件遗留定时器常驻主进程） */
+  private pluginTimers: Map<string, Set<NodeJS.Timeout>> = new Map()
 
   constructor(store: Store<StoreData>) {
     this.store = store
@@ -44,14 +83,14 @@ export class PluginManager {
         try {
           this.loadPlugin(entry.name, disabledList)
         } catch (error) {
-          console.warn(`[PluginManager] Failed to load plugin "${entry.name}":`, error)
+          logger.warn(`[PluginManager] Failed to load plugin "${entry.name}":`, error)
         }
       }
     } catch (error) {
-      console.error('[PluginManager] Failed to read plugin directory:', error)
+      logger.error('[PluginManager] Failed to read plugin directory:', error)
     }
 
-    console.log(`[PluginManager] Loaded ${this.plugins.size} plugin(s)`)
+    logger.info(`[PluginManager] Loaded ${this.plugins.size} plugin(s)`)
   }
 
   /** 加载单个插件 */
@@ -105,7 +144,7 @@ export class PluginManager {
     const mainPath = path.resolve(resolvedPluginDir, mainFile)
     // 防止路径穿越：入口文件必须在插件目录内
     if (!mainPath.startsWith(resolvedPluginDir + path.sep) && mainPath !== path.join(resolvedPluginDir, 'index.js')) {
-      console.error(`[PluginManager] Path traversal detected in plugin "${pluginId}": ${mainFile}`)
+      logger.error(`[PluginManager] Path traversal detected in plugin "${pluginId}": ${mainFile}`)
       plugin.enabled = false
       return
     }
@@ -118,8 +157,10 @@ export class PluginManager {
 
     try {
       const code = fs.readFileSync(mainPath, 'utf-8')
+      // 重复激活（enable 被多次调用）时先清理上一次实例的定时器，避免叠加泄漏
+      this.clearPluginTimers(pluginId)
       const context = this.createSandbox(plugin.manifest)
-      const instance = this.executeInSandbox(code, context)
+      const instance = this.executeInSandbox(code, context, pluginId)
 
       plugin.instance = instance
       plugin.enabled = true
@@ -127,13 +168,15 @@ export class PluginManager {
       // 调用 onActivate 生命周期钩子
       if (instance.onActivate) {
         Promise.resolve(instance.onActivate()).catch(err => {
-          console.error(`[PluginManager] Plugin "${pluginId}" onActivate error:`, err)
+          logger.error(`[PluginManager] Plugin "${pluginId}" onActivate error:`, err)
         })
       }
 
-      console.log(`[PluginManager] Activated plugin: ${pluginId}`)
+      logger.info(`[PluginManager] Activated plugin: ${pluginId}`)
     } catch (error) {
-      console.error(`[PluginManager] Failed to activate plugin "${pluginId}":`, error)
+      logger.error(`[PluginManager] Failed to activate plugin "${pluginId}":`, error)
+      // 激活失败：清理本次执行已注册的定时器，避免半初始化插件残留
+      this.clearPluginTimers(pluginId)
       plugin.enabled = false
     }
   }
@@ -141,7 +184,10 @@ export class PluginManager {
   /** 创建沙箱上下文（按权限裁剪 API） */
   private createSandbox(manifest: PluginManifest): PluginContext {
     const permissions = new Set(manifest.permissions || [])
-    const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
+    // 直读：下面要把 secret 交给插件的 aria2 RPC 能力，不能用可能过期的缓存值
+    const settings = getSettingsFresh()
+    // 提供给插件的是脱敏快照：保留配置结构，但不含任何密钥字段
+    const pluginSettings = toPluginSafeSettings(settings)
     const port = Number(settings.aria2?.port) || 6800
     const secret = String(settings.aria2?.secret || '')
 
@@ -150,9 +196,9 @@ export class PluginManager {
 
     const ctx: PluginContext = {
       console: {
-        log: (...args: unknown[]) => console.log(`[Plugin:${manifest.id}]`, ...args),
-        warn: (...args: unknown[]) => console.warn(`[Plugin:${manifest.id}]`, ...args),
-        error: (...args: unknown[]) => console.error(`[Plugin:${manifest.id}]`, ...args)
+        log: (...args: unknown[]) => logger.info(`[Plugin:${manifest.id}]`, ...args),
+        warn: (...args: unknown[]) => logger.warn(`[Plugin:${manifest.id}]`, ...args),
+        error: (...args: unknown[]) => logger.error(`[Plugin:${manifest.id}]`, ...args)
       },
       aria2: {
         getGlobalStat: () => rpc<Record<string, string>>('aria2.getGlobalStat'),
@@ -165,12 +211,13 @@ export class PluginManager {
         remove: (gid) => rpc<string>('aria2.remove', [gid])
       },
       settings: {
-        get: (key: string) => (settings as Record<string, unknown>)[key]
+        // 脱敏后的配置快照（已剔除 aria2.secret 与连接预设中的 secret）
+        get: (key: string) => pluginSettings[key]
       },
       notify: {
         send: (title: string, body: string) => {
           // 通知通过 IPC 发送到渲染进程
-          console.log(`[Plugin:${manifest.id}] Notification: ${title} - ${body}`)
+          logger.info(`[Plugin:${manifest.id}] Notification: ${title} - ${body}`)
         }
       }
     }
@@ -198,16 +245,61 @@ export class PluginManager {
     return ctx
   }
 
-  /** 在沙箱中执行插件代码 */
-  private executeInSandbox(code: string, context: PluginContext): PluginInstance {
+  /**
+   * 创建受跟踪的定时器函数：插件注册的定时器统一记录，
+   * 插件禁用/卸载时由 clearPluginTimers 清理，避免遗留定时器常驻主进程。
+   * （仅防资源泄漏；vm 不是安全边界，见文件头信任模型说明）
+   */
+  private createTrackedTimerFns(pluginId: string) {
+    const track = (t: NodeJS.Timeout): NodeJS.Timeout => {
+      let set = this.pluginTimers.get(pluginId)
+      if (!set) {
+        set = new Set()
+        this.pluginTimers.set(pluginId, set)
+      }
+      set.add(t)
+      return t
+    }
+    const untrack = (t?: NodeJS.Timeout): void => {
+      if (t) this.pluginTimers.get(pluginId)?.delete(t)
+    }
+    return {
+      setTimeout: ((fn: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) =>
+        track(global.setTimeout(fn, ms, ...args))) as typeof setTimeout,
+      clearTimeout: ((t?: NodeJS.Timeout) => {
+        untrack(t)
+        if (t) global.clearTimeout(t)
+      }) as typeof clearTimeout,
+      setInterval: ((fn: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) =>
+        track(global.setInterval(fn, ms, ...args))) as typeof setInterval,
+      clearInterval: ((t?: NodeJS.Timeout) => {
+        untrack(t)
+        if (t) global.clearInterval(t)
+      }) as typeof clearInterval
+    }
+  }
+
+  /** 清理插件注册的全部定时器（Node 中 clearTimeout/clearInterval 对 Timeout 对象通用） */
+  private clearPluginTimers(pluginId: string): void {
+    const timers = this.pluginTimers.get(pluginId)
+    if (!timers) return
+    for (const t of timers) {
+      global.clearTimeout(t)
+    }
+    this.pluginTimers.delete(pluginId)
+  }
+
+  /** 在 vm 上下文中执行插件代码（vm 非安全边界，插件视为可信代码，见文件头说明） */
+  private executeInSandbox(code: string, context: PluginContext, pluginId: string): PluginInstance {
+    const timerFns = this.createTrackedTimerFns(pluginId)
     const sandbox = {
       module: { exports: {} as Record<string, unknown> },
       exports: {} as Record<string, unknown>,
       console: context.console,
-      setTimeout: global.setTimeout,
-      clearTimeout: global.clearTimeout,
-      setInterval: global.setInterval,
-      clearInterval: global.clearInterval,
+      setTimeout: timerFns.setTimeout,
+      clearTimeout: timerFns.clearTimeout,
+      setInterval: timerFns.setInterval,
+      clearInterval: timerFns.clearInterval,
       Date: global.Date,
       Math: global.Math,
       JSON: global.JSON,
@@ -246,33 +338,7 @@ export class PluginManager {
 
   /** 调用 Aria2 RPC */
   private callAria2Rpc(port: number, secret: string, method: string, params: unknown[] = []): Promise<unknown> {
-    return new Promise((resolve, reject) => {
-      const rpcParams = secret ? [`token:${secret}`, ...params] : params
-      const body = JSON.stringify({ jsonrpc: '2.0', id: Date.now().toString(36), method, params: rpcParams })
-
-      const req = http.request({
-        hostname: 'localhost',
-        port,
-        path: '/jsonrpc',
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
-      }, (res) => {
-        let data = ''
-        res.on('data', (chunk) => { data += chunk })
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(data)
-            if (parsed.error) reject(new Error(parsed.error.message))
-            else resolve(parsed.result)
-          } catch (e) { reject(e) }
-        })
-      })
-
-      req.on('error', reject)
-      req.setTimeout(5000, () => req.destroy(new Error('timeout')))
-      req.write(body)
-      req.end()
-    })
+    return callAria2Rpc({ port, secret, method, params })
   }
 
   /** 获取已禁用插件列表 */
@@ -316,12 +382,14 @@ export class PluginManager {
     // 调用 onDeactivate 生命周期钩子
     if (plugin.instance.onDeactivate) {
       Promise.resolve(plugin.instance.onDeactivate()).catch(err => {
-        console.error(`[PluginManager] Plugin "${pluginId}" onDeactivate error:`, err)
+        logger.error(`[PluginManager] Plugin "${pluginId}" onDeactivate error:`, err)
       })
     }
 
     plugin.enabled = false
     plugin.instance = {}
+    // 清理插件遗留定时器（禁用后插件不应继续在主进程后台运行）
+    this.clearPluginTimers(pluginId)
 
     const disabledList = this.getDisabledList()
     disabledList.add(pluginId)
@@ -341,7 +409,7 @@ export class PluginManager {
     const resolvedPath = path.resolve(plugin.path)
     const resolvedPluginDir = path.resolve(this.pluginDir)
     if (!resolvedPath.startsWith(resolvedPluginDir + path.sep)) {
-      console.error(`[PluginManager] Refusing to delete path outside plugin directory: ${resolvedPath}`)
+      logger.error(`[PluginManager] Refusing to delete path outside plugin directory: ${resolvedPath}`)
       return false
     }
 
@@ -350,7 +418,7 @@ export class PluginManager {
       this.plugins.delete(pluginId)
       return true
     } catch (error) {
-      console.error(`[PluginManager] Failed to uninstall plugin "${pluginId}":`, error)
+      logger.error(`[PluginManager] Failed to uninstall plugin "${pluginId}":`, error)
       return false
     }
   }
@@ -366,7 +434,7 @@ export class PluginManager {
           plugin.instance.onDownloadStart(data)
         }
       } catch (error) {
-        console.error(`[PluginManager] Plugin "${id}" event "${event}" error:`, error)
+        logger.error(`[PluginManager] Plugin "${id}" event "${event}" error:`, error)
       }
     }
   }
@@ -379,9 +447,13 @@ export class PluginManager {
         try {
           plugin.instance.onDeactivate()
         } catch (error) {
-          console.error(`[PluginManager] Plugin "${id}" onDeactivate error:`, error)
+          logger.error(`[PluginManager] Plugin "${id}" onDeactivate error:`, error)
         }
       }
+    }
+    // 统一清理全部插件定时器，避免退出后遗留定时器持有主进程资源
+    for (const id of this.pluginTimers.keys()) {
+      this.clearPluginTimers(id)
     }
     this.plugins.clear()
   }

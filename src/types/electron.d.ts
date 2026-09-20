@@ -39,6 +39,14 @@ export interface ElectronAPI {
     results?: Array<{ path: string; success: boolean; error?: string }>
   }>
 
+  // 下载文件名探测：URL 里没有文件名（网盘直链/跳转链接）时，向文件服务器取
+  // Content-Disposition 中的真实文件名（不下载正文）；失败返回空串
+  probeDownloadName: (url: string) => Promise<string>
+
+  // 下载重名处理：目标文件已存在且无 .aria2 控制文件时，返回带序号的空闲文件名（如 xxx (1).rar）；
+  // 无冲突/上次中断可续传时原样返回
+  resolveDownloadConflict: (dir: string, fileName: string) => Promise<{ fileName: string; conflict: boolean }>
+
   // 托盘控制
   setTrayEnabled: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
 
@@ -95,6 +103,8 @@ export interface ElectronAPI {
         executablePath: string
         configPath: string
         sessionFilePath: string
+        /** 应用数据根目录（引擎启动失败提示里用于指引用户去查看配置/会话/日志） */
+        userDataPath: string
         exists: boolean
       }
     }>
@@ -153,7 +163,7 @@ export interface ElectronAPI {
   platform: string
 
   // 剪贴板读取（同步，preload 进程直接调用 electron clipboard）
-  readClipboard: () => string
+  readClipboard: () => Promise<string>
 
   // 系统通知（通过主进程 Electron Notification API，比 Web API 更可靠）
   sendNotification: (title: string, body: string) => Promise<void>
@@ -175,9 +185,8 @@ export interface ElectronAPI {
   // 通知主进程渲染进程已就绪
   notifyAppReady: () => void
 
-  // 窗口控制
-  minimize: () => void
-  maximize: () => void
+  // 窗口控制（minimize/maximize 已删除：无 handler、无调用者的死通道）
+  // close 的语义是"退出应用"，非"关闭窗口"
   close: () => void
 
   // 系统电源操作

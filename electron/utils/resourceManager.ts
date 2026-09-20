@@ -1,6 +1,10 @@
 import { app } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
+import { createLogger } from './logger'
+
+// 本文件日志文案自带 [ResourceManager] 前缀（历史风格），故 scope 传空避免前缀重复
+const logger = createLogger('')
 
 /**
  * ResourceManager - 管理 Aria2 相关资源路径
@@ -29,7 +33,7 @@ export class ResourceManager {
     this.executablePath = app.isPackaged
       ? path.join(process.resourcesPath, executableName)
       : path.join(process.cwd(), 'resources', executableName)
-    console.log('[ResourceManager] Looking for aria2 executable at:', this.executablePath)
+    logger.info('[ResourceManager] Looking for aria2 executable at:', this.executablePath)
 
     // 配置/会话目录：userData（可写），与 electron-store 数据同根。
     // 不再写入 exe 旁目录（Program Files / 只读位置会写入失败）
@@ -45,11 +49,11 @@ export class ResourceManager {
     // 确保会话文件存在
     if (!fs.existsSync(this.sessionFilePath)) {
       fs.writeFileSync(this.sessionFilePath, '', 'utf-8')
-      console.log('[ResourceManager] Created session file:', this.sessionFilePath)
+      logger.info('[ResourceManager] Created session file:', this.sessionFilePath)
     }
 
-    console.log('[ResourceManager] Config path:', this.configPath)
-    console.log('[ResourceManager] Session path:', this.sessionFilePath)
+    logger.info('[ResourceManager] Config path:', this.configPath)
+    logger.info('[ResourceManager] Session path:', this.sessionFilePath)
 
     return {
       executablePath: this.executablePath,
@@ -67,6 +71,8 @@ export class ResourceManager {
       executablePath: this.executablePath,
       configPath: this.configPath,
       sessionFilePath: this.sessionFilePath,
+      /** 应用数据根目录：设置页"引擎启动失败"提示会展示，便于用户去该目录查配置/会话/日志 */
+      userDataPath: app.getPath('userData'),
       exists: this.isAria2Available()
     }
   }

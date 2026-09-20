@@ -5,8 +5,12 @@ import { TrayController } from './TrayController'
 import { Aria2Controller } from './Aria2Controller'
 import { IpcController } from './IpcController'
 import { ConfigWatcher } from '../utils/ConfigWatcher'
-import { decryptSettingsSecrets } from '../utils/secretCipher'
-import type { StoreData, AppSettings } from '../types/store'
+import { getSettings } from '../utils/settingsAccessor'
+import { createLogger } from '../utils/logger'
+import type { StoreData } from '../types/store'
+
+// 本文件日志文案自带 [AppLifecycle] 前缀（历史风格），故 scope 传空避免前缀重复
+const logger = createLogger('')
 
 export enum AppStatus {
   INITIALIZING = 'initializing',
@@ -50,36 +54,36 @@ export class AppLifecycle {
    * 按正确顺序初始化所有子系统
    */
   async initialize(): Promise<void> {
-    console.log('[AppLifecycle] Starting initialization...')
+    logger.info('[AppLifecycle] Starting initialization...')
     this.status = AppStatus.INITIALIZING
 
     try {
       // 步骤 1: 创建窗口（隐藏）
-      console.log('[AppLifecycle] Step 1: Creating window...')
+      logger.info('[AppLifecycle] Step 1: Creating window...')
       this.windowController.createWindow()
 
       // 步骤 2: 注册 IPC 处理器
-      console.log('[AppLifecycle] Step 2: Registering IPC handlers...')
+      logger.info('[AppLifecycle] Step 2: Registering IPC handlers...')
       this.ipcController.registerHandlers()
 
       // 步骤 3: 设置配置监听器
-      console.log('[AppLifecycle] Step 3: Setting up config watchers...')
+      logger.info('[AppLifecycle] Step 3: Setting up config watchers...')
       this.setupConfigWatchers()
 
       // 步骤 4: 初始化 Aria2（带错误处理）
-      console.log('[AppLifecycle] Step 4: Initializing Aria2...')
+      logger.info('[AppLifecycle] Step 4: Initializing Aria2...')
       await this.initializeAria2WithErrorHandling()
 
       // 步骤 5: 创建托盘（如果启用）
-      console.log('[AppLifecycle] Step 5: Creating tray...')
+      logger.info('[AppLifecycle] Step 5: Creating tray...')
       this.createTrayIfEnabled()
 
       // 步骤 6: 标记为就绪
       this.status = AppStatus.READY
-      console.log('[AppLifecycle] Initialization complete')
+      logger.info('[AppLifecycle] Initialization complete')
 
       // 步骤 7: 显示窗口
-      console.log('[AppLifecycle] Step 7: Showing window...')
+      logger.info('[AppLifecycle] Step 7: Showing window...')
       this.windowController.show()
 
     } catch (error) {
@@ -88,7 +92,7 @@ export class AppLifecycle {
         await this.shutdown()
         throw error
       }
-      console.error('[AppLifecycle] Initialization failed:', error)
+      logger.error('[AppLifecycle] Initialization failed:', error)
       this.status = AppStatus.ERROR
       throw error
     }
@@ -102,7 +106,7 @@ export class AppLifecycle {
       await this.aria2Controller.initialize()
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error('[AppLifecycle] Aria2 initialization failed:', errorMessage)
+      logger.error('[AppLifecycle] Aria2 initialization failed:', errorMessage)
 
       // 显示用户友好的错误对话框
       const result = await dialog.showMessageBox({
@@ -127,7 +131,7 @@ export class AppLifecycle {
    * 如果设置中启用，则创建托盘
    */
   private createTrayIfEnabled() {
-    const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
+    const settings = getSettings()
     const minimizeToTray = settings.minimizeToTray !== false
     if (minimizeToTray) {
       this.trayController.createTray()
@@ -140,7 +144,7 @@ export class AppLifecycle {
   private setupConfigWatchers() {
     // 监听主题变更
     this.configWatcher.watch('settings.theme', (newValue, _oldValue) => {
-      console.log('[AppLifecycle] Theme changed:', newValue)
+      logger.info('[AppLifecycle] Theme changed:', newValue)
       const isDark = newValue === 'dark'
       this.windowController.setWindowTheme(isDark)
 
@@ -156,7 +160,7 @@ export class AppLifecycle {
 
     // 监听刷新间隔变更
     this.configWatcher.watch('settings.refreshInterval', (newValue, _oldValue) => {
-      console.log('[AppLifecycle] Refresh interval changed:', newValue)
+      logger.info('[AppLifecycle] Refresh interval changed:', newValue)
 
       // Notify renderer
       const mainWindow = this.windowController.getMainWindow()
@@ -170,7 +174,7 @@ export class AppLifecycle {
 
     // 监听最小化到托盘变更
     this.configWatcher.watch('settings.minimizeToTray', (newValue, _oldValue) => {
-      console.log('[AppLifecycle] Minimize to tray changed:', newValue)
+      logger.info('[AppLifecycle] Minimize to tray changed:', newValue)
 
       if (newValue && !this.trayController.getTray()) {
         this.trayController.createTray()
@@ -185,37 +189,49 @@ export class AppLifecycle {
    */
   async shutdown(): Promise<void> {
     if (this.status === AppStatus.SHUTTING_DOWN) {
-      console.log('[AppLifecycle] Already shutting down...')
+      logger.info('[AppLifecycle] Already shutting down...')
       return
     }
 
-    console.log('[AppLifecycle] Starting graceful shutdown...')
+    logger.info('[AppLifecycle] Starting graceful shutdown...')
     this.status = AppStatus.SHUTTING_DOWN
 
     try {
-      // 步骤 1: 停止配置监听器
-      console.log('[AppLifecycle] Step 1: Stopping config watchers...')
-      this.configWatcher.unwatchAll()
-
-      // 步骤 2: 断开 Aria2 RPC 连接（如果已连接）
-      console.log('[AppLifecycle] Step 2: Disconnecting from Aria2 RPC...')
-      // 这将由前端的 connectionStore 处理
-
-      // 步骤 3: 停止 Aria2 进程
-      console.log('[AppLifecycle] Step 3: Stopping Aria2 process...')
-      await this.aria2Controller.stop()
-
-      // 步骤 4: 销毁托盘
-      console.log('[AppLifecycle] Step 4: Destroying tray...')
+      /**
+       * 步骤 1: 先收起界面（隐藏窗口 + 销毁托盘）。
+       *
+       * 这两步是瞬时的、且与 aria2 无关，必须在停止引擎**之前**做：
+       * 停止 aria2 可能要花数秒（RPC 保存会话 + 请求关闭 + 等待退出 + 信号回退），
+       * 若等它结束才收界面，用户看到的就是"点了退出，窗口和托盘图标卡住几秒才消失"。
+       *
+       * ⚠️ 只 `hide()` 窗口，**不要 close/destroy**：销毁窗口会触发 window-all-closed，
+       * 而那里在 minimizeToTray=false 时会再次 app.quit()；此时 hasShutdownStarted 已置位、
+       * before-quit 会直接放行，收尾流程就被截断（aria2 变成孤儿进程继续占着 RPC 端口）。
+       * 隐藏不触发该事件，进程真正退出时窗口自然一起消失。
+       */
+      logger.info('[AppLifecycle] Step 1: Hiding window and destroying tray...')
+      this.windowController.hide()
       this.trayController.destroy()
 
+      // 步骤 2: 停止配置监听器
+      logger.info('[AppLifecycle] Step 2: Stopping config watchers...')
+      this.configWatcher.unwatchAll()
+
+      // 步骤 3: 断开 Aria2 RPC 连接（如果已连接）
+      logger.info('[AppLifecycle] Step 3: Disconnecting from Aria2 RPC...')
+      // 这将由前端的 connectionStore 处理
+
+      // 步骤 4: 停止 Aria2 进程（耗时步骤：保存会话 + 请求关闭 + 等待退出）
+      logger.info('[AppLifecycle] Step 4: Stopping Aria2 process...')
+      await this.aria2Controller.stop()
+
       // 步骤 5: 关闭插件管理器
-      console.log('[AppLifecycle] Step 5: Closing plugins...')
+      logger.info('[AppLifecycle] Step 5: Closing plugins...')
       this.ipcController.shutdown()
 
-      console.log('[AppLifecycle] Shutdown complete')
+      logger.info('[AppLifecycle] Shutdown complete')
     } catch (error) {
-      console.error('[AppLifecycle] Shutdown error:', error)
+      logger.error('[AppLifecycle] Shutdown error:', error)
       // 即使有错误也继续关闭
     }
   }

@@ -1,4 +1,5 @@
-import { ipcMain, dialog, shell, app, Notification } from 'electron'
+import { dialog, shell, app, Notification, clipboard, session } from 'electron'
+import { exec } from 'child_process'
 import { WindowController } from './WindowController'
 import { TrayController } from './TrayController'
 import { Aria2Controller } from './Aria2Controller'
@@ -6,17 +7,32 @@ import { UpdateController } from './UpdateController'
 import Store from 'electron-store'
 import * as path from 'path'
 import * as fs from 'fs'
-import { createSenderValidator } from '../utils/ipcSecurity'
-import { encryptSettingsSecrets, decryptSettingsSecrets } from '../utils/secretCipher'
+import { registerSecureHandler } from '../utils/ipcSecurity'
+import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
+import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import { checkYtdlpAvailable, getVideoInfo, getFormatUrl } from '../services/ytdlpService'
 import { PluginManager } from '../services/pluginManager'
+import { createLogger } from '../utils/logger'
 import type { StoreData, AppSettings } from '../types/store'
+
+// 本文件日志文案自带 [IpcController] 前缀（历史风格），故 scope 传空避免前缀重复
+const logger = createLogger('')
 
 /** 允许通过 get/set-store-value 访问的 store 键白名单 */
 const ALLOWED_STORE_KEYS = new Set([
   'settings',
   'windowState'
 ])
+
+/**
+ * 系统代理探测目标（多候选）：PAC 脚本常按域名分流（国内直连/国外代理），
+ * 单一目标的结果会失真，依次探测并取第一个非 DIRECT 的结果。
+ */
+const PROXY_PROBE_URLS = [
+  'http://www.msftconnecttest.com/connecttest.txt',
+  'http://www.baidu.com/',
+  'http://www.google.com/generate_204'
+]
 
 export class IpcController {
   private windowController: WindowController
@@ -55,38 +71,43 @@ export class IpcController {
     this.pluginManager.loadAll()
   }
 
-  // 校验 IPC 调用来源是否为主窗口（复用 ipcSecurity 工厂，防止恶意页面或外部进程调用敏感 IPC 通道）
-  private validateSender = createSenderValidator(() => this.windowController.getMainWindow())
+  /**
+   * 供 ipcSecurity 工厂使用的窗口取值器。
+   * 所有通道共用同一个闭包（与原先单个 validateSender 字段一致），
+   * 且延迟到事件触发时才取主窗口——因此构造期 this.windowController 尚未赋值也无影响。
+   */
+  private windowRef = () => this.windowController.getMainWindow()
 
+  /**
+   * 应用类通道。
+   *
+   * 统一经 ipcSecurity 的工厂注册：来源校验由工厂在结构上保证，不再逐条手写
+   * `if (!this.validateSender(event)) return ...`（迁移前的 45 处样板）。
+   * `failureValue` 为校验失败时返回渲染层的值，逐一对应迁移前的形态——渲染层依赖这些语义，
+   * 因此**不能**统一处理；省略即表示沿用默认的 `{success:false,error:'Unauthorized'}`。
+   * 无额外入参的 handler 已去掉未使用的 event 形参。
+   */
   private registerAppHandlers() {
-    ipcMain.handle('get-app-version', (event) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
-      return app.getVersion()
-    })
+    registerSecureHandler('get-app-version', () => app.getVersion(), { getMainWindow: this.windowRef })
 
     // 应用默认下载目录（Windows 系统"下载"文件夹）
-    ipcMain.handle('get-default-download-dir', (event) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
-      return {
-        success: true,
-        path: app.getPath('downloads').replace(/\\/g, '/')
-      }
-    })
+    registerSecureHandler('get-default-download-dir', () => ({
+      success: true,
+      path: app.getPath('downloads').replace(/\\/g, '/')
+    }), { getMainWindow: this.windowRef })
 
     // 开机自启：查询当前是否已启用（仅 Windows 支持）
-    ipcMain.handle('get-auto-launch', (event) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('get-auto-launch', () => {
       try {
         const openAtLogin = app.getLoginItemSettings().openAtLogin
         return { success: true, enabled: openAtLogin }
       } catch (e) {
         return { success: false, error: String(e) }
       }
-    })
+    }, { getMainWindow: this.windowRef })
 
     // 开机自启：设置启用/禁用（仅 Windows 支持）
-    ipcMain.handle('set-auto-launch', (event, enabled: boolean) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('set-auto-launch', (event, enabled: boolean) => {
       try {
         app.setLoginItemSettings({
           openAtLogin: !!enabled,
@@ -96,57 +117,62 @@ export class IpcController {
       } catch (e) {
         return { success: false, error: String(e) }
       }
-    })
+    }, { getMainWindow: this.windowRef })
 
     // 自动更新：检查更新（只检查不下载，由用户确认后再下载）
-    ipcMain.handle('check-for-updates', async (event) => {
-      if (!this.validateSender(event)) return { success: false, hasUpdate: false, error: 'Unauthorized' }
-      return await this.updateController.checkForUpdates()
+    registerSecureHandler('check-for-updates', async () => await this.updateController.checkForUpdates(), {
+      getMainWindow: this.windowRef,
+      failureValue: { success: false, hasUpdate: false, error: 'Unauthorized' }
     })
 
     // 自动更新：启动时后台检查（只提醒，不下载）
-    ipcMain.handle('check-updates-on-startup', async (event) => {
-      if (!this.validateSender(event)) return { success: false, hasUpdate: false, error: 'Unauthorized' }
-      return await this.updateController.checkForUpdatesOnStartup()
+    registerSecureHandler('check-updates-on-startup', async () => await this.updateController.checkForUpdatesOnStartup(), {
+      getMainWindow: this.windowRef,
+      failureValue: { success: false, hasUpdate: false, error: 'Unauthorized' }
     })
 
     // 自动更新：下载最新版本安装包（用户在更新弹窗中确认后调用）
-    ipcMain.handle('download-update', async (event) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
-      return await this.updateController.downloadUpdate()
+    registerSecureHandler('download-update', async () => await this.updateController.downloadUpdate(), {
+      getMainWindow: this.windowRef
     })
 
     // 自动更新：重启更新（启动安装程序并退出应用）
-    ipcMain.handle('restart-and-install', async (event) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    // 安装流程用 app.exit() 跳过 before-quit 的优雅关闭（为避免 NSIS 安装程序与旧进程死锁），
+    // 因此这里要手动补两件事：
+    //   1) 保存会话——否则未完成任务会从下次启动的恢复列表里消失；
+    //   2) 请求 aria2 关闭（不等退出）——否则它会成为孤儿进程继续占着 RPC 端口，
+    //      更新后的新版本启动引擎就会因端口占用失败。
+    // 只发 RPC、不等待进程退出，所以不会拖慢退出，也不会与安装程序互等（原注释担心的死锁）。
+    registerSecureHandler('restart-and-install', async () => {
+      const saved = await this.aria2Controller.saveSession(3000)
+      if (!saved.success) {
+        logger.warn('[IpcController] 更新安装前保存 aria2 会话失败，未完成任务可能从恢复列表消失:', saved.error)
+      }
+      this.aria2Controller.requestShutdown()
       return await this.updateController.restartAndInstall()
-    })
+    }, { getMainWindow: this.windowRef })
 
-    ipcMain.handle('set-tray-enabled', (event, enabled: boolean) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('set-tray-enabled', (event, enabled: boolean) => {
       if (enabled) {
         this.trayController.createTray()
       } else {
         this.trayController.destroy()
       }
       return { success: true }
-    })
+    }, { getMainWindow: this.windowRef })
 
-    ipcMain.handle('set-window-theme', (event, isDark: boolean) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('set-window-theme', (event, isDark: boolean) => {
       this.windowController.setWindowTheme(isDark)
       return { success: true }
-    })
+    }, { getMainWindow: this.windowRef })
 
-    ipcMain.handle('set-taskbar-progress', (event, progress: number, mode?: string) => {
-      if (!this.validateSender(event)) return
+    // fire-and-forget 通道：渲染层不消费返回值，故失败时显式返回 undefined（而非默认的 Unauthorized 对象）
+    registerSecureHandler('set-taskbar-progress', (event, progress: number, mode?: string) => {
       this.windowController.setTaskbarProgress(progress, (mode as 'normal' | 'error' | 'paused') || 'normal')
-    })
+    }, { getMainWindow: this.windowRef, failureValue: undefined })
 
-    ipcMain.handle('system-shutdown', async (event) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('system-shutdown', async () => {
       try {
-        const { exec } = require('child_process')
         if (process.platform === 'win32') {
           exec('shutdown /s /t 60') // 60 秒后关机
         } else if (process.platform === 'darwin') {
@@ -158,12 +184,10 @@ export class IpcController {
       } catch (e) {
         return { success: false, error: String(e) }
       }
-    })
+    }, { getMainWindow: this.windowRef })
 
-    ipcMain.handle('system-hibernate', async (event) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('system-hibernate', async () => {
       try {
-        const { exec } = require('child_process')
         if (process.platform === 'win32') {
           exec('shutdown /h')
         } else if (process.platform === 'darwin') {
@@ -175,29 +199,42 @@ export class IpcController {
       } catch (e) {
         return { success: false, error: String(e) }
       }
-    })
+    }, { getMainWindow: this.windowRef })
 
-    ipcMain.handle('detect-system-proxy', async (event) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('read-clipboard', () => {
       try {
-        const { session } = require('electron')
-        const proxy = await session.defaultSession.resolveProxy('http://www.google.com')
-        if (proxy && proxy !== 'DIRECT') {
-          // proxy 格式如 "PROXY host:port" 或 "SOCKS5 host:port"
-          const match = proxy.match(/^(?:PROXY|SOCKS5?|HTTPS)\s+(.+)$/i)
-          const proxyUrl = match ? match[1] : proxy
-          const protocol = proxy.startsWith('SOCKS') ? 'socks5' : 'http'
-          return { success: true, proxy: `${protocol}://${proxyUrl}` }
+        return clipboard.readText() || ''
+      } catch {
+        return ''
+      }
+    }, { getMainWindow: this.windowRef, failureValue: '' })
+
+    registerSecureHandler('detect-system-proxy', async () => {
+      try {
+        for (const target of PROXY_PROBE_URLS) {
+          let proxy = ''
+          try {
+            proxy = await session.defaultSession.resolveProxy(target)
+          } catch {
+            continue // 单个目标探测失败，尝试下一个
+          }
+          if (proxy && proxy !== 'DIRECT') {
+            // proxy 格式如 "PROXY host:port" 或 "SOCKS5 host:port"
+            const match = proxy.match(/^(?:PROXY|SOCKS5?|HTTPS)\s+(.+)$/i)
+            const proxyUrl = match ? match[1] : proxy
+            const protocol = proxy.startsWith('SOCKS') ? 'socks5' : 'http'
+            return { success: true, proxy: `${protocol}://${proxyUrl}` }
+          }
         }
         return { success: true, proxy: '' }
       } catch (e) {
         return { success: false, error: String(e) }
       }
-    })
+    }, { getMainWindow: this.windowRef })
 
     // 系统通知（通过 Electron Notification API，比 Web API 更可靠）
-    ipcMain.handle('send-notification', (event, title: string, body: string) => {
-      if (!this.validateSender(event)) return
+    // 注：点击回调里的 getMainWindow()/show()/focus() 与来源校验无关，保持原样
+    registerSecureHandler('send-notification', (event, title: string, body: string) => {
       try {
         if (Notification.isSupported()) {
           const notification = new Notification({ title, body, silent: false })
@@ -211,74 +248,70 @@ export class IpcController {
           })
         }
       } catch (e) {
-        console.warn('[IpcController] Failed to send notification:', e)
+        logger.warn('[IpcController] Failed to send notification:', e)
       }
-    })
+    }, { getMainWindow: this.windowRef, failureValue: undefined })
 
-    ipcMain.handle('system-cancel-shutdown', async (event) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('system-cancel-shutdown', async () => {
       try {
         if (process.platform === 'win32') {
-          const { exec } = require('child_process')
           exec('shutdown /a')
         }
         return { success: true }
       } catch (e) {
         return { success: false, error: String(e) }
       }
-    })
+    }, { getMainWindow: this.windowRef })
 
-    ipcMain.handle('get-store-value', (event, key: string) => {
-      if (!this.validateSender(event)) return undefined
+    registerSecureHandler('get-store-value', (event, key: string) => {
       if (!ALLOWED_STORE_KEYS.has(key)) {
-        console.warn(`[IpcController] Blocked access to store key: ${key}`)
+        logger.warn(`[IpcController] Blocked access to store key: ${key}`)
         return undefined
       }
-      const value = this.store.get(key)
-      // settings 含 RPC secret：返回前解密，渲染进程 RPC 连接需要真实明文 secret
+      // settings 含 RPC secret：返回前解密。此处走**直读**——渲染层可能刚写入 settings 就回读，
+      // 不能拿可能过期的缓存值
       if (key === 'settings') {
-        return decryptSettingsSecrets(value as AppSettings)
+        return getSettingsFresh()
       }
-      return value
-    })
+      return this.store.get(key)
+    }, { getMainWindow: this.windowRef, failureValue: undefined })
 
-    ipcMain.handle('set-store-value', (event, key: string, value: unknown) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('set-store-value', (event, key: string, value: unknown) => {
       if (!ALLOWED_STORE_KEYS.has(key)) {
-        console.warn(`[IpcController] Blocked write to store key: ${key}`)
+        logger.warn(`[IpcController] Blocked write to store key: ${key}`)
         return { success: false, error: 'Key not allowed' }
       }
-      // settings 含 RPC secret：写入前加密，磁盘上不保存明文
+      // settings 含 RPC secret：写入前加密，磁盘上不保存明文；
+      // 写入口统一走 settingsAccessor，由它保证"写入即刷新缓存"
       if (key === 'settings') {
-        this.store.set(key, encryptSettingsSecrets(value as AppSettings))
+        saveSettings(value as AppSettings)
       } else {
         this.store.set(key, value)
       }
       return { success: true }
-    })
+    }, { getMainWindow: this.windowRef })
 
-    ipcMain.handle('show-save-dialog', async (event, options) => {
-      if (!this.validateSender(event)) return { canceled: true }
+    // 注：守卫后的 `!window` 分支同样返回 {canceled:true}——与校验失败值同形但语义不同，
+    // 这个业务分支必须保留
+    registerSecureHandler('show-save-dialog', async (event, options) => {
       const window = this.windowController.getMainWindow()
       if (window) {
         return await dialog.showSaveDialog(window, options)
       }
       return { canceled: true }
-    })
+    }, { getMainWindow: this.windowRef, failureValue: { canceled: true } })
 
-    ipcMain.handle('show-open-dialog', async (event, options) => {
-      if (!this.validateSender(event)) return { canceled: true }
+    registerSecureHandler('show-open-dialog', async (event, options) => {
       const window = this.windowController.getMainWindow()
       if (window) {
         return await dialog.showOpenDialog(window, options)
       }
       return { canceled: true }
-    })
+    }, { getMainWindow: this.windowRef, failureValue: { canceled: true } })
   }
 
   private registerFileHandlers() {
-    ipcMain.handle('show-item-in-folder', async (event, filePath: string) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('show-item-in-folder', async (event, filePath: string) => {
       try {
         const normalizedPath = path.normalize(filePath)
         if (!fs.existsSync(normalizedPath)) return { success: false, error: 'Path not found' }
@@ -287,10 +320,9 @@ export class IpcController {
       } catch (e) {
         return { success: false, error: String(e) }
       }
-    })
+    }, { getMainWindow: this.windowRef })
 
-    ipcMain.handle('open-in-explorer', async (event, filePath: string) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('open-in-explorer', async (event, filePath: string) => {
       try {
         const normalizedPath = path.normalize(filePath)
         if (fs.existsSync(normalizedPath)) {
@@ -308,10 +340,9 @@ export class IpcController {
       } catch (e) {
         return { success: false, error: String(e) }
       }
-    })
+    }, { getMainWindow: this.windowRef })
 
-    ipcMain.handle('open-path', async (event, filePath: string) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('open-path', async (event, filePath: string) => {
       try {
         const normalizedPath = path.normalize(filePath)
         if (!fs.existsSync(normalizedPath)) {
@@ -328,20 +359,39 @@ export class IpcController {
       } catch (e) {
         return { success: false, error: String(e) }
       }
-    })
+    }, { getMainWindow: this.windowRef })
 
-    ipcMain.handle('delete-files', async (event, filePaths: string[], taskDir?: string) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    // 下载文件名探测：网盘直链/跳转链接的 URL 里没有文件名（如 /file/<hash>?...），
+    // 自动分类与 aria2 的 out 都需要真实文件名——它只在服务器响应的 Content-Disposition 头里。
+    // 渲染层在"智能识别不出分类"时调用；探测器内部自带超时，任何失败都返回空串（降级为原行为）。
+    // 显式标注泛型：异步 handler + 字符串失败值，需要 R=Promise<string> 才能通过工厂的类型检查
+    registerSecureHandler<[string], Promise<string>>(
+      'download-probe-filename',
+      async (_event, url) => await probeDownloadFileName(url),
+      { getMainWindow: this.windowRef, failureValue: '' }
+    )
 
+    // 下载重名处理：continue=true 时 aria2 会把已存在的同名完整文件当作"可续传的同一任务"，
+    // 大小一致就秒完成——auto-file-renaming 根本不会生效。渲染层提交前用它检查目标文件，
+    // 存在且无 .aria2 控制文件时拿到带序号的空闲名字（浏览器风格），让重复下载得到一份新副本；
+    // 存在 .aria2 控制文件说明上次下载被中断，保持原名让 aria2 正常续传。
+    registerSecureHandler<[string, string], Promise<{ fileName: string; conflict: boolean }>>(
+      'resolve-download-conflict',
+      async (_event, dir, fileName) => await resolveConflictingFileName(dir, fileName),
+      { getMainWindow: this.windowRef, failureValue: { fileName: '', conflict: false } }
+    )
+
+    registerSecureHandler('delete-files', async (event, filePaths: string[], taskDir?: string) => {
       // 允许删除文件的根目录集合：默认下载目录 + 调用方传入的任务实际目录
       // （任务可下载到非默认目录，按任务目录放宽白名单）
-      const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
+      // 走**直读**：此值参与安全判定，用户刚改完下载目录就点删除时不能用到旧值
+      const settings = getSettingsFresh()
       const allowedRoots: string[] = []
       const settingDir = settings?.aria2?.downloadDir || settings?.download?.defaultDir || ''
       if (settingDir) allowedRoots.push(path.resolve(settingDir))
       // 未配置任何允许目录时拒绝所有删除操作，防止任意路径被删
       if (allowedRoots.length === 0) {
-        console.warn('[IpcController] Blocked deletion: no download dir configured')
+        logger.warn('[IpcController] Blocked deletion: no download dir configured')
         return { success: false, error: 'Download dir not configured' }
       }
 
@@ -368,7 +418,7 @@ export class IpcController {
         const realTaskDir = await realPathIfExists(path.resolve(taskDir.trim()))
         const normTaskDir = isWindows ? realTaskDir.toLowerCase() : realTaskDir
         if (!isAllowed(normTaskDir)) {
-          console.warn(`[IpcController] Blocked taskDir outside allowed roots: ${realTaskDir}`)
+          logger.warn(`[IpcController] Blocked taskDir outside allowed roots: ${realTaskDir}`)
           return { success: false, error: 'taskDir outside allowed root' }
         }
         // 校验通过后放宽白名单，允许删除该任务目录下文件
@@ -385,7 +435,7 @@ export class IpcController {
           const target = await realPathIfExists(normalized)
           const normTarget = isWindows ? target.toLowerCase() : target
           if (!isAllowed(normTarget)) {
-            console.warn(`[IpcController] Blocked deletion of path outside allowed dirs: ${target}`)
+            logger.warn(`[IpcController] Blocked deletion of path outside allowed dirs: ${target}`)
             results.push({ path: p, success: false, error: 'Path outside allowed directory' })
             continue
           }
@@ -412,28 +462,27 @@ export class IpcController {
         }
       }
       return { success: true, results }
-    })
+    }, { getMainWindow: this.windowRef })
   }
 
   /** 已完成任务记录持久化到 userData（替代 localStorage，规避配额限制） */
   private registerPersistedTasksHandlers() {
     const filePath = path.join(app.getPath('userData'), 'persisted-tasks.json')
 
-    ipcMain.handle('persisted-tasks-load', async (event) => {
-      if (!this.validateSender(event)) return {}
+    // 失败态为 {}（渲染层按对象消费），非默认的 Unauthorized 对象
+    registerSecureHandler('persisted-tasks-load', async () => {
       try {
         if (!fs.existsSync(filePath)) return {}
         // 使用异步 IO，避免大文件（上限 10MB）读写阻塞主进程事件循环
         const content = await fs.promises.readFile(filePath, 'utf-8')
         return JSON.parse(content || '{}')
       } catch (e) {
-        console.error('[IpcController] Failed to load persisted tasks:', e)
+        logger.error('[IpcController] Failed to load persisted tasks:', e)
         return {}
       }
-    })
+    }, { getMainWindow: this.windowRef, failureValue: {} })
 
-    ipcMain.handle('persisted-tasks-save', async (event, data: unknown) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
+    registerSecureHandler('persisted-tasks-save', async (event, data: unknown) => {
       try {
         const serialized = JSON.stringify(data ?? {})
         // 序列化大小上限：防止异常/恶意数据写超大文件到 userData
@@ -445,47 +494,42 @@ export class IpcController {
       } catch (e) {
         return { success: false, error: String(e) }
       }
-    })
+    }, { getMainWindow: this.windowRef })
   }
 
   /** yt-dlp 流媒体支持（可选外部引擎） */
   private registerYtdlpHandlers() {
-    ipcMain.handle('ytdlp-check', async (event) => {
-      if (!this.validateSender(event)) return { available: false, error: 'Unauthorized' }
-      return checkYtdlpAvailable()
+    registerSecureHandler('ytdlp-check', async () => await checkYtdlpAvailable(), {
+      getMainWindow: this.windowRef,
+      failureValue: { available: false, error: 'Unauthorized' }
     })
 
-    ipcMain.handle('ytdlp-video-info', async (event, url: string) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
-      return getVideoInfo(url)
+    registerSecureHandler('ytdlp-video-info', async (event, url: string) => await getVideoInfo(url), {
+      getMainWindow: this.windowRef
     })
 
-    ipcMain.handle('ytdlp-format-url', async (event, url: string, formatId: string) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
-      return getFormatUrl(url, formatId)
-    })
+    registerSecureHandler('ytdlp-format-url', async (event, url: string, formatId: string) =>
+      await getFormatUrl(url, formatId), { getMainWindow: this.windowRef })
   }
 
   /** 插件管理 */
   private registerPluginHandlers() {
-    ipcMain.handle('plugins-list', (event) => {
-      if (!this.validateSender(event)) return []
-      return this.pluginManager.getPlugins()
+    // 失败态为 []（渲染层按数组消费）
+    registerSecureHandler('plugins-list', () => this.pluginManager.getPlugins(), {
+      getMainWindow: this.windowRef,
+      failureValue: []
     })
 
-    ipcMain.handle('plugins-enable', (event, pluginId: string) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
-      return { success: this.pluginManager.enable(pluginId) }
-    })
+    registerSecureHandler('plugins-enable', (event, pluginId: string) => ({
+      success: this.pluginManager.enable(pluginId)
+    }), { getMainWindow: this.windowRef })
 
-    ipcMain.handle('plugins-disable', (event, pluginId: string) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
-      return { success: this.pluginManager.disable(pluginId) }
-    })
+    registerSecureHandler('plugins-disable', (event, pluginId: string) => ({
+      success: this.pluginManager.disable(pluginId)
+    }), { getMainWindow: this.windowRef })
 
-    ipcMain.handle('plugins-uninstall', (event, pluginId: string) => {
-      if (!this.validateSender(event)) return { success: false, error: 'Unauthorized' }
-      return { success: this.pluginManager.uninstall(pluginId) }
-    })
+    registerSecureHandler('plugins-uninstall', (event, pluginId: string) => ({
+      success: this.pluginManager.uninstall(pluginId)
+    }), { getMainWindow: this.windowRef })
   }
 }

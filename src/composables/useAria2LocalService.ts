@@ -24,6 +24,8 @@ export interface Aria2ProcessInfo {
     executablePath: string
     configPath: string
     sessionFilePath: string
+    /** 应用数据根目录（设置页在引擎启动失败时展示，指引用户去该目录查看配置/会话/日志） */
+    userDataPath: string
     exists: boolean
   }
 }
@@ -33,6 +35,8 @@ export interface Aria2LocalConfig {
   secret?: string
   downloadDir?: string
   autoStart?: boolean
+  /** 显式清除 RPC 密钥的意图信号（用户确实清空了密钥输入框）；缺省时主进程保留原密钥 */
+  clearSecret?: boolean
 }
 
 // ── 模块级单例状态 ──
@@ -233,7 +237,9 @@ export function useAria2LocalService() {
         port: config.port,
         secret: config.secret,
         downloadDir: config.downloadDir,
-        autoStart: config.autoStart
+        autoStart: config.autoStart,
+        // 透传"显式清除密钥"意图，供主进程区分空密钥是"未加载"还是"确实要清空"
+        clearSecret: config.clearSecret
       }
 
       const result = await window.electronAPI!.aria2.updateConfig(plainConfig)
@@ -253,24 +259,10 @@ export function useAria2LocalService() {
     }
   }
 
-  // 获取连接配置
-  const getConnectionConfig = computed(() => {
-    if (!processInfo.value.config) {
-      return {
-        host: 'localhost',
-        port: 6800,
-        protocol: 'http',
-        secret: ''
-      }
-    }
-
-    return {
-      host: 'localhost',
-      port: processInfo.value.config.port,
-      protocol: 'http',
-      secret: processInfo.value.config.secret
-    }
-  })
+  // 说明：历史上这里有一个 getConnectionConfig（从进程状态推导本地连接配置），
+  // 但全仓无任何消费者，易被误认为"本地连接配置的规范来源"（实际连接走 connectionStore
+  // 的连接预设 + settings.aria2），已删除以免误导。本地引擎密钥的对齐由
+  // connectionStore.alignLocalEngineSecret 负责。
 
   return {
     // 状态
@@ -289,9 +281,6 @@ export function useAria2LocalService() {
     stop,
     restart,
     getStatus,
-    updateConfig,
-
-    // 配置
-    getConnectionConfig
+    updateConfig
   }
 }

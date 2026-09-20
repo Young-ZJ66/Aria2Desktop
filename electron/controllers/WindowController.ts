@@ -1,11 +1,15 @@
-import { BrowserWindow, Menu, shell, screen, ipcMain, nativeTheme, session, app, clipboard } from 'electron'
+import { BrowserWindow, Menu, shell, screen, nativeTheme, session, app, clipboard } from 'electron'
 import { join } from 'path'
-import * as fs from 'fs'
 import Store from 'electron-store'
 import { appState } from '../utils/appState'
-import { decryptSettingsSecrets } from '../utils/secretCipher'
-import { createSenderValidator } from '../utils/ipcSecurity'
-import type { StoreData, AppSettings, WindowState } from '../types/store'
+import { getSettings } from '../utils/settingsAccessor'
+import { registerSecureListener } from '../utils/ipcSecurity'
+import { resolveAppIconPath, resolveRendererIndexPath } from '../utils/resolvePaths'
+import { createLogger } from '../utils/logger'
+import type { StoreData, WindowState } from '../types/store'
+
+// 本文件日志文案自带 [WindowController] 前缀（历史风格），故 scope 传空避免前缀重复
+const logger = createLogger('')
 
 /** 允许通过 shell.openExternal 打开的外部 URL 协议白名单 */
 const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
@@ -18,7 +22,12 @@ export class WindowController {
   private mainWindow: BrowserWindow | null = null
   private store: Store<StoreData>
   private isContentReady = false // 页面内容是否已加载完成
-  private validateSender = createSenderValidator(() => this.mainWindow)
+  /**
+   * 供 ipcSecurity 工厂使用的窗口取值器。
+   * 注意与其它控制器传 `windowController.getMainWindow()` 不同，这里直接用本类字段——
+   * 但事件触发时 this.mainWindow 已是创建好的窗口，判定口径与其它处一致。
+   */
+  private windowRef = () => this.mainWindow
   /** 等待内容就绪的重试定时器（去重：窗口重建/重复调用 show() 时避免叠加多次重试链） */
   private pendingShowTimer: NodeJS.Timeout | null = null
 
@@ -30,12 +39,24 @@ export class WindowController {
     this.setupCsp()
 
     // 监听渲染进程的 app-ready 消息（只注册一次，避免重复创建窗口时叠加监听器）
-    ipcMain.on('app-ready', (event) => {
-      // 校验来源为主窗口，防止其他 webContents 伪造就绪信号
-      if (!this.validateSender(event)) return
-      console.log('[WindowController] Received app-ready from renderer')
+    // 经工厂注册：来源校验（必须为主窗口）由工厂保证，防止其他 webContents 伪造就绪信号
+    registerSecureListener('app-ready', () => {
+      logger.debug('[WindowController] Received app-ready from renderer')
       this.isContentReady = true
-    })
+    }, { getMainWindow: this.windowRef })
+
+    /**
+     * 「下载完成后关闭应用」走此通道（preload 用 send，故为事件而非 invoke）。
+     *
+     * 语义是**退出应用**而非"关掉窗口"：这里不能调 window.close()——本类的 close 拦截
+     * 在 minimizeToTray 开启时会把"关闭"改成"隐藏到托盘"，与用户所选「关闭应用」不符。
+     * 与托盘「退出」菜单同路径：先 markQuitting() 让 close 拦截放行，
+     * 再 app.quit() 走 before-quit 的优雅关闭（保存 aria2 会话后退出）。
+     */
+    registerSecureListener('window-close', () => {
+      appState.markQuitting()
+      app.quit()
+    }, { getMainWindow: this.windowRef })
   }
 
   /** 通过响应头注入 CSP，不依赖渲染层 meta（开发环境对 localhost:5173 生效） */
@@ -58,7 +79,7 @@ export class WindowController {
   }
 
   public createWindow(): BrowserWindow {
-    console.log('[WindowController] Creating main window...')
+    logger.info('[WindowController] Creating main window...')
 
     // 重置内容就绪标记与等待重试链（窗口重建场景，避免沿用旧值/旧定时器）
     this.isContentReady = false
@@ -71,7 +92,7 @@ export class WindowController {
     Menu.setApplicationMenu(null)
 
     // 如果启用，恢复窗口状态
-    const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
+    const settings = getSettings()
     const keepWindowState = settings.keepWindowState !== false
     const savedState = this.store.get('windowState') as WindowState
 
@@ -88,9 +109,8 @@ export class WindowController {
       center: !keepWindowState || !savedState, // 仅在没有保存状态时居中
       resizable: true,
       titleBarStyle,
-      icon: process.env.NODE_ENV === 'development'
-        ? join(process.cwd(), 'build/Icon.ico')
-        : join(__dirname, '../../build/Icon.ico'),
+      // 图标统一由 resolvePaths 解析（此前生产分支指向不存在的 dist/electron/build/Icon.ico）
+      icon: resolveAppIconPath() ?? undefined,
       webPreferences: {
         preload: join(__dirname, '../preload.js'),
         sandbox: true,
@@ -113,7 +133,7 @@ export class WindowController {
           width: bounds.width,
           height: bounds.height
         }
-        console.log('[WindowController] Restoring window bounds:', bounds)
+        logger.debug('[WindowController] Restoring window bounds:', bounds)
       }
     }
 
@@ -157,11 +177,11 @@ export class WindowController {
     if (!this.mainWindow) return
 
     this.mainWindow.on('ready-to-show', () => {
-      console.log('[WindowController] Window ready-to-show event')
+      logger.debug('[WindowController] Window ready-to-show event')
       // 不在这里自动显示 - 让 AppLifecycle 控制显示时机
 
       // 初始化主题
-      const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
+      const settings = getSettings()
       const isDarkTheme = settings.theme === 'dark'
       this.setWindowTheme(isDarkTheme)
 
@@ -171,14 +191,14 @@ export class WindowController {
 
     // 拦截关闭事件 - 如果启用了托盘，隐藏而不是关闭
     this.mainWindow.on('close', (event) => {
-      const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
+      const settings = getSettings()
       const minimizeToTray = settings.minimizeToTray !== false
 
       // 如果启用了托盘且不是真正退出应用
       if (minimizeToTray && !appState.isQuitting()) {
         event.preventDefault()
         this.hide()
-        console.log('[WindowController] Window hidden to tray')
+        logger.info('[WindowController] Window hidden to tray')
       }
     })
 
@@ -202,10 +222,10 @@ export class WindowController {
         if (ALLOWED_EXTERNAL_PROTOCOLS.has(protocol)) {
           shell.openExternal(details.url)
         } else {
-          console.warn('[WindowController] Blocked openExternal for unsafe protocol:', protocol)
+          logger.warn('[WindowController] Blocked openExternal for unsafe protocol:', protocol)
         }
       } catch {
-        console.warn('[WindowController] Blocked openExternal for invalid URL:', details.url)
+        logger.warn('[WindowController] Blocked openExternal for invalid URL:', details.url)
       }
       return { action: 'deny' }
     })
@@ -217,7 +237,7 @@ export class WindowController {
   private setupWindowStatePersistence() {
     if (!this.mainWindow) return
 
-    const settings = decryptSettingsSecrets(this.store.get('settings', {}) as AppSettings)
+    const settings = getSettings()
     const keepWindowState = settings.keepWindowState !== false
 
     if (!keepWindowState) return
@@ -237,7 +257,7 @@ export class WindowController {
         isFullScreen
       })
 
-      console.log('[WindowController] Window state saved:', { bounds, isMaximized, isFullScreen })
+      logger.debug('[WindowController] Window state saved:', { bounds, isMaximized, isFullScreen })
     }
 
     const debouncedSave = () => {
@@ -260,39 +280,23 @@ export class WindowController {
   private loadContent() {
     if (!this.mainWindow) return
 
-    console.log('[WindowController] Loading content...')
+    logger.info('[WindowController] Loading content...')
     if (process.env.NODE_ENV === 'development') {
-      console.log('[WindowController] Loading development URL: http://localhost:5173')
+      logger.info('[WindowController] Loading development URL: http://localhost:5173')
       this.mainWindow.loadURL('http://localhost:5173').catch(err => {
-        console.error('[WindowController] Failed to load URL:', err)
+        logger.error('[WindowController] Failed to load URL:', err)
       })
     } else {
-      // 生产环境：尝试多个可能的路径
-      const possiblePaths = [
-        join(__dirname, '../vue/index.html'),
-        join(__dirname, '../../vue/index.html'),
-        join(process.resourcesPath, 'app.asar/dist/vue/index.html'),
-        join(process.resourcesPath, 'vue/index.html')
-      ]
-
-      let loaded = false
-      for (const htmlPath of possiblePaths) {
-        if (fs.existsSync(htmlPath)) {
-          console.log('[WindowController] Loading production file from:', htmlPath)
-          this.mainWindow.loadFile(htmlPath).catch(err => {
-            console.error('[WindowController] Failed to load file:', err)
-          })
-          loaded = true
-          break
-        }
-      }
-
-      if (!loaded) {
-        console.error('[WindowController] Could not find index.html in any expected location')
-        console.error('[WindowController] Tried paths:', possiblePaths)
+      // 生产环境：唯一定位渲染层入口（路径口径见 electron/utils/resolvePaths.ts）
+      const indexPath = resolveRendererIndexPath()
+      logger.info('[WindowController] Loading production file from:', indexPath)
+      this.mainWindow.loadFile(indexPath).catch(err => {
+        logger.error('[WindowController] Failed to load file:', err)
         // 加载失败提示页面，避免用户看到空白窗口
-        this.mainWindow.loadURL(`data:text/html,<html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>应用资源加载失败</h2><p>未找到 index.html，请重新安装应用。</p></body></html>`)
-      }
+        void this.mainWindow?.loadURL(
+          'data:text/html,<html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>应用资源加载失败</h2><p>未找到 index.html，请重新安装应用。</p></body></html>'
+        )
+      })
     }
   }
 
@@ -306,11 +310,12 @@ export class WindowController {
       if (this.pendingShowTimer) return
       // 等待内容加载完成后再显示
       if (this.isContentReady) {
-        console.log('[WindowController] Showing window (content ready)')
+        // 每次显示窗口都会走到这里（托盘恢复/Alt+Tab 等），降级为 debug 避免刷屏
+        logger.debug('[WindowController] Showing window (content ready)')
         this.mainWindow.show()
         this.mainWindow.focus()
       } else {
-        console.log('[WindowController] Waiting for content to be ready...')
+        logger.debug('[WindowController] Waiting for content to be ready...')
         // 等待 ready-to-show 事件，最多重试 MAX_SHOW_RETRIES 次（10 秒），超时后强制显示
         let attempts = 0
         const showWhenReady = () => {
@@ -319,7 +324,7 @@ export class WindowController {
           if (!this.mainWindow || this.mainWindow.isDestroyed()) return
           if (this.isContentReady || attempts >= MAX_SHOW_RETRIES) {
             if (!this.isContentReady) {
-              console.warn('[WindowController] Timed out waiting for content, forcing show')
+              logger.warn('[WindowController] Timed out waiting for content, forcing show')
             }
             this.mainWindow.show()
             this.mainWindow.focus()
@@ -376,9 +381,9 @@ export class WindowController {
     try {
       // 原生主题始终生效
       nativeTheme.themeSource = target
-      console.log(`[WindowController] Window theme set to ${target}`)
+      logger.info(`[WindowController] Window theme set to ${target}`)
     } catch (error) {
-      console.error('[WindowController] Failed to set window theme:', error)
+      logger.error('[WindowController] Failed to set window theme:', error)
     }
   }
 }

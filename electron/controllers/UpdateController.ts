@@ -4,6 +4,12 @@ import * as path from 'path'
 import * as https from 'https'
 import * as crypto from 'crypto'
 import { URL } from 'url'
+// 版本比较已抽到 utils/version（纯函数，便于单测）
+import { compareVersions } from '../utils/version'
+import { createLogger } from '../utils/logger'
+
+// 本文件日志文案自带 [UpdateController] 前缀（历史风格），故 scope 传空避免前缀重复
+const logger = createLogger('')
 
 // 仓库信息与版本查询入口
 const GITHUB_REPO = 'Young-ZJ66/Aria2Desktop'
@@ -56,7 +62,7 @@ export class UpdateController {
     try {
       const { tag, notes } = await this.fetchLatestReleaseInfo()
       const latestVersion = tag.replace(/^v/i, '')
-      if (this.compareVersions(latestVersion, app.getVersion()) <= 0) {
+      if (compareVersions(latestVersion, app.getVersion()) <= 0) {
         this.sendToRenderer({ state: 'not-available' })
         return { success: true, hasUpdate: false }
       }
@@ -93,7 +99,7 @@ export class UpdateController {
     try {
       const { tag } = await this.fetchLatestReleaseInfo()
       const latestVersion = tag.replace(/^v/i, '')
-      if (this.compareVersions(latestVersion, app.getVersion()) <= 0) {
+      if (compareVersions(latestVersion, app.getVersion()) <= 0) {
         return { success: false, error: 'No update available' }
       }
       // 同版本已下载完成时直接复用，不重复下载
@@ -128,7 +134,8 @@ export class UpdateController {
       // 使用 app.exit() 而非 app.quit()：跳过 before-quit 中的 Aria2 优雅关闭（RPC shutdown + 等待退出），
       // 让进程立即退出。NSIS 安装程序会等待旧进程退出后才继续安装，
       // app.quit() 会触发耗时的优雅关闭导致安装程序与旧进程死锁。
-      // 新版本启动时会自行初始化 Aria2，无需在此保存会话。
+      // 注意：这里既不保存会话也不停引擎 —— 都由调用方（restart-and-install handler）在安装前补齐：
+      // 先 aria2.saveSession 落盘，再 fire-and-forget 地请求 aria2 关闭（否则它会成为孤儿进程占住 RPC 端口）。
       setTimeout(() => app.exit(0), 500)
       return { success: true }
     } catch (error) {
@@ -205,7 +212,7 @@ export class UpdateController {
     try {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
     } catch (error) {
-      console.warn('[UpdateController] Failed to clean temp installer:', error)
+      logger.warn('[UpdateController] Failed to clean temp installer:', error)
     }
   }
 
@@ -308,7 +315,7 @@ export class UpdateController {
     try {
       sha256Text = await this.fetchText(`${originalUrl}.sha256`)
     } catch (error) {
-      console.warn('[UpdateController] Checksum file unavailable, installer left unverified:',
+      logger.warn('[UpdateController] Checksum file unavailable, installer left unverified:',
         error instanceof Error ? error.message : error)
       return { checksumUnavailable: true }
     }
@@ -321,12 +328,27 @@ export class UpdateController {
     if (!/^[0-9a-f]{64}$/.test(expected)) {
       throw new Error('SHA-256 校验文件格式异常，已拒绝自动安装，请从 GitHub Release 手动下载')
     }
-    const actual = crypto.createHash('sha256').update(fs.readFileSync(installerPath)).digest('hex')
+    const actual = await this.computeSha256(installerPath)
     if (actual !== expected) {
       throw new Error(`SHA-256 校验失败：期望 ${expected.slice(0, 12)}…，实际 ${actual.slice(0, 12)}…`)
     }
-    console.log('[UpdateController] Installer checksum verified')
+    logger.info('[UpdateController] Installer checksum verified')
     return {}
+  }
+
+  /**
+   * 流式计算文件 SHA-256。
+   * 安装包 100MB 级，readFileSync 整包读入会占用大内存并同步阻塞主进程事件循环
+   * （校验期间 UI 冻结、IPC 无响应），故必须流式分块计算。
+   */
+  private computeSha256(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash('sha256')
+      const stream = fs.createReadStream(filePath)
+      stream.on('data', (chunk) => hash.update(chunk))
+      stream.on('error', reject)
+      stream.on('end', () => resolve(hash.digest('hex')))
+    })
   }
 
   /** GET 文本（用于拉取 .sha256）。GitHub 资产会 302 到 CDN，需手动跟随重定向，
@@ -375,19 +397,5 @@ export class UpdateController {
       method: 'GET',
       headers: { 'User-Agent': 'Aria2Desktop-Update' }
     }
-  }
-
-  /** 简单的语义化版本比较：a > b 返回 1，a < b 返回 -1，相等返回 0 */
-  private compareVersions(a: string, b: string): number {
-    const pa = a.split('.').map((n) => parseInt(n, 10) || 0)
-    const pb = b.split('.').map((n) => parseInt(n, 10) || 0)
-    const len = Math.max(pa.length, pb.length)
-    for (let i = 0; i < len; i++) {
-      const na = pa[i] || 0
-      const nb = pb[i] || 0
-      if (na > nb) return 1
-      if (na < nb) return -1
-    }
-    return 0
   }
 }

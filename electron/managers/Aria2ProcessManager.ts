@@ -1,10 +1,13 @@
 import { spawn, ChildProcess } from 'child_process'
 import * as net from 'net'
-import * as http from 'http'
 import { existsSync, statSync } from 'fs'
 import { app } from 'electron'
 import { ResourceManager } from '../utils/resourceManager'
 import { Aria2ConfigManager } from '../utils/aria2ConfigManager'
+import { callAria2Rpc, Aria2RpcError } from '../utils/aria2Rpc'
+import { createLogger } from '../utils/logger'
+
+const logger = createLogger('Aria2ProcessManager')
 
 /** Aria2 stdout 中不重要的日志模式（运行时噪音，无需转发） */
 const IGNORED_STDOUT_PATTERNS = [
@@ -81,7 +84,7 @@ export class Aria2ProcessManager {
     const setSessionKeyIfNeeded = (key: 'input-file' | 'save-session'): void => {
       const current = this.configManager.getConfigValue(key)
       if (current !== sessionPath) {
-        console.log(`设置会话文件路径: ${key} = ${sessionPath}${current ? `（原值: ${current}）` : ''}`)
+        logger.info(`设置会话文件路径: ${key} = ${sessionPath}${current ? `（原值: ${current}）` : ''}`)
         this.configManager.setConfigValue(key, sessionPath)
       }
     }
@@ -90,21 +93,21 @@ export class Aria2ProcessManager {
 
     // 清理曾被误写入、但当前 aria2c 不支持的选项残留，避免启动时 Unknown option 告警
     if (this.configManager.removeConfigKey('max-piece-length')) {
-      console.log('已从 aria2 配置文件移除不支持的 max-piece-length 选项')
+      logger.info('已从 aria2 配置文件移除不支持的 max-piece-length 选项')
     }
 
     // 不再验证或修改下载目录，完全交给Aria2处理
-    console.log('下载目录配置交给Aria2处理，不做任何修改')
+    logger.info('下载目录配置交给Aria2处理，不做任何修改')
   }
 
   public async start(): Promise<boolean> {
     if (this.process && !this.process.killed) {
-      console.log('Aria2 进程已经在运行')
+      logger.info('Aria2 进程已经在运行')
       return true
     }
 
     if (this.isStarting) {
-      console.log('Aria2 进程正在启动中')
+      logger.info('Aria2 进程正在启动中')
       return false
     }
 
@@ -124,7 +127,7 @@ export class Aria2ProcessManager {
         `--conf-path=${this.config.configPath}`
       ]
 
-      console.log('启动 Aria2:', this.config.executablePath, args.join(' '))
+      logger.info('启动 Aria2:', this.config.executablePath, args.join(' '))
 
       this.process = spawn(this.config.executablePath, args, {
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -137,28 +140,28 @@ export class Aria2ProcessManager {
       // 等待进程就绪：轮询探测 RPC 端口是否可连接，确保后续 RPC 调用可用
       await this.waitForRpcReady()
 
-      console.log('Aria2 进程启动成功, PID:', this.process?.pid)
+      logger.info('Aria2 进程启动成功, PID:', this.process?.pid)
       this.retryCount = 0
       this.stderrBuffer = [] // 清空历史错误，避免后续查询读到旧失败信息
       return true
 
     } catch (error) {
-      console.error('启动 Aria2 失败:', error)
+      logger.error('启动 Aria2 失败:', error)
 
       // 提供更详细的错误信息
       if (error instanceof Error) {
         if (error.message.includes('ENOENT')) {
-          console.error('错误原因: Aria2 可执行文件不存在')
+          logger.error('错误原因: Aria2 可执行文件不存在')
         } else if (error.message.includes('EACCES')) {
-          console.error('错误原因: 权限不足，无法启动 Aria2')
+          logger.error('错误原因: 权限不足，无法启动 Aria2')
         } else if (error.message.includes('EADDRINUSE')) {
-          console.error('错误原因: 端口已被占用')
+          logger.error('错误原因: 端口已被占用')
         } else if (error.message.includes('启动超时')) {
-          console.error('错误原因: Aria2 启动超时，可能是配置文件有问题')
+          logger.error('错误原因: Aria2 启动超时，可能是配置文件有问题')
         } else if (error.message.includes('RPC 服务启动失败')) {
-          console.error('错误原因: Aria2 RPC 服务启动失败，请检查配置文件')
+          logger.error('错误原因: Aria2 RPC 服务启动失败，请检查配置文件')
         } else {
-          console.error('错误原因:', error.message)
+          logger.error('错误原因:', error.message)
         }
       }
 
@@ -199,7 +202,7 @@ export class Aria2ProcessManager {
 
     // 超时但进程仍存活：宽容判定为成功（与旧行为兼容），仅记录警告
     if (this.process && !this.process.killed) {
-      console.warn(`Aria2 RPC 端口 ${port} 探测超时，进程仍在运行，视为启动成功`)
+      logger.warn(`Aria2 RPC 端口 ${port} 探测超时，进程仍在运行，视为启动成功`)
       return
     }
     throw new Error('Aria2 启动超时')
@@ -221,33 +224,18 @@ export class Aria2ProcessManager {
     })
   }
 
-  /** 通过轻量 JSON-RPC 调用（getVersion）验证 RPC 协议层就绪 */
-  private probeRpc(port: number, secret: string): Promise<boolean> {
-    return new Promise(resolve => {
-      const body = JSON.stringify({
-        jsonrpc: '2.0',
-        id: 'probe',
-        method: 'aria2.getVersion',
-        params: secret ? [`token:${secret}`] : []
-      })
-      const req = http.request({
-        hostname: '127.0.0.1',
-        port,
-        path: '/jsonrpc',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body)
-        }
-      }, (res) => {
-        let data = ''
-        res.on('data', (chunk) => { data += chunk })
-        res.on('end', () => resolve(data.includes('"jsonrpc"')))
-      })
-      req.setTimeout(1000, () => req.destroy())
-      req.on('error', () => resolve(false))
-      req.end(body)
-    })
+  /**
+   * 通过轻量 JSON-RPC 调用（getVersion）验证 RPC 协议层就绪。
+   * 协议层有响应即视为就绪（含密钥不匹配等 RPC 级错误）——本探测只判断
+   * "aria2 的 RPC 服务是否已起来"，避免密钥异常时误判未就绪而白等超时。
+   */
+  private async probeRpc(port: number, secret: string): Promise<boolean> {
+    try {
+      await callAria2Rpc({ port, secret, method: 'aria2.getVersion', timeoutMs: 1000 })
+      return true
+    } catch (error) {
+      return error instanceof Aria2RpcError
+    }
   }
 
   /** 等待端口释放（进程停止后 listen socket 立即释放，通常首轮即通过） */
@@ -257,7 +245,7 @@ export class Aria2ProcessManager {
       if (!(await this.probePort(port))) return
       await new Promise(resolve => setTimeout(resolve, 150))
     }
-    console.warn(`等待端口 ${port} 释放超时，继续后续操作`)
+    logger.warn(`等待端口 ${port} 释放超时，继续后续操作`)
   }
 
   private setupProcessHandlers(): void {
@@ -266,15 +254,16 @@ export class Aria2ProcessManager {
     this.process.stdout?.on('data', (data) => {
       const output = data.toString().trim()
       // 只输出有意义的内容，过滤空行和不重要的日志/RPC 相关输出
+      // 引擎 stdout 属高频细节（aria2 log-level 已设为 warn），降级 debug：仅开发/排查时可见，不污染生产控制台
       if (output && !output.match(/^\s*$/) && IGNORED_STDOUT_PATTERNS.every(p => !output.includes(p))) {
-        console.log('[Aria2 stdout]:', output)
+        logger.debug('[Aria2 stdout]', output)
       }
     })
 
     this.process.stderr?.on('data', (data) => {
       const error = data.toString().trim()
       if (error && !error.match(/^\s*$/)) {
-        console.error('[Aria2 stderr]:', error)
+        logger.error('[Aria2 stderr]:', error)
         this.stderrBuffer.push(error)
         // 只保留最近 30 行，避免长日志撑爆内存
         if (this.stderrBuffer.length > 30) this.stderrBuffer.shift()
@@ -282,7 +271,7 @@ export class Aria2ProcessManager {
     })
 
     this.process.on('error', (error) => {
-      console.error('Aria2 进程错误:', error)
+      logger.error('Aria2 进程错误:', error)
       // spawn 失败（如可执行文件不存在）时 exit 不会触发，此处清理进程引用
       if (!this.process?.pid) {
         this.process = null
@@ -290,7 +279,7 @@ export class Aria2ProcessManager {
     })
 
     this.process.on('exit', (code, signal) => {
-      console.log(`Aria2 进程退出: code=${code}, signal=${signal}`)
+      logger.info(`Aria2 进程退出: code=${code}, signal=${signal}`)
       this.handleProcessExit(code, signal)
     })
   }
@@ -300,28 +289,37 @@ export class Aria2ProcessManager {
 
     // 手动停止、正常退出或被信号终止时，不自动重启
     if (this.isStopping || code === 0 || signal === 'SIGTERM' || signal === 'SIGKILL') {
-      console.log('Aria2 进程正常退出')
+      logger.info('Aria2 进程正常退出')
       return
     }
 
     // 异常退出时自动重启（与 autoStart 无关，重试次数限制）
     if (this.retryCount < this.maxRetries) {
       this.retryCount++
-      console.log(`Aria2 进程异常退出，3秒后尝试第${this.retryCount}次重启`)
+      logger.info(`Aria2 进程异常退出，3秒后尝试第${this.retryCount}次重启`)
 
       this.restartTimer = setTimeout(() => {
         this.start().catch(error => {
-          console.error(`第${this.retryCount}次重启失败:`, error)
+          logger.error(`第${this.retryCount}次重启失败:`, error)
         })
       }, 3000)
     } else {
-      console.error('Aria2 进程重启次数超限，停止自动重启')
+      logger.error('Aria2 进程重启次数超限，停止自动重启')
     }
   }
 
   /** 注入优雅关闭钩子（RPC shutdown，触发 aria2 save-session） */
   public setGracefulShutdown(hook: () => Promise<void>): void {
     this.gracefulShutdownHook = hook
+  }
+
+  /**
+   * 立即将待写的配置修改落盘（绕过微任务合批延迟）。
+   * updateConfig 的写入默认由微任务异步落盘；若在 spawn 子进程前调用，
+   * 需先 flush 确保 aria2 读到的是最新配置（如首启自动生成的 rpc-secret）。
+   */
+  public flushConfig(): void {
+    this.configManager.flushSave()
   }
 
   /** 等待进程退出（轮询 exitCode），超时返回 false */
@@ -348,13 +346,13 @@ export class Aria2ProcessManager {
     }
 
     if (!this.process || this.process.killed) {
-      console.log('Aria2 进程未运行')
+      logger.info('Aria2 进程未运行')
       return true
     }
 
     this.isStopping = true
     try {
-      console.log('正在停止 Aria2 进程...')
+      logger.info('正在停止 Aria2 进程...')
 
       // 先尝试优雅关闭（RPC shutdown 会保存会话）；Windows 上直接发信号是强杀、不保存会话
       if (this.gracefulShutdownHook) {
@@ -363,9 +361,11 @@ export class Aria2ProcessManager {
           // RPC 关闭后等待进程自行退出
           if (await this.waitForExit(3000)) {
             this.process = null
-            console.log('Aria2 进程已通过 RPC 优雅停止')
+            logger.info('Aria2 进程已通过 RPC 优雅停止')
             return true
           }
+          // 等待超时：即将回退为强杀，aria2 可能来不及保存会话（排查会话丢失问题的关键线索）
+          logger.warn('RPC 关闭后 aria2 未在 3 秒内退出，回退为进程信号关闭（会话可能未保存）')
         } catch {
           // RPC 不可用时回退到进程信号关闭
         }
@@ -375,7 +375,7 @@ export class Aria2ProcessManager {
       const proc = this.process
       // 竞态兜底：等待期间进程恰好已退出（exit 处理器已清 this.process），视为停止成功
       if (!proc) {
-        console.log('Aria2 进程已在优雅关闭等待期间退出')
+        logger.info('Aria2 进程已在优雅关闭等待期间退出')
         this.process = null
         return true
       }
@@ -393,7 +393,7 @@ export class Aria2ProcessManager {
           // 强制终止
           const currentProc = this.process
           if (currentProc && !currentProc.killed) {
-            console.log('强制终止 Aria2 进程')
+            logger.info('强制终止 Aria2 进程')
             currentProc.kill('SIGKILL')
           }
           finish()
@@ -414,10 +414,10 @@ export class Aria2ProcessManager {
       })
 
       this.process = null
-      console.log('Aria2 进程已停止')
+      logger.info('Aria2 进程已停止')
       return true
     } catch (error) {
-      console.error('停止 Aria2 进程失败:', error)
+      logger.error('停止 Aria2 进程失败:', error)
       return false
     } finally {
       this.isStopping = false
@@ -426,6 +426,28 @@ export class Aria2ProcessManager {
 
   public isRunning(): boolean {
     return this.process !== null && !this.process.killed
+  }
+
+  /**
+   * 若 aria2 仍在运行则强制结束。
+   *
+   * **仅用于主进程异常退出前的兜底回收**（崩溃、`app.exit()` 等不经过 before-quit 的路径）：
+   * Windows 不会因父进程退出而回收子进程，否则 aria2 会变成孤儿继续占着 RPC 端口，
+   * 下次启动时自己的 aria2 会因端口占用而启动失败。
+   *
+   * 正在优雅停止中（isStopping）时直接跳过：那时 aria2 可能正在写会话文件，
+   * 强杀会把它截断——比"让它自己退完"更糟。
+   * 设计为同步返回：调用点在 `process.on('exit')` 里，只能执行同步操作，而 kill() 恰好是同步发信号。
+   */
+  public killIfRunning(): void {
+    if (this.isStopping) return
+
+    const child = this.process
+    // exitCode/signalCode 均为 null 才说明进程仍活着（已在退出中的不必再发信号）
+    if (child && child.exitCode === null && child.signalCode === null) {
+      logger.info('应用退出兜底：结束仍存活的 aria2 进程')
+      child.kill('SIGTERM')
+    }
   }
 
   /** 返回 aria2 stderr 最近若干行（启动失败时由控制器拼入错误信息，方便定位原因） */
@@ -493,7 +515,7 @@ export class Aria2ProcessManager {
     // 检查是否有需要重启才能生效的配置变更
     const needsRestart = this.checkIfRestartNeeded(oldConfig, this.config)
     if (needsRestart && this.isRunning()) {
-      console.log('检测到需要重启的配置变更，将自动重启 Aria2 服务')
+      logger.info('检测到需要重启的配置变更，将自动重启 Aria2 服务')
       // 保存定时器引用，stop() 时可取消，避免退出后复活子进程
       this.pendingRestartTimer = setTimeout(async () => {
         this.pendingRestartTimer = null
@@ -503,7 +525,7 @@ export class Aria2ProcessManager {
           // 执行重启
           await this.restart()
         } catch (error) {
-          console.error('自动重启 Aria2 失败:', error)
+          logger.error('自动重启 Aria2 失败:', error)
         }
       }, 1500) // 1.5 秒缓冲，确保配置文件完全写入后再重启
     }
@@ -527,7 +549,7 @@ export class Aria2ProcessManager {
         attempts++
 
         if (attempts >= maxAttempts) {
-          console.error('配置文件同步验证失败:', error)
+          logger.error('配置文件同步验证失败:', error)
           throw new Error('配置文件同步验证失败')
         }
 
@@ -549,11 +571,11 @@ export class Aria2ProcessManager {
 
   public async restart(): Promise<boolean> {
     if (this.isStarting) {
-      console.log('进程正在启动中，无法重启')
+      logger.info('进程正在启动中，无法重启')
       return false
     }
 
-    console.log('开始重启 Aria2 进程...')
+    logger.info('开始重启 Aria2 进程...')
 
     try {
       // 先停止进程（stop 内部会先走 RPC 优雅关闭，保存会话后再退出）
@@ -566,7 +588,7 @@ export class Aria2ProcessManager {
       await this.waitForProcessCleanup()
 
       // 等待端口释放（探活循环，通常瞬时完成，替代原先固定 2 秒等待）
-      console.log('等待端口完全释放...')
+      logger.info('等待端口完全释放...')
       await this.waitForPortRelease(this.config.port, 5000)
       await new Promise(resolve => setTimeout(resolve, 300))
 
@@ -576,10 +598,10 @@ export class Aria2ProcessManager {
         throw new Error('启动进程失败')
       }
 
-      console.log('Aria2 进程重启成功')
+      logger.info('Aria2 进程重启成功')
       return true
     } catch (error) {
-      console.error('重启 Aria2 进程失败:', error)
+      logger.error('重启 Aria2 进程失败:', error)
       return false
     }
   }
@@ -630,7 +652,7 @@ export class Aria2ProcessManager {
 
     for (const [key, value] of Object.entries(options)) {
       if (!KEY_NAME_PATTERN.test(key) || BLOCKED_OPTION_PATTERN.test(key)) {
-        console.warn(`[Aria2ProcessManager] Blocked unsafe global option: ${key}`)
+        logger.warn(`[Aria2ProcessManager] Blocked unsafe global option: ${key}`)
         continue
       }
       // 跳过空字符串值（表单占位/未设置项），避免把无意义默认值写进配置文件触发 Unknown option 警告

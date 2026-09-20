@@ -10,8 +10,26 @@ import { AppLifecycle } from './controllers/AppLifecycle'
 import { TrackerSubscriptionService } from './services/trackerSubscriptionService'
 import { SpeedScheduler } from './services/speedScheduler'
 import { appState } from './utils/appState'
-import { decryptSettingsSecrets } from './utils/secretCipher'
-import type { StoreData, AppSettings } from './types/store'
+import { bindSettingsStore, getSettings } from './utils/settingsAccessor'
+import { setupLogging, createLogger } from './utils/logger'
+import type { StoreData } from './types/store'
+
+// 日志初始化尽早执行：后续所有模块的日志都走统一出口（级别/落盘策略见 utils/logger.ts）
+setupLogging()
+const logger = createLogger('Main')
+
+// Windows：显式声明 AppUserModelID，让系统通知与任务栏分组归属到本应用。
+// 生产环境取值必须与 electron-builder 写入快捷方式的 AUMID 一致——已核实 NSIS 模板
+// (app-builder-lib/templates/nsis/include/installer.nsh) 用 WinShell::SetLnkAUMI "${APP_ID}"
+// 把开始菜单/桌面快捷方式设为 build.appId，故此处取 'com.aria2desktop.app'。
+// 硬编码属有意为之：运行期拿不到 build 配置，而值不一致只会静默失效；
+// 因此改动 package.json 的 build.appId 时必须同步这里。
+// 开发环境没有已注册的快捷方式，按 Electron 官方文档用 execPath。
+// 注意：这不会让开发模式的任务栏图标变成自定义图标（任务栏取的是 exe 内嵌图标 /
+// AUMID 关联快捷方式的图标），它解决的是通知归属与任务栏分组。
+if (process.platform === 'win32') {
+  app.setAppUserModelId(app.isPackaged ? 'com.aria2desktop.app' : process.execPath)
+}
 
 // ==========================================
 // 配置和路径设置
@@ -67,9 +85,9 @@ function migrateLegacyData(): void {
       if (!fs.existsSync(from) || fs.existsSync(to)) continue
       fs.mkdirSync(path.dirname(to), { recursive: true })
       fs.copyFileSync(from, to)
-      console.log(`[Migration] Migrated legacy data: ${from} -> ${to}`)
+      logger.info(`已迁移旧版数据: ${from} -> ${to}`)
     } catch (error) {
-      console.warn(`[Migration] Failed to migrate ${from}:`, error)
+      logger.warn(`迁移旧版数据失败 ${from}:`, error)
     }
   }
 
@@ -77,7 +95,7 @@ function migrateLegacyData(): void {
   try {
     fs.writeFileSync(flagFile, Date.now().toString(), 'utf-8')
   } catch (error) {
-    console.warn('[Migration] Failed to write migration flag:', error)
+    logger.warn('写入迁移标记失败:', error)
   }
 }
 
@@ -100,16 +118,20 @@ const store = new Store<StoreData>({
 // 安全说明：settings.aria2.secret 与 connectionProfiles[].config.secret 已通过 safeStorage
 // 加密存储（见 utils/secretCipher.ts），磁盘上不保存明文，并对旧明文数据透明兼容。
 
+// 绑定 settings 访问器：此后主进程统一经 utils/settingsAccessor 读/写 settings
+//（缓存与失效语义见该模块注释）。必须早于控制器实例化——未绑定即调用会直接抛错。
+bindSettingsStore(store)
+
 // ==========================================
 // 控制器初始化
 // ==========================================
 
 const windowController = new WindowController(store)
 const trayController = new TrayController(windowController)
-const aria2Controller = new Aria2Controller(store, windowController)
+const aria2Controller = new Aria2Controller(windowController)
 const ipcController = new IpcController(windowController, trayController, aria2Controller, store)
 const trackerSubscriptionService = new TrackerSubscriptionService(store, aria2Controller, windowController)
-const speedScheduler = new SpeedScheduler(store)
+const speedScheduler = new SpeedScheduler()
 
 // 创建 AppLifecycle 协调器
 const appLifecycle = new AppLifecycle(
@@ -171,7 +193,7 @@ if (!gotTheLock) {
   })
 
   app.whenReady().then(async () => {
-    console.log('App ready, starting initialization...')
+    logger.info('应用就绪，开始初始化...')
 
     try {
       // 注册 Tracker 订阅相关的 IPC（独立于 settings 页面的连接状态，随时可用）
@@ -189,20 +211,20 @@ if (!gotTheLock) {
         setTimeout(() => sendPendingUrl(startupUrl), 1000)
       }
 
-      console.log('Application initialized successfully')
+      logger.info('应用初始化完成')
     } catch (error) {
-      console.error('Application initialization failed:', error)
+      logger.error('应用初始化失败:', error)
       // 如果初始化严重失败，退出应用
       app.quit()
     }
   })
 
   app.on('window-all-closed', () => {
-    const settings = decryptSettingsSecrets(store.get('settings', {}) as AppSettings)
+    const settings = getSettings()
     const minimizeToTray = settings.minimizeToTray !== false
     const platform = process.platform
 
-    console.log('All windows closed', { minimizeToTray, platform })
+    logger.info('所有窗口已关闭', { minimizeToTray, platform })
 
     if (platform === 'darwin' || minimizeToTray) {
       return
@@ -228,24 +250,30 @@ if (!gotTheLock) {
     appState.markQuitting()
     appState.markShutdownStarted()
 
-    console.log('App quitting, starting graceful shutdown...')
+    logger.info('应用退出中，开始优雅关闭...')
 
     try {
       await appLifecycle.shutdown()
       // 关闭 Tracker 订阅定时器，避免退出阻塞
       trackerSubscriptionService.shutdown()
       speedScheduler.stop()
-      console.log('Graceful shutdown complete')
+      logger.info('优雅关闭完成')
     } catch (error) {
-      console.error('Shutdown error:', error)
+      logger.error('优雅关闭出错:', error)
     } finally {
       app.quit()
     }
   })
 
   // 处理信号：直接触发 quit，由 before-quit 执行优雅关闭
-  process.on('SIGINT', () => {
+  // SIGINT: Ctrl+C（开发/终端启动）；SIGTERM: 容器/服务管理器停止；SIGHUP: 终端断开（POSIX）
+  const handleTerminationSignal = () => {
     app.quit()
-  })
+  }
+  process.on('SIGINT', handleTerminationSignal)
+  process.on('SIGTERM', handleTerminationSignal)
+  if (process.platform !== 'win32') {
+    process.on('SIGHUP', handleTerminationSignal)
+  }
 }
 

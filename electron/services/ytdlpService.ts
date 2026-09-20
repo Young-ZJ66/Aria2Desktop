@@ -6,6 +6,7 @@
 
 import { spawn } from 'child_process'
 import { app } from 'electron'
+import * as path from 'path'
 
 /** yt-dlp 元信息（精简版） */
 export interface YtdlpVideoInfo {
@@ -84,6 +85,11 @@ export async function getVideoInfo(url: string): Promise<{ success: boolean; inf
 
 /** 获取指定格式的直接下载 URL */
 export async function getFormatUrl(url: string, formatId: string): Promise<{ success: boolean; downloadUrl?: string; title?: string; ext?: string; error?: string }> {
+  // formatId 直接拼入 -f 参数：校验只允许 yt-dlp 合法格式标识字符，
+  // 防止以 "--" 开头的值被 yt-dlp 误解析为命令行选项（参数注入）
+  if (!/^[A-Za-z0-9+._-]+$/.test(formatId)) {
+    return { success: false, error: 'Invalid format id' }
+  }
   try {
     const args = [
       '--dump-json',
@@ -119,6 +125,13 @@ function execYtdlp(args: string[]): Promise<string> {
       windowsHide: true
     })
 
+    // 30 秒超时看门狗（进程退出/报错时清理，避免正常完成后计时器残留）
+    const watchdog = setTimeout(() => {
+      proc.kill('SIGKILL')
+      reject(new Error('yt-dlp 执行超时'))
+    }, 30000)
+    const clearWatchdog = () => clearTimeout(watchdog)
+
     let stdout = ''
     let stderr = ''
 
@@ -126,6 +139,7 @@ function execYtdlp(args: string[]): Promise<string> {
     proc.stderr?.on('data', (data) => { stderr += data.toString() })
 
     proc.on('error', (err) => {
+      clearWatchdog()
       if (err.message.includes('ENOENT')) {
         reject(new Error('yt-dlp 未安装。请安装 yt-dlp 并确保在系统 PATH 中。'))
       } else {
@@ -134,25 +148,19 @@ function execYtdlp(args: string[]): Promise<string> {
     })
 
     proc.on('exit', (code) => {
+      clearWatchdog()
       if (code === 0) {
         resolve(stdout)
       } else {
         reject(new Error(stderr || `yt-dlp exited with code ${code}`))
       }
     })
-
-    // 30 秒超时
-    setTimeout(() => {
-      proc.kill('SIGKILL')
-      reject(new Error('yt-dlp 执行超时'))
-    }, 30000)
   })
 }
 
 function getYtdlpPath(): string {
   // 优先使用打包目录下的 yt-dlp
   if (app.isPackaged) {
-    const path = require('path')
     const exe = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
     return path.join(process.resourcesPath, 'yt-dlp', exe)
   }

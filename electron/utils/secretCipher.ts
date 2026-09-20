@@ -1,5 +1,10 @@
 import { safeStorage } from 'electron'
+import { createLogger } from './logger'
 import type { AppSettings } from '../types/store'
+
+// 本文件日志文案自带 [SecretCipher] 前缀（历史风格），故 scope 传空避免前缀重复
+// 注意：这里只记录失败原因，绝不打印密钥明文/密文（安全红线）
+const logger = createLogger('')
 
 /**
  * RPC secret 的 safeStorage 加解密工具。
@@ -22,7 +27,7 @@ let warnedUnavailable = false
 function warnEncryptionUnavailable(): void {
   if (warnedUnavailable) return
   warnedUnavailable = true
-  console.warn(
+  logger.warn(
     '[SecretCipher] safeStorage 不可用（系统密钥环缺失，常见于 Linux），RPC secret 将以明文存储。'
   )
 }
@@ -39,7 +44,7 @@ export function encryptSecret(plaintext: string): string {
       return CIPHER_PREFIX + safeStorage.encryptString(plaintext).toString('base64')
     }
   } catch (error) {
-    console.warn('[SecretCipher] 加密 RPC secret 失败，回退明文存储:', error)
+    logger.warn('[SecretCipher] 加密 RPC secret 失败，回退明文存储:', error)
   }
   warnEncryptionUnavailable()
   return plaintext
@@ -58,7 +63,7 @@ export function decryptSecret(stored: string): string {
       return safeStorage.decryptString(Buffer.from(stored.slice(CIPHER_PREFIX.length), 'base64'))
     }
   } catch (error) {
-    console.warn('[SecretCipher] 解密 RPC secret 失败:', error)
+    logger.warn('[SecretCipher] 解密 RPC secret 失败:', error)
   }
   warnEncryptionUnavailable()
   return stored

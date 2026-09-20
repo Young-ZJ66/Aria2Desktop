@@ -1,6 +1,10 @@
 import Store from 'electron-store'
 import { EventEmitter } from 'events'
+import { createLogger } from './logger'
 import type { StoreData } from '../types/store'
+
+// 本文件日志文案自带 [ConfigWatcher] 前缀（历史风格），故 scope 传空避免前缀重复
+const logger = createLogger('')
 
 export interface ConfigChangeEvent {
   key: string
@@ -26,7 +30,7 @@ export class ConfigWatcher extends EventEmitter {
    */
   watch(key: string, callback: (newValue: unknown, oldValue: unknown) => void) {
     if (this.configListeners.has(key)) {
-      console.warn(`[ConfigWatcher] Key "${key}" is already being watched`)
+      logger.warn(`[ConfigWatcher] Key "${key}" is already being watched`)
       return
     }
 

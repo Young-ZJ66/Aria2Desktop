@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, clipboard } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import type { Aria2UpdateConfig } from '../src/shared/electronBridge'
 import type { UpdateStatus } from '../src/types/electron'
 
@@ -22,6 +22,14 @@ const electronAPI = {
   openPath: (path: string) => ipcRenderer.invoke('open-path', path),
   openInExplorer: (path: string) => ipcRenderer.invoke('open-in-explorer', path),
   deleteFiles: (paths: string[], taskDir?: string) => ipcRenderer.invoke('delete-files', paths, taskDir),
+
+  // 下载文件名探测（网盘直链/跳转链接的 URL 无文件名，分类需要从响应头拿真实文件名）
+  probeDownloadName: (url: string) => ipcRenderer.invoke('download-probe-filename', url),
+
+  // 下载重名处理：目标文件已存在且无 .aria2 控制文件时，返回带序号的空闲文件名
+  //（continue=true 下 aria2 会把同名完整文件当作已完成而秒结束，auto-file-renaming 不会生效）
+  resolveDownloadConflict: (dir: string, fileName: string) =>
+    ipcRenderer.invoke('resolve-download-conflict', dir, fileName),
 
   // 托盘控制
   setTrayEnabled: (enabled: boolean) => ipcRenderer.invoke('set-tray-enabled', enabled),
@@ -79,11 +87,9 @@ const electronAPI = {
   // 平台信息（值而非函数：平台在进程生命周期内不变，直接暴露简化渲染层访问）
   platform: process.platform,
 
-  // 剪贴板读取（preload 进程可直接访问 electron clipboard 模块）
-  readClipboard: (): string => {
-    try { return clipboard.readText() || '' }
-    catch { return '' }
-  },
+  // 剪贴板读取（经主进程 IPC：sandbox:true 下 preload 不可直接使用 clipboard 模块，
+  // 官方白名单仅含 contextBridge/crashReporter/ipcRenderer/nativeImage/webFrame/webUtils）
+  readClipboard: (): Promise<string> => ipcRenderer.invoke('read-clipboard'),
 
   // 系统通知（通过主进程 Electron Notification API）
   sendNotification: (title: string, body: string) => ipcRenderer.invoke('send-notification', title, body),
@@ -112,8 +118,9 @@ const electronAPI = {
   notifyAppReady: () => ipcRenderer.send('app-ready'),
 
   // 窗口控制
-  minimize: () => ipcRenderer.send('window-minimize'),
-  maximize: () => ipcRenderer.send('window-maximize'),
+  // 注：原先还暴露了 window-minimize / window-maximize，但主进程从未注册对应 handler、
+  // 渲染层也无任何调用者（纯死通道），故一并删除。需要时再补 handler 与暴露。
+  // close 的语义是"退出应用"（主进程 window-close 会走 app.quit），用于"下载完成后关闭应用"。
   close: () => ipcRenderer.send('window-close'),
 
   // 系统电源操作（下载完成后自动关机/休眠）

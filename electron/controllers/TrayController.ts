@@ -1,8 +1,11 @@
 import { Tray, Menu, app, nativeImage } from 'electron'
-import { join } from 'path'
-import * as fs from 'fs'
 import { WindowController } from './WindowController'
 import { appState } from '../utils/appState'
+import { resolveAppIconPath } from '../utils/resolvePaths'
+import { createLogger } from '../utils/logger'
+
+// 本文件日志文案自带 [TrayController] 前缀（历史风格），故 scope 传空避免前缀重复
+const logger = createLogger('')
 
 export class TrayController {
   private tray: Tray | null = null
@@ -16,7 +19,7 @@ export class TrayController {
     if (this.tray) return
 
     const iconPath = this.getIconPath()
-    console.log('[TrayController] Creating tray with icon:', iconPath)
+    logger.info('[TrayController] Creating tray with icon:', iconPath)
 
     try {
       // 图标路径不存在时回退到空图像，避免 Tray 构造抛错
@@ -25,24 +28,13 @@ export class TrayController {
       this.setupEventHandlers()
       this.tray.setToolTip('Aria2 Desktop')
     } catch (error) {
-      console.error('Failed to create tray:', error)
+      logger.error('Failed to create tray:', error)
     }
   }
 
   private getIconPath(): string | null {
-    if (process.env.NODE_ENV === 'development') {
-      return join(process.cwd(), 'build/Icon.ico')
-    }
-
-    const possiblePaths = [
-      join(process.resourcesPath, 'build', 'Icon.ico'),
-      join(process.resourcesPath, 'app.asar.unpacked', 'build', 'Icon.ico'),
-      join(process.resourcesPath, 'Icon.ico'),
-      join(__dirname, '../../build/Icon.ico'),
-      join(__dirname, '../../../build/Icon.ico')
-    ]
-
-    return possiblePaths.find(p => fs.existsSync(p)) || null
+    // 图标路径口径统一在 resolvePaths（此前这里维护了 5 个候选路径，绝大多数永不命中）
+    return resolveAppIconPath()
   }
 
   private setupContextMenu() {
@@ -100,7 +92,7 @@ export class TrayController {
     if (this.tray) {
       this.tray.destroy()
       this.tray = null
-      console.log('[TrayController] Tray destroyed')
+      logger.info('[TrayController] Tray destroyed')
     }
   }
 }
