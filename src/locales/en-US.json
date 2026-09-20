@@ -198,6 +198,10 @@
       "programs": "Programs"
     },
     "saveTo": "Will be saved to",
+    "autoClassifyFailed": "File type cannot be detected from the link: the real file name will be probed on submit, otherwise it goes to the folder above",
+    "conflictTitle": "File already exists",
+    "conflictContent": "\"{name}\" already exists in the target folder. Download a new numbered copy? Choose Cancel to skip creating the task.",
+    "conflictNewCopy": "Download as new copy",
     "selectDir": "Select Directory",
     "selectDirTitle": "Select Save Directory",
     "fileName": "File Name",

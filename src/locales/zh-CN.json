@@ -198,6 +198,10 @@
       "programs": "程序"
     },
     "saveTo": "将保存到",
+    "autoClassifyFailed": "未能从链接识别文件类型：提交时将尝试获取真实文件名，失败则下载到上述目录",
+    "conflictTitle": "文件已存在",
+    "conflictContent": "目标目录中已存在「{name}」。要下载一份带序号的新副本吗？选择「取消」将不创建任务。",
+    "conflictNewCopy": "下载为新副本",
     "selectDir": "选择目录",
     "selectDirTitle": "选择保存目录",
     "fileName": "文件名",
