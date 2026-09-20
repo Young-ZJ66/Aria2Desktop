@@ -4,6 +4,7 @@ import { Aria2Service } from '@/services/aria2Service'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useStatsStore } from '@/stores/statsStore'
+import { isLocalEngineAddress } from '@/shared/localEngine'
 import type { Aria2Config, ConnectionProfile } from '@/types/aria2'
 
 const DEFAULT_CONFIG: Aria2Config = {
@@ -12,6 +13,28 @@ const DEFAULT_CONFIG: Aria2Config = {
   protocol: 'http',
   secret: '',
   path: '/jsonrpc'
+}
+
+/**
+ * 让指向本机引擎的连接预设与引擎密钥保持一致。
+ *
+ * 为什么需要：本地引擎的 rpc-secret 由主进程负责（首启自动生成，写入 aria2.conf 与
+ * settings.aria2.secret）。连接预设的密钥可能与之脱节，典型场景：
+ *  - 首次安装：预设来自 defaultSettings（secret: ''）
+ *  - 用户在「RPC 安全设置」页改了密钥（写 conf），预设仍是旧值
+ * 两种情况下前端都会用错误的 token 连接，表现为"授权失败、无法连接"。
+ *
+ * 规则：仅当"本机地址 + 与本地引擎同端口 + 引擎侧确有密钥"时，把预设密钥对齐为引擎密钥；
+ * 用户自建的远程预设、以及引擎本身无密钥的情况都不改动。
+ */
+function alignLocalEngineSecret(
+  config: Aria2Config,
+  aria2Settings?: { secret?: string; port?: number }
+): Aria2Config {
+  const secret = aria2Settings?.secret || ''
+  if (!secret) return config
+  if (!isLocalEngineAddress(config.host, config.port, aria2Settings?.port)) return config
+  return config.secret === secret ? config : { ...config, secret }
 }
 
 export const useConnectionStore = defineStore('connection', () => {
@@ -38,17 +61,21 @@ export const useConnectionStore = defineStore('connection', () => {
   // 从设置加载配置预设（含旧版 aria2 配置迁移）
   function loadProfiles() {
     const settingsStore = useSettingsStore()
+    const aria2Settings = settingsStore.settings?.aria2
     const saved = settingsStore.settings?.connectionProfiles
     if (saved && saved.length > 0) {
       profiles.value = saved.map(p => ({
         id: p.id,
         name: p.name,
-        config: { ...DEFAULT_CONFIG, ...p.config }
+        // 对齐本机引擎密钥，避免"引擎要 token、前端不发/发旧 token"导致连不上
+        config: alignLocalEngineSecret({ ...DEFAULT_CONFIG, ...p.config }, aria2Settings)
       }))
     } else {
       // 迁移：首次使用多配置时，用旧版 aria2 连接设置填充默认预设
-      const legacy = settingsStore.settings?.aria2
-      const migratedConfig = legacy ? { ...DEFAULT_CONFIG, ...legacy } : { ...DEFAULT_CONFIG }
+      const migratedConfig = alignLocalEngineSecret(
+        { ...DEFAULT_CONFIG, ...(aria2Settings || {}) },
+        aria2Settings
+      )
       profiles.value = [
         { id: 'default', name: '', config: migratedConfig }
       ]

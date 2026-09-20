@@ -6,12 +6,20 @@
     :on-update:show="handleShowChange"
   >
     <n-drawer-content :title="t('task.taskDetail')" closable>
-      <template #header-extra>
-        <n-button size="small" quaternary @click="refresh">
-          <template #icon>
-            <n-icon><RefreshOutline /></n-icon>
-          </template>
-        </n-button>
+      <!--
+        注：n-drawer-content **没有 header-extra 插槽**（只支持 default/header/footer），
+        此前误用该插槽名，刷新按钮实际上从未渲染出来。改用 #header，
+        并自行带上标题文本——提供了 header 插槽后，默认标题就不再显示了。
+      -->
+      <template #header>
+        <div class="drawer-header">
+          <span>{{ t('task.taskDetail') }}</span>
+          <n-button size="small" quaternary @click="refresh">
+            <template #icon>
+              <n-icon><RefreshOutline /></n-icon>
+            </template>
+          </n-button>
+        </div>
       </template>
 
       <n-spin :show="loading">
@@ -294,6 +302,14 @@ function getUriStatusText(status: string): string {
 </script>
 
 <style scoped>
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
 .task-detail-content {
   padding: 8px 0;
 }

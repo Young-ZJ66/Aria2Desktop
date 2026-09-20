@@ -250,7 +250,8 @@ async function selectLogFile() {
     })
 
     if (!result.canceled && result.filePaths.length > 0) {
-      form.log = result.filePaths[0]
+      // 长度已校验，`?? ''` 只是满足 noUncheckedIndexedAccess
+      form.log = result.filePaths[0] ?? ''
     }
   } catch (_error) {
     message.error(t('settings.selectFileFailed'))

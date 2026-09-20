@@ -686,9 +686,10 @@ const selectedCategoryId = ref(CATEGORY_GENERAL)
 
 function loadCategoryConfig() {
   const cfg = settingsStore.categoryConfig
-  categoryAutoClassify.value = cfg.autoClassify
+  // ?? 默认值：设置项缺失时与 defaultSettings 保持一致（autoClassify 默认开启、分类列表默认空）
+  categoryAutoClassify.value = cfg.autoClassify ?? true
   categoryItems.length = 0
-  for (const c of cfg.categories) {
+  for (const c of cfg.categories ?? []) {
     categoryItems.push({ id: c.id, dir: c.dir, extensions: [...c.extensions], customDir: c.customDir })
   }
 }
@@ -833,7 +834,8 @@ async function selectDirectory() {
     })
 
     if (!result.canceled && result.filePaths.length > 0) {
-      settings.dir = result.filePaths[0]
+      // 长度已校验，`?? ''` 只是满足 noUncheckedIndexedAccess
+      settings.dir = result.filePaths[0] ?? ''
     }
   } catch (_error) {
     message.error(t('settings.download.selectDirFailed'))

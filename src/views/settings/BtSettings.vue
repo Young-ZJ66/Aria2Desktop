@@ -12,10 +12,10 @@
     @reload="loadSettings"
     @reset="handleReset"
   >
+    <!-- 注：原先这里写有 ref="formRef" 与 :rules="rules"，但脚本中并不存在这两个变量（悬空引用，
+         实际传的是 undefined）。本页数值项都由输入框自身的 min/max 约束，无需校验规则，故一并去掉。 -->
     <n-form
-      ref="formRef"
       :model="settings"
-      :rules="rules"
       label-placement="left"
       :label-width="180"
       label-align="left"
@@ -624,7 +624,8 @@ async function selectDhtFile(field: 'dhtFilePath' | 'dhtFilePath6') {
     })
 
     if (!result.canceled && result.filePaths.length > 0) {
-      settings[field] = result.filePaths[0]
+      // 长度已校验，`?? ''` 只是满足 noUncheckedIndexedAccess
+      settings[field] = result.filePaths[0] ?? ''
     }
   } catch (_error) {
     message.error(t('settings.selectFileFailed'))

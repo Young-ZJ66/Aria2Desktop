@@ -411,7 +411,8 @@ async function selectFile(field: 'caCertificate' | 'certificate' | 'privateKey',
     })
 
     if (!result.canceled && result.filePaths.length > 0) {
-      form[field] = result.filePaths[0]
+      // 长度已校验，`?? ''` 只是满足 noUncheckedIndexedAccess
+      form[field] = result.filePaths[0] ?? ''
     }
   } catch (_error) {
     message.error(t('settings.selectFileFailed'))

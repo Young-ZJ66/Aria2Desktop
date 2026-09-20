@@ -299,16 +299,11 @@ const refreshIntervalOptions = computed(() => [
   { label: t('generalSettings.refreshInterval10s'), value: 10000 }
 ])
 
-// 监听设置变化
-watch(() => settingsStore.settings, (newSettings) => {
-  Object.assign(form, {
-    language: newSettings.language,
-    theme: newSettings.theme,
-    refreshInterval: newSettings.refreshInterval,
-    autoConnect: newSettings.autoConnect,
-    minimizeToTray: newSettings.minimizeToTray,
-    autoLaunch: newSettings.autoLaunch
-  })
+// 监听设置变化：统一委托 loadFormData()，避免"逐字段列举"时漏字段。
+// 历史上这里漏了 downloadCompleteAction —— 下拉框永远停留在初始值「不操作」，
+// 而磁盘上的真实值是「关闭应用」，用户据此以为已设置不操作，功能却按真实值执行。
+watch(() => settingsStore.settings, () => {
+  loadFormData()
 }, { immediate: true, deep: true })
 
 // 加载表单数据
@@ -425,14 +420,14 @@ async function resetSettings() {
         // 应用主题（因为主题可能被重置了）
         settingsStore.applyTheme()
 
-        // 控制托盘（根据重置后的设置）
+        // 控制托盘（根据重置后的设置）；`?? 默认值` 兜住设置项缺失的情况（与 defaultSettings 一致）
         if (window.electronAPI?.setTrayEnabled) {
-          await window.electronAPI.setTrayEnabled(settingsStore.settings.minimizeToTray)
+          await window.electronAPI.setTrayEnabled(settingsStore.settings.minimizeToTray ?? true)
         }
 
         // 同步开机自启（重置后默认关闭）
         if (window.electronAPI?.setAutoLaunch) {
-          await window.electronAPI.setAutoLaunch(settingsStore.settings.autoLaunch)
+          await window.electronAPI.setAutoLaunch(settingsStore.settings.autoLaunch ?? false)
         }
 
         message.success(t('generalSettings.resetDone'))
@@ -598,8 +593,8 @@ async function handleAutoLaunchChange() {
     }
   } catch (error) {
     console.error('Auto launch change error:', error)
-    // 恢复开关状态
-    form.autoLaunch = settingsStore.settings.autoLaunch
+    // 恢复开关状态（设置项缺失时回落到默认值 false）
+    form.autoLaunch = settingsStore.settings.autoLaunch ?? false
     message.error(t('generalSettings.autoLaunchFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
   }
 }

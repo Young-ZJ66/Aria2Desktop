@@ -110,11 +110,14 @@ onMounted(() => {
   if (props.showActions && pageRef.value && actionsRef.value) {
     scrollContainer = findScrollContainer(pageRef.value)
     if (scrollContainer) {
+      // 捕获为局部常量：闭包里 TS 无法保证外部 let 变量仍非空
+      const container = scrollContainer
       // 底部操作按钮不可见时显示悬浮栏；一旦按钮进入视口（含到达底部）立即隐藏，避免下滑闪烁
       actionsObserver = new IntersectionObserver(([entry]) => {
-        const scrollable = scrollContainer.scrollHeight > scrollContainer.clientHeight + 4
+        if (!entry) return
+        const scrollable = container.scrollHeight > container.clientHeight + 4
         showFloatActions.value = scrollable && !entry.isIntersecting
-      }, { root: scrollContainer, threshold: 0 })
+      }, { root: container, threshold: 0 })
       actionsObserver.observe(actionsRef.value)
     }
   }

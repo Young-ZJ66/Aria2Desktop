@@ -153,7 +153,10 @@ const settings = reactive({
   rpcListenAll: false,
   rpcSecret: '',
   rpcAllowOriginAll: true,
-  rpcMaxRequestSize: '2M',
+  // 注意：schema 里该字段是 type:'size'（unit:'M'），表单模型持有的是**数字**（MB），
+  // 与 aria2 的 '2M' 由 useSettingSchema 互相转换；此前初值写成字符串 '2M'，
+  // 会导致未加载引擎选项时数字输入框为空、且校验（type:'number'）不通过。
+  rpcMaxRequestSize: 2,
   rpcSaveUploadMetadata: true,
   rpcCertificate: '',
   rpcPrivateKey: '',
@@ -231,7 +234,8 @@ async function selectFile(field: 'rpcCertificate' | 'rpcPrivateKey', title: stri
     })
 
     if (!result.canceled && result.filePaths.length > 0) {
-      settings[field] = result.filePaths[0]
+      // 长度已校验，`?? ''` 只是满足 noUncheckedIndexedAccess
+      settings[field] = result.filePaths[0] ?? ''
     }
   } catch (_error) {
     message.error(t('settings.selectFileFailed'))

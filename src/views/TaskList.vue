@@ -93,7 +93,7 @@
     <DeleteTaskDialog
       v-model="showBatchDeleteDialog"
       :tasks="tasksToDelete"
-      :task-name="tasksToDelete.length === 1 ? getTaskDisplayName(tasksToDelete[0]) : undefined"
+      :task-name="tasksToDelete.length === 1 ? getTaskDisplayName(tasksToDelete[0] as Aria2Task) : undefined"
       :task-type="taskType"
       :loading="batchDeleting"
       @confirm="handleBatchDeleteConfirm"
@@ -586,7 +586,7 @@ async function openTaskLocation(task: Aria2Task) {
     if (window.electronAPI.openInExplorer) {
       if (task.files && task.files.length > 0) {
         const firstFile = task.files[0]
-        if (firstFile.path) {
+        if (firstFile?.path) {
           result = await window.electronAPI.openInExplorer(firstFile.path)
           if (result?.success) {
             message.success(t('task.openedLocation'))
@@ -603,7 +603,7 @@ async function openTaskLocation(task: Aria2Task) {
 
     if (task.files && task.files.length > 0) {
       const firstFile = task.files[0]
-      if (firstFile.path) {
+      if (firstFile?.path) {
         result = await window.electronAPI.showItemInFolder(firstFile.path)
         if (result?.success) {
           message.success(t('task.openedLocation'))

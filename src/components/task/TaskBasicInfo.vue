@@ -24,7 +24,7 @@
         </n-descriptions-item>
 
         <n-descriptions-item v-if="task.files?.length" :label="t('task.fileName')">
-          <span class="file-name-text">{{ getFileName(task.files[0].path) }}</span>
+          <span class="file-name-text">{{ getFileName(firstFilePath) }}</span>
         </n-descriptions-item>
 
         <n-descriptions-item :label="t('task.size')">{{ formatSize(task.totalLength) }}</n-descriptions-item>
@@ -65,8 +65,8 @@
 
         <n-descriptions-item v-if="task.files?.length" :label="t('taskDetail.filePath')" :span="2">
           <div class="path-with-action">
-            <div class="mono-block">{{ task.files[0].path }}</div>
-            <n-button v-if="isElectron" size="tiny" quaternary circle :title="t('task.openLocation')" @click="openFileInFolder(task.files[0].path)">
+            <div class="mono-block">{{ firstFilePath }}</div>
+            <n-button v-if="isElectron" size="tiny" quaternary circle :title="t('task.openLocation')" @click="openFileInFolder(firstFilePath)">
               <template #icon>
                 <n-icon><FolderOpenOutline /></n-icon>
               </template>
@@ -76,8 +76,8 @@
 
         <n-descriptions-item v-if="taskUris.length" :label="t('taskDetail.downloadUrl')" :span="2">
           <div class="path-with-action">
-            <div class="mono-block uri-text">{{ taskUris[0].uri }}</div>
-            <n-button size="tiny" quaternary circle :title="t('taskDetail.copyLink')" :aria-label="t('taskDetail.copyLink')" @click="copyUri(taskUris[0].uri)">
+            <div class="mono-block uri-text">{{ firstUri }}</div>
+            <n-button size="tiny" quaternary circle :title="t('taskDetail.copyLink')" :aria-label="t('taskDetail.copyLink')" @click="copyUri(firstUri)">
               <template #icon>
                 <n-icon><CopyOutline /></n-icon>
               </template>
@@ -92,7 +92,7 @@
 
       <!-- 文件操作按钮 -->
       <div v-if="task.files?.length && task.status === 'complete'" class="file-actions">
-        <n-button v-if="isElectron" size="small" type="primary" ghost @click="openFileInFolder(task.files[0].path)">
+        <n-button v-if="isElectron" size="small" type="primary" ghost @click="openFileInFolder(firstFilePath)">
           <template #icon>
             <n-icon><FolderOpenOutline /></n-icon>
           </template>
@@ -162,6 +162,14 @@ const props = defineProps<Props>()
 const { t } = useI18n()
 
 const progressPercent = computed(() => getProgress(props.task))
+
+/**
+ * 首个文件路径 / 首个下载链接。
+ * 模板里多处引用 `files[0]` / `taskUris[0]`，外层虽已用 v-if 保证存在，
+ * 但 noUncheckedIndexedAccess 下直接索引会被判为可能 undefined，故统一在这里兜底空串。
+ */
+const firstFilePath = computed(() => props.task.files?.[0]?.path ?? '')
+const firstUri = computed(() => props.taskUris[0]?.uri ?? '')
 
 const progressClass = computed(() => {
   switch (props.task.status) {

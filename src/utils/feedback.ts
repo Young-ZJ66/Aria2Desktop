@@ -51,7 +51,9 @@ function getDiscreteApi(): DiscreteApi {
 export const message = {
   success: (content: string, options?: MessageOptions) => getDiscreteApi().message.success(content, options),
   error: (content: string, options?: MessageOptions) => getDiscreteApi().message.error(content, options),
-  warning: (content: string, options?: MessageOptions) => getDiscreteApi().message.warning(content, options)
+  warning: (content: string, options?: MessageOptions) => getDiscreteApi().message.warning(content, options),
+  /** 中性提示（如"未检测到系统代理"、"语言已切换"）。此前漏了该方法，调用处会直接抛 "message.info is not a function" */
+  info: (content: string, options?: MessageOptions) => getDiscreteApi().message.info(content, options)
 }
 
 export interface ConfirmOptions {
@@ -64,6 +66,14 @@ export interface ConfirmOptions {
   /** 返回 false 时保持弹窗不关闭（与 Naive UI 语义一致）；支持异步回调 */
   onPositiveClick?: () => void | boolean | Promise<void | boolean>
   onNegativeClick?: () => void
+  /**
+   * 点右上角关闭按钮时的回调（可选）。
+   * 用于"必须知道用户直接关掉了弹窗"的场景（如提交前的二选一确认）：
+   * 不提供时点击关闭仅关闭弹窗（既有行为不变）。
+   */
+  onClose?: () => void
+  /** 按 ESC 时的回调（可选）。naive-ui 中 ESC 与关闭按钮是两条独立回调，需要分别接线 */
+  onEsc?: () => void
 }
 
 /** 统一风格的确认弹窗：确认=蓝色，取消=灰底，可经右上角关闭按钮关闭 */
@@ -75,6 +85,8 @@ export function confirm(options: ConfirmOptions): void {
     title: options.title,
     content: options.content,
     closable: true,
+    onClose: options.onClose,
+    onEsc: options.onEsc,
     action: () => h('div', { style: 'display: flex; justify-content: flex-end; gap: 12px;' }, [
       options.negativeText
         ? h(NButton, {

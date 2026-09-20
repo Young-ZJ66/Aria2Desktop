@@ -124,6 +124,7 @@
             :placeholder="t('localService.accessSecretPlaceholder')"
             show-password-on="click"
             clearable
+            @input="secretTouched = true"
           />
         </n-form-item>
 
@@ -241,6 +242,12 @@ const {
 const configFormRef = ref<FormInst | null>(null)
 const isRefreshing = ref(false)
 const isSavingConfig = ref(false)
+/**
+ * 用户是否手动改动过密钥输入框。
+ * 用于区分"表单尚未加载出密钥"与"用户确实要清空密钥"——只有后者才向主进程
+ * 声明 clearSecret，避免保存其它配置时把密钥静默清空（会关闭 RPC 访问保护）。
+ */
+const secretTouched = ref(false)
 
 // 本地配置表单
 const localConfig = reactive<Aria2LocalConfig>({
@@ -382,8 +389,9 @@ async function saveConfig() {
           // 立即关闭确认框，保存并重启在后台执行
           void (async () => {
             try {
-              const success = await updateConfig(localConfig)
+              const success = await updateConfig(buildConfigPayload())
               if (success) {
+                secretTouched.value = false
                 message.success(t('localService.configSavedRestarting'))
                 await restart()
               }
@@ -394,8 +402,9 @@ async function saveConfig() {
         }
       })
     } else {
-      const success = await updateConfig(localConfig)
+      const success = await updateConfig(buildConfigPayload())
       if (success) {
+        secretTouched.value = false
         message.success(t('localService.configSaved'))
       }
     }
@@ -406,9 +415,20 @@ async function saveConfig() {
   }
 }
 
+/**
+ * 构造提交给主进程的配置载荷。
+ * 仅在"用户确实改动过密钥输入框且当前为空"时才声明 clearSecret，
+ * 否则主进程会保留原密钥（防止表单未加载出密钥时被静默清空）。
+ */
+function buildConfigPayload(): Aria2LocalConfig {
+  return {
+    ...localConfig,
+    clearSecret: secretTouched.value && !localConfig.secret
+  }
+}
+
 // 错误处理辅助函数
-function handleConfigError(error: unknown) {
-  const errorMessage = error instanceof Error ? error.message : String(error)
+function handleConfigError(error: unknown) {  const errorMessage = error instanceof Error ? error.message : String(error)
   console.error('保存配置失败:', error)
 
   if (errorMessage.includes('下载目录验证失败')) {
@@ -423,7 +443,7 @@ function handleConfigError(error: unknown) {
 // 更新自动启动设置
 function updateAutoStart(value: boolean) {
   localConfig.autoStart = value
-  updateConfig(localConfig)
+  updateConfig(buildConfigPayload())
 }
 
 // 获取应用默认下载目录：优先 Electron 的 app.getPath('downloads')，
@@ -441,11 +461,15 @@ async function resolveDefaultDownloadDir(): Promise<string> {
 }
 
 // 重置配置
+// 保留 RPC 密钥：密钥属"引擎凭据"而非可重置的偏好项——清空会使前端连接预设与引擎失配，
+// 且会静默关闭本机引擎的 RPC 访问保护（rpc-allow-origin-all 下浏览器可跨源调用）。
+// 如需修改/清除密钥，请使用「RPC 安全设置」页。
 async function resetConfig() {
   const defaultDir = await resolveDefaultDownloadDir()
+  const currentSecret = localConfig.secret
   Object.assign(localConfig, {
     port: 6800,
-    secret: '',
+    secret: currentSecret,
     downloadDir: defaultDir,
     autoStart: true
   })

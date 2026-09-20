@@ -113,7 +113,15 @@ const allTasks = computed(() => [
 const allTaskStats = computed(() => getTaskStats(allTasks.value))
 
 // 服务信息
-const serverInfos = computed(() => [
+/** 服务器信息卡片项；tagType 限定为 n-tag 支持的取值（否则模板里 :type 会因 string 过宽报错） */
+interface ServerInfoItem {
+  label: string
+  type: 'status' | 'text'
+  value: string
+  tagType?: 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error'
+}
+
+const serverInfos = computed<ServerInfoItem[]>(() => [
   {
     label: t('statusPage.connectionStatus'),
     type: 'status',
@@ -264,7 +272,8 @@ function updateTrafficChart() {
   const option = {
     // 数据每秒更新时曲线平滑过渡（而非瞬跳），默认缓动之外的显式声明以保证一致性
     animationDurationUpdate: 600,
-    animationEasingUpdate: 'linear',
+    // as const：echarts 要求缓动名为字面量联合类型，直接写字符串会被推断为 string
+    animationEasingUpdate: 'linear' as const,
     tooltip: {
       trigger: 'axis',
       backgroundColor: tooltipBgColor,
@@ -272,6 +281,8 @@ function updateTrafficChart() {
       textStyle: { color: tooltipTextColor },
       formatter: (params: { name: string; value: number; dataIndex: number } | { name: string; value: number; dataIndex: number }[]) => {
         const data = Array.isArray(params) ? params[0] : params
+        // 数组为空时没有可展示的数据点（noUncheckedIndexedAccess 下 params[0] 可能为 undefined）
+        if (!data) return ''
         const point = speedHistory.value[data.dataIndex]
         const time = point ? point.time : ''
         return `${time}<br/>${t('stats.downloadSpeed')}: ${formatSpeed(data.value)}`

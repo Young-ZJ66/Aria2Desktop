@@ -6,6 +6,7 @@ import { taskPersistenceService } from '@/services/taskPersistenceService'
 import { sessionManager } from '@/services/sessionManager'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
 import { getTaskName } from '@/utils/taskUtils'
+import { computeTaskListFingerprint } from '@/utils/fingerprint'
 import type { Aria2Task, Aria2Option } from '@/types/aria2'
 import type { Aria2ClientEvent } from '@/services/aria2Client'
 
@@ -57,26 +58,9 @@ export const useTaskStore = defineStore('task', () => {
   // 补刷递归深度计数（配合 MAX_RELOAD_DEPTH 限制无界递归）
   let reloadDepth = 0
 
-  /**
-   * 计算任务列表指纹（djb2 滚动哈希）。
-   * 相比全量 stringify（map+join 生成 O(n) 大字符串），逐字符累加哈希，
-   * 大列表（1000+）每秒轮询时显著降低内存与 CPU 开销。
-   * 注：gid 为 16 位十六进制字符串，哈希碰撞概率可忽略。
-   */
-  function computeFingerprint(tasks: Aria2Task[]): string {
-    let hash = 5381
-    for (const task of tasks) {
-      const gid = task.gid
-      for (let j = 0; j < gid.length; j++) {
-        hash = ((hash << 5) + hash + gid.charCodeAt(j)) >>> 0
-      }
-      hash = ((hash << 5) + hash + task.status.charCodeAt(0)) >>> 0
-    }
-    return hash.toString(36)
-  }
-
+  // 指纹算法已抽到 @/utils/fingerprint（纯函数，便于单测）
   function setWaitingIfChanged(waiting: Aria2Task[]): void {
-    const fp = computeFingerprint(waiting)
+    const fp = computeTaskListFingerprint(waiting)
     if (fp !== waitingFingerprint) {
       waitingFingerprint = fp
       waitingTasks.value = waiting
@@ -84,7 +68,7 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   function setStoppedIfChanged(stopped: Aria2Task[]): void {
-    const fp = computeFingerprint(stopped)
+    const fp = computeTaskListFingerprint(stopped)
     if (fp !== stoppedFingerprint) {
       stoppedFingerprint = fp
       stoppedTasks.value = stopped

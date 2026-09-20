@@ -12,6 +12,16 @@ export const useSettingsStore = defineStore('settings', () => {
   const aria2Config = computed(() => settings.value.aria2 ?? defaultSettings.aria2)
   const uiConfig = computed(() => settings.value.ui ?? defaultSettings.ui)
   const downloadConfig = computed(() => settings.value.download ?? defaultSettings.download)
+  /**
+   * 新建任务的基础下载目录（分类子目录都挂在它下面）。
+   * 优先取「下载设置」的默认目录，为空时回落到「引擎设置」的下载目录（即 aria2 的全局 dir）——
+   * 两者是两个独立设置项，老用户的 download.defaultDir 常为空；都不为空才是完整形态。
+   * 若两者都为空则返回空串：此时新建任务不传 dir，aria2 会用自己的全局目录，
+   * 且基于目录的分类随之失效（这正是"rar 没进 Compressed"的根因）。
+   */
+  const taskBaseDir = computed(
+    () => settings.value.download?.defaultDir || settings.value.aria2?.downloadDir || ''
+  )
   const categoryConfig = computed(
     () => settings.value.category ?? { autoClassify: true, categories: defaultSettings.category!.categories }
   )
@@ -215,6 +225,7 @@ export const useSettingsStore = defineStore('settings', () => {
     uiConfig,
     downloadConfig,
     categoryConfig,
+    taskBaseDir,
     theme,
     language,
 
