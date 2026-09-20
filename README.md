@@ -2,11 +2,6 @@
 
 <div align="center">
 
-![Aria2 Desktop](https://img.shields.io/badge/Aria2%20Desktop-v1.0.6-blue?style=for-the-badge)
-![Electron](https://img.shields.io/badge/Electron-43.x-47848F?style=for-the-badge&logo=electron)
-![Vue.js](https://img.shields.io/badge/Vue.js-3.x-4FC08D?style=for-the-badge&logo=vue.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178C6?style=for-the-badge&logo=typescript)
-![Vite](https://img.shields.io/badge/Vite-8.x-646CFF?style=for-the-badge&logo=vite)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
 **集成 Aria2 引擎的现代化桌面下载管理器**
@@ -35,8 +30,8 @@
 - **实时监控**: 下载速度、进度、连接数、Peer 信息实时展示
 - **多协议支持**: HTTP/HTTPS、FTP、BitTorrent、磁力链接、Metalink 全支持
 - **流媒体下载**: 集成 yt-dlp，支持 YouTube、Bilibili 等 1000+ 站点的 HLS/DASH 流媒体下载
-- **浏览器扩展**: Chrome/Edge 扩展，右键菜单一键发送下载链接，可选拦截所有浏览器下载
-- **插件系统**: 基于 VM 沙箱的插件框架，支持权限隔离与生命周期管理
+- **浏览器扩展**: Chrome/Edge 扩展，弹窗内可直接粘贴链接发送下载（自动填入当前页面地址），或右键菜单一键发送链接；可选拦截所有浏览器下载
+- **插件系统**: 插件框架，支持权限裁剪与生命周期管理（插件在主进程运行，属完全可信代码，请勿安装来源不明的插件）
 
 ### 下载功能
 - **多线程下载**: 最大化利用网络带宽
@@ -80,6 +75,9 @@
 | **Pinia** | 3.x | 状态管理 |
 | **vue-i18n** | 11.x | 国际化支持 |
 | **Aria2** | 1.37.0 | 下载引擎核心 |
+| **electron-log** | 5.x | 主进程日志（分级 + 落盘） |
+| **Vitest** | 5.x | 单元测试 |
+| **vue-tsc** | 3.x | 渲染层（含 `.vue`）类型检查 |
 
 ## 快速开始
 
@@ -156,7 +154,7 @@ module.exports = {
 ## 开发指南
 
 ### 环境要求
-- **Node.js** 20.x 或更高版本
+- **Node.js** 22.x 或更高版本
 - **npm** 包管理器
 - **Git** 版本控制工具
 
@@ -183,7 +181,39 @@ npm run dist
 npm run dist:win64
 npm run dist:win32
 npm run dist:win-all
+
+# 单元测试（vitest）
+npm run test        # 监听模式
+npm run test:run    # 单次运行
+
+# 类型检查
+npm run typecheck       # 全量：主进程 + 测试代码 + 渲染层（含 .vue）
+npm run typecheck:vue   # 仅渲染层（vue-tsc）
 ```
+
+> **开发注意**：Electron 主进程入口是编译产物 `dist/electron/electron/main.js`，不是 TS 源码。
+> `npm run dev` 会先编译一次主进程再启动；若手动改完 `electron/**/*.ts` 后直接用 `electron .`
+> 启动，改动不会生效——请执行 `npm run build:electron`，或用 `npm run dev:electron:watch` 持续编译。
+> `npm run build` 末尾会自动校验构建产物（`scripts/verify-resources.mjs`），资源缺失时直接构建失败。
+
+> **日志**：主进程日志统一走 `electron/utils/logger.ts`（electron-log 薄封装），
+> 落盘于 `<userData>/logs/main.log`（info 及以上），开发环境控制台输出 debug 全量、生产仅 warn/error。
+> 新增主进程代码请使用 `createLogger('模块名')`，不要再直接用 `console.*`。
+
+> **类型检查**：渲染层（含 `.vue` 模板与 `<script setup>`）由 `vue-tsc` 检查，配置见根 `tsconfig.json`
+> （已开启 `noUncheckedIndexedAccess`、`noUnusedParameters`）。改动 `.vue` 后请跑一次 `npm run typecheck`
+> ——`vite build` 只能发现语法与导入错误，发现不了类型不匹配、props 传错、插槽名写错这类问题。
+> 主进程侧用 `tsc -p tsconfig.electron.json`；两者都在 `npm run typecheck` 里。
+
+> **单元测试**：vitest，测试文件与源码同目录、命名为 `*.test.ts`
+> （已被 `tsconfig.electron.json` 排除，不会编译进主进程产物）。
+> 为便于测试，纯逻辑请抽成不依赖 electron 的独立模块（例如 `electron/utils/speedRule.ts`、
+> `electron/utils/ipcSecurityCore.ts`、`src/utils/fingerprint.ts`）。
+
+> **依赖约定**：渲染层依赖（Vue、Naive UI、axios 等）经 Vite 打包进 `dist/vue`，因此统一声明在
+> `devDependencies`；`dependencies` 只保留必须随 asar 分发的**主进程运行时依赖**
+> （`electron-store`、`electron-log`——后者用于主进程日志落盘），以减小安装包体积。
+> 新增依赖时请遵循此约定：先判断它是否需要在打包后的主进程中使用。
 
 > **平台支持**: 本项目仅构建 Windows 32/64 位版本。32 位打包资源后缀为 `x86`，64 位为 `x64`。推送以 `v` 开头的 tag 会自动触发 GitHub Actions 构建并发布 Release。
 
@@ -191,30 +221,35 @@ npm run dist:win-all
 ```
 Aria2Desktop/
 ├── src/                    # 渲染进程源代码
-│   ├── components/         # Vue 组件（对话框、布局、任务操作、自定义图标）
-│   ├── composables/        # 组合式函数（生命周期、刷新、流量监控、剪贴板检测、快捷键）
+│   ├── components/         # Vue 组件（对话框、布局、任务操作、设置页子组件）
+│   │   ├── dialogs/        # 弹窗/抽屉（新建任务、任务详情、连接、更新、删除任务）
+│   │   ├── newTask/        # 新建任务弹窗的四个标签页（URI/种子/Metalink/流媒体）+ 契约类型
+│   │   ├── task/           # 任务详情各分区（基本信息、Peer、服务器、分片）
+│   │   ├── settings/       # 设置页外壳与小组件
+│   │   └── layout/         # 侧边栏、页脚
+│   ├── composables/        # 组合式函数（生命周期、刷新、流量监控、剪贴板、快捷键、新建任务提交骨架）
 │   ├── views/              # 页面视图（任务列表、状态页、设置子页面）
 │   ├── stores/             # Pinia 状态管理（连接、任务、设置、统计、UI）
 │   ├── services/           # 服务层（Aria2 RPC、设置、持久化、会话管理）
-│   ├── shared/             # 主进程/渲染层共享模块（设置类型、文件分类、Tracker 列表）
+│   ├── shared/             # 主进程/渲染层共享模块（设置类型、文件分类、Tracker 列表、本机引擎判定）
 │   ├── router/             # 路由配置
 │   ├── styles/             # 全局样式与主题 Token
 │   ├── i18n/               # 国际化初始化
 │   ├── locales/            # 语言文件（zh-CN / en-US）
-│   ├── types/              # TypeScript 类型定义
-│   └── utils/              # 工具函数（格式化、错误映射、文件类型图标）
+│   ├── types/              # TypeScript 类型定义（含 preload 暴露的 electronAPI 契约）
+│   └── utils/              # 工具函数（格式化、错误映射、反馈提示、文件类型图标）
 ├── electron/               # Electron 主进程代码
 │   ├── controllers/        # 控制器（窗口/托盘/Aria2/IPC/更新/生命周期）
 │   ├── managers/           # 进程管理（Aria2 子进程生命周期）
 │   ├── services/           # 服务（Tracker 订阅、速度调度、yt-dlp、插件管理）
 │   ├── types/              # 类型定义（Store、Plugin）
-│   ├── utils/              # 工具函数（IPC 安全、加密、配置监听、资源管理）
+│   ├── utils/              # 工具函数（日志、IPC 安全工厂、settings 访问器、加密、配置监听、资源路径）
 │   ├── main.ts             # 主进程入口
 │   └── preload.ts          # 预加载脚本（contextBridge API）
 ├── extension/              # Chrome/Edge 浏览器扩展（Manifest V3）
 ├── plugins/                # 示例插件
 ├── resources/              # 资源文件（Aria2 引擎二进制、默认配置）
-├── scripts/                # 构建辅助脚本
+├── scripts/                # 构建辅助脚本（引擎准备、构建产物校验）
 ├── build/                  # 打包配置与图标
 ├── dist/                   # 编译产物
 └── release/                # electron-builder 打包输出目录
