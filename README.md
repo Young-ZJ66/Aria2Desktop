@@ -103,17 +103,25 @@
 3. 粘贴视频链接，选择画质后下载
 
 ### 浏览器扩展安装
-在 [Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases) 页面下载扩展包，二选一：
+在 [Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases) 页面下载扩展包。
 
-- **`.crx`（推荐）**：`chrome://extensions/` → 开启「开发者模式」→ 把 `.crx` 文件拖入页面即可。
-  会提示「未在 Chrome 网上应用店中列出」或 Edge 上的「不是来自任何已知来源」，属**正常提示**
-  （安装包自签名、无商店签名），确认继续即可。
-  **Edge 需先放行非商店来源**：`edge://extensions/` → 打开「允许来自其他应用商店的扩展」→
-  **重启浏览器**；若拖拽 `.crx` 无效，改用下面的 `.zip` 方式。
-- **`.zip`**：解压后按「加载解压的扩展程序」选择解压目录（Edge 上更稳妥的方式）。
+> **Edge 用户**：扩展已上架 Edge 加载项商店，可直接从商店安装并自动更新，无需以下步骤。
+> 本扩展不计划上架 Chrome 网上应用店，Chrome 用户请使用下方旁加载方式。
 
-> **Edge 用户**：扩展已上架 Edge 加载项商店，可直接从商店安装并自动更新，无需上述步骤。
-> 本扩展不计划上架 Chrome 网上应用店，Chrome 用户请使用上述旁加载方式（官方保留的开发者通道，长期可用）。
+**⚠️ 新版 Chrome/Edge 已禁止直接安装非商店 `.crx`**（拖入后显示「不来自任何已知来源」并直接
+禁用扩展，没有「保留」按钮）。请按下面两种方式之一安装：
+
+- **方式 A（最简单）：加载已解压的扩展**
+  下载 `.zip` 解压 → `chrome://extensions/` → 开启右上角「开发者模式」→
+  点「加载已解压的扩展程序」→ 选择解压出的文件夹。
+  代价：Windows Chrome 每次启动会提示一次「关闭开发者模式扩展」（可关闭，不影响使用）。
+- **方式 B（一次性配置，无后续提示）：`.crx` + 白名单**
+  把扩展 ID 加入系统白名单（免管理员，在命令行执行，按浏览器二选一）：
+  ```bat
+  reg add "HKCU\Software\Policies\Google\Chrome\ExtensionInstallAllowlist" /v 1 /t REG_SZ /d "ndikflbmajhflfndbjblihkifnfbmdon" /f
+  reg add "HKCU\Software\Policies\Microsoft\Edge\ExtensionInstallAllowlist" /v 1 /t REG_SZ /d "ndikflbmajhflfndbjblihkifnfbmdon" /f
+  ```
+  重启浏览器后再把 `.crx` 拖入 `chrome://extensions/`（或 `edge://extensions/`）即可正常保留。
 
 安装后扩展图标出现在工具栏，右键任意链接即可发送到 Aria2 Desktop。
 
