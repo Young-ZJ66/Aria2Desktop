@@ -60,6 +60,15 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
+      # 质量闸门：必须在打包前拦住类型与逻辑错误。
+      # 为什么这两步不能省——`vite build` 只剥类型不做检查，渲染层（含 .vue 模板）的
+      # 类型错误只有 vue-tsc 能发现；单元测试同理，不在 CI 跑就等于没有。
+      - name: 类型检查（主进程 + 测试代码 + 渲染层）
+        run: npm run typecheck
+
+      - name: 单元测试
+        run: npm run test:run
+
       # aria2 已随仓库提交，按目标架构就地复制即可，无需联网下载
       - name: 准备对应架构的 aria2c
         run: node scripts/prepare-aria2c.mjs ${{ matrix.res_arch }}
@@ -77,6 +86,7 @@ jobs:
           npm run verify:extension-api
 
       # 构建安装包（不发布，产物含 Setup.exe 与 blockmap，仅上传 Setup.exe）
+      # 本工作流只做打包，不对安装包做代码签名（扩展 .crx 仍用固定密钥签名，见后文）。
       - name: 构建安装包
         shell: pwsh
         run: |
@@ -88,14 +98,37 @@ jobs:
         run: npx electron-builder --win --publish never --${{ matrix.electron_arch }} --config.win.target=zip --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-portable.${ext}'
 
       # 使用仓库中预写的更新日志（.github/release-notes.md，需在推送 tag 前更新并提交）
+      #
+      # 版本一致性断言：本仓**真实发生过** tag 与日志错配——v1.0.3 与 v1.0.6 两个 tag 指向了同一个提交，
+      # 于是 v1.0.3 的 Release 挂的是 v1.0.6 的更新日志。发出去的 Release 说明无法"撤回重发"，
+      # 因此这里不再只检查文件存在，而是要求日志首行的版本号与本次 tag 一致，不一致直接终止发布。
       - name: 使用预写更新日志
         shell: pwsh
         run: |
-          if (-not (Test-Path .github/release-notes.md)) {
-            Write-Error "未找到 .github/release-notes.md，请在推送 tag 前填写更新日志并提交该文件"
+          $notesPath = '.github/release-notes.md'
+          if (-not (Test-Path $notesPath)) {
+            Write-Error "未找到 $notesPath，请在推送 tag 前填写更新日志并提交该文件"
             exit 1
           }
-          Write-Host "使用预写的 .github/release-notes.md 作为 Release 描述"
+
+          $tag = '${{ github.ref_name }}'
+          # 从 tag 提取数字版本（兼容 v1.0.8、1.0.8、v1.0.8-beta.1 等形态）
+          $match = [regex]::Match($tag, '^v?(\d+\.\d+\.\d+)')
+          if (-not $match.Success) {
+            Write-Error "无法从 tag「$tag」解析出版本号，请检查 tag 命名（形如 v1.0.8）"
+            exit 1
+          }
+          $expected = $match.Groups[1].Value
+          $firstLine = (Get-Content $notesPath -TotalCount 1).Trim()
+
+          if ($firstLine -notlike "*$expected*") {
+            Write-Error ("更新日志与本次 tag 不匹配，已终止发布。" +
+              "tag=$tag；期望版本=$expected；日志首行=$firstLine。" +
+              "请在推送 tag 前把 $notesPath 的标题改为「# v$expected 更新日志」并提交——Release 说明发布后无法撤回重发。")
+            exit 1
+          }
+
+          Write-Host "更新日志版本校验通过（$firstLine），将作为 Release 描述"
 
       # 下载扩展产物
       - name: 下载扩展产物
@@ -123,23 +156,33 @@ jobs:
           EXTENSION_CRX_KEY: ${{ secrets.EXTENSION_CRX_KEY }}
 
       # 用 GitHub CLI 创建/更新 Release，上传安装包、便携版、扩展压缩包与扩展 .crx，
-      # 并为每个产物生成同名的 .sha256 校验文件一并上传（客户端应用内更新依赖它做完整性校验）
+      # 并为每个产物生成同名的 .sha256 文件一并上传——**客户端应用内更新依赖它做强制完整性比对**
+      #（UpdateController.verifyChecksum：校验文件存在时必须匹配，否则拒绝安装）。
+      # Release 说明只使用 .github/release-notes.md 的内容，不做任何追加。
       - name: 创建 Release 并上传产物
         shell: pwsh
         run: |
-          gh release view ${{ github.ref_name }} 2>$null
+          $tag = '${{ github.ref_name }}'
+          $assets = @(
+            Get-ChildItem release -Filter "*-Setup.exe"
+            Get-ChildItem release -Filter "*-portable.zip"
+            Get-ChildItem release -Filter "*.zip" | Where-Object { $_.Name -like "Aria2Desktop-Extension*" }
+            Get-ChildItem release -Filter "*.crx"
+          )
+
+          gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create ${{ github.ref_name }} --title "Aria2 Desktop ${{ github.ref_name }}" --notes-file .github/release-notes.md
+            gh release create $tag --title "Aria2 Desktop $tag" --notes-file .github/release-notes.md
           } else {
-            gh release edit ${{ github.ref_name }} --notes-file .github/release-notes.md
+            gh release edit $tag --notes-file .github/release-notes.md
           }
-          $assets = @(Get-ChildItem release -Filter "*-Setup.exe"; Get-ChildItem release -Filter "*-portable.zip"; Get-ChildItem release -Filter "*.zip" | Where-Object { $_.Name -like "Aria2Desktop-Extension*" }; Get-ChildItem release -Filter "*.crx")
+
           foreach ($asset in $assets) {
             $hash = (Get-FileHash -LiteralPath $asset.FullName -Algorithm SHA256).Hash.ToLower()
-            $shaPath = "$($asset.FullName).sha256"
-            Set-Content -LiteralPath $shaPath -Value $hash -NoNewline -Encoding ascii
-            gh release upload ${{ github.ref_name }} $asset.FullName --clobber
-            gh release upload ${{ github.ref_name }} $shaPath --clobber
+            Set-Content -LiteralPath "$($asset.FullName).sha256" -Value $hash -NoNewline -Encoding ascii
+            Write-Host "$($asset.Name)  SHA256=$hash"
+            gh release upload $tag $asset.FullName --clobber
+            gh release upload $tag "$($asset.FullName).sha256" --clobber
           }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
