@@ -7,7 +7,7 @@ import { UpdateController } from './UpdateController'
 import Store from 'electron-store'
 import * as path from 'path'
 import * as fs from 'fs'
-import { registerSecureHandler } from '../utils/ipcSecurity'
+import { registerSecureHandler, registerSecureListener } from '../utils/ipcSecurity'
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import { checkYtdlpAvailable, getVideoInfo, getFormatUrl } from '../services/ytdlpService'
@@ -35,6 +35,22 @@ const PROXY_PROBE_URLS = [
   'http://www.baidu.com/',
   'http://www.google.com/generate_204'
 ]
+
+/**
+ * 执行系统命令并等待其结束。
+ *
+ * 为什么不能直接 `exec(cmd)` 了事：exec 的错误是**异步**投递到回调的，
+ * 外层 try/catch 根本捕不到——关机/休眠失败时仍会返回 `{ success: true }`，
+ * 用户以为已经生效（"下载完成后关机"失效却毫无提示）。
+ */
+function runSystemCommand(command: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    exec(command, (error) => {
+      if (error) reject(error)
+      else resolve()
+    })
+  })
+}
 
 export class IpcController {
   private windowController: WindowController
@@ -160,7 +176,10 @@ export class IpcController {
       } else {
         this.trayController.destroy()
       }
-      return { success: true }
+      // 如实回报：托盘可能创建失败（图标缺失、系统限制），
+      // 一律返回 success 会让用户以为托盘已启用，最小化后却找不到图标。
+      const active = this.trayController.getTray() !== null
+      return { success: active === !!enabled, enabled: active }
     }, { getMainWindow: this.windowRef })
 
     registerSecureHandler('set-window-theme', (event, isDark: boolean) => {
@@ -176,14 +195,15 @@ export class IpcController {
     registerSecureHandler('system-shutdown', async () => {
       try {
         if (process.platform === 'win32') {
-          exec('shutdown /s /t 60') // 60 秒后关机
+          await runSystemCommand('shutdown /s /t 60') // 60 秒后关机
         } else if (process.platform === 'darwin') {
-          exec('osascript -e \'tell app "System Events" to shut down\'')
+          await runSystemCommand('osascript -e \'tell app "System Events" to shut down\'')
         } else {
-          exec('shutdown -h +1')
+          await runSystemCommand('shutdown -h +1')
         }
         return { success: true }
       } catch (e) {
+        logger.warn('[IpcController] 关机命令执行失败:', e)
         return { success: false, error: String(e) }
       }
     }, { getMainWindow: this.windowRef })
@@ -191,14 +211,15 @@ export class IpcController {
     registerSecureHandler('system-hibernate', async () => {
       try {
         if (process.platform === 'win32') {
-          exec('shutdown /h')
+          await runSystemCommand('shutdown /h')
         } else if (process.platform === 'darwin') {
-          exec('osascript -e \'tell app "System Events" to sleep\'')
+          await runSystemCommand('osascript -e \'tell app "System Events" to sleep\'')
         } else {
-          exec('systemctl suspend')
+          await runSystemCommand('systemctl suspend')
         }
         return { success: true }
       } catch (e) {
+        logger.warn('[IpcController] 休眠命令执行失败:', e)
         return { success: false, error: String(e) }
       }
     }, { getMainWindow: this.windowRef })
@@ -267,12 +288,15 @@ export class IpcController {
     }, { getMainWindow: this.windowRef, failureValue: undefined })
 
     registerSecureHandler('system-cancel-shutdown', async () => {
+      if (process.platform !== 'win32') {
+        // 其它平台没有等价的"取消关机"语义，如实回报而不是假装成功
+        return { success: false, error: 'Cancel shutdown is only supported on Windows' }
+      }
       try {
-        if (process.platform === 'win32') {
-          exec('shutdown /a')
-        }
+        await runSystemCommand('shutdown /a')
         return { success: true }
       } catch (e) {
+        logger.warn('[IpcController] 取消关机失败（可能本就没有待执行的关机）:', e)
         return { success: false, error: String(e) }
       }
     }, { getMainWindow: this.windowRef })
@@ -529,6 +553,14 @@ export class IpcController {
 
   /** 插件管理 */
   private registerPluginHandlers() {
+    // 下载事件转发：aria2 的通知由渲染层的 WebSocket 收到，这里接过来喂给插件系统。
+    // 入参逐项校验（IPC 边界不信任调用方），非法值一律丢弃。
+    registerSecureListener('download-event', (_event, kind: unknown, gid: unknown, name: unknown) => {
+      if (kind !== 'downloadComplete' && kind !== 'downloadStart') return
+      if (typeof gid !== 'string' || !gid) return
+      this.pluginManager.emit(kind, { gid, name: typeof name === 'string' ? name : '' })
+    }, { getMainWindow: this.windowRef })
+
     // 失败态为 []（渲染层按数组消费）
     registerSecureHandler('plugins-list', () => this.pluginManager.getPlugins(), {
       getMainWindow: this.windowRef,

@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import * as path from 'path'
+import * as fs from 'fs'
 import * as crypto from 'crypto'
 import { getAria2ProcessManager } from '../managers/Aria2ProcessManager'
 import type { Aria2ProcessManager } from '../managers/Aria2ProcessManager'
@@ -213,6 +214,28 @@ export class Aria2Controller {
   }
 
   /**
+   * 下载目录可用性预检：能创建/已存在且可写才返回 true。
+   *
+   * 为什么放在这里（而不是完全交给 aria2）：盘符写错或权限不足时，aria2 只会在启动阶段
+   * 用一句 stderr 失败，用户很难把"引擎起不来"和"刚改的下载目录"联系起来；
+   * 就地预检可以立刻给出可行动的提示（前端按 `invalid_download_dir` 错误码展示）。
+   */
+  private ensureDirectoryUsable(dir: string): boolean {
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+        logger.info(`已创建下载目录: ${dir}`)
+      }
+      // 只读目录/无权限时 mkdir 可能成功（已存在）但要到写入时才暴露，这里显式探一次
+      fs.accessSync(dir, fs.constants.W_OK)
+      return true
+    } catch (error) {
+      logger.warn(`下载目录不可用: ${dir}`, error)
+      return false
+    }
+  }
+
+  /**
    * 从设置中读取当前 RPC 连接参数。
    * 走**直读**：该密钥直接用于 RPC 鉴权，拿到过期密钥会导致连接失败。
    */
@@ -290,11 +313,17 @@ export class Aria2Controller {
     }
   }
 
-  public async stop() {
+  /** @returns 是否确认 aria2 已停止（false = 未能确认退出，交由退出兜底回收） */
+  public async stop(): Promise<boolean> {
     if (this.aria2Manager && this.aria2Manager.isRunning()) {
       // stop 内部会先执行注入的 RPC 优雅关闭（保存会话），失败时回退信号关闭
-      await this.aria2Manager.stop()
+      const stopped = await this.aria2Manager.stop()
+      if (!stopped) {
+        logger.warn('[Aria2Controller] 未能确认 aria2 进程退出，将由退出兜底回收')
+      }
+      return stopped
     }
+    return true
   }
 
   /**
@@ -320,8 +349,9 @@ export class Aria2Controller {
 
     registerSecureHandler('aria2-stop', async () => {
       if (!this.aria2Manager) return { success: true }
-      await this.stop()
-      return { success: true }
+      // 如实回报：未能确认退出时不能让用户以为已经停了（进程可能还占着 RPC 端口）
+      const stopped = await this.stop()
+      return { success: stopped, error: stopped ? undefined : '未能确认 aria2 进程退出，请查看日志' }
     }, { getMainWindow: this.windowRef })
 
     registerSecureHandler('aria2-restart', async () => {
@@ -353,18 +383,28 @@ export class Aria2Controller {
 
     registerSecureHandler('aria2-update-config', async (event, config) => {
       if (!this.aria2Manager) await this.initialize()
-      if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
+      if (!this.aria2Manager) {
+        return { success: false, code: 'not_initialized', error: 'Aria2 manager not initialized' }
+      }
 
-      // 入参规范化与校验，防止异常类型写入 store / 配置文件
+      // 入参规范化与校验，防止异常类型写入 store / 配置文件。
+      // 失败一律带**稳定错误码**：渲染层按 code 分支展示提示，而不是匹配这里的文案——
+      // 否则改一次中文文案、或做英文界面，前端的提示分支就会静默失效（已发生过）。
       const port = Number(config?.port)
       if (!Number.isInteger(port) || port < MIN_PORT || port > MAX_PORT) {
-        return { success: false, error: `Invalid port: ${config?.port}` }
+        return { success: false, code: 'invalid_port', error: `Invalid port: ${config?.port}` }
       }
       const downloadDir = String(config?.downloadDir ?? '')
       // downloadDir 提供时必须为绝对路径，防止写入非法路径导致 aria2 启动失败；
       // 为空时保持原行为（由上游回退到默认下载目录）
       if (downloadDir && !path.isAbsolute(downloadDir)) {
-        return { success: false, error: 'Invalid downloadDir: must be an absolute path' }
+        return { success: false, code: 'invalid_download_dir', error: 'Invalid downloadDir: must be an absolute path' }
+      }
+      // 目录可用性预检：aria2 自己也会建目录，但盘符写错/无写权限时它只会在启动阶段
+      // 以一句 stderr 失败，用户很难把"引擎起不来"和"刚改的目录"联系起来。
+      // 这里就地尝试创建，失败即刻给出可行动的提示。
+      if (downloadDir && !this.ensureDirectoryUsable(downloadDir)) {
+        return { success: false, code: 'invalid_download_dir', error: `Unusable downloadDir: ${downloadDir}` }
       }
 
       /**
@@ -395,7 +435,7 @@ export class Aria2Controller {
         // 配置文件写入失败时如实反馈，避免用户误以为保存成功
         const error = e instanceof Error ? e.message : String(e)
         logger.error('写入 aria2 配置失败:', error)
-        return { success: false, error: `配置文件写入失败: ${error}` }
+        return { success: false, code: 'config_write_failed', error: `配置文件写入失败: ${error}` }
       }
 
       // 更新存储（显式标注 AppSettings 类型，避免对象字面量中的字面量类型被拓宽）

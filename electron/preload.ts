@@ -112,6 +112,10 @@ const electronAPI = {
   pluginsDisable: (id: string) => ipcRenderer.invoke('plugins-disable', id),
   pluginsUninstall: (id: string) => ipcRenderer.invoke('plugins-uninstall', id),
 
+  // 下载事件转发给主进程插件系统（aria2 通知由渲染层的 WebSocket 接收，插件运行在主进程）
+  notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart', gid: string, name: string) =>
+    ipcRenderer.send('download-event', kind, gid, name),
+
   // yt-dlp 流媒体支持（可选外部引擎）
   ytdlpCheck: () => ipcRenderer.invoke('ytdlp-check'),
   ytdlpVideoInfo: (url: string) => ipcRenderer.invoke('ytdlp-video-info', url),

@@ -108,7 +108,12 @@ export interface ElectronAPI {
         exists: boolean
       }
     }>
-    updateConfig: (config: Aria2UpdateConfig) => Promise<{ success: boolean; error?: string }>
+    /**
+     * 更新引擎配置。失败时返回**稳定错误码**（invalid_port / invalid_download_dir /
+     * config_write_failed / not_initialized），渲染层按 code 分支展示提示，
+     * 不要依赖 `error` 文案（改文案会让分支静默失效）。
+     */
+    updateConfig: (config: Aria2UpdateConfig) => Promise<{ success: boolean; code?: string; error?: string }>
     saveGlobalOptions: (options: Record<string, string | number>) => Promise<{ success: boolean; error?: string }>
   }
 
@@ -179,6 +184,9 @@ export interface ElectronAPI {
   pluginsEnable: (id: string) => Promise<{ success: boolean }>
   pluginsDisable: (id: string) => Promise<{ success: boolean }>
   pluginsUninstall: (id: string) => Promise<{ success: boolean }>
+
+  /** 把 aria2 下载事件转发给主进程插件系统（fire-and-forget，无返回值） */
+  notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart', gid: string, name: string) => void
 
   // yt-dlp 流媒体支持（可选外部引擎）
   ytdlpCheck: () => Promise<{ available: boolean; version?: string; error?: string }>

@@ -184,15 +184,23 @@ export class PluginManager {
   /** 创建沙箱上下文（按权限裁剪 API） */
   private createSandbox(manifest: PluginManifest): PluginContext {
     const permissions = new Set(manifest.permissions || [])
-    // 直读：下面要把 secret 交给插件的 aria2 RPC 能力，不能用可能过期的缓存值
-    const settings = getSettingsFresh()
     // 提供给插件的是脱敏快照：保留配置结构，但不含任何密钥字段
-    const pluginSettings = toPluginSafeSettings(settings)
-    const port = Number(settings.aria2?.port) || 6800
-    const secret = String(settings.aria2?.secret || '')
+    const pluginSettings = toPluginSafeSettings(getSettingsFresh())
 
-    const rpc = <T>(method: string, params?: unknown[]) =>
-      this.callAria2Rpc(port, secret, method, params) as Promise<T>
+    /**
+     * RPC 句柄**每次调用时**才解析端口与密钥（不要提到闭包外一次性求值）。
+     *
+     * 为什么：插件是在 AppLifecycle 的 registerHandlers() 阶段被激活的，而 rpc-secret
+     * 的自动生成发生在其后的引擎初始化里。一次性捕获会把"生成前的空密钥"永久绑进
+     * 所有插件的闭包——此后插件每次 RPC 都 401，且插件作者看到的是 "RPC Error" 而非密钥问题。
+     * 逐次直读顺带让"用户在设置页改端口/改密钥"对插件立即生效，无需重启应用。
+     */
+    const rpc = <T>(method: string, params?: unknown[]) => {
+      const settings = getSettingsFresh()
+      const port = Number(settings.aria2?.port) || 6800
+      const secret = String(settings.aria2?.secret || '')
+      return this.callAria2Rpc(port, secret, method, params) as Promise<T>
+    }
 
     const ctx: PluginContext = {
       console: {
@@ -423,15 +431,29 @@ export class PluginManager {
     }
   }
 
-  /** 触发事件（通知所有启用的插件） */
+  /**
+   * 触发事件（通知所有启用的插件）。
+   *
+   * 调用方：IpcController 的 `download-event` 通道——aria2 的下载通知由渲染层的
+   * WebSocket 接收，渲染层再经 IPC 转过来。此前本方法**没有任何调用方**，
+   * 于是文档里的 `onDownloadComplete` / `onDownloadStart` 永远不会触发。
+   */
   emit(event: 'downloadComplete' | 'downloadStart', data: { gid: string; name: string }): void {
     for (const [id, plugin] of this.plugins) {
-      if (!plugin.enabled) continue
+      if (!plugin.enabled || !plugin.instance) continue
+      const handler = event === 'downloadComplete'
+        ? plugin.instance.onDownloadComplete
+        : plugin.instance.onDownloadStart
+      if (typeof handler !== 'function') continue
+
       try {
-        if (event === 'downloadComplete' && plugin.instance.onDownloadComplete) {
-          plugin.instance.onDownloadComplete(data)
-        } else if (event === 'downloadStart' && plugin.instance.onDownloadStart) {
-          plugin.instance.onDownloadStart(data)
+        const result = handler(data) as unknown
+        // 插件把钩子写成 async 时，抛错会变成 rejected promise：不 catch 就是
+        // 未处理的 Promise 拒绝（主进程中会被全局兜底记日志，但堆栈里看不到是哪个插件）
+        if (result && typeof (result as Promise<unknown>).catch === 'function') {
+          void (result as Promise<unknown>).catch((error) => {
+            logger.error(`[PluginManager] Plugin "${id}" event "${event}" async error:`, error)
+          })
         }
       } catch (error) {
         logger.error(`[PluginManager] Plugin "${id}" event "${event}" error:`, error)
