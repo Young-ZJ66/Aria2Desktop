@@ -72,6 +72,36 @@ class TaskPersistenceService {
     }
   }
 
+  /**
+   * 合批落盘定时器。
+   *
+   * 为什么需要：`persist()` 每次都会 `Object.fromEntries(整个 Map)` 再做全量序列化 + 一次 IPC，
+   * 而 `loadAllTasks` 会对**每个新完成的任务**各调一次 `persistCompletedTask`——
+   * 首次连上一个已有数百条完成任务的外部引擎时，就是数百次全量 JSON 序列化 + 数百次 IPC，
+   * 足以卡住渲染线程。这里把同一批写入合并为一次。
+   */
+  private persistTimer: ReturnType<typeof setTimeout> | null = null
+  /** 合批窗口：够短以免退出时丢记录，够长以吸收批量写入 */
+  private static readonly PERSIST_DEBOUNCE_MS = 300
+
+  /** 安排一次合批落盘（同一窗口内的多次改动只写一次） */
+  private schedulePersist(): void {
+    if (this.persistTimer) return
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null
+      this.persist()
+    }, TaskPersistenceService.PERSIST_DEBOUNCE_MS)
+  }
+
+  /** 立即落盘（清空、退出前等需要强一致的场景） */
+  flush(): void {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer)
+      this.persistTimer = null
+    }
+    this.persist()
+  }
+
   /** 持久化到后端（Electron IPC 写文件），非 Electron 环境回退 localStorage */
   private persist(): void {
     if (window.electronAPI?.savePersistedTasks) {
@@ -118,7 +148,7 @@ class TaskPersistenceService {
       this.cleanupOldTasks()
     }
 
-    this.persist()
+    this.schedulePersist()
     console.log(`Persisted completed task: ${task.gid} at ${new Date(persistedTask.completedAt!)}`)
   }
 
@@ -148,7 +178,7 @@ class TaskPersistenceService {
    */
   removePersistedTask(gid: string) {
     this.persistedTasks.delete(gid)
-    this.persist()
+    this.schedulePersist()
     console.log(`Removed persisted task: ${gid}`)
   }
 
@@ -157,7 +187,7 @@ class TaskPersistenceService {
    */
   removePersistedTasks(gids: string[]) {
     gids.forEach(gid => this.persistedTasks.delete(gid))
-    this.persist()
+    this.schedulePersist()
     console.log(`Removed ${gids.length} persisted tasks`)
   }
 
@@ -197,7 +227,7 @@ class TaskPersistenceService {
     }
 
     if (cleaned > 0) {
-      this.persist()
+      this.schedulePersist()
       console.log(`Cleaned up ${cleaned} expired persisted tasks`)
     }
   }
@@ -248,7 +278,7 @@ class TaskPersistenceService {
     this.persistedTasks.clear()
     localStorage.removeItem(this.STORAGE_KEY)
     // 同步清空后端文件（Electron IPC 写文件），避免主进程残留旧记录
-    this.persist()
+    this.flush()
     console.log('Cleared all persisted tasks')
   }
 }

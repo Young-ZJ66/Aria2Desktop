@@ -14,6 +14,10 @@ class TaskTimeService {
   private readonly STORAGE_KEY = 'aria2_task_times'
   private readonly MAX_RECORDS = 2000
   private taskTimes: Map<string, TaskTimeRecord> = new Map()
+  /** 合批落盘定时器（见 scheduleSave 的说明） */
+  private saveTimer: ReturnType<typeof setTimeout> | null = null
+  /** 合批窗口：够短以免退出丢记录，够长以吸收批量写入 */
+  private static readonly SAVE_DEBOUNCE_MS = 300
 
   constructor() {
     this.loadFromStorage()
@@ -39,6 +43,9 @@ class TaskTimeService {
 
   /**
    * 保存任务时间记录到本地存储
+   *
+   * 注意：这是**同步**的全量序列化 + localStorage 写入，因此调用方一律走
+   * `scheduleSave()` 合批，避免"每个新任务写一次全量"卡住渲染线程。
    */
   private saveToStorage() {
     this.cleanupIfOverLimit()
@@ -48,6 +55,30 @@ class TaskTimeService {
     } catch (error) {
       console.error('Failed to save task times to storage:', error)
     }
+  }
+
+  /**
+   * 合批保存：把同一批（如首次连上外部引擎时为数百个任务逐个 recordTaskAdd）
+   * 的写入合并成一次全量序列化。
+   *
+   * 为什么需要：`taskStore.loadAllTasks` 对每个新出现的任务都会调 `recordTaskAdd`，
+   * 而每次都会 `Object.fromEntries` + `JSON.stringify` 全部记录（上限 2000 条）并同步写盘。
+   */
+  private scheduleSave(): void {
+    if (this.saveTimer) return
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null
+      this.saveToStorage()
+    }, TaskTimeService.SAVE_DEBOUNCE_MS)
+  }
+
+  /** 立即落盘（退出前/需要强一致时） */
+  flush(): void {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer)
+      this.saveTimer = null
+    }
+    this.saveToStorage()
   }
 
   /**
@@ -77,7 +108,7 @@ class TaskTimeService {
       fileName: fileName || existing?.fileName
     })
 
-    this.saveToStorage()
+    this.scheduleSave()
   }
 
   /**
@@ -98,7 +129,7 @@ class TaskTimeService {
       fileName: fileName || existing?.fileName
     })
 
-    this.saveToStorage()
+    this.scheduleSave()
   }
 
   /**
@@ -127,7 +158,7 @@ class TaskTimeService {
    */
   removeTaskTime(gid: string) {
     this.taskTimes.delete(gid)
-    this.saveToStorage()
+    this.scheduleSave()
   }
 
   /**
@@ -146,7 +177,7 @@ class TaskTimeService {
     }
 
     if (cleaned > 0) {
-      this.saveToStorage()
+      this.scheduleSave()
     }
   }
 

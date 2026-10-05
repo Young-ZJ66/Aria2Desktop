@@ -80,9 +80,25 @@ export function useTaskSelection() {
     }
   }
 
-  // 批量更新选中任务的数据
+  // 批量更新选中任务的数据。
+  // 一次构建新 Map、一次赋值：此前是"每个已选任务调一次 selectTask"，
+  // 每条都会新建一个包含全部已选项的 Map 并触发下游 computed 重算——
+  // 选中 500 条时每秒（轮询）就是 500 次 Map 构造 + 500 次重渲染。
   function updateSelectedTasksData(tasks: Aria2Task[]) {
-    tasks.forEach(task => updateSelectedTaskData(task))
+    if (selectedTasksMap.value.size === 0) return
+
+    const next = new Map(selectedTasksMap.value)
+    let changed = false
+
+    for (const task of tasks) {
+      if (!next.has(task.gid)) continue
+      next.set(task.gid, { ...task })
+      changed = true
+    }
+
+    if (changed) {
+      selectedTasksMap.value = next
+    }
   }
 
   // 清理不存在的任务
