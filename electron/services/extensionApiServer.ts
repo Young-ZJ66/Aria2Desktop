@@ -8,7 +8,11 @@ import {
   EXTENSION_API_PORT,
   isAllowedDownloadUri,
   isAuthorizedExtensionRequest,
-  isProbeAllowed
+  isPlainFileName,
+  isProbeAllowed,
+  parseRequestPathname,
+  sanitizeDownloadFileName,
+  getPairingExtensionId
 } from '../utils/extensionApiCore'
 // 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import {
@@ -27,11 +31,15 @@ import {
  * 目的：让扩展不必自己"猜"——分类规则、文件名探测、重名处理等以后都由 App 决策，
  * 扩展只负责把链接交出去。本服务是这套协作的地基，先把「状态查询」跑通。
  *
- * 安全边界（三条缺一不可）：
+ * 安全边界（四条缺一不可）：
  * - 只监听 127.0.0.1，不暴露到局域网；
  * - 必须带正确的 RPC 密钥（settings.aria2.secret），未配置密钥时接口整体不开；
  * - 拒绝 http(s) 网页来源（详见 utils/extensionApiCore 的判定注释）；
  * - 响应不带任何 CORS 头：网页即使知道地址也读不到内容。
+ *
+ * 另有一条**输入侧**约束：接口只收 url / fileName，且 fileName 会被净化到纯文件名
+ * （`sanitizeDownloadFileName`）后才作为 aria2 的 `out` 下发——`out` 与 `dir` 同属
+ * 注入面，未净化时 `../` 可让文件落到下载目录之外（已实测）。
  *
  * 可用性边界：接口只是增强能力，**启动失败（端口占用等）只记日志不影响应用其它功能**，
  * 扩展侧会自动回落到内置规则 + 直连 aria2。
@@ -80,7 +88,28 @@ export class ExtensionApiServer {
     if (this.server) return
 
     const server = http.createServer((req, res) => {
-      void this.handleRequest(req, res)
+      // 必须自己吞掉 handler 的所有异常：这里若让异常逃成「未处理的 Promise 拒绝」，
+      // 主进程会按 Node 默认策略（--unhandled-rejections=throw）直接退出。
+      // 触发门槛极低——请求目标写成 `http://[` / `//[` 时 new URL 就会抛错，
+      // 而解析发生在鉴权之前，畸形请求**不需要密钥**即可打崩整个应用。
+      // 因此失败一律就地转成 500，绝不外泄（其余功能也不受本次请求影响）。
+      this.handleRequest(req, res).catch((error: unknown) => {
+        this.logger.error('接口请求处理异常:', error)
+        if (res.headersSent) {
+          res.end()
+          return
+        }
+        try {
+          this.send(res, 500, { ok: false, code: 'internal', error: 'Internal Error' })
+        } catch {
+          res.destroy()
+        }
+      })
+    })
+
+    // 请求行本身畸形（llhttp 解析失败）：直接断开，不进入业务逻辑
+    server.on('clientError', (_error, socket) => {
+      socket.destroy()
     })
 
     server.on('error', (error: NodeJS.ErrnoException) => {
@@ -107,10 +136,18 @@ export class ExtensionApiServer {
   }
 
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    const { pathname } = new URL(req.url ?? '/', `http://${EXTENSION_API_HOST}`)
+    // 请求目标不可解析时（绝对形式的 `http://[`、协议相对的 `//[` 等）直接 400：
+    // 判定本体在 extensionApiCore.parseRequestPathname（纯函数、有回归用例），
+    // 因为本函数位于任何鉴权之前，异常一旦逃出去就是主进程级故障（见 start() 的兜底说明）。
+    const pathname = parseRequestPathname(req.url)
+    if (pathname === null) {
+      this.logger.warn('拒绝无法解析的请求目标')
+      this.send(res, 400, { ok: false, code: 'bad_request', error: 'Bad Request' })
+      return
+    }
 
     // /api/pair 是唯一免密端点：必须在鉴权闸门**之前**处理，
-    // 来源校验从严（仅扩展源）+ 用户确认兜底，见 getPairingExtensionId 的注释
+    // 来源校验从严（仅扩展源）+ 用户确认兜底，见 handlePairing 的注释
     if (pathname === '/api/pair') {
       await this.handlePairing(req, res)
       return
@@ -194,10 +231,10 @@ export class ExtensionApiServer {
       this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
       return
     }
-    // 来源校验：必须以 chrome-extension:// 开头且 ID 段为 32 位 [a-p]。
-    // 正则内联在此（不把来源字符串传入任何具名函数/弹窗/日志插值），校验只产出布尔结果。
-    const isExtensionOrigin =
-    /^chrome-extension:\/\/[a-p]{32}$/.test(typeof req.headers.origin === 'string' ? req.headers.origin : '')
+    // 来源校验：Origin 必须是 chrome-extension:// 且 ID 段为 32 位 [a-p]。
+    // 判定走 extensionApiCore 的纯函数（可单测），这里只取布尔结果——
+    // 来源字符串不进入任何弹窗、日志插值或响应体。
+    const isExtensionOrigin = getPairingExtensionId(req.headers.origin) !== null
     if (!isExtensionOrigin) {
       this.logger.warn('拒绝非法的配对请求（来源非浏览器扩展）')
       this.send(res, 403, { ok: false, code: 'pairing_forbidden', error: 'Forbidden' })
@@ -269,13 +306,15 @@ export class ExtensionApiServer {
     const autoClassify = settings?.category?.autoClassify !== false
     const baseDir = resolveBaseDownloadDir(settings ?? undefined)
 
-    // 文件名来源优先级：调用方给定（如浏览器解析出的下载名）> URL 末段 > 向服务器探测
-    let fileName = typeof fileNameHint === 'string' ? fileNameHint.trim() : ''
-    if (!fileName) fileName = getFileNameHintFromUri(url)
+    // 文件名来源优先级：调用方给定（如浏览器解析出的下载名）> URL 末段 > 向服务器探测。
+    // **三个来源一律净化**：这个值最终会作为 aria2 的 out 下发，未净化时
+    // 调用方（持密钥的扩展）能借 `../` 把文件写到下载目录之外——见 sanitizeDownloadFileName。
+    let fileName = sanitizeDownloadFileName(fileNameHint)
+    if (!fileName) fileName = sanitizeDownloadFileName(getFileNameHintFromUri(url))
     // 探测是"本机向调用方给的地址发请求"，只对明确无正当用途的目标跳过（回环/链路本地/云元数据）
     if (!getFileExtension(fileName) && isProbeAllowed(url)) {
       const probed = await probeDownloadFileName(url)
-      if (probed) fileName = probed
+      if (probed) fileName = sanitizeDownloadFileName(probed)
     }
 
     const rule = autoClassify && fileName
@@ -315,7 +354,13 @@ export class ExtensionApiServer {
     const options: Record<string, string> = {}
     if (resolved.dir) options.dir = resolved.dir
     const out = resolved.out || resolved.fileName
-    if (out) options.out = out
+    // 二次防线：out 必须是纯文件名。resolveForUrl 已净化过，这里再断言一次——
+    // 双重保障的成本是零，而漏一次的后果是"能往下载目录之外写文件"（已实测）。
+    if (out && isPlainFileName(out)) {
+      options.out = out
+    } else if (out) {
+      this.logger.warn('丢弃不安全的 out 值，改由 aria2 按 URL 自行命名')
+    }
     if (settings?.download?.maxConnectionPerServer) {
       options['max-connection-per-server'] = String(settings.download.maxConnectionPerServer)
     }

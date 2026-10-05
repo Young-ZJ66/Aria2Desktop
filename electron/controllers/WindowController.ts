@@ -1,9 +1,11 @@
 import { BrowserWindow, Menu, shell, screen, nativeTheme, session, app, clipboard } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import Store from 'electron-store'
 import { appState } from '../utils/appState'
 import { getSettings } from '../utils/settingsAccessor'
 import { registerSecureListener } from '../utils/ipcSecurity'
+import { DEV_ALLOWED_ORIGINS, normalizeFileUrl } from '../utils/ipcSecurityCore'
 import { resolveAppIconPath, resolveRendererIndexPath } from '../utils/resolvePaths'
 import { createLogger } from '../utils/logger'
 import type { StoreData, WindowState } from '../types/store'
@@ -30,6 +32,16 @@ export class WindowController {
   private windowRef = () => this.mainWindow
   /** 等待内容就绪的重试定时器（去重：窗口重建/重复调用 show() 时避免叠加多次重试链） */
   private pendingShowTimer: NodeJS.Timeout | null = null
+  /**
+   * 渲染层就绪回调（由 main.ts 注入，用于投递启动期缓存的协议链接）。
+   * 用"就绪信号"而不是固定延时：冷启动耗时不确定，赌时间必然偶尔丢链接。
+   */
+  private onRendererReady: (() => void) | null = null
+
+  /** 注册渲染层就绪回调（覆盖式：main.ts 只注册一次） */
+  public setOnRendererReady(callback: (() => void) | null): void {
+    this.onRendererReady = callback
+  }
 
   constructor(store: Store<StoreData>) {
     this.store = store
@@ -43,6 +55,8 @@ export class WindowController {
     registerSecureListener('app-ready', () => {
       logger.debug('[WindowController] Received app-ready from renderer')
       this.isContentReady = true
+      // 渲染层的 IPC 监听此刻已注册完毕，可以安全投递启动期缓存的协议链接
+      this.onRendererReady?.()
     }, { getMainWindow: this.windowRef })
 
     /**
@@ -75,7 +89,36 @@ export class WindowController {
           }
         })
       })
+
+      // 权限一律拒绝：本应用不需要摄像头/麦克风/定位等 Chromium 权限——
+      // 系统通知走主进程 Notification API、剪贴板走主进程 IPC，渲染层也没有申请过任何权限。
+      // 拒绝而不是放任，避免渲染层被注入后借权限接口扩大影响面。
+      session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+        logger.debug('[WindowController] Denied permission request:', permission)
+        callback(false)
+      })
     })
+  }
+
+  /**
+   * 主窗口是否允许导航到该 URL。
+   *
+   * 判定口径与 IPC 来源校验保持一致（同一套常量与归一化函数）：
+   * - 开发环境：Vite dev server 的精确 origin（支持 HMR 整页刷新）
+   * - 生产环境：本应用渲染层入口（file://，归一化后比对；hash/query 与百分号编码差异不影响）
+   */
+  private isAllowedNavigation(targetUrl: string): boolean {
+    try {
+      if (process.env.NODE_ENV === 'development') {
+        return DEV_ALLOWED_ORIGINS.includes(new URL(targetUrl).origin)
+      }
+      if (!targetUrl.startsWith('file://')) return false
+      const entry = pathToFileURL(resolveRendererIndexPath()).toString()
+      return normalizeFileUrl(targetUrl) === normalizeFileUrl(entry)
+    } catch {
+      // 入口路径解析失败时不阻断：宁可少一层加固，也不能让应用变成完全无法导航
+      return true
+    }
   }
 
   public createWindow(): BrowserWindow {
@@ -228,6 +271,26 @@ export class WindowController {
         logger.warn('[WindowController] Blocked openExternal for invalid URL:', details.url)
       }
       return { action: 'deny' }
+    })
+
+    /**
+     * 阻断页面级导航：主窗口只允许停留在本应用自己的渲染层页面。
+     *
+     * 为什么必须挡：生产环境的 IPC 授权虽然已收紧为"与渲染层入口精确比对"，
+     * 但纵深防御要求从源头就不让主窗口跑到别的页面上——例如把本地 HTML 文件拖进窗口，
+     * 若导航成功，该页面就继承了 preload 暴露的完整特权桥。
+     */
+    this.mainWindow.webContents.on('will-navigate', (event, url) => {
+      if (!this.isAllowedNavigation(url)) {
+        event.preventDefault()
+        logger.warn('[WindowController] Blocked navigation to:', url)
+      }
+    })
+
+    // 本应用不使用 <webview>：直接阻断挂载，避免将来被引入时绕过上述导航限制
+    this.mainWindow.webContents.on('will-attach-webview', (event) => {
+      event.preventDefault()
+      logger.warn('[WindowController] Blocked webview attachment')
     })
 
     // 保存窗口状态（防抖处理）

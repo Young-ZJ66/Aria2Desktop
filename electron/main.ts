@@ -19,6 +19,25 @@ import type { StoreData } from './types/store'
 setupLogging()
 const logger = createLogger('Main')
 
+/**
+ * 全局兜底：逃逸的 Promise 拒绝与未捕获异常只记日志，不让主进程直接退出。
+ *
+ * 为什么必须有：Node 默认 `--unhandled-rejections=throw`，Electron 不覆盖该默认，
+ * 而本应用是**常驻下载器**——单个后台 Promise 漏 catch（本地接口收到畸形请求、
+ * 插件钩子返回 rejected promise 等）就会让整个应用连同进行中的下载一起消失。
+ * 这类失败的影响面应被限制在"这一次操作"，而不是整个进程。
+ *
+ * 取舍：uncaughtException 后进程状态可能已不可信，理论上"崩溃重启"更干净；
+ * 但对下载器而言，用户更在意下载不中断，且启动期的严重失败已有显式分支处理
+ * （见下方 whenReady 的 try/catch → app.quit()），故此处选择记录并继续。
+ */
+process.on('unhandledRejection', (reason) => {
+  logger.error('未捕获的 Promise 拒绝（已记录并忽略，避免主进程退出）:', reason)
+})
+process.on('uncaughtException', (error) => {
+  logger.error('未捕获的异常（已记录并忽略，避免主进程退出）:', error)
+})
+
 // Windows：显式声明 AppUserModelID，让系统通知与任务栏分组归属到本应用。
 // 生产环境取值必须与 electron-builder 写入快捷方式的 AUMID 一致——已核实 NSIS 模板
 // (app-builder-lib/templates/nsis/include/installer.nsh) 用 WinShell::SetLnkAUMI "${APP_ID}"
@@ -185,13 +204,37 @@ function extractPendingUrl(argv: string[]): string | null {
   return null
 }
 
-/** 将待处理的下载链接推送给渲染进程（窗口就绪后由渲染层打开新建下载弹窗） */
+/**
+ * 待投递的协议链接队列。
+ *
+ * 为什么需要队列：主进程拿到链接的时机可能早于渲染层注册监听（冷启动尤其常见，
+ * 而渲染层的监听要等 `onMounted` 里一次 IPC 往返之后才注册）。
+ * 之前用固定 1000ms/500ms 定时器赌"那时渲染层已经就绪"——赌输就**静默丢链接**，
+ * 用户点了磁力链接却什么都没发生。现在改为"渲染层就绪（app-ready）后统一投递"。
+ */
+const pendingDownloadUrls: string[] = []
+let rendererReady = false
+
+/** 投递一个待处理链接；渲染层未就绪时先入队 */
 function sendPendingUrl(url: string): void {
   const win = windowController.getMainWindow()
-  if (win && !win.isDestroyed()) {
-    win.webContents.send('pending-download-url', url)
+  if (!rendererReady || !win || win.isDestroyed()) {
+    pendingDownloadUrls.push(url)
+    return
+  }
+  win.webContents.send('pending-download-url', url)
+}
+
+/** 渲染层就绪：把启动期缓存的链接按到达顺序补投 */
+function flushPendingUrls(): void {
+  rendererReady = true
+  const queued = pendingDownloadUrls.splice(0, pendingDownloadUrls.length)
+  for (const url of queued) {
+    sendPendingUrl(url)
   }
 }
+
+windowController.setOnRendererReady(flushPendingUrls)
 
 if (!gotTheLock) {
   app.quit()
@@ -206,8 +249,8 @@ if (!gotTheLock) {
     event.preventDefault()
     if (url && url.startsWith('magnet:')) {
       windowController.show()
-      // 窗口可能尚未就绪，延迟发送
-      setTimeout(() => sendPendingUrl(url), 500)
+      // 渲染层未就绪时由 sendPendingUrl 入队，app-ready 后补投
+      sendPendingUrl(url)
     }
   })
 
@@ -235,10 +278,11 @@ if (!gotTheLock) {
       // 启动浏览器扩展本地接口（失败不影响其它功能，扩展侧会自动回落）
       extensionApiServer.start()
 
-      // 处理启动时的协议链接（Windows 首次启动通过 argv 传入）
+      // 处理启动时的协议链接（Windows 首次启动通过 argv 传入）：
+      // 此时渲染层通常尚未就绪，sendPendingUrl 会入队并在 app-ready 后补投
       const startupUrl = extractPendingUrl(process.argv)
       if (startupUrl) {
-        setTimeout(() => sendPendingUrl(startupUrl), 1000)
+        sendPendingUrl(startupUrl)
       }
 
       logger.info('应用初始化完成')

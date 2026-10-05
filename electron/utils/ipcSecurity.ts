@@ -1,5 +1,8 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
+import * as path from 'path'
+import { pathToFileURL } from 'url'
 import { isSenderAuthorized, wrapSecureHandler, wrapSecureListener } from './ipcSecurityCore'
+import { resolveRendererIndexPath } from './resolvePaths'
 
 /**
  * 未授权时的默认失败返回值：覆盖本仓 32/45 个通道的主流形态。
@@ -38,9 +41,44 @@ export function createSenderValidator(getMainWindow: () => BrowserWindow | null)
     return isSenderAuthorized({
       isMainWindow,
       senderUrl: event.sender.getURL(),
-      isPackaged: app.isPackaged
+      isPackaged: app.isPackaged,
+      allowedFileUrl: getRendererEntryFileUrl(),
+      allowedFileDirUrl: getRendererEntryDirUrl()
     })
   }
+}
+
+/** 渲染层入口 URL 的进程内缓存（null = 尚未计算；入口路径在进程生命周期内不变） */
+let cachedRendererEntryUrl: string | undefined | null = null
+let cachedRendererEntryDirUrl: string | undefined | null = null
+
+/**
+ * 渲染层入口的 `file://` URL（生产环境 IPC 来源比对的基准）。
+ *
+ * 语义等价性说明：`loadFile(p)` 加载出的 URL 与 `pathToFileURL(p)` 相同（同为
+ * file:// + 正斜杠 + 必要字符的百分号编码），因此可以安全地作为比对基准；
+ * 万一解析异常则返回 undefined，让判定回退到"任意 file://"（宁可保持可用，
+ * 也不能因为拿不到入口路径而把整个应用的 IPC 锁死）。
+ */
+function getRendererEntryFileUrl(): string | undefined {
+  if (cachedRendererEntryUrl !== null) return cachedRendererEntryUrl
+  try {
+    cachedRendererEntryUrl = pathToFileURL(resolveRendererIndexPath()).toString()
+  } catch {
+    cachedRendererEntryUrl = undefined
+  }
+  return cachedRendererEntryUrl
+}
+
+/** 入口所在目录的 `file://` URL（同目录放行的兜底判定，见 ipcSecurityCore 的说明） */
+function getRendererEntryDirUrl(): string | undefined {
+  if (cachedRendererEntryDirUrl !== null) return cachedRendererEntryDirUrl
+  try {
+    cachedRendererEntryDirUrl = pathToFileURL(path.dirname(resolveRendererIndexPath())).toString()
+  } catch {
+    cachedRendererEntryDirUrl = undefined
+  }
+  return cachedRendererEntryDirUrl
 }
 
 /** `registerSecureHandler` 的选项 */

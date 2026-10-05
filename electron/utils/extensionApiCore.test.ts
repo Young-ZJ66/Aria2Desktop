@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { EXTENSION_ID, getPairingExtensionId, isAllowedDownloadUri, isAuthorizedExtensionRequest, isProbeAllowed } from './extensionApiCore'
+import {
+  EXTENSION_ID,
+  getPairingExtensionId,
+  isAllowedDownloadUri,
+  isAuthorizedExtensionRequest,
+  isPlainFileName,
+  isProbeAllowed,
+  parseRequestPathname,
+  sanitizeDownloadFileName
+} from './extensionApiCore'
 
 /**
  * 本地接口的鉴权是这个功能唯一的攻击面，边界必须逐条钉死：
@@ -176,5 +185,73 @@ describe('getPairingExtensionId（配对来源校验——唯一免密端点，�
     ]) {
       expect(getPairingExtensionId(origin)).toBeNull()
     }
+  })
+})
+
+/**
+ * 该值会被当作 aria2 的 `out` 下发（`out` 与 `dir` 同属注入面），
+ * 判错一次的后果是"能往下载目录之外写文件"——已用 aria2c 实测：
+ * `out=../escape.txt` 会在上级目录生成文件，`out=C:\...\x.zip` 则 errorCode=18 直接失败。
+ */
+describe('sanitizeDownloadFileName（out 的注入面防线）', () => {
+  it('目录穿越被收敛为纯文件名', () => {
+    expect(sanitizeDownloadFileName('../escape.txt')).toBe('escape.txt')
+    expect(sanitizeDownloadFileName('..\\..\\Windows\\evil.exe')).toBe('evil.exe')
+    expect(sanitizeDownloadFileName('/etc/passwd')).toBe('passwd')
+    expect(sanitizeDownloadFileName('a/b/../../c.zip')).toBe('c.zip')
+  })
+
+  it('Windows 绝对路径只保留文件名（扩展拦截下载给的就是这种）', () => {
+    expect(sanitizeDownloadFileName('C:\\Users\\YoungZJ\\Downloads\\video.mp4')).toBe('video.mp4')
+    expect(sanitizeDownloadFileName('D:/Downloads/子目录/report.pdf')).toBe('report.pdf')
+  })
+
+  it('剔除 Windows 非法字符与控制符', () => {
+    expect(sanitizeDownloadFileName('a<b>c:d"e|f?g*h.txt')).toBe('abcdefgh.txt')
+    expect(sanitizeDownloadFileName('bad\u0000name.txt')).toBe('badname.txt')
+  })
+
+  it('目录项与空结果一律拒绝（返回空串，调用方回落到 URL 命名）', () => {
+    for (const input of ['.', '..', '  ', '', '/', '\\\\', '../../../', null, undefined, 42, {}]) {
+      expect(sanitizeDownloadFileName(input)).toBe('')
+    }
+  })
+
+  it('正常文件名（含中文、空格、多后缀）原样保留', () => {
+    expect(sanitizeDownloadFileName('我的 视频.tar.gz')).toBe('我的 视频.tar.gz')
+    expect(sanitizeDownloadFileName('  padded.txt  ')).toBe('padded.txt')
+  })
+})
+
+describe('isPlainFileName（下发 out 前的二次断言）', () => {
+  it('只有已净化的纯文件名通过', () => {
+    expect(isPlainFileName('video.mp4')).toBe(true)
+    expect(isPlainFileName('C:\\Users\\x\\video.mp4')).toBe(false)
+    expect(isPlainFileName('../escape.txt')).toBe(false)
+    expect(isPlainFileName('sub/dir/file.txt')).toBe(false)
+    expect(isPlainFileName('')).toBe(false)
+  })
+})
+
+/**
+ * 回归用例：以下请求目标都会让 new URL 抛 TypeError，而解析发生在鉴权**之前**、
+ * 异常又没人 catch → 一条畸形请求即可让主进程按 Node 默认策略退出（无需密钥）。
+ * 其中 `//` 尤其危险：它是最普通的 origin-form 目标，浏览器/curl 随手就能发出。
+ * 现在解析结果统一收敛为 null（调用方回 400），本用例保证不会退化。
+ */
+describe('parseRequestPathname（畸形请求目标不得抛错）', () => {
+  it('会让 new URL 抛错的畸形目标 → 返回 null', () => {
+    for (const target of ['//', 'http://[', '//[', 'http://[::1', 'https://[abc/']) {
+      // 前提校验：这些输入确实会让裸 new URL 抛错（否则本用例失去意义）
+      expect(() => new URL(target, 'http://127.0.0.1')).toThrow()
+      expect(parseRequestPathname(target)).toBeNull()
+    }
+  })
+
+  it('正常与空输入 → 返回 pathname', () => {
+    expect(parseRequestPathname('/api/status')).toBe('/api/status')
+    expect(parseRequestPathname('/api/add?x=1')).toBe('/api/add')
+    expect(parseRequestPathname(undefined)).toBe('/')
+    expect(parseRequestPathname('')).toBe('/')
   })
 })

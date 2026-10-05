@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSenderAuthorized, wrapSecureHandler, wrapSecureListener } from './ipcSecurityCore'
+import { isSenderAuthorized, normalizeFileUrl, wrapSecureHandler, wrapSecureListener } from './ipcSecurityCore'
 
 /**
  * IPC 来源判定是安全边界（决定哪些页面/进程能调用主进程 IPC）。
@@ -57,6 +57,78 @@ describe('isSenderAuthorized', () => {
     expect(isSenderAuthorized({
       ...MAIN_WINDOW, senderUrl: 'https://evil.example/', isPackaged: true
     })).toBe(false)
+  })
+
+  it('生产环境：给出入口时与入口精确比对（本地其它 HTML 不再放行）', () => {
+    const entry = 'file:///C:/app/resources/app.asar/dist/vue/index.html'
+
+    // 入口本身：必须放行——否则整个应用的 IPC 会被自己的加固锁死
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: entry, isPackaged: true, allowedFileUrl: entry
+    })).toBe(true)
+    // 哈希路由（vue-router）与查询串不影响判定
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: `${entry}#/downloading`, isPackaged: true, allowedFileUrl: entry
+    })).toBe(true)
+    // 盘符大小写与百分号编码差异不影响判定（loadFile 与 pathToFileURL 可能不同）
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: 'file:///c:/app/resources/app.asar/dist/vue/index.html', isPackaged: true,
+      allowedFileUrl: 'file:///C:/app/resources/app.asar/dist/vue/index.html'
+    })).toBe(process.platform === 'win32')
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: 'file:///C:/app%20dir/dist/vue/index.html', isPackaged: true,
+      allowedFileUrl: 'file:///C:/app dir/dist/vue/index.html'
+    })).toBe(true)
+
+    // 同一目录下的其它文件（应用自身的前端产物）：放行——只比对入口文件过于脆弱，
+    // URL 形态的细微差异会让生产环境 IPC 全部失效；而能写入安装目录的攻击者本就能替换入口
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: 'file:///C:/app/resources/app.asar/dist/vue/other.html', isPackaged: true,
+      allowedFileUrl: entry, allowedFileDirUrl: 'file:///C:/app/resources/app.asar/dist/vue'
+    })).toBe(true)
+
+    // 但应用目录**之外**的本地页面必须拒绝（这才是要挡的风险场景）
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: 'file:///C:/Users/x/Downloads/evil.html', isPackaged: true,
+      allowedFileUrl: entry, allowedFileDirUrl: 'file:///C:/app/resources/app.asar/dist/vue'
+    })).toBe(false)
+    // 上级目录、以及另一个 asar 里的页面同样拒绝
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: 'file:///C:/app/resources/app.asar/dist/index.html', isPackaged: true,
+      allowedFileUrl: entry, allowedFileDirUrl: 'file:///C:/app/resources/app.asar/dist/vue'
+    })).toBe(false)
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: 'file:///C:/other/resources/app.asar/dist/vue/index.html', isPackaged: true,
+      allowedFileUrl: entry, allowedFileDirUrl: 'file:///C:/app/resources/app.asar/dist/vue'
+    })).toBe(false)
+  })
+
+  it('生产环境：未给出入口时回退为"任意 file://"（拿不到入口路径不能锁死应用）', () => {
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: 'file:///anywhere/index.html', isPackaged: true, allowedFileUrl: undefined
+    })).toBe(true)
+  })
+})
+
+describe('normalizeFileUrl', () => {
+  it('去除 hash 与 query、解码百分号编码、统一分隔符', () => {
+    expect(normalizeFileUrl('file:///C:/a/b/index.html#/route?x=1')).toBe(
+      normalizeFileUrl('file:///C:/a/b/index.html')
+    )
+    expect(normalizeFileUrl('file:///C:/a%20b/index.html')).toBe(normalizeFileUrl('file:///C:/a b/index.html'))
+    expect(normalizeFileUrl('file:///C:/a\\b/index.html')).toBe(normalizeFileUrl('file:///C:/a/b/index.html'))
+  })
+
+  it('非法输入原样返回（不抛错）', () => {
+    expect(normalizeFileUrl('not a url')).toBe('not a url')
+    expect(normalizeFileUrl('')).toBe('')
+  })
+
+  it('file:// 的两种合法写法归一为同一路径（判错会让整个应用 IPC 失效）', () => {
+    // 盘符落在 host 段的写法与三斜杠写法必须等价
+    expect(normalizeFileUrl('file://C:/app/dist/vue/index.html')).toBe(
+      normalizeFileUrl('file:///C:/app/dist/vue/index.html')
+    )
   })
 })
 

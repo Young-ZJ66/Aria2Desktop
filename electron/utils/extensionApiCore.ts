@@ -71,6 +71,60 @@ export function isProbeAllowed(url: string): boolean {
 }
 
 /**
+ * 解析请求目标中的 pathname（HTTP 服务里访问 req.url 的**唯一**入口）。
+ *
+ * 为什么要单独抽出来：`new URL('http://[', base)` 与 `new URL('//[', base)` 都会抛
+ * TypeError: Invalid URL，而这段解析发生在鉴权**之前**——异常一旦逃逸成未处理的
+ * Promise 拒绝，主进程会按 Node 默认策略直接退出（一条畸形请求即可打崩应用，
+ * 且不需要密钥）。因此这里把失败统一收敛成 null，由调用方回 400。
+ *
+ * @returns 解析成功返回 pathname，畸形请求目标返回 null
+ */
+export function parseRequestPathname(requestUrl: string | undefined): string | null {
+  try {
+    return new URL(requestUrl ?? '/', `http://${EXTENSION_API_HOST}`).pathname
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 净化调用方给出的下载文件名（`/api/resolve` 与 `/api/add` 的 `fileName` 参数）。
+ *
+ * 为什么必须净化：该值最终会作为 aria2 的 `out` 选项下发，而 `out` 与 `dir`、
+ * `on-download-complete` 同属注入面。用仓库自带的 aria2c 实测过两种后果：
+ * - `out=../escape.txt` → 任务"成功完成"，但文件写到**下载目录之外**（目录穿越）；
+ * - `out=C:\Users\...\x.zip`（Windows 绝对路径，浏览器扩展拦截下载时给的就是这种）
+ *   → 任务直接以 errorCode=18 失败（Windows 文件名不允许盘符冒号）。
+ *
+ * 规则：只保留最后一段（按两种分隔符切分）、剔除 Windows 非法字符与控制符，
+ * 并拒绝 `.` / `..` 与空结果。与 utils/downloadNameProbe 的 sanitizeFileName 同口径。
+ *
+ * 放在本模块（不 import electron）是为了可单测——判错一次的代价是"能往任意目录写文件"。
+ */
+/** Windows 文件名非法字符（控制符另行按码点过滤，避免写出带控制字符的正则） */
+const ILLEGAL_FILE_NAME_CHARS = '<>:"|?*'
+
+export function sanitizeDownloadFileName(input: unknown): string {
+  if (typeof input !== 'string' || !input) return ''
+  const last = input.split(/[\\/]/).pop() ?? ''
+  let cleaned = ''
+  for (const ch of last) {
+    // U+0000–U+001F（含换行/制表）会让 aria2 写出的文件名不可用，一律剔除
+    if (ch.charCodeAt(0) <= 0x1f || ILLEGAL_FILE_NAME_CHARS.includes(ch)) continue
+    cleaned += ch
+  }
+  cleaned = cleaned.trim()
+  if (!cleaned || cleaned === '.' || cleaned === '..') return ''
+  return cleaned
+}
+
+/** 判定一个文件名是否是"纯文件名"（不含任何路径成分，即已是净化后的形态） */
+export function isPlainFileName(name: string): boolean {
+  return !!name && sanitizeDownloadFileName(name) === name
+}
+
+/**
  * 配对请求的来源校验（/api/pair 是**唯一**不需要密钥的端点，因此来源必须从严）：
  * Origin 必须存在且是 chrome-extension:// 协议（浏览器上下文里只有扩展能发出这种源），
  * http(s)/空来源一律拒绝——配对是给"刚装好扩展、还没密钥"的场景用的，curl 与网页都没资格触发。
@@ -80,7 +134,9 @@ export function isProbeAllowed(url: string): boolean {
  * 而本就能读文件的本机进程早已能从 aria2.conf（明文 rpc-secret）拿到密钥，
  * 因此配对端点没有引入新的本地攻击面—— dialogs 确认挡住的是"用户没装扩展却弹窗"这类意外。
  *
- * @returns 合法时返回扩展 ID（用于在确认弹窗里展示），否则 null
+ * @returns 合法时返回扩展 ID，否则 null。**调用方只应把它当布尔闸门用**：
+ *          扩展 ID 只进日志、不进确认弹窗/错误响应（32 位 ID 对用户没有可验证性，
+ *          且要避免把请求侧字符串带进任何展示面）。
  */
 export function getPairingExtensionId(origin: string | undefined): string | null {
   if (!origin) return null
