@@ -57,9 +57,29 @@ function extFromUrl(url) {
   }
 }
 
-/** 清理文件名：去掉路径分隔符/引号/控制符与首尾空白 */
+/**
+ * 收敛为**纯文件名**：只保留最后一段（按两种分隔符切分），剔除 Windows 非法字符
+ * （含盘符冒号）与控制符，并拒绝 `.` / `..` 与空结果。
+ *
+ * 为什么要取末段而不是删分隔符：aria2 的 `out` 必须是相对 `dir` 的文件名，
+ * 而两处输入都可能是路径——Content-Disposition 可能带目录成分，
+ * `chrome.downloads` 的 `downloadItem.filename` 更是**绝对本地路径**。
+ * 直接当 out 传的实测后果：任务以 errorCode=18 失败（Windows 不允许盘符冒号）；
+ * 若含 `../` 则会让 aria2 把文件写到下载目录之外。
+ * 口径与 App 侧 extensionApiCore.sanitizeDownloadFileName 保持一致。
+ */
 function sanitizeFileName(name) {
-  return name.replace(/[/\\]/g, '').replace(/["'\r\n]/g, '').trim()
+  if (typeof name !== 'string' || !name) return ''
+  const last = name.split(/[\\/]/).pop() || ''
+  let cleaned = ''
+  for (const ch of last) {
+    // U+0000–U+001F 控制符与 Windows 非法字符一律剔除
+    if (ch.charCodeAt(0) <= 0x1f || '<>:"|?*'.includes(ch)) continue
+    cleaned += ch
+  }
+  cleaned = cleaned.trim()
+  if (!cleaned || cleaned === '.' || cleaned === '..') return ''
+  return cleaned
 }
 
 /**
@@ -369,24 +389,32 @@ async function sendToAria2(url, options = {}, fileNameHint = '') {
   if (!config.enabled) return { success: false, error: i18n('errDisabled') }
 
   try {
-    const callerSpecifiedDir = Object.keys(options).includes('dir')
+    // 入口统一净化：out 与 fileNameHint 都可能来自 chrome.downloads（绝对本地路径），
+    // 直接下发会让任务以 errorCode=18 失败——详见 sanitizeFileName 的注释。
+    const cleanOptions = { ...options }
+    const plainOut = sanitizeFileName(cleanOptions.out)
+    if (plainOut) cleanOptions.out = plainOut
+    else delete cleanOptions.out
+    const plainHint = sanitizeFileName(fileNameHint) || plainOut
+
+    const callerSpecifiedDir = Object.keys(cleanOptions).includes('dir')
 
     // 1) 优先让 App 建任务：用户自定义分类规则生效、重名统一处理，
     //    且套用与 App 内新建一致的 aria2 选项（连接数/分片/是否自动开始）
     if (!callerSpecifiedDir) {
-      const viaApp = await addViaApp(url, config, fileNameHint || options.out || '')
+      const viaApp = await addViaApp(url, config, plainHint)
       if (viaApp) return viaApp
     }
 
     // 2) 回落：扩展直连 aria2（内置默认规则 + 本地探测），保证 App 未运行/未授权时仍可用
     const target = callerSpecifiedDir
       ? { dir: '', subdir: null, out: '', conflict: false, source: 'caller' }
-      : await resolveTarget(url, config, fileNameHint)
+      : await resolveTarget(url, config, plainHint)
 
-    const finalOptions = { ...options }
+    const finalOptions = { ...cleanOptions }
     if (target.dir) finalOptions.dir = target.dir
     // out 优先级：调用方给定（如浏览器解析出的文件名）> 本地探测结果
-    if (!options.out && target.out) finalOptions.out = target.out
+    if (!cleanOptions.out && target.out) finalOptions.out = target.out
 
     const gid = await rpcCall('aria2.addUri', [[url], finalOptions], config)
     return {
@@ -503,8 +531,11 @@ chrome.downloads.onDeterminingFilename.addListener(async (downloadItem) => {
   // 此事件的职责就是决定文件名：downloadItem.filename 此时已由浏览器确定（含真实扩展名）。
   // 传 out 保留原始文件名；同时把它作为分类依据——跳转链接的 URL 往往没有扩展名，
   // 浏览器解析出的文件名比 URL 可靠得多。
-  const options = downloadItem.filename ? { out: downloadItem.filename } : {}
-  const result = await sendToAria2(downloadItem.url, options, downloadItem.filename)
+  // 注意 downloadItem.filename 是**绝对本地路径**（Chrome 语义），必须收敛成纯文件名：
+  // aria2 的 out 是相对 dir 的，传绝对路径会直接 errorCode=18（sendToAria2 入口也会再兜一次）。
+  const suggested = sanitizeFileName(downloadItem.filename)
+  const options = suggested ? { out: suggested } : {}
+  const result = await sendToAria2(downloadItem.url, options, suggested)
 
   if (result.success) {
     showNotification('intercepted', buildSentMessage(result, {
