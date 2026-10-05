@@ -17,6 +17,7 @@
  */
 import Module from 'node:module'
 import fs from 'node:fs'
+import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
@@ -88,7 +89,11 @@ require.cache[accessorPath] = {
 }
 
 // ---- 3) 起真实 aria2 ----
-const aria2 = spawn(aria2Exe, [
+// 启动参数分两组：基础参数 + 可选日志参数。
+// 为什么把 --log 独立出来：某些环境下 aria2 打不开临时目录里的日志文件
+// （已实测：`[Logger.cc:73] errorCode=1 Failed to open the file ...`），会**立即以 code 1 退出**，
+// 于是整轮验证级联出一堆"引擎不可达"的误报。日志只是诊断便利，不该让验证失败。
+const ARIA2_BASE_ARGS = [
   '--no-conf=true',
   '--enable-rpc=true',
   '--rpc-listen-all=false',
@@ -97,9 +102,21 @@ const aria2 = spawn(aria2Exe, [
   `--dir=${downloadDir}`,
   '--continue=true',
   '--auto-file-renaming=true',
-  '--quiet=true',
-  `--log=${path.join(work, 'aria2.log')}`
-], { stdio: 'ignore' })
+  '--quiet=true'
+]
+
+let aria2ErrorLog = ''
+function startAria2(withLogFile) {
+  const args = [...ARIA2_BASE_ARGS]
+  if (withLogFile) args.push(`--log=${path.join(work, 'aria2.log')}`)
+  const proc = spawn(aria2Exe, args, { stdio: 'ignore' })
+  let exited = null
+  proc.on('exit', (code, signal) => { exited = `code=${code} signal=${signal}` })
+  proc.on('error', (error) => { exited = `spawn error: ${error.message}` })
+  return { proc, lastExit: () => exited }
+}
+
+let aria2 = startAria2(true)
 
 const API = `http://127.0.0.1:${HARNESS_PORT}`
 const request = async (url, init) => {
@@ -114,6 +131,19 @@ const request = async (url, init) => {
     return { status: 0, json: null, text: `NETWORK ERROR: ${error.message}` }
   }
 }
+/**
+ * 裸 socket 发原始请求：用于构造 fetch 无法表达的**畸形请求目标**
+ * （fetch/undici 会先把 URL 规范化，`//`、`http://[` 这类目标发不出去）。
+ */
+const rawRequest = (payload) => new Promise((resolve) => {
+  const socket = net.connect(HARNESS_PORT, '127.0.0.1', () => socket.write(payload))
+  let buf = ''
+  socket.on('data', (chunk) => { buf += chunk.toString() })
+  socket.on('close', () => resolve(buf || 'NO RESPONSE'))
+  socket.on('error', (error) => resolve(`SOCKET ERROR: ${error.message}`))
+  socket.setTimeout(3000, () => { socket.destroy(); resolve(buf || 'TIMEOUT') })
+})
+
 const rpc = async (method, params = []) => {
   const response = await fetch(`http://127.0.0.1:${ARIA2_PORT}/jsonrpc`, {
     method: 'POST',
@@ -128,16 +158,33 @@ const withAuth = (extra = {}) => ({ Authorization: `Bearer ${AUTH_SECRET}`, ...e
 const jsonHeaders = { 'Content-Type': 'application/json' }
 
 const run = async () => {
-  for (let attempt = 0; attempt < 20; attempt++) {
-    try { await rpc('aria2.getVersion'); break } catch { await new Promise((r) => setTimeout(r, 300)) }
+  /** 等引擎 RPC 就绪；返回是否成功（不再无条件 PASS——那会让"引擎没起来"伪装成 11 个业务失败） */
+  const waitForEngine = async () => {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      try { await rpc('aria2.getVersion'); return true } catch { await new Promise((r) => setTimeout(r, 300)) }
+    }
+    return false
   }
-  check('aria2 引擎已启动', true)
+
+  let engineUp = await waitForEngine()
+  if (!engineUp) {
+    // 带 --log 启动失败时退回不带日志再试一次（见 ARIA2_BASE_ARGS 上方的说明）
+    aria2ErrorLog = `首次启动退出信息: ${aria2.lastExit() ?? '（未退出，但 RPC 无响应）'}`
+    try { aria2.proc.kill() } catch { /* 已退出 */ }
+    aria2 = startAria2(false)
+    engineUp = await waitForEngine()
+  }
+  check('aria2 引擎已启动', engineUp, engineUp ? '' : aria2ErrorLog)
+  if (!engineUp) {
+    // 引擎不可用时后续每一项都会失败，徒增噪音：直接以明确原因终止
+    throw new Error(`aria2 引擎未能就绪（${ARIA2_PORT} 端口无 RPC 响应）。${aria2ErrorLog}`)
+  }
 
   const { ExtensionApiServer } = require(path.join(DIST, 'services/extensionApiServer.js'))
   let pairDecision = true // 模拟用户在应用弹窗中点"允许 / 拒绝"
   const server = new ExtensionApiServer({
     getAppVersion: () => '1.0.8',
-    getEngineProcessInfo: () => ({ isRunning: true, pid: aria2.pid }),
+    getEngineProcessInfo: () => ({ isRunning: true, pid: aria2.proc.pid }),
     confirmPairing: async () => {
       // 弹窗文案为固定提示语、不携带请求侧数据（扩展 ID 只进日志），这里只断言"弹窗被触发"
       check('配对: 应用弹出确认框询问用户', true)
@@ -274,13 +321,51 @@ const run = async () => {
     noSecret.status === 200 && noSecret.json?.ok === true && noSecret.json?.secret === '' && noSecret.json?.note === 'no_secret')
   harnessSettings.aria2.secret = savedSecret
 
+  // ---- G. 畸形请求目标：曾让主进程按"未处理的 Promise 拒绝"直接退出（本轮修复） ----
+  // `//` 是最普通的 origin-form 目标，浏览器/curl 随手就能发出；
+  // 而 new URL('//' | 'http://[', base) 会抛 TypeError，且解析发生在鉴权之前。
+  for (const target of ['//', 'http://[', '//[']) {
+    const raw = await rawRequest(`GET ${target} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n`)
+    check(`畸形请求目标 ${target} → 400（不再抛错）`, raw.startsWith('HTTP/1.1 400'), raw.split('\r\n')[0])
+  }
+  check('畸形请求之后接口仍可用（进程未被异常终止）',
+    (await request(`${API}/api/status`, { headers: withAuth() })).status === 200)
+
+  // ---- G2. fileName 注入面：不得逃出下载目录（本轮修复） ----
+  // 该值会作为 aria2 的 out 下发，实测未净化时 `../escape.txt` 能写到下载目录之外。
+  const traversal = await request(`${API}/api/resolve`, {
+    method: 'POST', headers: withAuth(jsonHeaders),
+    body: JSON.stringify({ url: 'https://example.com/whatever', fileName: '../escape.txt' })
+  })
+  check('fileName 目录穿越 → 收敛为纯文件名',
+    traversal.json?.resolved?.fileName === 'escape.txt', `fileName=${traversal.json?.resolved?.fileName}`)
+
+  const absName = await request(`${API}/api/resolve`, {
+    method: 'POST', headers: withAuth(jsonHeaders),
+    body: JSON.stringify({ url: 'https://example.com/whatever', fileName: 'C:\\Users\\x\\Downloads\\video.mp4' })
+  })
+  check('fileName 绝对路径 → 只保留文件名（扩展拦截下载给的就是这种）',
+    absName.json?.resolved?.fileName === 'video.mp4', `fileName=${absName.json?.resolved?.fileName}`)
+
+  const escapeAdd = await request(`${API}/api/add`, {
+    method: 'POST', headers: withAuth(jsonHeaders),
+    body: JSON.stringify({ url: small, fileName: '../escape-add.txt' })
+  })
+  const escapeOptions = escapeAdd.json?.gid ? await rpc('aria2.getOption', [escapeAdd.json.gid]) : {}
+  check('add: 下发的 out 已净化为纯文件名', escapeOptions.out === 'escape-add.txt', `out=${escapeOptions.out}`)
+  check('add: out 不含任何路径成分（穿越与绝对路径都被消除）',
+    !String(escapeOptions.out).includes('..') && !String(escapeOptions.out).includes('/') &&
+    !String(escapeOptions.out).includes('\\'))
+  check('add: dir 仍在下载目录之下（文件名净化不影响目录解析）',
+    String(escapeOptions.dir).replace(/\\/g, '/').includes('/downloads'))
+
   // ---- 收尾 ----
   server.stop()
   await new Promise((r) => setTimeout(r, 200))
 }
 
 const cleanup = () => {
-  try { aria2.kill() } catch { /* 已退出 */ }
+  try { aria2.proc.kill() } catch { /* 已退出 */ }
   try { fs.rmSync(work, { recursive: true, force: true }) } catch { /* 占用时留给系统清理 */ }
 }
 
