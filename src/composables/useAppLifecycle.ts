@@ -7,12 +7,13 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
+import { message } from '@/utils/feedback'
 import { initLocalService, stopStatusCheck } from '@/composables/useAria2LocalService'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useClipboardMonitor } from '@/composables/useClipboardMonitor'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
-import { stopCleanupTimer } from '@/services/taskPersistenceService'
-import { stopTimeCleanupTimer } from '@/services/taskTimeService'
+import { stopCleanupTimer, taskPersistenceService } from '@/services/taskPersistenceService'
+import { stopTimeCleanupTimer, taskTimeService } from '@/services/taskTimeService'
 import type { useThemeManager } from '@/composables/useThemeManager'
 
 /**
@@ -92,13 +93,22 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       if (action === 'none') return
       // 延迟 3 秒执行，给用户时间看到完成状态
       downloadCompleteActionPending = true
-      setTimeout(() => {
+      setTimeout(async () => {
         if (!downloadCompleteActionPending) return
         downloadCompleteActionPending = false
-        if (action === 'shutdown') {
-          window.electronAPI?.systemShutdown?.()
-        } else if (action === 'hibernate') {
-          window.electronAPI?.systemHibernate?.()
+
+        // 关机/休眠必须检查返回值：命令失败时（如系统禁用了休眠、有策略限制）主进程会如实
+        // 返回 {success:false}，此前这里把结果丢掉，用户什么也看不到，只会以为"没生效"。
+        if (action === 'shutdown' || action === 'hibernate') {
+          const result = action === 'shutdown'
+            ? await window.electronAPI?.systemShutdown?.()
+            : await window.electronAPI?.systemHibernate?.()
+          if (result && !result.success) {
+            message.error(t(
+              action === 'shutdown' ? 'generalSettings.shutdownFailed' : 'generalSettings.hibernateFailed',
+              { error: result.error ?? t('settings.unknownError') }
+            ))
+          }
         } else if (action === 'close') {
           window.electronAPI?.close?.()
         }
@@ -214,10 +224,13 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
             settingsStore.applyTheme()
           })
         } else if (data.key === 'refreshInterval') {
-          // Update refresh interval
+          // 数值守卫：主进程只是把 store 里的值透传过来，缺失/非法时会得到 NaN，
+          // 而 setInterval(fn, NaN) 被当作 0ms —— 那就成了每帧发 3 个 RPC 的死循环。
+          const intervalMs = Number(data.value)
+          const safeInterval = Number.isFinite(intervalMs) && intervalMs >= 500 ? intervalMs : 1000
           stopAutoUpdate()
           if (connectionStore.isConnected) {
-            startAutoUpdate(Number(data.value))
+            startAutoUpdate(safeInterval)
           }
         }
       })
@@ -246,6 +259,9 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     stopStatusCheck()
     stopCleanupTimer()
     stopTimeCleanupTimer()
+    // 持久化是合批落盘（300ms 窗口）：退出前强制刷一次，避免最后一条完成任务记录丢失
+    taskPersistenceService.flush()
+    taskTimeService.flush()
     keyboardShortcuts.stop()
     unsubscribeConfig?.()
     unsubscribeDownloadComplete?.()

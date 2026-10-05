@@ -9,7 +9,7 @@
     :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="onSave"
-    @reload="loadSettings"
+    @reload="loadSettings(true)"
     @reset="onReset"
   >
     <n-form

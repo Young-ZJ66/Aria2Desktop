@@ -299,12 +299,27 @@ const refreshIntervalOptions = computed(() => [
   { label: t('generalSettings.refreshInterval10s'), value: 10000 }
 ])
 
-// 监听设置变化：统一委托 loadFormData()，避免"逐字段列举"时漏字段。
-// 历史上这里漏了 downloadCompleteAction —— 下拉框永远停留在初始值「不操作」，
-// 而磁盘上的真实值是「关闭应用」，用户据此以为已设置不操作，功能却按真实值执行。
-watch(() => settingsStore.settings, () => {
-  loadFormData()
-}, { immediate: true, deep: true })
+// 监听设置变化：只盯本页表单用到的 7 个字段（与 loadFormData 一一对应）。
+//
+// 为什么不用 deep watch 整个 settings：设置弹窗用 n-tabs 同时挂载多个页面，
+// 任何一个设置页保存（改分类规则、改连接预设、改限速计划……）都会让整个 settings 变化；
+// 若这里跟着 loadFormData()，用户在其他输入框里**正在编辑但尚未保存**的内容会被覆盖。
+// 按字段监听既精确，也避免每次保存都做一次全对象深比较。
+watch(
+  () => [
+    settingsStore.settings.language,
+    settingsStore.settings.theme,
+    settingsStore.settings.refreshInterval,
+    settingsStore.settings.autoConnect,
+    settingsStore.settings.minimizeToTray,
+    settingsStore.settings.autoLaunch,
+    settingsStore.settings.downloadCompleteAction
+  ],
+  () => {
+    loadFormData()
+  },
+  { immediate: true }
+)
 
 // 加载表单数据
 function loadFormData() {
@@ -601,11 +616,18 @@ async function handleAutoLaunchChange() {
 
 // 下载完成后操作变化处理
 async function handleDownloadCompleteActionChange(value: string) {
+  const previous = settingsStore.settings.downloadCompleteAction ?? 'none'
   form.downloadCompleteAction = value as 'none' | 'shutdown' | 'hibernate' | 'close'
   try {
     await settingsStore.updateSetting('downloadCompleteAction', form.downloadCompleteAction)
   } catch (error) {
+    // 这一项能触发关机/休眠：保存失败必须让用户知道，并把表单回滚到真实生效值，
+    // 否则用户会以为"下载完自动关机"已经设好，实际什么都没发生。
     console.error('Download complete action change error:', error)
+    form.downloadCompleteAction = previous
+    message.error(t('generalSettings.downloadCompleteActionFailed', {
+      error: error instanceof Error ? error.message : t('settings.unknownError')
+    }))
   }
 }
 

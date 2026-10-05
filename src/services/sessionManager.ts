@@ -27,7 +27,14 @@ export class SessionManager {
         return false
       }
 
-      await window.electronAPI.saveSession()
+      // 主进程 RPC 失败时返回 { success: false, error }（而非抛错），
+      // 因此必须检查返回值：此前无条件 return true 会让调用方以为会话已落盘，
+      // 结果是崩溃后未完成任务静默从恢复列表消失，且没有任何日志。
+      const result = await window.electronAPI.saveSession()
+      if (!result?.success) {
+        console.warn('Session save rejected by main process:', result?.error)
+        return false
+      }
       return true
     } catch (error) {
       console.error('Failed to save session immediately:', error)

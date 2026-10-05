@@ -25,6 +25,9 @@ export function useAutoRefresh() {
   }
 
   function startAutoUpdate(interval = 1000) {
+    // 参数守卫：NaN / 0 / 负数都会让 setInterval 退化为 0ms 死循环轮询
+    //（调用方可能把主进程透传的配置值直接丢进来），这里统一兜到 1s。
+    const safeInterval = Number.isFinite(interval) && interval >= 100 ? interval : 1000
     stopAutoUpdate()
     updateInterval = setInterval(() => {
       runIfVisible(() => {
@@ -33,7 +36,7 @@ export function useAutoRefresh() {
           taskStore.loadLightTasks()
         }
       })
-    }, interval)
+    }, safeInterval)
     // 后台期间跳过轮询，回到可见状态时立即补一次刷新，避免界面数据长时间陈旧
     visibilityHandler = () => {
       if (document.visibilityState === 'visible' && connectionStore.isConnected) {

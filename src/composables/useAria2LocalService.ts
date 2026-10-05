@@ -247,15 +247,31 @@ export function useAria2LocalService() {
       if (result?.success) {
         await getStatus()
         return true
-      } else {
-        message.error(t('localService.updateConfigFailed', { error: result.error }))
-        return false
       }
+
+      // 按主进程返回的**错误码**给出针对性提示（而不是统一一句"保存失败"，
+      // 也不去匹配中文文案——文案一改分支就静默失效）
+      message.error(mapConfigErrorCode(result))
+      return false
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       message.error(t('localService.updateConfigFailed', { error: errorMessage }))
       console.error('更新 Aria2 配置失败:', error)
       return false
+    }
+  }
+
+  /** 把主进程的配置错误码映射为用户提示（未识别的码回落到通用文案 + 原始错误） */
+  function mapConfigErrorCode(result: { code?: string; error?: string }): string {
+    switch (result.code) {
+      case 'invalid_download_dir':
+        return t('localService.invalidDir')
+      case 'invalid_port':
+        return t('localService.invalidPort')
+      case 'config_write_failed':
+        return t('localService.writeConfigFailed', { error: result.error ?? '' })
+      default:
+        return t('localService.updateConfigFailed', { error: result.error ?? '' })
     }
   }
 

@@ -44,16 +44,20 @@ export function useGlobalSettingsForm<T extends object>(
     options.applyOptions(cached)
   }
 
-  // 加载配置（有缓存时不显示加载态，避免无意义的刷新闪烁）
-  async function loadSettings(): Promise<void> {
+  /**
+   * 加载配置。
+   * @param force 是否绕过缓存强制拉取——「重载」按钮必须传 true，
+   *              否则只是重复读缓存（外部客户端改过引擎配置时用户点了没反应）。
+   */
+  async function loadSettings(force = false): Promise<void> {
     if (!connectionStore.isConnected) {
       message.warning(t('settings.connectFirst'))
       return
     }
     const hasCache = Object.keys(statsStore.globalOptions).length > 0
-    if (!hasCache) loading.value = true
+    if (!hasCache || force) loading.value = true
     try {
-      const opts = await statsStore.getGlobalOptions()
+      const opts = await statsStore.getGlobalOptions(force)
       if (opts) options.applyOptions(opts)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')

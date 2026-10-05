@@ -121,9 +121,9 @@ watch(() => uiStore.showTaskDetail, (show) => {
 let interval: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
-  // 抽屉打开期间定时刷新活动任务
+  // 抽屉打开期间定时刷新活动任务（上一轮未结束时跳过，避免请求叠加）
   interval = setInterval(() => {
-    if (uiStore.showTaskDetail && connectionStore.isConnected && gid.value && task.value) {
+    if (uiStore.showTaskDetail && connectionStore.isConnected && gid.value && task.value && !loading.value) {
       if (['active', 'waiting', 'paused'].includes(task.value.status)) {
         loadTaskDetail()
       }
@@ -232,12 +232,25 @@ async function fetchAndMergeDetails(): Promise<void> {
   }
 }
 
+/**
+ * 详情加载序号：抽屉会在 3 秒轮询与"打开抽屉/切换任务"两条路径上并发发起加载，
+ * 而每次加载串行发出 5 个 RPC。没有序号守卫时，先请求的任务 A 的迟到响应会写进
+ * 后打开的任务 B 的详情里（标题是 B、内容是 A）。
+ */
+let loadSeq = 0
+
 async function loadTaskDetail() {
   if (!connectionStore.isConnected || !gid.value) return
+
+  const seq = ++loadSeq
+  const requestedGid = gid.value
 
   loading.value = true
   try {
     const foundTask = await fetchTaskBase()
+
+    // 已被更新的请求取代（切换了任务）时丢弃本次结果
+    if (seq !== loadSeq || requestedGid !== gid.value) return
 
     if (foundTask) {
       task.value = foundTask
@@ -245,10 +258,13 @@ async function loadTaskDetail() {
       await fetchAndMergeDetails()
     }
   } catch (error) {
+    if (seq !== loadSeq) return
     console.error('Failed to load task detail:', error)
-    message.error(t('task.taskNotExist'))
+    // 区分"任务不存在"与"RPC 失败"：此前一律提示"任务不存在"，会把断连/超时
+    // 误报成任务丢失，误导排查方向
+    message.error(connectionStore.isConnected ? t('task.taskNotExist') : t('connection.disconnected'))
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 

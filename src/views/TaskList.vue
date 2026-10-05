@@ -217,7 +217,13 @@ const allTasks = computed(() => {
   return sortTasksByStatus(tasks)
 })
 
-// GID 为 16 位十六进制数，BigInt 比较避免超出 Number 安全整数精度丢失
+/**
+ * 快速路径的形态判定：aria2 的 gid 是小写十六进制（通常 16 位）。
+ * 只接受**小写**：混用大小写时字典序与数值序不再等价（'A' < 'a'），
+ * 那种情况一律退回 BigInt，保证语义不变。
+ */
+const HEX_GID_PATTERN = /^[0-9a-f]{1,32}$/
+
 // 格式异常时回退为 0，避免整个列表排序崩溃
 function parseGid(gid: string): bigint {
   try {
@@ -227,8 +233,24 @@ function parseGid(gid: string): bigint {
   }
 }
 
+/**
+ * 按 GID 倒序比较。
+ *
+ * 为什么不用 BigInt：这里是**每秒执行**的排序比较器，1000 条任务约 1 万次比较，
+ * 每次比较都要跑 2 次 BigInt() + try/catch（合计每秒约 2 万次构造）。
+ * 而**等长十六进制字符串的字典序等价于其数值序**，因此长度一致时直接比字符串即可；
+ * 长度不齐或含非十六进制字符（异常 gid）时才回退 BigInt。
+ */
 function compareGidDesc(a: Aria2Task, b: Aria2Task): number {
-  const diff = parseGid(b.gid) - parseGid(a.gid)
+  const ga = a.gid
+  const gb = b.gid
+
+  if (ga.length === gb.length && HEX_GID_PATTERN.test(ga) && HEX_GID_PATTERN.test(gb)) {
+    if (ga === gb) return 0
+    return ga > gb ? -1 : 1
+  }
+
+  const diff = parseGid(gb) - parseGid(ga)
   return diff > 0n ? 1 : diff < 0n ? -1 : 0
 }
 
@@ -808,6 +830,34 @@ function exportTasks() {
   message.success(t('task.exportSuccess', { count: tasks.length }))
 }
 
+/**
+ * 导入条目的形状校验（导入文件是外部输入，不能只靠 `as unknown as Aria2Task` 断言）。
+ *
+ * 为什么必须有：完成页会把条目直接持久化并交给表格渲染，而渲染路径会访问
+ * `task.files[0].path` 等字段——一个字段类型不对的条目就会抛 TypeError 让整页白屏，
+ * 且**重启后依旧**（坏数据已经落盘）。这里只放行字段齐备的条目，其余跳过并提示数量。
+ */
+function isImportableTask(value: unknown): value is Record<string, unknown> & Aria2Task {
+  if (!value || typeof value !== 'object') return false
+  const task = value as Record<string, unknown>
+  if (typeof task.gid !== 'string' || !task.gid) return false
+  if (typeof task.status !== 'string' || !task.status) return false
+  if (!Array.isArray(task.files)) return false
+  return true
+}
+
+/** 补齐渲染层会直接使用、但老版本导出可能缺失的字段（避免 parseInt(undefined) → NaN 污染统计与排序） */
+function normalizeImportedTask(task: Record<string, unknown> & Aria2Task): Aria2Task {
+  const asLengthString = (value: unknown): string =>
+    typeof value === 'string' && value ? value : String(Number(value) || 0)
+  return {
+    ...task,
+    totalLength: asLengthString(task.totalLength),
+    completedLength: asLengthString(task.completedLength),
+    dir: typeof task.dir === 'string' ? task.dir : ''
+  }
+}
+
 function importTasks() {
   const input = document.createElement('input')
   input.type = 'file'
@@ -825,15 +875,28 @@ function importTasks() {
         return
       }
 
+      // 运行时校验：导入文件是**外部输入**，此前只检查 gid 非空就用 `as unknown as Aria2Task`
+      // 直接持久化——坏数据会被永久写进 userData，之后 task.files[0].path 之类的访问会抛
+      // TypeError，让"下载完成"页白屏且重启后依旧。这里只放行字段齐备的条目，其余跳过并计数。
+      const validTasks = data.filter(isImportableTask)
+      const skipped = data.length - validTasks.length
+      if (validTasks.length === 0) {
+        message.error(t('task.importFailed'))
+        return
+      }
+      if (skipped > 0) {
+        message.warning(t('task.importSkipped', { count: skipped }))
+      }
+
       if (props.taskType === 'stopped') {
         // 下载完成页：仅恢复历史记录（写入持久化存储，不重新下载）
         let restored = 0
-        for (const task of data) {
+        for (const task of validTasks) {
           const gid = String(task.gid || '')
           if (!gid) continue
           if (taskPersistenceService.isTaskPersisted(gid)) continue
           const completedAt = Number(task.completedAt) || taskTimeService.getCompleteTime(gid) || Date.now()
-          taskPersistenceService.persistCompletedTask(task as unknown as Aria2Task, completedAt)
+          taskPersistenceService.persistCompletedTask(normalizeImportedTask(task), completedAt)
           taskTimeService.recordTaskComplete(gid, String(task.fileName || ''))
           restored++
         }
@@ -846,7 +909,7 @@ function importTasks() {
       } else {
         // 下载任务页：提取 URI 重新创建下载任务
         let imported = 0
-        for (const task of data) {
+        for (const task of validTasks) {
           const uris = (task.files as Array<{ uris?: Array<{ uri: string }> }> | undefined)
             ?.flatMap(f => f.uris?.map(u => u.uri) || []).filter(Boolean)
           if (uris && uris.length > 0) {

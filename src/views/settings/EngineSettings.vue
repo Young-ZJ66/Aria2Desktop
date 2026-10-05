@@ -427,18 +427,12 @@ function buildConfigPayload(): Aria2LocalConfig {
   }
 }
 
-// 错误处理辅助函数
+// 错误处理辅助函数（兜底路径：具体的配置错误码已在 useAria2LocalService.updateConfig 里
+// 映射成针对性提示，走到这里的一般是 IPC 异常等非结构化失败）
 function handleConfigError(error: unknown) {
   const errorMessage = error instanceof Error ? error.message : String(error)
   console.error('保存配置失败:', error)
-
-  if (errorMessage.includes('下载目录验证失败')) {
-    message.error(t('localService.invalidDir'))
-  } else if (errorMessage.includes('启动失败')) {
-    message.error(t('localService.restartFailed'))
-  } else {
-    message.error(t('localService.configSaveFailed', { error: errorMessage }))
-  }
+  message.error(t('localService.configSaveFailed', { error: errorMessage }))
 }
 
 // 更新自动启动设置

@@ -57,6 +57,8 @@ export const useTaskStore = defineStore('task', () => {
   let needsReload = false
   // 补刷递归深度计数（配合 MAX_RELOAD_DEPTH 限制无界递归）
   let reloadDepth = 0
+  /** 进行中的全量刷新：并发调用复用它，而不是静默丢弃（见 loadAllTasks 的说明） */
+  let loadAllInFlight: Promise<void> | null = null
 
   // 指纹算法已抽到 @/utils/fingerprint（纯函数，便于单测）
   function setWaitingIfChanged(waiting: Aria2Task[]): void {
@@ -75,10 +77,55 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
-  async function loadAllTasks() {
+  /**
+   * 全量刷新（active + waiting + stopped）。
+   *
+   * 并发语义：**复用进行中的请求**而不是丢弃后来的调用。
+   * 为什么这么改：所有操作路径（暂停/恢复/删除/重试/新建）都依赖 `await loadAllTasks()`
+   * 来同步 UI，而 1s 轻量轮询或 30s 全量轮询随时可能正在飞。此前 `if (isLoading) return`
+   * 会让这次刷新被静默吞掉——用户点完删除/暂停后界面可能仍是旧状态，且调用方无从察觉。
+   */
+  async function loadAllTasks(): Promise<void> {
     if (!connectionStore.service) return
-    // 并发保护：轮询与 WS 事件同时触发时跳过后续调用，避免竞态
-    if (isLoading.value) return
+    if (loadAllInFlight) return loadAllInFlight
+
+    loadAllInFlight = doLoadAllTasks()
+      .finally(() => {
+        loadAllInFlight = null
+      })
+      // 补刷必须挂在"清空 in-flight"之后：否则这次补刷会复用刚结束的请求而变成空操作
+      .then(() => {
+        scheduleReloadIfNeeded()
+      })
+    return loadAllInFlight
+  }
+
+  /**
+   * 刷新期间有 WS 事件到达时补刷一次。
+   * 限制递归深度，避免事件密集时无限补刷。
+   */
+  function scheduleReloadIfNeeded(): void {
+    if (!needsReload) return
+    needsReload = false
+
+    if (reloadDepth >= MAX_RELOAD_DEPTH) {
+      reloadDepth = 0
+      console.warn('loadAllTasks reload depth exceeded, skipping extra reload')
+      return
+    }
+
+    reloadDepth++
+    void loadAllTasks().finally(() => {
+      reloadDepth--
+    })
+  }
+
+  async function doLoadAllTasks(): Promise<void> {
+    // 连接可能在 await 期间断开：这里取一次局部引用，既满足类型收窄，
+    // 也保证三列表用的是同一个连接实例
+    const service = connectionStore.service
+    if (!service) return
+
     isLoading.value = true
 
     try {
@@ -92,9 +139,9 @@ export const useTaskStore = defineStore('task', () => {
       // 解析结构复杂（返回 [null, code] 占位），会牺牲 allSettled 的单列表容错，
       // 且只省 1 次 RPC 往返。权衡后维持独立三请求，保持健壮性优先。
       const [activeResult, waitingResult, stoppedResult] = await Promise.allSettled([
-        connectionStore.service.tellActive(),
-        connectionStore.service.tellWaiting(0, MAX_TELL_COUNT),
-        connectionStore.service.tellStopped(0, MAX_TELL_COUNT)
+        service.tellActive(),
+        service.tellWaiting(0, MAX_TELL_COUNT),
+        service.tellStopped(0, MAX_TELL_COUNT)
       ])
 
       if (activeResult.status === 'fulfilled') {
@@ -143,18 +190,7 @@ export const useTaskStore = defineStore('task', () => {
       console.error('Failed to load tasks:', error)
     } finally {
       isLoading.value = false
-      // 轮询期间有 WS 事件到达（因 isLoading 并发保护被跳过）：补刷一次，避免丢失事件
-      // 限制递归深度，防止事件密集时无限补刷
-      if (needsReload) {
-        needsReload = false
-        if (reloadDepth < MAX_RELOAD_DEPTH) {
-          reloadDepth++
-          void loadAllTasks().finally(() => reloadDepth--)
-        } else {
-          reloadDepth = 0
-          console.warn('loadAllTasks reload depth exceeded, skipping extra reload')
-        }
-      }
+      // 补刷由 loadAllTasks 的 .then 负责（需等 in-flight 标记清空后才发起）
     }
   }
 
@@ -456,6 +492,24 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  /**
+   * 把 aria2 下载事件转发给主进程的插件系统。
+   *
+   * 为什么必须由渲染层转发：aria2 的通知走 WebSocket，而 WebSocket 只在渲染层；
+   * 插件运行在主进程。此前主进程的 `PluginManager.emit` **没有任何调用方**，
+   * 于是 README 与示例插件文档化的 onDownloadComplete / onDownloadStart 永不触发。
+   */
+  function notifyPlugins(kind: 'downloadComplete' | 'downloadStart', gid: string): void {
+    if (!gid) return
+    try {
+      const task = allTasks.value.find(t => t.gid === gid)
+      window.electronAPI?.notifyDownloadEvent?.(kind, gid, task ? getTaskName(task) : '')
+    } catch (error) {
+      // 插件通知失败不应影响任务列表本身
+      console.warn('Failed to notify plugins:', error)
+    }
+  }
+
   async function handleDownloadComplete(event: unknown) {
     // 先等任务列表刷新完成，确保回调能拿到最新数据（任务名等）
     await loadAllTasks()
@@ -465,18 +519,29 @@ export const useTaskStore = defineStore('task', () => {
     for (const cb of downloadCompleteCallbacks) {
       try { cb(gid) } catch { /* 忽略回调异常 */ }
     }
+    notifyPlugins('downloadComplete', gid)
+  }
+
+  /** 下载开始：触发刷新（与其它事件一致），并把事件转给插件 */
+  function handleDownloadStart(event: unknown) {
+    handleDownloadEvent()
+    const gid = (event as { gid?: string } | undefined)?.gid || ''
+    notifyPlugins('downloadStart', gid)
   }
 
   watch(() => connectionStore.service, (service, oldService) => {
     if (oldService) {
       downloadEvents.forEach(evt => oldService.off(evt, handleDownloadEvent))
       oldService.off('downloadComplete', handleDownloadComplete)
+      oldService.off('downloadStart', handleDownloadStart)
     }
     if (service) {
       downloadEvents.forEach(evt => service.on(evt, handleDownloadEvent))
-      // downloadComplete 额外触发通知回调
+      // downloadComplete / downloadStart 额外做专属处理（通知回调、转发插件）
       service.off('downloadComplete', handleDownloadEvent)
       service.on('downloadComplete', handleDownloadComplete)
+      service.off('downloadStart', handleDownloadEvent)
+      service.on('downloadStart', handleDownloadStart)
     }
   }, { immediate: true })
 

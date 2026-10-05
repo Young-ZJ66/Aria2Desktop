@@ -9,7 +9,7 @@
     :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
-    @reload="loadSettings"
+    @reload="loadSettings(true)"
     @reset="handleReset"
   >
     <!-- 注：原先这里写有 ref="formRef" 与 :rules="rules"，但脚本中并不存在这两个变量（悬空引用，
