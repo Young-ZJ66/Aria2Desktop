@@ -115,10 +115,7 @@
       "icon": "build/Icon.ico",
       "signAndEditExecutable": true,
       "artifactName": "Aria2Desktop-${version}-${arch}-Setup.${ext}",
-      "requestedExecutionLevel": "asInvoker",
-      "signtoolOptions": {
-        "publisherName": "Aria2 Desktop Team"
-      }
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
