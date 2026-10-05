@@ -36,9 +36,21 @@ function warnEncryptionUnavailable(): void {
  * 加密单个 secret 明文。
  * - safeStorage 可用：返回 `v1:` + base64 密文
  * - safeStorage 不可用或加密失败：回退明文并告警
+ * - **输入已是密文（`v1:` 前缀）时原样返回**：见下方幂等护栏
  */
 export function encryptSecret(plaintext: string): string {
   if (!plaintext) return plaintext
+
+  // 幂等护栏：对密文再加密一次会得到 v1:<encrypt("v1:...")>，
+  // 而每一次"读-改-写"（渲染层改任一设置都会整体回写 settings）都会再套一层，
+  // 于是密钥在嵌套加密里越陷越深、且日志里看不出原因——属不可自愈的静默损坏。
+  // 正常路径不该出现密文入参；出现即说明上游把"解密失败"的返回值当明文用了，
+  // 因此这里拒绝加密并留下错误日志（同时见 decryptSecret 的失败分支）。
+  if (plaintext.startsWith(CIPHER_PREFIX)) {
+    logger.error('[SecretCipher] 输入已是密文，拒绝二次加密（避免密钥被嵌套加密破坏）')
+    return plaintext
+  }
+
   try {
     if (safeStorage.isEncryptionAvailable()) {
       return CIPHER_PREFIX + safeStorage.encryptString(plaintext).toString('base64')
@@ -52,8 +64,9 @@ export function encryptSecret(plaintext: string): string {
 
 /**
  * 解密单个已存储的 secret。
- * - 带 `v1:` 前缀：视为密文，解密后返回明文；解密失败/不可用时返回原值（降级，不静默清空）
+ * - 带 `v1:` 前缀：视为密文，解密后返回明文
  * - 无前缀：旧明文数据，透明返回，下次保存时自动升级为密文
+ * - **解密失败或 safeStorage 不可用时返回空串**（绝不返回密文本身）
  */
 export function decryptSecret(stored: string): string {
   if (!stored) return stored
@@ -66,7 +79,14 @@ export function decryptSecret(stored: string): string {
     logger.warn('[SecretCipher] 解密 RPC secret 失败:', error)
   }
   warnEncryptionUnavailable()
-  return stored
+
+  // 这里**不能**返回 stored（即那串 `v1:...` 密文）：
+  // 那等于把必然错误的字符串当明文密钥使用，而且它在下次保存时会被再加密一层
+  //（配合 encryptSecret 的护栏现在会拒绝，但正确的做法是根本不产生这个值）。
+  // 返回空串让上层走"重新生成密钥"的可恢复分支（Aria2Controller.initialize 会自动补一个），
+  // 代价是旧密钥失效——但它本来就已经不可用了，用户至少能重新连上。
+  logger.error('[SecretCipher] RPC secret 无法解密，已按空值处理（应用会自动重新生成密钥）')
+  return ''
 }
 
 /**

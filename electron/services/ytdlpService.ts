@@ -6,6 +6,7 @@
 
 import { spawn } from 'child_process'
 import { app } from 'electron'
+import * as fs from 'fs'
 import * as path from 'path'
 
 /** yt-dlp 元信息（精简版） */
@@ -158,11 +159,19 @@ function execYtdlp(args: string[]): Promise<string> {
   })
 }
 
+/**
+ * 解析 yt-dlp 可执行文件路径。
+ *
+ * 打包环境**先探测内置路径，不存在再回退 PATH**：此前是无条件返回
+ * `<resources>/yt-dlp/yt-dlp.exe`，而 package.json 的 extraResources 并未内置该文件，
+ * 于是打包版永远判定"未安装"——README 让用户装到 PATH 也无效（照做后依旧报未安装）。
+ * 现在两条路都通：随包内置则开箱可用；未内置时尊重用户自己装的版本。
+ */
 function getYtdlpPath(): string {
-  // 优先使用打包目录下的 yt-dlp
   if (app.isPackaged) {
     const exe = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
-    return path.join(process.resourcesPath, 'yt-dlp', exe)
+    const bundled = path.join(process.resourcesPath, 'yt-dlp', exe)
+    if (fs.existsSync(bundled)) return bundled
   }
   return 'yt-dlp'
 }

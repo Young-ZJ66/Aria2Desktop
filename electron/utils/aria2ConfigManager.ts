@@ -22,21 +22,46 @@ export class Aria2ConfigManager {
   private commentedKeys: Map<string, number> = new Map()
   /** 是否已有待执行的合批写盘（微任务合并同一同步帧内的多次修改为一次落盘） */
   private saveQueued = false
+  /**
+   * 内存基线是否**不可信**（上一次加载因"文件存在但读不出来"失败）。
+   *
+   * 为什么需要这个标志：读取失败时 rawLines 可能为空，此时任何写盘都等于用
+   * "只剩新键"的内容覆盖整份 aria2.conf——用户的 rpc-secret / dir / bt-tracker 全丢。
+   * 因此读失败后一律拒绝写盘，直到某次加载真正成功。
+   */
+  private baselineUnreadable = false
 
   constructor(configPath: string) {
     this.configPath = configPath
     this.loadConfig()
   }
 
-  /** 重新加载配置文件（复用实例，替代反复 new） */
-  reload(): void {
+  /**
+   * 重新加载配置文件（复用实例，替代反复 new）。
+   *
+   * @returns 是否拿到了可用基线。失败时**恢复调用前的内存态**——
+   *          一次瞬时读失败（杀软/同步盘占用导致的 EBUSY）不该把内存里
+   *          本来可用的配置也一并清掉；同时保持 baselineUnreadable=true 挡住写盘。
+   */
+  reload(): boolean {
+    const prevLines = this.rawLines
+    const prevContent = new Map(this.configContent)
+    const prevCommented = new Map(this.commentedKeys)
+
     this.configContent.clear()
     this.commentedKeys.clear()
     this.rawLines = []
-    this.loadConfig()
+
+    if (this.loadConfig()) return true
+
+    this.rawLines = prevLines
+    this.configContent = prevContent
+    this.commentedKeys = prevCommented
+    return false
   }
 
-  private loadConfig() {
+  /** @returns 是否加载出可用基线（false 表示读失败；调用方据此决定是否重试/反馈） */
+  private loadConfig(): boolean {
     try {
       if (fs.existsSync(this.configPath)) {
         // 统一处理 CRLF / CR，避免行尾 \r 残留在键值中
@@ -64,12 +89,19 @@ export class Aria2ConfigManager {
             this.configContent.set(key.trim(), valueParts.join('=').trim())
           }
         }
-      } else {
-        this.createDefaultConfig()
+        this.baselineUnreadable = false
+        return true
       }
+      this.createDefaultConfig()
+      return !this.baselineUnreadable
     } catch (error) {
       logger.error('Failed to load Aria2 config:', error)
-      this.createDefaultConfig()
+      // 读取失败 ≠ 文件不存在：**绝不能**在这里降级为"写一份默认配置"。
+      // 曾经的行为正是如此（catch 里调 createDefaultConfig → writeFileSync），
+      // 一次瞬时文件锁就会把用户的整份配置覆盖掉；这里改为标记基线不可信并拒绝后续写盘。
+      this.baselineUnreadable = true
+      logger.warn('配置读取失败：保留内存现状并禁止写盘，等待下一次重载自愈')
+      return false
     }
   }
 
@@ -112,8 +144,12 @@ bt-tracker=${DEFAULT_BT_TRACKERS_CSV}
           this.configContent.set(key.trim(), valueParts.join('=').trim())
         }
       }
+      // 刚刚自己写出了完整默认文件，基线是已知的
+      this.baselineUnreadable = false
     } catch (error) {
       logger.error('Failed to create default config:', error)
+      // 默认配置都没落盘成功：内存里没有可用基线，同样禁止后续写盘
+      this.baselineUnreadable = true
     }
   }
 
@@ -138,7 +174,13 @@ bt-tracker=${DEFAULT_BT_TRACKERS_CSV}
       // 期间若已被 flushSave() 同步落盘，这里不再重复写盘
       if (!this.saveQueued) return
       this.saveQueued = false
-      this.saveConfig()
+      try {
+        this.saveConfig()
+      } catch (error) {
+        // 合批落盘是尽力而为：失败必须留痕，但不能变成未处理的 Promise 拒绝
+        //（写盘失败的反馈由后续显式 flushSave() 的调用方负责）
+        logger.error('合批写入 aria2 配置失败:', error)
+      }
     })
   }
 
@@ -268,6 +310,16 @@ bt-tracker=${DEFAULT_BT_TRACKERS_CSV}
    * 写入失败时抛出异常，由调用方决定如何反馈（避免静默丢配置）。
    */
   private saveConfig() {
+    // 基线不可信时拒绝写盘（读失败后 rawLines 可能为空，写下去就是用"只剩新键"的内容
+    // 覆盖用户的整份配置）。抛错而非静默跳过：调用方（flushSave 的调用点）需要知道没写成。
+    if (this.baselineUnreadable) {
+      throw new Error('aria2 配置基线不可读，已拒绝写盘以避免覆盖用户配置')
+    }
+    // 二次护栏：空基线 + 有内容 = 加载环节一定出过问题，宁可失败也不覆盖
+    if (this.rawLines.length === 0 && this.configContent.size > 0) {
+      throw new Error('aria2 配置基线为空，已拒绝写盘以避免覆盖用户配置')
+    }
+
     let lines: string[] = [...this.rawLines]
 
     // 更新已存在的键值对（包括被注释的）

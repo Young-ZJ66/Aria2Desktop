@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, spawnSync, ChildProcess } from 'child_process'
 import * as net from 'net'
 import { existsSync, statSync } from 'fs'
 import { app } from 'electron'
@@ -40,6 +40,22 @@ export class Aria2ProcessManager {
   private maxRetries = 3
   private restartTimer: NodeJS.Timeout | null = null
   private pendingRestartTimer: NodeJS.Timeout | null = null
+  /**
+   * 进行中的 stop()/restart() 调用（并发合并用）。
+   *
+   * 为什么需要：IPC 的 aria2-stop 与 before-quit 的优雅关闭可能同时到达，
+   * 并发 stop 会各自走一遍"RPC 保存会话 + 注册 exit 监听 + 8s 超时"；
+   * 而 1.5s 内改两次需要重启的配置会让两个 restart 并发 spawn，抢同一端口。
+   * 复用同一个 Promise 既省掉重复工作，也消除"B 的 start 被 A 的 stop 杀掉"这类交错。
+   */
+  private stopInFlight: Promise<boolean> | null = null
+  private restartInFlight: Promise<boolean> | null = null
+  /**
+   * 进程代次：每次 spawn 自增，exit/error 处理器据此判断"这个事件属于哪一次 spawn"。
+   * exit 事件是异步投递的——若不校验代次，旧进程迟到的 exit 会把**新进程**的引用清成 null
+   * （于是 isRunning() 报 false 而 aria2 实际在跑，killIfRunning() 也再找不到该杀的句柄）。
+   */
+  private spawnToken = 0
   private resourceManager: ResourceManager
   private configManager: Aria2ConfigManager
   /** 配置文件最后读取时的 mtime（供 getConfig 增量重载，避免每次 IPC 轮询全量读盘） */
@@ -134,8 +150,11 @@ export class Aria2ProcessManager {
         detached: false,
         windowsHide: true
       })
+      // 代次必须紧跟 spawn 自增，并作为参数传给处理器（不用 this.spawnToken 现取，
+      // 否则重启后旧进程的处理器会读到新代次而误判成"当前进程"）
+      const token = ++this.spawnToken
 
-      this.setupProcessHandlers()
+      this.setupProcessHandlers(token)
 
       // 等待进程就绪：轮询探测 RPC 端口是否可连接，确保后续 RPC 调用可用
       await this.waitForRpcReady()
@@ -148,18 +167,19 @@ export class Aria2ProcessManager {
     } catch (error) {
       logger.error('启动 Aria2 失败:', error)
 
-      // 提供更详细的错误信息
+      // 提供更详细的错误信息。
+      // 注意：这里的分支必须与真实抛出点对应（可执行文件不存在 / 进程异常退出 / 启动超时），
+      // 原先还列了 EADDRINUSE 与 "RPC 服务启动失败" 两个子串——它们在仓库里从不被抛出，
+      // 属于永远不会命中的死分支，已删除（端口占用改由 waitForRpcReady 显式诊断）。
       if (error instanceof Error) {
-        if (error.message.includes('ENOENT')) {
+        if (error.message.includes('ENOENT') || error.message.includes('可执行文件不存在')) {
           logger.error('错误原因: Aria2 可执行文件不存在')
         } else if (error.message.includes('EACCES')) {
           logger.error('错误原因: 权限不足，无法启动 Aria2')
-        } else if (error.message.includes('EADDRINUSE')) {
-          logger.error('错误原因: 端口已被占用')
+        } else if (error.message.includes('异常退出')) {
+          logger.error('错误原因: Aria2 启动后立即退出，通常是配置文件有问题（详见上方 stderr 输出）')
         } else if (error.message.includes('启动超时')) {
-          logger.error('错误原因: Aria2 启动超时，可能是配置文件有问题')
-        } else if (error.message.includes('RPC 服务启动失败')) {
-          logger.error('错误原因: Aria2 RPC 服务启动失败，请检查配置文件')
+          logger.error('错误原因: Aria2 启动超时，可能是端口被占用或配置文件有问题')
         } else {
           logger.error('错误原因:', error.message)
         }
@@ -200,9 +220,18 @@ export class Aria2ProcessManager {
       await new Promise(resolve => setTimeout(resolve, 250))
     }
 
-    // 超时但进程仍存活：宽容判定为成功（与旧行为兼容），仅记录警告
+    // 超时但进程仍存活：宽容判定为成功（与旧行为兼容），但把根因区分开——
+    // "端口被别的程序占用"与"aria2 还没就绪"对用户是完全不同的两件事，
+    // 不区分的话只能看到笼统的"启动成功但用不了"。
     if (this.process && !this.process.killed) {
-      logger.warn(`Aria2 RPC 端口 ${port} 探测超时，进程仍在运行，视为启动成功`)
+      if (await this.probePort(port)) {
+        logger.error(
+          `Aria2 RPC 端口 ${port} 上有服务在监听但不是本引擎（未返回 JSON-RPC 响应）：` +
+          '该端口很可能被其它程序占用，请在引擎设置里更换 rpc-listen-port'
+        )
+      } else {
+        logger.warn(`Aria2 RPC 端口 ${port} 探测超时，进程仍在运行，视为启动成功`)
+      }
       return
     }
     throw new Error('Aria2 启动超时')
@@ -248,7 +277,8 @@ export class Aria2ProcessManager {
     logger.warn(`等待端口 ${port} 释放超时，继续后续操作`)
   }
 
-  private setupProcessHandlers(): void {
+  /** @param token 本次 spawn 的代次，exit/error 处理器据此忽略属于旧进程的迟到事件 */
+  private setupProcessHandlers(token: number): void {
     if (!this.process) return
 
     this.process.stdout?.on('data', (data) => {
@@ -272,19 +302,27 @@ export class Aria2ProcessManager {
 
     this.process.on('error', (error) => {
       logger.error('Aria2 进程错误:', error)
-      // spawn 失败（如可执行文件不存在）时 exit 不会触发，此处清理进程引用
-      if (!this.process?.pid) {
+      // spawn 失败（如可执行文件不存在）时 exit 不会触发，此处清理进程引用。
+      // 代次校验：只处理属于本次 spawn 的事件，避免清掉后来者的引用。
+      if (token === this.spawnToken && !this.process?.pid) {
         this.process = null
       }
     })
 
     this.process.on('exit', (code, signal) => {
       logger.info(`Aria2 进程退出: code=${code}, signal=${signal}`)
-      this.handleProcessExit(code, signal)
+      this.handleProcessExit(code, signal, token)
     })
   }
 
-  private handleProcessExit(code: number | null, signal: string | null): void {
+  private handleProcessExit(code: number | null, signal: string | null, token: number): void {
+    // 迟到的 exit（属于已被取代的旧进程）：只记日志，绝不动当前进程引用与重启计数，
+    // 否则会把新进程的句柄清空（isRunning() 误报 false）或给新进程多安排一次重启。
+    if (token !== this.spawnToken) {
+      logger.warn(`忽略旧进程(代次 ${token})的 exit 事件，当前代次 ${this.spawnToken}`)
+      return
+    }
+
     this.process = null
 
     // 手动停止、正常退出或被信号终止时，不自动重启
@@ -334,7 +372,21 @@ export class Aria2ProcessManager {
     return false
   }
 
-  public async stop(): Promise<boolean> {
+  /**
+   * 停止 Aria2 进程。
+   *
+   * 并发合并：IPC 的 aria2-stop 与退出流程的优雅关闭可能同时到达。
+   * 重复执行没有意义，还会让两次调用各自注册 exit 监听、各自等 8 秒超时。
+   */
+  public stop(): Promise<boolean> {
+    if (this.stopInFlight) return this.stopInFlight
+    this.stopInFlight = this.doStop().finally(() => {
+      this.stopInFlight = null
+    })
+    return this.stopInFlight
+  }
+
+  private async doStop(): Promise<boolean> {
     if (this.restartTimer) {
       clearTimeout(this.restartTimer)
       this.restartTimer = null
@@ -345,13 +397,16 @@ export class Aria2ProcessManager {
       this.pendingRestartTimer = null
     }
 
-    if (!this.process || this.process.killed) {
-      logger.info('Aria2 进程未运行')
-      return true
-    }
-
+    // isStopping 必须在任何 await **之前**置位：否则等待期间进程若异常退出，
+    // handleProcessExit 会读到 isStopping=false 而安排"3 秒后自动重启"——
+    // 那时应用可能已经退出，aria2 却被重新拉起成孤儿进程占着端口。
     this.isStopping = true
     try {
+      if (!this.process || this.process.killed) {
+        logger.info('Aria2 进程未运行')
+        return true
+      }
+
       logger.info('正在停止 Aria2 进程...')
 
       // 先尝试优雅关闭（RPC shutdown 会保存会话）；Windows 上直接发信号是强杀、不保存会话
@@ -388,30 +443,36 @@ export class Aria2ProcessManager {
       proc.kill('SIGTERM')
 
       // 等待进程退出 - 确保完全退出（监听器挂在捕获的 proc 上，与 this.process 解耦）
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => {
-          // 强制终止
-          const currentProc = this.process
-          if (currentProc && !currentProc.killed) {
-            logger.info('强制终止 Aria2 进程')
-            currentProc.kill('SIGKILL')
-          }
-          finish()
-        }, 8000) // 增加到8秒，给进程更多时间优雅退出
-
-        const onExit = () => {
+      const exited = await new Promise<boolean>((resolve) => {
+        let settled = false
+        const finish = (ok: boolean) => {
+          if (settled) return
+          settled = true
           clearTimeout(timeout)
-          finish()
+          proc.removeListener('exit', onExit)
+          resolve(ok)
         }
 
-        const finish = () => {
-          // resolve 后移除监听器，避免并发 stop() 叠加 exit 监听导致泄漏
-          proc.removeListener('exit', onExit)
-          resolve()
-        }
+        const timeout = setTimeout(() => {
+          // 兜底强杀。注意不依赖 kill() 的返回值：Windows 上 'SIGTERM' 与 'SIGKILL'
+          // 走同一条 TerminateProcess（信号名被忽略），对已终止的进程 kill() 返回 false 且不抛错，
+          // 因此这里按 PID 做一次系统级强杀（POSIX 上是真正的 SIGKILL）。
+          logger.warn('进程信号关闭超时，尝试按 PID 强制终止')
+          this.forceKillByPid(proc.pid)
+          finish(false)
+        }, 8000)
+
+        const onExit = () => finish(true)
 
         proc.on('exit', onExit)
       })
+
+      if (!exited) {
+        // 未能确认退出：**不能**清句柄、更不能谎报成功——否则 killIfRunning() 与后续 stop()
+        // 都再也找不到这个进程，它会一直占着 RPC 端口，下次启动的引擎连不上。
+        logger.error(`Aria2 进程未在超时内退出（PID ${proc.pid ?? '未知'}），可能仍占用 RPC 端口`)
+        return false
+      }
 
       this.process = null
       logger.info('Aria2 进程已停止')
@@ -421,6 +482,27 @@ export class Aria2ProcessManager {
       return false
     } finally {
       this.isStopping = false
+    }
+  }
+
+  /**
+   * 按 PID 做系统级强杀（同步）。
+   *
+   * 为什么不用 child.kill()：它在 Windows 上无法区分 SIGTERM/SIGKILL，且对已终止的进程
+   * 静默返回 false；按 PID 调用 taskkill 才是在"进程卡死、句柄仍在"时真正有效的手段。
+   * 失败只记日志——调用方（stop 的兜底分支）已经会保留句柄并上报失败。
+   */
+  private forceKillByPid(pid: number | undefined): void {
+    if (!pid) return
+    try {
+      if (process.platform === 'win32') {
+        spawnSync('taskkill', ['/F', '/T', '/PID', String(pid)], { windowsHide: true, stdio: 'ignore' })
+      } else {
+        process.kill(pid, 'SIGKILL')
+      }
+      logger.info(`已按 PID 强制终止 Aria2 进程: ${pid}`)
+    } catch (error) {
+      logger.error(`按 PID 强制终止失败（PID ${pid}）:`, error)
     }
   }
 
@@ -461,8 +543,9 @@ export class Aria2ProcessManager {
     try {
       const mtime = statSync(configPath).mtimeMs
       if (mtime !== this.configMtimeMs) {
-        this.configManager.reload()
-        this.configMtimeMs = mtime
+        // 只有真正读到新内容才记住 mtime：读失败时留待下次重试，
+        // 否则"基线不可读"会一直挂到文件下次被改动为止（期间写盘被拒）
+        if (this.configManager.reload()) this.configMtimeMs = mtime
       }
     } catch {
       // 文件暂时不可读（如写入过程中）时仍尝试重载
@@ -516,6 +599,12 @@ export class Aria2ProcessManager {
     const needsRestart = this.checkIfRestartNeeded(oldConfig, this.config)
     if (needsRestart && this.isRunning()) {
       logger.info('检测到需要重启的配置变更，将自动重启 Aria2 服务')
+      // 覆盖前必须先清掉上一个待执行的重启：否则 1.5 秒内改两次配置会留下两个定时器，
+      // 两次 restart 并发执行（抢同一端口 + 互相 stop/start），属最难排查的一类故障。
+      if (this.pendingRestartTimer) {
+        clearTimeout(this.pendingRestartTimer)
+        this.pendingRestartTimer = null
+      }
       // 保存定时器引用，stop() 时可取消，避免退出后复活子进程
       this.pendingRestartTimer = setTimeout(async () => {
         this.pendingRestartTimer = null
@@ -541,20 +630,17 @@ export class Aria2ProcessManager {
     const maxAttempts = 5
 
     while (attempts < maxAttempts) {
-      try {
-        // 重新加载配置管理器以验证文件完整性
-        this.configManager.reload()
-        break
-      } catch (error) {
-        attempts++
+      // reload 的返回值表示是否真读到了可用基线。此前它把读失败吞成"写默认配置"，
+      // 导致这个重试循环永远不会重试（死代码）且反而覆盖用户配置——现在两者都修好了。
+      if (this.configManager.reload()) return
+      attempts++
 
-        if (attempts >= maxAttempts) {
-          logger.error('配置文件同步验证失败:', error)
-          throw new Error('配置文件同步验证失败')
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 200))
+      if (attempts >= maxAttempts) {
+        logger.error('配置文件同步验证失败：连续多次无法读取 aria2.conf')
+        throw new Error('配置文件同步验证失败')
       }
+
+      await new Promise(resolve => setTimeout(resolve, 200))
     }
   }
 
@@ -569,7 +655,24 @@ export class Aria2ProcessManager {
     return restartRequiredFields.some(field => oldConfig[field] !== newConfig[field])
   }
 
-  public async restart(): Promise<boolean> {
+  /**
+   * 重启 Aria2 进程。
+   *
+   * 并发合并：1.5s 内改两次需要重启的配置、或用户连点两次"重启"都会并发进入这里，
+   * 两个 restart 各自 stop+start 会抢同一端口，最终把重试计数耗尽导致"引擎再也起不来"。
+   */
+  public restart(): Promise<boolean> {
+    if (this.restartInFlight) {
+      logger.info('已有重启正在进行，合并本次重启请求')
+      return this.restartInFlight
+    }
+    this.restartInFlight = this.doRestart().finally(() => {
+      this.restartInFlight = null
+    })
+    return this.restartInFlight
+  }
+
+  private async doRestart(): Promise<boolean> {
     if (this.isStarting) {
       logger.info('进程正在启动中，无法重启')
       return false
