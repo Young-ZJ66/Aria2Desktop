@@ -75,39 +75,49 @@ export function normalizeFileUrl(raw: string): string {
 /**
  * 判断 IPC 调用来源是否可信。
  *
- * 判定语义（第 3 条为本轮加固，前两条与重构前逐字一致——这是安全代码，不要顺手"优化"）：
+ * 判定语义（**安全代码，不要顺手"优化"**）：
  * 1. 调用窗口必须存在且等于主窗口 —— 排除其它窗口与外部进程；
- * 2. 页面来源：
- *    - 开发环境：用 URL 的 **origin 精确匹配**。不能用 startsWith 之类的前缀判断，
- *      否则 `http://localhost:5173.evil.com` 会被误判为可信（真实存在的绕过手法）；
- *      URL 解析失败（非法 URL）时一律拒绝。
- *    - 生产环境：必须是**本应用加载的那个页面**。给出 allowedFileUrl 时按归一化后的
- *      路径比对；同一入口目录下的文件（应用自身的前端产物）也放行，理由见下；
- *      未给出任何允许值时退回"任意 file://"。
+ * 2. 页面来源按"这个应用会加载什么页面"分两种：
+ *    - **开发态**（`npm run dev`）：渲染层由 Vite dev server 提供，用 URL 的
+ *      **origin 精确匹配**。不能用 startsWith 之类的前缀判断，否则
+ *      `http://localhost:5173.evil.com` 会被误判为可信（真实存在的绕过手法）。
+ *    - **file:// 页面**：打包后加载 `dist/vue/index.html`，以及未打包但 `NODE_ENV`
+ *      不是 development 时的 `electron .`（同一个 file:// 页面）。两者共用
+ *      `isAllowedFileSender`：只认本应用的渲染层入口及其同目录文件。
+ *      此前 `electron .` 会走到开发态分支而被拒 → 界面能开、IPC 全废。
  */
 export function isSenderAuthorized(input: SenderAuthInput): boolean {
   if (!input.isMainWindow) return false
 
   if (!input.isPackaged) {
     try {
-      return DEV_ALLOWED_ORIGINS.includes(new URL(input.senderUrl).origin)
+      if (DEV_ALLOWED_ORIGINS.includes(new URL(input.senderUrl).origin)) return true
     } catch {
-      return false
+      // URL 解析失败（空串、畸形 URL）：交给下面的 file:// 判定拒绝
     }
   }
 
+  return isAllowedFileSender(input)
+}
+
+/**
+ * file:// 来源判定：本应用渲染层入口本身，或与入口同目录的文件（应用自身前端产物）。
+ *
+ * 兜底放宽到"同目录"的理由：一旦 URL 形态出现任何未预料的差异（不同 Electron 版本的
+ * 编码方式、安装路径规范化等），IPC 会**全部失效**——用户看到的是界面彻底不可用。
+ * 这个兜底不构成实际削弱：能往应用目录写文件的攻击者本就能替换 index.html 本身；
+ * 它挡住的仍然是真正的风险场景——被导航到应用目录之外的本地页面（如下载目录里的 HTML）。
+ */
+function isAllowedFileSender(input: SenderAuthInput): boolean {
   if (!input.senderUrl.startsWith('file://')) return false
-  if (!input.allowedFileUrl) return true
+
+  // 拿不到入口路径时的保守策略：打包态放行（宁可保持可用，也不能把应用锁死），
+  // 开发态维持严格——那个模式本来就应该由 dev server 提供页面。
+  if (!input.allowedFileUrl) return input.isPackaged
 
   const sender = normalizeFileUrl(input.senderUrl)
   if (sender === normalizeFileUrl(input.allowedFileUrl)) return true
 
-  // 兜底：与入口**同一目录**下的文件也放行（即应用自身的前端产物目录）。
-  //
-  // 为什么不只比对入口文件：一旦 URL 形态出现任何未预料的差异（不同 Electron 版本的编码方式、
-  // 安装路径规范化等），生产环境的 IPC 会**全部失效**——用户看到的是界面彻底不可用。
-  // 而这个兜底不构成实际削弱：能往应用安装目录写文件的攻击者本就能替换 index.html 本身；
-  // 它挡住的仍然是真正的风险场景——被导航到应用目录之外的本地页面（如下载目录里的 HTML）。
   if (input.allowedFileDirUrl) {
     const dir = normalizeFileUrl(input.allowedFileDirUrl)
     const prefix = dir.endsWith('/') ? dir : `${dir}/`

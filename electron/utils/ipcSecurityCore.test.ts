@@ -47,6 +47,28 @@ describe('isSenderAuthorized', () => {
     expect(isSenderAuthorized({ ...MAIN_WINDOW, senderUrl: 'not a url', isPackaged: false })).toBe(false)
   })
 
+  it('未打包但直接加载 dist/vue（`electron .`）：与打包态同口径，不再整盘拒绝', () => {
+    const entry = 'file:///E:/proj/dist/vue/index.html'
+    const dir = 'file:///E:/proj/dist/vue'
+
+    // 入口本身放行——此前该模式会走进开发态分支被拒，表现是"界面能开、IPC 全废"
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: entry, isPackaged: false, allowedFileUrl: entry, allowedFileDirUrl: dir
+    })).toBe(true)
+    // 同目录的前端产物放行
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: `${dir}/assets/other.html`, isPackaged: false, allowedFileUrl: entry, allowedFileDirUrl: dir
+    })).toBe(true)
+    // 应用目录之外的本地页面仍然拒绝（真正要挡的场景）
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: 'file:///C:/Users/x/Downloads/evil.html', isPackaged: false, allowedFileUrl: entry, allowedFileDirUrl: dir
+    })).toBe(false)
+    // 开发态拿不到入口信息时维持严格：不能因为这条兜底把 `npm run dev` 放宽成"任意 file://"
+    expect(isSenderAuthorized({
+      ...MAIN_WINDOW, senderUrl: 'file:///C:/Users/x/Downloads/evil.html', isPackaged: false
+    })).toBe(false)
+  })
+
   it('生产环境：只接受 file:// 页面', () => {
     expect(isSenderAuthorized({
       ...MAIN_WINDOW, senderUrl: 'file:///C:/app/resources/app.asar/dist/vue/index.html', isPackaged: true
