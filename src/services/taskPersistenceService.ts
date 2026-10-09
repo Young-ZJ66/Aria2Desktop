@@ -4,6 +4,7 @@
  */
 
 import type { Aria2Task } from '@/types/aria2'
+import { devLog } from '@/utils/devLog'
 
 export interface PersistedTask extends Aria2Task {
   persistedAt: number // 持久化时间戳
@@ -47,7 +48,7 @@ class TaskPersistenceService {
     const data = await window.electronAPI.loadPersistedTasks()
     if (data && typeof data === 'object' && !Array.isArray(data)) {
       this.persistedTasks = new Map<string, PersistedTask>(Object.entries(data) as [string, PersistedTask][])
-      console.log(`Loaded ${this.persistedTasks.size} persisted tasks from backend`)
+      devLog(`Loaded ${this.persistedTasks.size} persisted tasks from backend`)
     }
   }
 
@@ -62,7 +63,7 @@ class TaskPersistenceService {
           throw new Error('Invalid data format: expected object, got array')
         }
         this.persistedTasks = new Map(Object.entries(data))
-        console.log(`Loaded ${this.persistedTasks.size} persisted tasks from storage`)
+        devLog(`Loaded ${this.persistedTasks.size} persisted tasks from storage`)
       }
     } catch (error) {
       console.error('Failed to load persisted tasks from storage:', error)
@@ -149,7 +150,7 @@ class TaskPersistenceService {
     }
 
     this.schedulePersist()
-    console.log(`Persisted completed task: ${task.gid} at ${new Date(persistedTask.completedAt!)}`)
+    devLog(`Persisted completed task: ${task.gid} at ${new Date(persistedTask.completedAt!)}`)
   }
 
   /**
@@ -179,7 +180,7 @@ class TaskPersistenceService {
   removePersistedTask(gid: string) {
     this.persistedTasks.delete(gid)
     this.schedulePersist()
-    console.log(`Removed persisted task: ${gid}`)
+    devLog(`Removed persisted task: ${gid}`)
   }
 
   /**
@@ -188,7 +189,7 @@ class TaskPersistenceService {
   removePersistedTasks(gids: string[]) {
     gids.forEach(gid => this.persistedTasks.delete(gid))
     this.schedulePersist()
-    console.log(`Removed ${gids.length} persisted tasks`)
+    devLog(`Removed ${gids.length} persisted tasks`)
   }
 
   /**
@@ -207,7 +208,7 @@ class TaskPersistenceService {
     })
 
     if (tasksToRemove.length > 0) {
-      console.log(`Cleaned up ${tasksToRemove.length} old persisted tasks`)
+      devLog(`Cleaned up ${tasksToRemove.length} old persisted tasks`)
     }
   }
 
@@ -228,7 +229,7 @@ class TaskPersistenceService {
 
     if (cleaned > 0) {
       this.schedulePersist()
-      console.log(`Cleaned up ${cleaned} expired persisted tasks`)
+      devLog(`Cleaned up ${cleaned} expired persisted tasks`)
     }
   }
 
@@ -279,7 +280,7 @@ class TaskPersistenceService {
     localStorage.removeItem(this.STORAGE_KEY)
     // 同步清空后端文件（Electron IPC 写文件），避免主进程残留旧记录
     this.flush()
-    console.log('Cleared all persisted tasks')
+    devLog('Cleared all persisted tasks')
   }
 }
 

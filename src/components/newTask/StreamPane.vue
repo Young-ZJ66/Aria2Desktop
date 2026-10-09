@@ -95,7 +95,7 @@ async function fetchStreamInfo() {
     } else {
       message.error(result.error || t('newTask.streamParseFailed'))
     }
-  } catch (error) {
+  } catch {
     message.error(t('newTask.streamParseFailed'))
   } finally {
     streamFetching.value = false
@@ -118,7 +118,7 @@ async function handleStreamDownload() {
     } else {
       message.error(result.error || t('newTask.streamParseFailed'))
     }
-  } catch (error) {
+  } catch {
     message.error(t('newTask.streamParseFailed'))
   } finally {
     streamDownloading.value = false
