@@ -121,4 +121,51 @@ describe('settings 级加解密（读-改-写循环不得破坏密钥）', () =>
     expect(new Set(secretLayers).size).toBe(1)
     expect(decryptSecret(secretLayers[2] ?? '')).toBe('rpc-secret-value')
   })
+
+  it('瞬时解密失败 + 回写：远程预设的原密文被保留而非清空（可等系统恢复后解出）', () => {
+    let onDisk = encryptSettingsSecrets(settings)
+
+    // 第一轮：解密时 DPAPI 暂时不可用（如系统密钥环未就绪），随后照常回写
+    safeStorageMock.isEncryptionAvailable.mockReturnValue(false)
+    let inMemory = decryptSettingsSecrets(onDisk)
+    inMemory.theme = 'dark'
+    onDisk = encryptSettingsSecrets(inMemory)
+
+    // 磁盘上的 profile 密文必须原样保留（不是加密空串、不是空串）——
+    // 此时 DPAPI 仍不可用，无法直接解密验证内容，只验证"密文原样存在"
+    const preserved = onDisk.connectionProfiles?.[0]?.config?.secret ?? ''
+    expect(preserved).not.toBe('')
+
+    // 系统恢复后：解密恢复正常，密钥完好如初
+    safeStorageMock.isEncryptionAvailable.mockReturnValue(true)
+    expect(decryptSecret(preserved)).toBe('profile-secret')
+    inMemory = decryptSettingsSecrets(onDisk)
+    inMemory.theme = 'light'
+    onDisk = encryptSettingsSecrets(inMemory)
+    expect(decryptSettingsSecrets(onDisk).connectionProfiles?.[0]?.config?.secret).toBe('profile-secret')
+  })
+
+  it('aria2.secret 解密失败但 conf 侧不可用时：回写保留原密文，不写入加密空串', () => {
+    const onDisk = encryptSettingsSecrets(settings)
+
+    safeStorageMock.isEncryptionAvailable.mockReturnValue(false)
+    const inMemory = decryptSettingsSecrets(onDisk)
+    const rolledBack = encryptSettingsSecrets(inMemory)
+
+    // 未恢复时原密文保留（绝不变成 encrypt('') 产生的"合法空密文"）
+    const preserved = rolledBack.aria2?.secret ?? ''
+    expect(preserved.startsWith('v1:')).toBe(true)
+    safeStorageMock.isEncryptionAvailable.mockReturnValue(true)
+    expect(decryptSecret(preserved)).toBe('rpc-secret-value')
+  })
+
+  it('正常的"解密→改字段→加密"不会误触发密文保留（密钥仍随内容更新）', () => {
+    let onDisk = encryptSettingsSecrets(settings)
+
+    // 正常改密钥：解密成功，回写必须反映新值
+    const inMemory = decryptSettingsSecrets(onDisk)
+    inMemory.aria2!.secret = 'brand-new-secret'
+    onDisk = encryptSettingsSecrets(inMemory)
+    expect(decryptSettingsSecrets(onDisk).aria2?.secret).toBe('brand-new-secret')
+  })
 })

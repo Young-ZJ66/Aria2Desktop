@@ -323,8 +323,13 @@
       "endTime": "结束时间",
       "downloadLimit": "限速",
       "addScheduleRule": "添加调度规则",
-      "mon": "周一", "tue": "周二", "wed": "周三", "thu": "周四",
-      "fri": "周五", "sat": "周六", "sun": "周日",
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五",
+      "sat": "周六",
+      "sun": "周日",
       "diskAndMemory": "磁盘与存储",
       "diskCache": "磁盘缓存",
       "diskCacheTip": "磁盘缓存大小（MB），0 表示禁用缓存",
@@ -727,7 +732,10 @@
       "rpcPrivateKeyPlaceholder": "RPC 服务的私钥文件",
       "rpcPrivateKeyTip": "启用 RPC over HTTPS 时使用的私钥",
       "rpcCertificateDialog": "选择 RPC 证书文件",
-      "rpcPrivateKeyDialog": "选择 RPC 私钥文件"
+      "rpcPrivateKeyDialog": "选择 RPC 私钥文件",
+      "rpc": {
+        "reservedSecretPrefix": "密钥不能以 v1: 开头（系统保留前缀）"
+      }
     },
     "advanced": {
       "description": "配置事件轮询、日志与底层下载行为",
@@ -880,7 +888,8 @@
     "save": "保存",
     "saved": "配置已保存",
     "profileNamePlaceholder": "请输入配置名称",
-    "profileNameRequired": "请输入配置名称"
+    "profileNameRequired": "请输入配置名称",
+    "reservedSecretPrefix": "密钥不能以 v1: 开头（系统保留前缀）"
   },
   "errors": {
     "econnrefused": "无法连接到服务器，请检查 Aria2 是否已启动",

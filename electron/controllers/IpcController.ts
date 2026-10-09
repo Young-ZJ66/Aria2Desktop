@@ -1,5 +1,5 @@
 import { dialog, shell, app, Notification, clipboard, session } from 'electron'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { WindowController } from './WindowController'
 import { TrayController } from './TrayController'
 import { Aria2Controller } from './Aria2Controller'
@@ -40,13 +40,18 @@ const PROXY_PROBE_URLS = [
 /**
  * 执行系统命令并等待其结束。
  *
- * 为什么不能直接 `exec(cmd)` 了事：exec 的错误是**异步**投递到回调的，
- * 外层 try/catch 根本捕不到——关机/休眠失败时仍会返回 `{ success: true }`，
- * 用户以为已经生效（"下载完成后关机"失效却毫无提示）。
+ * 为什么不用 child_process 的 exec 那种"整条字符串走 shell"的形式：
+ * 1) exec 的错误是**异步**投递到回调的，外层 try/catch 根本捕不到——
+ *    关机/休眠失败时仍会返回 `{ success: true }`，用户以为已经生效
+ *    （"下载完成后关机"失效却毫无提示）；
+ * 2) 字符串形式要走 shell 解释。本模块全部调用点都是**字面量常量**
+ *    （shutdown/osascript/systemctl，见下方各 handler），不存在用户输入参与拼接，
+ *    但静态审查无法证明这一点——execFile + 数组参数不经 shell，
+ *    从机制上杜绝"命令与参数被 shell 二次解释"的可能。
  */
-function runSystemCommand(command: string): Promise<void> {
+function runSystemCommand(file: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    exec(command, (error) => {
+    execFile(file, args, (error) => {
       if (error) reject(error)
       else resolve()
     })
@@ -196,11 +201,11 @@ export class IpcController {
     registerSecureHandler('system-shutdown', async () => {
       try {
         if (process.platform === 'win32') {
-          await runSystemCommand('shutdown /s /t 60') // 60 秒后关机
+          await runSystemCommand('shutdown', ['/s', '/t', '60']) // 60 秒后关机
         } else if (process.platform === 'darwin') {
-          await runSystemCommand('osascript -e \'tell app "System Events" to shut down\'')
+          await runSystemCommand('osascript', ['-e', 'tell app "System Events" to shut down'])
         } else {
-          await runSystemCommand('shutdown -h +1')
+          await runSystemCommand('shutdown', ['-h', '+1'])
         }
         return { success: true }
       } catch (e) {
@@ -212,11 +217,11 @@ export class IpcController {
     registerSecureHandler('system-hibernate', async () => {
       try {
         if (process.platform === 'win32') {
-          await runSystemCommand('shutdown /h')
+          await runSystemCommand('shutdown', ['/h'])
         } else if (process.platform === 'darwin') {
-          await runSystemCommand('osascript -e \'tell app "System Events" to sleep\'')
+          await runSystemCommand('osascript', ['-e', 'tell app "System Events" to sleep'])
         } else {
-          await runSystemCommand('systemctl suspend')
+          await runSystemCommand('systemctl', ['suspend'])
         }
         return { success: true }
       } catch (e) {
@@ -294,7 +299,7 @@ export class IpcController {
         return { success: false, error: 'Cancel shutdown is only supported on Windows' }
       }
       try {
-        await runSystemCommand('shutdown /a')
+        await runSystemCommand('shutdown', ['/a'])
         return { success: true }
       } catch (e) {
         logger.warn('[IpcController] 取消关机失败（可能本就没有待执行的关机）:', e)

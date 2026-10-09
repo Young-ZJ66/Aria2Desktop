@@ -242,6 +242,15 @@ const rules = computed<FormRules>(() => ({
   port: [
     { required: true, type: 'number', message: () => t('connection.requirePort'), trigger: 'blur' },
     { type: 'number', min: 1024, max: 65535, message: () => t('connection.portRange'), trigger: 'blur' }
+  ],
+  secret: [
+    {
+      // `v1:` 是主进程密文存储的保留前缀：以它开头的"密钥"会被幂等护栏原样存储、
+      // 再被解密器当密文处理而清空（详见 secretCipher 的保留前缀说明），必须在入口拒绝
+      validator: (_rule, value: string) =>
+        !value || !/^v1:/.test(value) ? true : new Error(t('connection.reservedSecretPrefix')),
+      trigger: 'blur'
+    }
   ]
 }))
 

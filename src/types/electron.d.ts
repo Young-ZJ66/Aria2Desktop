@@ -224,5 +224,7 @@ export interface ElectronAPI {
 declare global {
   interface Window {
     electronAPI?: ElectronAPI
+    /** 主进程退出链路调用：渲染层刷盘合批中的任务记录/时间记录（useAppLifecycle 挂载） */
+    __flushPendingTaskData?: () => Promise<void>
   }
 }

@@ -327,6 +327,11 @@ if (!gotTheLock) {
     logger.info('应用退出中，开始优雅关闭...')
 
     try {
+      // 渲染层的合批落盘（完成任务记录/时间记录）走 300ms 防抖 + 异步 IPC，
+      // Vue 的 onUnmounted 在窗口销毁时不会触发——必须在退出链路这里显式通知渲染层
+      // flush 并等待写盘完成，否则合批窗口内的记录随进程一起丢失。
+      // 渲染层未就绪/已销毁时跳过（无未落盘数据可言）。
+      await windowController.flushRendererData()
       await appLifecycle.shutdown()
       // 关闭 Tracker 订阅定时器，避免退出阻塞
       trackerSubscriptionService.shutdown()

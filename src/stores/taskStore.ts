@@ -239,6 +239,10 @@ export const useTaskStore = defineStore('task', () => {
       console.error('Failed to load active tasks:', error)
     } finally {
       isLoading.value = false
+      // 轻量轮询期间到达的 WS 事件（如 downloadError 把任务移入 stopped 列表）在
+      // 轻量刷新里看不到，若不消费要等下一次 30s 全量才反映——这里补刷一次全量。
+      // 复用 scheduleReloadIfNeeded 的深度限制，避免事件密集时无界循环。
+      scheduleReloadIfNeeded()
     }
   }
 

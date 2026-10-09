@@ -323,8 +323,13 @@
       "endTime": "End time",
       "downloadLimit": "Speed limit",
       "addScheduleRule": "Add Schedule Rule",
-      "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu",
-      "fri": "Fri", "sat": "Sat", "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun",
       "diskAndMemory": "Disk & Storage",
       "diskCache": "Disk Cache",
       "diskCacheTip": "Disk cache size (MB), 0 means disabled",
@@ -727,7 +732,10 @@
       "rpcPrivateKeyPlaceholder": "Private key file for RPC service",
       "rpcPrivateKeyTip": "Private key used when enabling RPC over HTTPS",
       "rpcCertificateDialog": "Select RPC Certificate File",
-      "rpcPrivateKeyDialog": "Select RPC Private Key File"
+      "rpcPrivateKeyDialog": "Select RPC Private Key File",
+      "rpc": {
+        "reservedSecretPrefix": "Secret cannot start with v1: (reserved prefix)"
+      }
     },
     "advanced": {
       "description": "Configure event polling, logging and low-level download behavior",
@@ -880,7 +888,8 @@
     "save": "Save",
     "saved": "Profile saved",
     "profileNamePlaceholder": "Enter a profile name",
-    "profileNameRequired": "Profile name is required"
+    "profileNameRequired": "Profile name is required",
+    "reservedSecretPrefix": "Secret cannot start with v1: (reserved prefix)"
   },
   "errors": {
     "econnrefused": "Cannot reach the server. Please check whether Aria2 is running",

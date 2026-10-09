@@ -8,11 +8,11 @@ import {
   EXTENSION_API_PORT,
   isAllowedDownloadUri,
   isAuthorizedExtensionRequest,
+  isExtensionOrigin,
   isPlainFileName,
   isProbeAllowed,
   parseRequestPathname,
-  sanitizeDownloadFileName,
-  getPairingExtensionId
+  sanitizeDownloadFileName
 } from '../utils/extensionApiCore'
 // 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import {
@@ -232,10 +232,9 @@ export class ExtensionApiServer {
       return
     }
     // 来源校验：Origin 必须是 chrome-extension:// 且 ID 段为 32 位 [a-p]。
-    // 判定走 extensionApiCore 的纯函数（可单测），这里只取布尔结果——
-    // 来源字符串不进入任何弹窗、日志插值或响应体。
-    const isExtensionOrigin = getPairingExtensionId(req.headers.origin) !== null
-    if (!isExtensionOrigin) {
+    // 判定走 extensionApiCore 的纯函数（可单测），返回布尔——
+    // 来源字符串到该函数为止，不进入任何弹窗、日志插值或响应体。
+    if (!isExtensionOrigin(req.headers.origin)) {
       this.logger.warn('拒绝非法的配对请求（来源非浏览器扩展）')
       this.send(res, 403, { ok: false, code: 'pairing_forbidden', error: 'Forbidden' })
       return

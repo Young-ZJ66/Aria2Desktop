@@ -259,9 +259,6 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     stopStatusCheck()
     stopCleanupTimer()
     stopTimeCleanupTimer()
-    // 持久化是合批落盘（300ms 窗口）：退出前强制刷一次，避免最后一条完成任务记录丢失
-    taskPersistenceService.flush()
-    taskTimeService.flush()
     keyboardShortcuts.stop()
     unsubscribeConfig?.()
     unsubscribeDownloadComplete?.()
@@ -270,4 +267,14 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     themeManager.disposeSystemThemeListener()
     connectionStore.disconnect()
   })
+
+  // 主进程退出链路的刷盘入口（before-quit → WindowController.flushRendererData）。
+  // Vue 的 onUnmounted 在窗口销毁时不会触发——此前挂在它上面的 flush 是死代码，
+  // 所有退出路径上的合批数据都会随进程丢失；真正的刷盘时机必须由主进程给出。
+  // 挂在 window 上（executeJavaScript 只能触达全局作用域）。persisted-tasks 走异步
+  // IPC 需 await；task-times 是同步 localStorage，flush 即落盘。
+  window.__flushPendingTaskData = async () => {
+    await taskPersistenceService.flush()
+    taskTimeService.flush()
+  }
 }

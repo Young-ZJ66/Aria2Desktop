@@ -117,13 +117,23 @@ export class Aria2ProcessManager {
   }
 
   public async start(): Promise<boolean> {
-    if (this.process && !this.process.killed) {
+    // 判活用 exitCode/signalCode 而非 killed：killed 只在调用过 kill() 后才为 true，
+    // 进程已死但 exit 事件未派发的窗口内，用 killed 会误报"已在运行"（start 谎报成功）。
+    // doStop/killIfRunning 用的就是这套判定，这里保持同一口径。
+    if (this.isProcessAlive()) {
       logger.info('Aria2 进程已经在运行')
       return true
     }
 
     if (this.isStarting) {
       logger.info('Aria2 进程正在启动中')
+      return false
+    }
+
+    // stop 进行中（优雅关闭的 await 窗口内 process 尚未清空）不接受并发 start：
+    // 此时返回成功是谎报——引擎马上会被停掉，UI 会显示运行中但引擎已死，且不会自动重启。
+    if (this.isStopping) {
+      logger.warn('Aria2 进程正在停止中，忽略本次启动请求')
       return false
     }
 
@@ -507,7 +517,18 @@ export class Aria2ProcessManager {
   }
 
   public isRunning(): boolean {
-    return this.process !== null && !this.process.killed
+    return this.isProcessAlive()
+  }
+
+  /**
+   * 进程判活：以退出信号/退出码为准（child_process 语义：任一非 null 即已退出）。
+   * 不用 killed —— 它只在调用过 kill() 后才为 true，无法反映"已自行退出但 exit 事件
+   * 尚未派发"的状态，会在那个窗口内误报运行中。
+   */
+  private isProcessAlive(): boolean {
+    return this.process !== null &&
+      this.process.exitCode === null &&
+      this.process.signalCode === null
   }
 
   /**

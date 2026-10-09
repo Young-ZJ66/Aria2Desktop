@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   EXTENSION_ID,
-  getPairingExtensionId,
+  isExtensionOrigin,
   isAllowedDownloadUri,
   isAuthorizedExtensionRequest,
   isPlainFileName,
@@ -165,9 +165,9 @@ describe('isProbeAllowed（探测的 SSRF 边界）', () => {
   })
 })
 
-describe('getPairingExtensionId（配对来源校验——唯一免密端点，来源必须从严）', () => {
-  it('合法的扩展 Origin → 返回扩展 ID', () => {
-    expect(getPairingExtensionId(`chrome-extension://${EXTENSION_ID}`)).toBe(EXTENSION_ID)
+describe('isExtensionOrigin（配对来源校验——唯一免密端点，来源必须从严）', () => {
+  it('合法的扩展 Origin → true（返回布尔：来源字符串到此为止，不流向任何下游）', () => {
+    expect(isExtensionOrigin(`chrome-extension://${EXTENSION_ID}`)).toBe(true)
   })
 
   it('空 Origin、网页来源、伪装域名、畸形输入 → 一律拒绝', () => {
@@ -183,7 +183,7 @@ describe('getPairingExtensionId（配对来源校验——唯一免密端点，�
       'chrome-extension://ndikflbmajhflfndbjblihkifnfbmdon/x', // 带路径
       ' chrome-extension://ndikflbmajhflfndbjblihkifnfbmdon'   // 前导空格
     ]) {
-      expect(getPairingExtensionId(origin)).toBeNull()
+      expect(isExtensionOrigin(origin)).toBe(false)
     }
   })
 })

@@ -43,6 +43,32 @@ export class WindowController {
     this.onRendererReady = callback
   }
 
+  /**
+   * 退出前通知渲染层把合批中的数据刷盘，并等待写盘完成。
+   *
+   * 为什么必须走这条链路：渲染层的任务记录/时间记录走 300ms 防抖 + 异步 IPC，
+   * 而 Vue 的 onUnmounted 在窗口销毁时不会触发——渲染层的 flush 钩子在所有退出
+   * 路径上都是死代码。真正的刷盘时机只能由主进程在 before-quit 里给出。
+   *
+   * 渲染层未就绪（启动早期退出）或窗口已销毁时直接返回：此时没有合批数据可言。
+   * 渲染层无响应时 2 秒超时兜底——退出链路不能被挂起的 IPC 拖死。
+   */
+  public async flushRendererData(): Promise<void> {
+    const win = this.mainWindow
+    if (!this.isContentReady || !win || win.isDestroyed()) return
+    try {
+      await Promise.race([
+        win.webContents.executeJavaScript(
+          'window.__flushPendingTaskData ? window.__flushPendingTaskData() : Promise.resolve()',
+          true
+        ),
+        new Promise<void>((resolve) => setTimeout(resolve, 2000))
+      ])
+    } catch {
+      // 渲染层已崩溃等情况：放弃刷盘，退出流程继续
+    }
+  }
+
   constructor(store: Store<StoreData>) {
     this.store = store
 

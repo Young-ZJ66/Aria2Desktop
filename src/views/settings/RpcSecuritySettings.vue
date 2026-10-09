@@ -199,6 +199,15 @@ const rules: FormRules = {
   // rpc-max-request-size 单位 M，0 表示默认限制，仅校验非负
   rpcMaxRequestSize: [
     { type: 'number', min: 0, message: () => t('settings.valueMin', { min: 0 }), trigger: 'blur' }
+  ],
+  // `v1:` 是主进程密文存储的保留前缀：以此开头的密钥会被幂等护栏原样存储、
+  // 再被解密器当密文处理而清空（详见主进程 secretCipher 的保留前缀说明），必须在入口拒绝
+  rpcSecret: [
+    {
+      validator: (_rule, value: string) =>
+        !value || !/^v1:/.test(value) ? true : new Error(t('settings.rpc.reservedSecretPrefix')),
+      trigger: 'blur'
+    }
   ]
 }
 

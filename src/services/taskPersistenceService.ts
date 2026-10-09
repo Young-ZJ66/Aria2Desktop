@@ -94,22 +94,25 @@ class TaskPersistenceService {
     }, TaskPersistenceService.PERSIST_DEBOUNCE_MS)
   }
 
-  /** 立即落盘（清空、退出前等需要强一致的场景） */
-  flush(): void {
+  /** 立即落盘并等待写盘完成（清空、退出前等需要强一致的场景） */
+  async flush(): Promise<void> {
     if (this.persistTimer) {
       clearTimeout(this.persistTimer)
       this.persistTimer = null
     }
-    this.persist()
+    await this.persist()
   }
 
-  /** 持久化到后端（Electron IPC 写文件），非 Electron 环境回退 localStorage */
-  private persist(): void {
+  /** 持久化到后端（Electron IPC 写文件），非 Electron 环境回退 localStorage。
+    返回写盘完成的 Promise：schedulePersist 路径不 await（合批语义）；flush 路径 await（强一致） */
+  private async persist(): Promise<void> {
     if (window.electronAPI?.savePersistedTasks) {
       const data = Object.fromEntries(this.persistedTasks)
-      window.electronAPI.savePersistedTasks(data).catch((error: unknown) => {
+      try {
+        await window.electronAPI.savePersistedTasks(data)
+      } catch (error) {
         console.error('Failed to persist tasks to backend:', error)
-      })
+      }
     } else {
       this.saveToLocalStorage()
     }

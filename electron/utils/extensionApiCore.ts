@@ -138,14 +138,12 @@ export function isPlainFileName(name: string): boolean {
  * 而本就能读文件的本机进程早已能从 aria2.conf（明文 rpc-secret）拿到密钥，
  * 因此配对端点没有引入新的本地攻击面—— dialogs 确认挡住的是"用户没装扩展却弹窗"这类意外。
  *
- * @returns 合法时返回扩展 ID，否则 null。**调用方只应把它当布尔闸门用**：
- *          扩展 ID 只进日志、不进确认弹窗/错误响应（32 位 ID 对用户没有可验证性，
- *          且要避免把请求侧字符串带进任何展示面）。
+ * 返回**布尔值**：来源字符串到此为止、不流入任何下游（弹窗/日志插值/响应体都是固定文案），
+ * 数据流以本函数为终点，避免把请求侧字符串带进任何展示面。
  */
-export function getPairingExtensionId(origin: string | undefined): string | null {
-  if (!origin) return null
-  const match = /^chrome-extension:\/\/([a-p]{32})$/.exec(origin)
-  return match?.[1] ?? null
+export function isExtensionOrigin(origin: string | undefined): boolean {
+  if (!origin) return false
+  return /^chrome-extension:\/\/[a-p]{32}$/.test(origin)
 }
 
 export interface ExtensionApiAuthInput {
