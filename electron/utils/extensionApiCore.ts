@@ -10,6 +10,10 @@ import * as crypto from 'crypto'
 /**
  * 本扩展 ID，由签名密钥（`.crx/extension-key.pem`）推出——`npm run pack:extension` 会打印。
  * 更换签名密钥即变化，届时需同步本文件与 extension/README.md。
+ *
+ * 注意：**商店版是另一个 ID**（`fmjmpbnokancjlangmmepdpdebafkngp`，商店用自家密钥重签，
+ * 见 src/shared/extensionStore.ts）。这里只用于旁加载/白名单说明，不参与来源判定——
+ * 见下方 isAuthorizedExtensionRequest 的注释。
  */
 export const EXTENSION_ID = 'ndikflbmajhflfndbjblihkifnfbmdon'
 

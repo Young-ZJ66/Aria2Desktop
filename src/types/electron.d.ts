@@ -39,6 +39,9 @@ export interface ElectronAPI {
     results?: Array<{ path: string; success: boolean; error?: string }>
   }>
 
+  /** 在系统浏览器中打开外部链接（仅白名单站点，见 electron/utils/externalUrlCore） */
+  openExternalUrl: (url: string) => Promise<{ success: boolean; error?: string }>
+
   // 下载文件名探测：URL 里没有文件名（网盘直链/跳转链接）时，向文件服务器取
   // Content-Disposition 中的真实文件名（不下载正文）；失败返回空串
   probeDownloadName: (url: string) => Promise<string>

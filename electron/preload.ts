@@ -23,6 +23,9 @@ const electronAPI = {
   openInExplorer: (path: string) => ipcRenderer.invoke('open-in-explorer', path),
   deleteFiles: (paths: string[], taskDir?: string) => ipcRenderer.invoke('delete-files', paths, taskDir),
 
+  // 在系统浏览器里打开外部链接（主进程按站点白名单校验，见 utils/externalUrlCore）
+  openExternalUrl: (url: string) => ipcRenderer.invoke('open-external-url', url),
+
   // 下载文件名探测（网盘直链/跳转链接的 URL 无文件名，分类需要从响应头拿真实文件名）
   probeDownloadName: (url: string) => ipcRenderer.invoke('download-probe-filename', url),
 

@@ -10,6 +10,7 @@ import * as fs from 'fs'
 import { registerSecureHandler, registerSecureListener } from '../utils/ipcSecurity'
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
+import { isAllowedExternalUrl } from '../utils/externalUrlCore'
 import { checkYtdlpAvailable, getVideoInfo, getFormatUrl } from '../services/ytdlpService'
 import { PluginManager } from '../services/pluginManager'
 import { createLogger } from '../utils/logger'
@@ -331,7 +332,7 @@ export class IpcController {
 
     // 注：守卫后的 `!window` 分支同样返回 {canceled:true}——与校验失败值同形但语义不同，
     // 这个业务分支必须保留
-    registerSecureHandler('show-save-dialog', async (event, options) => {
+    registerSecureHandler('show-save-dialog', async (event, options: Electron.SaveDialogOptions) => {
       const window = this.windowController.getMainWindow()
       if (window) {
         return await dialog.showSaveDialog(window, options)
@@ -339,7 +340,7 @@ export class IpcController {
       return { canceled: true }
     }, { getMainWindow: this.windowRef, failureValue: { canceled: true } })
 
-    registerSecureHandler('show-open-dialog', async (event, options) => {
+    registerSecureHandler('show-open-dialog', async (event, options: Electron.OpenDialogOptions) => {
       const window = this.windowController.getMainWindow()
       if (window) {
         return await dialog.showOpenDialog(window, options)
@@ -349,6 +350,28 @@ export class IpcController {
   }
 
   private registerFileHandlers() {
+    /**
+     * 打开外部链接（目前只用于设置页的「获取浏览器扩展」跳商店）。
+     *
+     * URL 由渲染层传入，所以校验必须在主进程：`shell.openExternal` 会把链接交给系统
+     * 处理程序，等于把"打开任意站点、甚至唤起本机其它程序"的能力交给渲染层。
+     * 判定口径（https + 站点白名单）在 utils/externalUrlCore，是可单测的纯逻辑。
+     */
+    registerSecureHandler('open-external-url', async (event, url: string) => {
+      if (!isAllowedExternalUrl(url)) {
+        // 只记协议不记原文：这是外部输入，拼进日志会带来日志注入与隐私问题
+        const protocol = typeof url === 'string' ? (url.match(/^[a-z][a-z0-9+.-]*:/i)?.[0] ?? '(无协议)') : typeof url
+        logger.warn('[IpcController] 已拦截非白名单外链，协议:', protocol)
+        return { success: false, error: 'url_not_allowed' }
+      }
+      try {
+        await shell.openExternal(url)
+        return { success: true }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    }, { getMainWindow: this.windowRef })
+
     registerSecureHandler('show-item-in-folder', async (event, filePath: string) => {
       try {
         const normalizedPath = path.normalize(filePath)
