@@ -20,8 +20,9 @@ Chrome/Edge 扩展：把浏览器里的下载交给 Aria2 Desktop 处理。
 「设置 → RPC 安全设置」更换访问密钥——之后所有客户端都需要重新配对。
 
 ### 普通用户（Edge 走商店；Chrome 用旁加载）
-**Edge**：扩展已上架 Edge 加载项商店，直接在商店搜索安装即可（自动更新，无需开发者模式）。
-如需安装商店之外的手动版本，才需要下面的「方式 B」放行步骤。
+**Edge**：扩展已提交 **Edge 加载项商店** 审核，上架后直接从商店安装即可（自动更新，无需开发者模式）。
+商店地址：<https://microsoftedge.microsoft.com/addons/detail/aria2-desktop/fmjmpbnokancjlangmmepdpdebafkngp>（上架后生效）。
+审核期间，或需要安装商店之外的手动版本，走下面的方式 A / 方式 B。
 
 > ⚠️ **新版 Chrome/Edge 已禁止直接安装非商店 `.crx`**：拖入 `chrome://extensions/` 后会提示
 > 「此扩展不是来自任何已知来源，可能是在你不知情的情况下添加的」并**直接禁用扩展，没有「保留」按钮**。
@@ -44,7 +45,7 @@ ID 来自签名密钥（见下方「自行打包 .crx」），与仓库 `electro
 `EXTENSION_ID` 一致；更换签名密钥时需同步更新白名单命令。
 
 > 说明：`.crx` 与 `.zip` 都属于**旁加载**，缺点是**不会自动更新**（换版本要手动重装）。
-> **Edge 加载项商店**版本已上架，Edge 用户可直接从商店安装并自动更新；
+> **Edge 加载项商店**版本已提交审核，上架后 Edge 用户可直接从商店安装并自动更新；
 > Chrome 网上应用店暂不提交（旁加载是官方保留的开发者通道，长期可用）。
 
 ### 开发者（源码目录）
@@ -61,6 +62,10 @@ npm run pack:extension     # 产出 release/Aria2Desktop-Extension-v<版本>.crx
   丢失或更换会导致 ID 变化，已安装用户无法升级，App 侧的来源白名单也会失效。
 - 首次生成后请把密钥内容加入 GitHub Secret `EXTENSION_CRX_KEY`，CI 打包时会自动使用（未配置则跳过 .crx 产物）。
 - 当前扩展 ID：`ndikflbmajhflfndbjblihkifnfbmdon`（由现有密钥推出；更换密钥即改变）
+- **商店版是另一个 ID**：`fmjmpbnokancjlangmmepdpdebafkngp`（应用商店用自家密钥重签，
+  与上面的密钥无关；已用商店公钥反算校验过）。两者不同属预期：App 的扩展接口不按 ID 放行，
+  商店版照样能连上；但用 `.crx` 装过的用户要切商店版时需**先卸载再装**（同一浏览器里
+  不允许两个 ID 并存的同一扩展）。
 
 > 图标由 **App 图标**自动生成（保证与桌面端品牌一致）：
 > `build/Icon.ico` → `icons/icon16.png` / `icon48.png` / `icon128.png`，
@@ -69,7 +74,7 @@ npm run pack:extension     # 产出 release/Aria2Desktop-Extension-v<版本>.crx
 > 多尺寸容器需要 Chrome 自行挑帧/缩放（工具栏 24px、Windows 32px 等未声明尺寸高分屏容易糊），
 > Chrome Web Store 上传也要求单独的 128×128 PNG。**不要把 `.ico` 副本放进本目录**：
 > manifest 不引用它，还会随 Release 多打包 200KB+。
-> 扩展版本号见 `manifest.json`，按自身节奏维护（本次随「与 App 打通」等实质改动同步到 1.0.8）。
+> 扩展版本号见 `manifest.json`，按自身节奏维护（1.0.9 无代码改动，仅与 App 同步版本号）。
 
 ## 功能
 
