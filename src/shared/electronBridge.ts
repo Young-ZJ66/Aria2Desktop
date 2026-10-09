@@ -16,4 +16,11 @@ export interface Aria2UpdateConfig {
    * 避免"表单尚未加载出密钥就保存"导致密钥被静默清空、RPC 访问保护被关闭。
    */
   clearSecret?: boolean
+  /**
+   * 以下两项是历史遗留字段：**当前渲染层不再发送**（RPC 开关与跨源设置由「RPC 安全」页
+   * 经 `aria2.saveGlobalOptions` 直接写配置），主进程读到后也只合并进内存配置、不落盘。
+   * 这里如实声明，是为了让"主进程接受的入参形状"有类型可依，而不是留一处隐式 any。
+   */
+  enableRpc?: boolean
+  rpcAllowOriginAll?: boolean
 }

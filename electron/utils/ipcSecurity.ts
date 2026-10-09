@@ -112,10 +112,10 @@ export interface SecureHandlerOptions<R> {
  * 因此 `failureValue` 会与 handler 的返回类型一起被类型检查（例如 `read-clipboard`
  * 返回 `Promise<string>`，传数字会编译报错）。
  *
- * `A` 默认 `any[]`：与重构前 `ipcMain.handle` 的 `...args: any[]` 保持同样的宽松度，
- * 使个别未标注类型的入参（对话框选项、aria2 配置）不必为了迁移而额外收紧。
+ * `A` 默认 `unknown[]`：与重构前 `ipcMain.handle` 的 `...args: any[]` 一样宽松（调用点传什么
+ * 由 handler 的形参决定，A 会被推断出来），但不给本文件留下显式 `any`。
  */
-export function registerSecureHandler<A extends unknown[] = any[], R = unknown>(
+export function registerSecureHandler<A extends unknown[] = unknown[], R = unknown>(
   channel: string,
   handler: (event: Electron.IpcMainInvokeEvent, ...args: A) => R,
   options: SecureHandlerOptions<Awaited<R>>

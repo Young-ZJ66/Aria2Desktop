@@ -10,6 +10,8 @@ import { callAria2Rpc } from '../utils/aria2Rpc'
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
 // 注意：主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import { isLocalEngineAddress } from '../../src/shared/localEngine'
+// 仅类型引用：IPC 入参的形状以共享类型为准，避免主/渲染两侧各写一份而漂移
+import type { Aria2UpdateConfig } from '../../src/shared/electronBridge'
 import { createLogger } from '../utils/logger'
 import type { AppSettings } from '../types/store'
 
@@ -381,7 +383,7 @@ export class Aria2Controller {
       }
     }, { getMainWindow: this.windowRef })
 
-    registerSecureHandler('aria2-update-config', async (event, config) => {
+    registerSecureHandler('aria2-update-config', async (event, config: Aria2UpdateConfig) => {
       if (!this.aria2Manager) await this.initialize()
       if (!this.aria2Manager) {
         return { success: false, code: 'not_initialized', error: 'Aria2 manager not initialized' }
