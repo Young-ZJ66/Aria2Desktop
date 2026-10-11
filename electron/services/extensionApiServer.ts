@@ -177,7 +177,7 @@ export class ExtensionApiServer {
         this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
         return
       }
-      this.send(res, 200, await this.buildStatus())
+      this.send(res, 200, await this.buildStatus(req))
       return
     }
 
@@ -399,9 +399,17 @@ export class ExtensionApiServer {
   }
 
   /** GET /api/status：应用版本、引擎进程状态与版本、当前下载目录 */
-  private async buildStatus(): Promise<Record<string, unknown>> {
+  private async buildStatus(req: http.IncomingMessage): Promise<Record<string, unknown>> {
     const settings = getSettingsFresh()
     const info = this.deps.getEngineProcessInfo()
+
+    // 扩展版本由调用方通过 X-Extension-Version 头带上（仅记录日志，用于两端版本协同排查）
+    const extVersion = typeof req.headers['x-extension-version'] === 'string'
+      ? req.headers['x-extension-version']
+      : ''
+    if (extVersion) {
+      this.logger.info(`扩展状态查询（扩展 v${extVersion.slice(0, 32)}，App v${this.deps.getAppVersion()}）`)
+    }
 
     let engineVersion = ''
     if (info.isRunning) {

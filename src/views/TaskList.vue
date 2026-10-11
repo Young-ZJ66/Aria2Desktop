@@ -75,6 +75,8 @@
         table-layout="fixed"
         :bordered="false"
         class="task-table"
+        :sort-order="controlledSorter ?? undefined"
+        @sorter-change="handleSorterChange"
       >
         <template #empty>
           <!-- 空状态出现时淡入（避免搜索结果/空列表切换时生硬闪出） -->
@@ -176,6 +178,41 @@ const {
 // 状态
 const loading = ref(false)
 const searchText = ref('')
+
+// 列头排序状态：Naive UI 的 sorter 是非受控的（组件内部管理三态循环），
+// 但切页/切列表会销毁组件导致排序丢失——这里用受控 sortOrderer 恢复，并在变化时持久化。
+// key 带 taskType：两个列表（下载/完成）各自记忆自己的排序。
+const SORT_PREF_KEY = 'task-list-sort'
+type SorterState = { columnKey: string; order: 'ascend' | 'descend' }
+
+const savedSort = (() => {
+  try {
+    const all = JSON.parse(localStorage.getItem(SORT_PREF_KEY) || '{}') as Record<string, SorterState>
+    return all[props.taskType] ?? null
+  } catch {
+    return null
+  }
+})()
+const controlledSorter = ref<SorterState | null>(savedSort)
+
+function persistSort(state: SorterState | null) {
+  try {
+    const all = JSON.parse(localStorage.getItem(SORT_PREF_KEY) || '{}') as Record<string, SorterState>
+    if (state) all[props.taskType] = state
+    else delete all[props.taskType]
+    localStorage.setItem(SORT_PREF_KEY, JSON.stringify(all))
+  } catch { /* localStorage 不可用时静默 */ }
+}
+
+function handleSorterChange(state: { columnKey: string; order: 'ascend' | 'descend' | false } | null) {
+  if (state && state.order) {
+    controlledSorter.value = { columnKey: state.columnKey, order: state.order }
+    persistSort(controlledSorter.value)
+  } else {
+    controlledSorter.value = null
+    persistSort(null)
+  }
+}
 
 const title = computed(() => {
   switch (props.taskType) {

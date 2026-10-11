@@ -199,6 +199,9 @@ export interface ElectronAPI {
   // 通知主进程渲染进程已就绪
   notifyAppReady: () => void
 
+  // 渲染层异常日志（落主进程 electron-log 文件）
+  reportRendererError: (payload: { message: string; stack?: string; kind?: string }) => void
+
   // 窗口控制（minimize/maximize 已删除：无 handler、无调用者的死通道）
   // close 的语义是"退出应用"，非"关闭窗口"
   close: () => void

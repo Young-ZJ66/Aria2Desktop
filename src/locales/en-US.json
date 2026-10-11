@@ -17,7 +17,8 @@
     "btSettings": "BitTorrent Settings",
     "metalinkSettings": "Metalink Settings",
     "rpcSecuritySettings": "RPC & Security",
-    "advancedSettings": "Advanced Settings"
+    "advancedSettings": "Advanced Settings",
+    "pluginSettings": "Plugins"
   },
   "task": {
     "downloading": "Downloading",
@@ -214,7 +215,8 @@
     "requireMetalink": "Please select a Metalink file",
     "dropTorrentHint": "Click to select or drag a .torrent file here",
     "dropMetalinkHint": "Click to select or drag a .metalink / .meta4 file here",
-    "fileTooLarge": "File too large (>1MB) for aria2 RPC upload. Place it at a local path and add it via URL instead"
+    "fileTooLarge": "File too large (>1MB) for aria2 RPC upload. Place it at a local path and add it via URL instead",
+    "streamYtdlpVersion": "yt-dlp v{version} detected but cannot execute (permission or dependency issue). Try reinstalling yt-dlp or restarting the app"
   },
   "header": {
     "connection": "Connection",
@@ -762,6 +764,30 @@
       "enableColorTip": "Enable ANSI color in logs",
       "humanReadable": "Human-Readable Numbers",
       "humanReadableTip": "Use human-readable number format in logs"
+    },
+    "plugins": {
+      "description": "Manage plugins that extend Aria2 Desktop",
+      "listTitle": "Installed plugins",
+      "desktopOnly": "Plugin management is desktop-only",
+      "empty": "No plugins yet. Put a plugin folder into the directory below and restart the app",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "noDescription": "No description",
+      "unknownAuthor": "Unknown author",
+      "permissions": "Permissions",
+      "uninstall": "Uninstall",
+      "uninstallTitle": "Uninstall plugin",
+      "uninstallConfirm": "Uninstall \"{name}\"? The plugin folder will be deleted permanently.",
+      "uninstallSuccess": "Uninstalled \"{name}\"",
+      "uninstallFailed": "Uninstall failed, check folder permissions",
+      "enableSuccess": "Enabled \"{name}\". Restart the app for full effect",
+      "disableSuccess": "Disabled \"{name}\"",
+      "switchFailed": "Operation failed, please retry",
+      "loadFailed": "Failed to load plugin list",
+      "installHint1": "To install: put a plugin folder (with manifest.json and entry script) into the directory below, then restart the app:",
+      "installHint2": "Plugins run in a sandbox and can only use capabilities declared in their manifest (aria2 read/write, notifications, etc.).",
+      "openDir": "Open folder",
+      "openDirFailed": "Failed to open folder"
     }
   },
   "generalSettings": {

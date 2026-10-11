@@ -1,6 +1,9 @@
 <template>
   <n-alert v-if="!ytdlpAvailable" type="warning" :bordered="false" style="margin-bottom: 12px;">
-    {{ t('newTask.streamUrlTip') }}
+    <div class="ytdlp-warning">
+      <span>{{ t('newTask.streamUrlTip') }}</span>
+      <span v-if="ytdlpVersion" class="ytdlp-version">{{ t('newTask.streamYtdlpVersion', { version: ytdlpVersion }) }}</span>
+    </div>
   </n-alert>
   <template v-else>
     <n-form>
@@ -54,6 +57,7 @@ const taskStore = useTaskStore()
 const settingsStore = useSettingsStore()
 
 const ytdlpAvailable = ref(false)
+const ytdlpVersion = ref('')
 const streamUrl = ref('')
 const streamFetching = ref(false)
 const streamDownloading = ref(false)
@@ -68,12 +72,13 @@ const streamFormatOptions = computed(() =>
   }))
 )
 
-// 检查 yt-dlp 是否可用（决定显示提示还是表单）
+// 检查 yt-dlp 是否可用（决定显示提示还是表单），未安装时顺带记录版本信息为空
 onMounted(async () => {
   if (window.electronAPI?.ytdlpCheck) {
     try {
       const result = await window.electronAPI.ytdlpCheck()
       ytdlpAvailable.value = result.available
+      ytdlpVersion.value = result.version ?? ''
     } catch { /* 忽略 */ }
   }
 })
@@ -131,5 +136,16 @@ async function handleStreamDownload() {
   display: flex;
   justify-content: flex-end;
   margin-top: 8px;
+}
+
+.ytdlp-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ytdlp-version {
+  font-size: 11.5px;
+  opacity: 0.85;
 }
 </style>

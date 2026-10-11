@@ -17,7 +17,8 @@
     "btSettings": "BitTorrent 设置",
     "metalinkSettings": "Metalink 设置",
     "rpcSecuritySettings": "RPC 与安全",
-    "advancedSettings": "高级设置"
+    "advancedSettings": "高级设置",
+    "pluginSettings": "插件"
   },
   "task": {
     "downloading": "正在下载",
@@ -214,7 +215,8 @@
     "requireMetalink": "请选择 Metalink 文件",
     "dropTorrentHint": "点击选择或拖拽 .torrent 文件到此处",
     "dropMetalinkHint": "点击选择或拖拽 .metalink / .meta4 文件到此处",
-    "fileTooLarge": "文件过大（超过 1MB），aria2 RPC 无法直接接收，请放置到本地路径后改用链接添加"
+    "fileTooLarge": "文件过大（超过 1MB），aria2 RPC 无法直接接收，请放置到本地路径后改用链接添加",
+    "streamYtdlpVersion": "检测到 yt-dlp v{version}，但当前无法执行（权限或依赖缺失）。可尝试重新安装 yt-dlp 或重启应用"
   },
   "header": {
     "connection": "连接",
@@ -762,6 +764,30 @@
       "enableColorTip": "在日志中启用 ANSI 颜色",
       "humanReadable": "可读数字",
       "humanReadableTip": "在日志中使用人类可读的数字格式"
+    },
+    "plugins": {
+      "description": "管理扩展 Aria2 Desktop 功能的插件",
+      "listTitle": "已安装的插件",
+      "desktopOnly": "插件管理仅桌面版可用",
+      "empty": "暂无插件。把插件文件夹放入下方目录后重启应用即可加载",
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "noDescription": "暂无描述",
+      "unknownAuthor": "未知作者",
+      "permissions": "权限",
+      "uninstall": "卸载",
+      "uninstallTitle": "卸载插件",
+      "uninstallConfirm": "确定卸载「{name}」吗？插件目录将被删除，无法恢复。",
+      "uninstallSuccess": "已卸载「{name}」",
+      "uninstallFailed": "卸载失败，请检查插件目录权限",
+      "enableSuccess": "已启用「{name}」，重启应用后完全生效",
+      "disableSuccess": "已停用「{name}」",
+      "switchFailed": "操作失败，请重试",
+      "loadFailed": "插件列表加载失败",
+      "installHint1": "安装插件：把插件文件夹（含 manifest.json 与入口脚本）放入以下目录后重启应用：",
+      "installHint2": "插件运行在沙箱中，只能访问其 manifest 里声明的能力（aria2 读写、通知等）。",
+      "openDir": "打开插件目录",
+      "openDirFailed": "打开目录失败"
     }
   },
   "generalSettings": {

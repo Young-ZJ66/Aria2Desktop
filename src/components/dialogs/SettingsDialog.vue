@@ -39,6 +39,9 @@
         <n-tab-pane name="metalink" :tab="t('nav.metalinkSettings')">
           <MetalinkSettings />
         </n-tab-pane>
+        <n-tab-pane name="plugins" :tab="t('nav.pluginSettings')">
+          <PluginSettings />
+        </n-tab-pane>
         <template v-if="showAdvanced">
           <n-tab-pane name="rpc-security" :tab="t('nav.rpcSecuritySettings')">
             <RpcSecuritySettings />
@@ -69,6 +72,7 @@ const NetworkSettings = defineAsyncComponent(() => import('@/views/settings/Netw
 const ProtocolSettings = defineAsyncComponent(() => import('@/views/settings/ProtocolSettings.vue'))
 const BtSettings = defineAsyncComponent(() => import('@/views/settings/BtSettings.vue'))
 const MetalinkSettings = defineAsyncComponent(() => import('@/views/settings/MetalinkSettings.vue'))
+const PluginSettings = defineAsyncComponent(() => import('@/views/settings/PluginSettings.vue'))
 const RpcSecuritySettings = defineAsyncComponent(() => import('@/views/settings/RpcSecuritySettings.vue'))
 const AdvancedSettings = defineAsyncComponent(() => import('@/views/settings/AdvancedSettings.vue'))
 

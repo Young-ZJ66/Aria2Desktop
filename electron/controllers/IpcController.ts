@@ -352,6 +352,16 @@ export class IpcController {
       }
       return { canceled: true }
     }, { getMainWindow: this.windowRef, failureValue: { canceled: true } })
+
+    // 渲染层异常日志落 electron-log：打包后用户打不开 devtools，没有这条通道，
+    // 渲染进程的报错就完全不可见（用户只能描述"白屏了/不动了"）。
+    // 只记录文案与堆栈，来源可信面为主窗口本身（工厂已校验）；限长防异常大对象刷爆日志。
+    registerSecureListener('renderer-error', (_event, payload: { message: string; stack?: string; kind?: string }) => {
+      const kind = payload?.kind ?? 'error'
+      const text = String(payload?.message ?? '').slice(0, 2000)
+      const stack = String(payload?.stack ?? '').slice(0, 6000)
+      logger.error(`[Renderer:${kind}] ${text}${stack ? `\n${stack}` : ''}`)
+    }, { getMainWindow: this.windowRef })
   }
 
   private registerFileHandlers() {

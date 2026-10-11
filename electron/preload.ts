@@ -127,6 +127,10 @@ const electronAPI = {
   // 通知主进程渲染进程已就绪
   notifyAppReady: () => ipcRenderer.send('app-ready'),
 
+  // 渲染层异常日志（落主进程 electron-log 文件；打包后用户打不开 devtools，这是唯一可见通道）
+  reportRendererError: (payload: { message: string; stack?: string; kind?: string }) =>
+    ipcRenderer.send('renderer-error', payload),
+
   // 窗口控制
   // 注：原先还暴露了 window-minimize / window-maximize，但主进程从未注册对应 handler、
   // 渲染层也无任何调用者（纯死通道），故一并删除。需要时再补 handler 与暴露。

@@ -153,9 +153,10 @@ const APP_API_BASE = 'http://127.0.0.1:6801'
 /** 建任务请求超时：App 侧可能要做一次文件名探测（只取响应头）+ 一次本机 RPC，留足余量 */
 const APP_ADD_TIMEOUT_MS = 20000
 
-/** App 本地接口统一鉴权头（Bearer 方案，与 App 侧 isAuthorizedExtensionRequest 对应） */
+/** App 本地接口统一鉴权头（Bearer 方案，与 App 侧 isAuthorizedExtensionRequest 对应）。
+  X-Extension-Version：App 侧记录日志，用于两端版本协同排查 */
 function buildAppApiHeaders(secret) {
-  return { Authorization: 'Bearer ' + secret }
+  return { Authorization: 'Bearer ' + secret, 'X-Extension-Version': chrome.runtime.getManifest().version }
 }
 
 /**
