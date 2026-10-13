@@ -25,6 +25,11 @@ export class WindowController {
   private store: Store<StoreData>
   private isContentReady = false // 页面内容是否已加载完成
   /**
+   * "关窗即退出"路径是否已开始刷盘（见 close 处理器）。
+   * 用途：第一次 close 先拦下来刷盘、刷完再真正销毁；期间用户再点关闭不会叠加第二次刷盘。
+   */
+  private closeFlushStarted = false
+  /**
    * 供 ipcSecurity 工厂使用的窗口取值器。
    * 注意与其它控制器传 `windowController.getMainWindow()` 不同，这里直接用本类字段——
    * 但事件触发时 this.mainWindow 已是创建好的窗口，判定口径与其它处一致。
@@ -268,6 +273,26 @@ export class WindowController {
         event.preventDefault()
         this.hide()
         logger.info('[WindowController] Window hidden to tray')
+        return
+      }
+
+      /**
+       * 「关窗即退出」路径（minimizeToTray=false）：窗口一旦被销毁，
+       * before-quit 里的 executeJavaScript 就再也触达不到渲染层，最后 ≤300ms 的
+       * 合批记录（完成任务记录/时间记录）会随进程丢失。因此在销毁前先拦一次，
+       * 刷完盘再真正销毁。
+       *
+       * isQuitting 为真说明退出链路正在走 before-quit（那里已经刷过一次），
+       * 此时直接放行，避免重复刷盘与重复拦截。
+       */
+      if (!appState.isQuitting() && !this.closeFlushStarted) {
+        event.preventDefault()
+        this.closeFlushStarted = true
+        this.hide() // 先隐藏：刷盘最长 2s，但用户应立刻看到窗口消失
+        logger.info('[WindowController] 关窗即退出：先刷盘再销毁窗口')
+        void this.flushRendererData().finally(() => {
+          this.mainWindow?.destroy()
+        })
       }
     })
 
