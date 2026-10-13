@@ -165,6 +165,7 @@ import type { SettingSchema } from '@/types/settingSchema'
 import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 import { EXTENSION_STORE_URL, isExtensionStoreAvailable } from '@/shared/extensionStore'
+import { isReservedSecretPrefix } from '@/shared/secretPrefix'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
@@ -201,11 +202,12 @@ const rules: FormRules = {
     { type: 'number', min: 0, message: () => t('settings.valueMin', { min: 0 }), trigger: 'blur' }
   ],
   // `v1:` 是主进程密文存储的保留前缀：以此开头的密钥会被幂等护栏原样存储、
-  // 再被解密器当密文处理而清空（详见主进程 secretCipher 的保留前缀说明），必须在入口拒绝
+  // 再被解密器当密文处理而清空，必须在入口拒绝。判定与主进程共用
+  // src/shared/secretPrefix，避免两边各写一份正则而失配
   rpcSecret: [
     {
       validator: (_rule, value: string) =>
-        !value || !/^v1:/.test(value) ? true : new Error(t('settings.rpc.reservedSecretPrefix')),
+        !value || !isReservedSecretPrefix(value) ? true : new Error(t('settings.rpc.reservedSecretPrefix')),
       trigger: 'blur'
     }
   ]

@@ -199,6 +199,7 @@ import type { FormInst, FormRules, SelectOption } from 'naive-ui'
 import { ArrowBackOutline, AddOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
 import { useConnectionStore } from '@/stores/connectionStore'
 import type { Aria2Config, ConnectionProfile } from '@/types/aria2'
+import { isReservedSecretPrefix } from '@/shared/secretPrefix'
 
 interface Props {
   modelValue: boolean
@@ -246,9 +247,10 @@ const rules = computed<FormRules>(() => ({
   secret: [
     {
       // `v1:` 是主进程密文存储的保留前缀：以它开头的"密钥"会被幂等护栏原样存储、
-      // 再被解密器当密文处理而清空（详见 secretCipher 的保留前缀说明），必须在入口拒绝
+      // 再被解密器当密文处理而清空，必须在入口拒绝。判定与主进程共用
+      // src/shared/secretPrefix，避免两边各写一份正则而失配
       validator: (_rule, value: string) =>
-        !value || !/^v1:/.test(value) ? true : new Error(t('connection.reservedSecretPrefix')),
+        !value || !isReservedSecretPrefix(value) ? true : new Error(t('connection.reservedSecretPrefix')),
       trigger: 'blur'
     }
   ]

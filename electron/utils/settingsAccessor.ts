@@ -90,6 +90,11 @@ export function saveSettings(next: AppSettings): void {
   if (!boundStore) {
     throw new Error('[SettingsAccessor] 未调用 bindSettingsStore()，无法写入 settings')
   }
-  boundStore.set('settings', encryptSettingsSecrets(next))
+  // 把磁盘上现存的（未解密的）settings 一并交给加密器：写边界靠它判断
+  // "新值为空、但磁盘上是暂时解不开的密文" → 保留原密文，避免瞬时解密失败把密钥清空。
+  // 放在这里而不是解密侧，是因为真实回写路径要么跨 IPC、要么对象展开，
+  // 内存对象的身份靠不住（详见 secretCipher 的说明）。
+  const previouslyStored = boundStore.get('settings', {}) as AppSettings
+  boundStore.set('settings', encryptSettingsSecrets(next, previouslyStored))
   settingsCache?.set(next)
 }

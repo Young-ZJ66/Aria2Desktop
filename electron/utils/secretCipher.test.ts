@@ -4,7 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * secretCipher 的回归用例。
  *
  * 这里 mock 掉 electron / electron-log：本模块是纯加解密逻辑，
- * 桩化后可在 node 环境直接验证「密钥不会被嵌套加密破坏」这条红线。
+ * 桩化后可在 node 环境直接验证两条红线：
+ * 1. 密钥不会被嵌套加密破坏；
+ * 2. 瞬时解密失败不会把磁盘上的密钥永久清空。
+ *
+ * 第 2 条的判定基准是**磁盘原值**（`previouslyStored`），不是内存对象身份——
+ * 真实回写路径要么跨 IPC（结构化克隆）要么对象展开，身份靠不住。
  */
 const safeStorageMock = vi.hoisted(() => ({
   isEncryptionAvailable: vi.fn(() => true),
@@ -96,7 +101,7 @@ describe('settings 级加解密（读-改-写循环不得破坏密钥）', () =>
   }
 
   it('加密后磁盘上不含明文，解密后完全还原', () => {
-    const onDisk = encryptSettingsSecrets(settings)
+    const onDisk = encryptSettingsSecrets(settings, null)
     expect(onDisk.aria2?.secret).not.toBe('rpc-secret-value')
     expect(onDisk.connectionProfiles?.[0]?.config?.secret).not.toBe('profile-secret')
 
@@ -106,14 +111,15 @@ describe('settings 级加解密（读-改-写循环不得破坏密钥）', () =>
   })
 
   it('反复"解密 → 改别的字段 → 加密"不会让密钥嵌套加深', () => {
-    // 模拟渲染层：读设置（已解密）→ 改一个无关字段 → 整体回写
-    let onDisk = encryptSettingsSecrets(settings)
+    // 模拟渲染层：读设置（已解密）→ 改一个无关字段 → 整体回写（磁盘原值随每次写入更新）
+    let onDisk = encryptSettingsSecrets(settings, null)
     const secretLayers: string[] = []
 
     for (let i = 0; i < 3; i++) {
+      const previous = onDisk
       const inMemory = decryptSettingsSecrets(onDisk)
       inMemory.theme = i % 2 === 0 ? 'dark' : 'light'
-      onDisk = encryptSettingsSecrets(inMemory)
+      onDisk = encryptSettingsSecrets(inMemory, previous)
       secretLayers.push(onDisk.aria2?.secret ?? '')
     }
 
@@ -123,49 +129,81 @@ describe('settings 级加解密（读-改-写循环不得破坏密钥）', () =>
   })
 
   it('瞬时解密失败 + 回写：远程预设的原密文被保留而非清空（可等系统恢复后解出）', () => {
-    let onDisk = encryptSettingsSecrets(settings)
+    const first = encryptSettingsSecrets(settings, null)
 
-    // 第一轮：解密时 DPAPI 暂时不可用（如系统密钥环未就绪），随后照常回写
+    // 解密时 DPAPI 暂时不可用（如系统密钥环未就绪），随后照常回写
     safeStorageMock.isEncryptionAvailable.mockReturnValue(false)
-    let inMemory = decryptSettingsSecrets(onDisk)
+    const inMemory = decryptSettingsSecrets(first)
     inMemory.theme = 'dark'
-    onDisk = encryptSettingsSecrets(inMemory)
+    const rolledBack = encryptSettingsSecrets(inMemory, first)
 
-    // 磁盘上的 profile 密文必须原样保留（不是加密空串、不是空串）——
-    // 此时 DPAPI 仍不可用，无法直接解密验证内容，只验证"密文原样存在"
-    const preserved = onDisk.connectionProfiles?.[0]?.config?.secret ?? ''
+    // 磁盘上的 profile 密文必须**原样**保留（不是加密空串、不是空串）
+    const preserved = rolledBack.connectionProfiles?.[0]?.config?.secret ?? ''
+    expect(preserved).toBe(first.connectionProfiles?.[0]?.config?.secret)
     expect(preserved).not.toBe('')
 
     // 系统恢复后：解密恢复正常，密钥完好如初
     safeStorageMock.isEncryptionAvailable.mockReturnValue(true)
     expect(decryptSecret(preserved)).toBe('profile-secret')
-    inMemory = decryptSettingsSecrets(onDisk)
-    inMemory.theme = 'light'
-    onDisk = encryptSettingsSecrets(inMemory)
-    expect(decryptSettingsSecrets(onDisk).connectionProfiles?.[0]?.config?.secret).toBe('profile-secret')
+    expect(decryptSettingsSecrets(rolledBack).connectionProfiles?.[0]?.config?.secret).toBe('profile-secret')
   })
 
   it('aria2.secret 解密失败但 conf 侧不可用时：回写保留原密文，不写入加密空串', () => {
-    const onDisk = encryptSettingsSecrets(settings)
+    const first = encryptSettingsSecrets(settings, null)
 
     safeStorageMock.isEncryptionAvailable.mockReturnValue(false)
-    const inMemory = decryptSettingsSecrets(onDisk)
-    const rolledBack = encryptSettingsSecrets(inMemory)
+    const inMemory = decryptSettingsSecrets(first)
+    const rolledBack = encryptSettingsSecrets(inMemory, first)
 
     // 未恢复时原密文保留（绝不变成 encrypt('') 产生的"合法空密文"）
     const preserved = rolledBack.aria2?.secret ?? ''
+    expect(preserved).toBe(first.aria2?.secret)
     expect(preserved.startsWith('v1:')).toBe(true)
     safeStorageMock.isEncryptionAvailable.mockReturnValue(true)
     expect(decryptSecret(preserved)).toBe('rpc-secret-value')
   })
 
-  it('正常的"解密→改字段→加密"不会误触发密文保留（密钥仍随内容更新）', () => {
-    let onDisk = encryptSettingsSecrets(settings)
+  it('预设数组重排后仍按 id 匹配保留（不依赖对象身份/顺序）', () => {
+    const first = encryptSettingsSecrets(settings, null)
 
-    // 正常改密钥：解密成功，回写必须反映新值
-    const inMemory = decryptSettingsSecrets(onDisk)
+    safeStorageMock.isEncryptionAvailable.mockReturnValue(false)
+    const inMemory = decryptSettingsSecrets(first)
+    inMemory.connectionProfiles = [
+      { id: 'p2', name: '远程', config: { host: '10.0.0.2', port: 6800, protocol: 'http', path: '/jsonrpc', secret: '' } },
+      ...(inMemory.connectionProfiles ?? [])
+    ]
+    const rolledBack = encryptSettingsSecrets(inMemory, first)
+
+    // p1 的原密文按 id 找回并保留；新增的 p2 无原密文可保留，写空值
+    const p1 = rolledBack.connectionProfiles?.find(p => p.id === 'p1')
+    expect(p1?.config?.secret).toBe(first.connectionProfiles?.[0]?.config?.secret)
+    expect(rolledBack.connectionProfiles?.find(p => p.id === 'p2')?.config?.secret).toBe('')
+  })
+
+  it('系统正常时用户清空密钥会被真正清空（保护不吞掉用户意图）', () => {
+    const first = encryptSettingsSecrets(settings, null)
+
+    // 解密可用 → 不是"暂时读不出"，用户清空就是要清空
+    const inMemory = decryptSettingsSecrets(first)
+    inMemory.aria2!.secret = ''
+    const saved = encryptSettingsSecrets(inMemory, first)
+
+    expect(saved.aria2?.secret).toBe('')
+  })
+
+  it('首次写入（磁盘上还没有 settings）不会误保留', () => {
+    safeStorageMock.isEncryptionAvailable.mockReturnValue(false)
+    const saved = encryptSettingsSecrets({ aria2: { port: 6800, secret: '' } }, null)
+    expect(saved.aria2?.secret).toBe('')
+  })
+
+  it('正常的"解密→改字段→加密"不会误触发密文保留（密钥仍随内容更新）', () => {
+    const first = encryptSettingsSecrets(settings, null)
+
+    const inMemory = decryptSettingsSecrets(first)
     inMemory.aria2!.secret = 'brand-new-secret'
-    onDisk = encryptSettingsSecrets(inMemory)
-    expect(decryptSettingsSecrets(onDisk).aria2?.secret).toBe('brand-new-secret')
+    const saved = encryptSettingsSecrets(inMemory, first)
+
+    expect(decryptSettingsSecrets(saved).aria2?.secret).toBe('brand-new-secret')
   })
 })
