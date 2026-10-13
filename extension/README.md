@@ -74,7 +74,8 @@ npm run pack:extension     # 产出 release/Aria2Desktop-Extension-v<版本>.crx
 > 多尺寸容器需要 Chrome 自行挑帧/缩放（工具栏 24px、Windows 32px 等未声明尺寸高分屏容易糊），
 > Chrome Web Store 上传也要求单独的 128×128 PNG。**不要把 `.ico` 副本放进本目录**：
 > manifest 不引用它，还会随 Release 多打包 200KB+。
-> 扩展版本号见 `manifest.json`，按自身节奏维护（1.0.9 无代码改动，仅与 App 同步版本号）。
+> 扩展版本号见 `manifest.json`，按自身节奏维护（1.0.9 起 App API 请求会带上扩展版本号，
+> 便于两端版本协同排查，因此**需要重新上架一次**以让商店版也带上该字段）。
 
 ## 功能
 
