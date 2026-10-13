@@ -15,9 +15,28 @@ app.use(i18n)
 // ── 渲染层异常上报（落主进程 electron-log）──
 // 打包后用户打不开 devtools，未捕获的异常完全不可见；统一转发到主进程日志文件，
 // 用户报障时可以直接拿日志定位。此处只做通道，不做 UI 打扰。
+/**
+ * 同一异常的抑制窗口：错误钩子可能被高频触发（例如一个失败的轮询在定时器里反复拒绝），
+ * 不去重会把日志文件刷满、把更早的排障信息挤掉（electron-log 虽有轮转，历史仍会丢）。
+ * 同一条（kind + message）在窗口内只上报一次。
+ */
+const REPORT_DEDUPE_MS = 5000
+const recentlyReported = new Map<string, number>()
+
 function reportError(kind: string, err: unknown): void {
   try {
     const error = err instanceof Error ? err : new Error(String(err))
+    const dedupeKey = `${kind}|${error.message}`
+    const now = Date.now()
+    const last = recentlyReported.get(dedupeKey)
+    if (last !== undefined && now - last < REPORT_DEDUPE_MS) return
+
+    // 顺手清掉过期项，避免 Map 无界增长（每次都只有极少数条目，成本可忽略）
+    for (const [key, ts] of recentlyReported) {
+      if (now - ts >= REPORT_DEDUPE_MS) recentlyReported.delete(key)
+    }
+    recentlyReported.set(dedupeKey, now)
+
     window.electronAPI?.reportRendererError({
       kind,
       message: error.message,

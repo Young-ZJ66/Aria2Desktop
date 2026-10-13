@@ -1,11 +1,14 @@
 <template>
   <n-alert v-if="!ytdlpAvailable" type="warning" :bordered="false" style="margin-bottom: 12px;">
-    <div class="ytdlp-warning">
-      <span>{{ t('newTask.streamUrlTip') }}</span>
-      <span v-if="ytdlpVersion" class="ytdlp-version">{{ t('newTask.streamYtdlpVersion', { version: ytdlpVersion }) }}</span>
-    </div>
+    {{ t('newTask.streamUrlTip') }}
   </n-alert>
   <template v-else>
+    <!-- 检测到的 yt-dlp 版本：放在**可用**分支才可达——
+         检测不通过时后端不返回 version（只有 available:false + error），
+         此前把它渲染在告警分支里，那行永远不会出现。 -->
+    <div v-if="ytdlpVersion" class="ytdlp-detected">
+      {{ t('newTask.streamYtdlpVersion', { version: ytdlpVersion }) }}
+    </div>
     <n-form>
       <n-form-item :label="t('newTask.urisLabel')" label-placement="top">
         <n-input
@@ -138,13 +141,8 @@ async function handleStreamDownload() {
   margin-top: 8px;
 }
 
-.ytdlp-warning {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ytdlp-version {
+.ytdlp-detected {
+  margin-bottom: 8px;
   font-size: 11.5px;
   opacity: 0.85;
 }

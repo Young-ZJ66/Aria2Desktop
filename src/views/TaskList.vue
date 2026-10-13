@@ -187,8 +187,20 @@ type SorterState = { columnKey: string; order: 'ascend' | 'descend' }
 
 const savedSort = (() => {
   try {
-    const all = JSON.parse(localStorage.getItem(SORT_PREF_KEY) || '{}') as Record<string, SorterState>
-    return all[props.taskType] ?? null
+    const all = JSON.parse(localStorage.getItem(SORT_PREF_KEY) || '{}') as Record<string, unknown>
+    const entry = all[props.taskType] as Partial<SorterState> | undefined
+    // 形状校验后再回填：localStorage 可能被手工改过、或残留旧版本的结构，
+    // 直接透传给 Naive 的 sort-order 会得到"表格不排序且控制台告警"这类难排查的现场。
+    // 列名不在这里校验（列定义在别处，且列增删时最坏只是该列不排序，无副作用）。
+    if (
+      entry &&
+      typeof entry.columnKey === 'string' &&
+      entry.columnKey.length > 0 &&
+      (entry.order === 'ascend' || entry.order === 'descend')
+    ) {
+      return { columnKey: entry.columnKey, order: entry.order }
+    }
+    return null
   } catch {
     return null
   }
