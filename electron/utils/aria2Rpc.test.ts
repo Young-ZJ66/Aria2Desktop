@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Aria2RpcError, callAria2Rpc } from './aria2Rpc'
+import { Aria2RpcError, callAria2Rpc, classifyRpcPortProbe } from './aria2Rpc'
 
 /**
  * aria2 RPC 是所有主进程服务（密钥轮换、会话保存、限速、插件 API）的公共出口，
@@ -97,5 +97,70 @@ describe('callAria2Rpc', () => {
       s?.close(() => resolve())
     })
     await expect(callAria2Rpc({ port, method: 'aria2.getVersion', timeoutMs: 500 })).rejects.toThrow()
+  })
+})
+
+/**
+ * 启动前端口占用分类：决定"RPC 端口上已经有别的引擎"这句告警能不能说清原因。
+ * 它面对的是各种奇形怪状的错误，所以把每种输入钉死，并额外验证与实际抛出的错误对得上。
+ */
+describe('classifyRpcPortProbe（启动前端口占用分类）', () => {
+  it('探测成功（无错误）→ 有 aria2 且在认我们的密钥', () => {
+    expect(classifyRpcPortProbe(null)).toBe('aria2-with-our-secret')
+    expect(classifyRpcPortProbe(undefined)).toBe('aria2-with-our-secret')
+  })
+
+  it('密钥不匹配 → 外来引擎（09-30 那类 Unauthorized 的真正来源）', () => {
+    expect(classifyRpcPortProbe(new Aria2RpcError('Aria2 RPC Error: Unauthorized')))
+      .toBe('aria2-with-other-secret')
+    expect(classifyRpcPortProbe(new Error('Aria2 RPC Error: unauthorized.')))
+      .toBe('aria2-with-other-secret') // 大小写/句点变化不影响判定
+  })
+
+  it('其它协议层错误 → 仍是"认我们密钥的 aria2"（它只是嫌参数不对）', () => {
+    expect(classifyRpcPortProbe(new Aria2RpcError('Aria2 RPC Error: Invalid params.')))
+      .toBe('aria2-with-our-secret')
+  })
+
+  it('端口有服务但不是 aria2 → 被别的程序占用', () => {
+    expect(classifyRpcPortProbe(new Error('Invalid JSON-RPC response'))).toBe('non-aria2-service')
+  })
+
+  it('连接被拒 → 端口空闲（正常启动路径，不该告警）', () => {
+    expect(classifyRpcPortProbe(new Error('connect ECONNREFUSED 127.0.0.1:6800'))).toBe('free')
+    expect(classifyRpcPortProbe(new Error('read ECONNRESET'))).toBe('free')
+  })
+
+  it('超时等无法归类的错误 → unknown（调用方只记 info，不下结论）', () => {
+    expect(classifyRpcPortProbe(new Error('Aria2 RPC request timeout'))).toBe('unknown')
+    expect(classifyRpcPortProbe('some string error')).toBe('unknown')
+  })
+
+  it('与实际 callAria2Rpc 抛出的错误一一对得上（错误文案变更时这里会红）', async () => {
+    // 1) 对端返回 Unauthorized → 外来引擎
+    const wrongSecret = await startFakeRpc(() => ({
+      body: JSON.stringify({ jsonrpc: '2.0', id: '1', error: { code: 1, message: 'Unauthorized' } })
+    }))
+    const err1 = await callAria2Rpc({ port: wrongSecret.port, method: 'aria2.getVersion' }).catch((e) => e)
+    expect(classifyRpcPortProbe(err1)).toBe('aria2-with-other-secret')
+
+    // 2) 端口上不是 aria2（返回 HTML） → 被别的程序占用
+    const notAria2 = await startFakeRpc(() => ({ body: '<html>hello</html>' }))
+    const err2 = await callAria2Rpc({ port: notAria2.port, method: 'aria2.getVersion' }).catch((e) => e)
+    expect(classifyRpcPortProbe(err2)).toBe('non-aria2-service')
+
+    // 3) 有服务但不响应（超时） → 不下结论
+    const silent = await startFakeRpc(() => null)
+    const err3 = await callAria2Rpc({ port: silent.port, method: 'aria2.getVersion', timeoutMs: 300 }).catch((e) => e)
+    expect(classifyRpcPortProbe(err3)).toBe('unknown')
+
+    // 4) 无服务监听 → 端口空闲
+    const closed = await startFakeRpc(() => null)
+    await new Promise<void>((resolve) => {
+      const s = servers.pop()
+      s?.close(() => resolve())
+    })
+    const err4 = await callAria2Rpc({ port: closed.port, method: 'aria2.getVersion', timeoutMs: 500 }).catch((e) => e)
+    expect(classifyRpcPortProbe(err4)).toBe('free')
   })
 })

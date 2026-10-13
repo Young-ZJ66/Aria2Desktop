@@ -9,6 +9,17 @@ import { createLogger } from '../utils/logger'
 
 const logger = createLogger('Aria2ProcessManager')
 
+/**
+ * RPC 关闭后等待 aria2 自行退出的宽限期。
+ *
+ * 实测（aria2 1.37.0 / Windows 11）：收到 `aria2.shutdown` 后进程要 **4.0–4.2 秒**才真正退出，
+ * 原先的 3 秒几乎每次都超时，直接回退到进程信号关闭—— Windows 上那等于 `TerminateProcess`
+ * 强杀，aria2 来不及收尾。日志里"未在 3 秒内退出"出现过 25 次，全是这么来的。
+ *
+ * 放宽到 8 秒后不再需要强杀；这段等待用户感知不到——退出流程里窗口与托盘已经先收掉了。
+ */
+const GRACEFUL_EXIT_GRACE_MS = 8000
+
 /** Aria2 stdout 中不重要的日志模式（运行时噪音，无需转发） */
 const IGNORED_STDOUT_PATTERNS = [
   'Serialized session',
@@ -424,13 +435,13 @@ export class Aria2ProcessManager {
         try {
           await this.gracefulShutdownHook()
           // RPC 关闭后等待进程自行退出
-          if (await this.waitForExit(3000)) {
+          if (await this.waitForExit(GRACEFUL_EXIT_GRACE_MS)) {
             this.process = null
             logger.info('Aria2 进程已通过 RPC 优雅停止')
             return true
           }
           // 等待超时：即将回退为强杀，aria2 可能来不及保存会话（排查会话丢失问题的关键线索）
-          logger.warn('RPC 关闭后 aria2 未在 3 秒内退出，回退为进程信号关闭（会话可能未保存）')
+          logger.warn(`RPC 关闭后 aria2 未在 ${GRACEFUL_EXIT_GRACE_MS / 1000} 秒内退出，回退为进程信号关闭（会话可能未保存）`)
         } catch {
           // RPC 不可用时回退到进程信号关闭
         }

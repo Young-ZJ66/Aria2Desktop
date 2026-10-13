@@ -6,7 +6,7 @@ import { getAria2ProcessManager } from '../managers/Aria2ProcessManager'
 import type { Aria2ProcessManager } from '../managers/Aria2ProcessManager'
 import { WindowController } from './WindowController'
 import { registerSecureHandler } from '../utils/ipcSecurity'
-import { callAria2Rpc } from '../utils/aria2Rpc'
+import { callAria2Rpc, classifyRpcPortProbe } from '../utils/aria2Rpc'
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
 // 注意：主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import { isLocalEngineAddress } from '../../src/shared/localEngine'
@@ -171,22 +171,29 @@ export class Aria2Controller {
        * 因此先显式 saveSession 落盘，再请求关闭——这样会话是否保住就与 shutdown 的响应无关了。
        */
       this.aria2Manager.setGracefulShutdown(async () => {
-        const { port, secret } = this.getRpcSettings()
-
-        // 第一步：显式保存会话（幂等；这是会正常返回的普通 RPC，比 shutdown 可靠）
+        // 第一步：显式保存会话（幂等；这是会正常返回的普通 RPC，比 shutdown 可靠）。
+        // 瞬时失败会自动重试一次，详见 saveSessionWithRetry。
         const saveStartedAt = Date.now()
-        try {
-          await callAria2Rpc({ port, secret, method: 'aria2.saveSession', timeoutMs: 2000 })
-          logger.info(`已保存 aria2 会话（RPC 耗时 ${Date.now() - saveStartedAt}ms）`)
-        } catch (error) {
+        const save = await this.saveSessionWithRetry(2000)
+        const saveElapsed = Date.now() - saveStartedAt
+
+        if (save.ok) {
+          logger.info(`已保存 aria2 会话（RPC 耗时 ${saveElapsed}ms）`)
+        } else if (save.nothingToSave) {
+          // 当前没有会被会话保留下来的任务 → 这次失败不会丢任何东西。
+          // 这里按 info 记账：原先一律 warn「本次退出可能丢失未完成任务」，
+          // 在根本没有任务时是虚假警报，用户会白担心（也无法据此判断是否真丢了东西）。
+          logger.info(`保存 aria2 会话失败（耗时 ${saveElapsed}ms），但当前没有未完成任务，无需保存：`, save.error)
+        } else {
           // 保存失败不阻断关闭流程，但必须留痕：这意味着本次退出会丢掉未完成的任务进度
           logger.warn(
-            `保存 aria2 会话失败（耗时 ${Date.now() - saveStartedAt}ms），本次退出可能丢失未完成任务：`,
-            error
+            `保存 aria2 会话失败（耗时 ${saveElapsed}ms），本次退出可能丢失未完成任务：`,
+            save.error
           )
         }
 
         // 第二步：请求 aria2 关闭（会话此时已落盘）
+        const { port, secret } = this.getRpcSettings()
         const shutdownStartedAt = Date.now()
         try {
           await callAria2Rpc({ port, secret, method: 'aria2.shutdown', timeoutMs: 3000 })
@@ -198,6 +205,12 @@ export class Aria2Controller {
       })
 
       if (aria2Config.autoStart) {
+        // 启动前先探一下 RPC 端口：上面若已经有别的引擎，先把原因说清楚——
+        // 否则现场只是一串"新引擎异常退出 → 3 秒后重启"，以及之后各种看不懂的
+        // Unauthorized / "请求关闭失败"。探测只记日志，不改变启动行为。
+        const probe = this.getRpcSettings()
+        await this.warnIfForeignEngineOnPort(probe.port, probe.secret)
+
         const success = await this.aria2Manager.start()
         logger.info(`Aria2 自动启动结果: ${success}`)
         if (!success) {
@@ -266,12 +279,110 @@ export class Aria2Controller {
    *                  "退出前抢救"类调用可传更小的值，避免把退出流程拖太久。
    */
   public async saveSession(timeoutMs = 10000): Promise<{ success: boolean; error?: string }> {
+    const result = await this.saveSessionWithRetry(timeoutMs)
+    return result.ok ? { success: true } : { success: false, error: String(result.error) }
+  }
+
+  /**
+   * 保存会话，失败时重试一次。
+   *
+   * 为什么要重试：`Failed to serialize session` 有两类成因——一类是**瞬时**的
+   * （会话文件正被另一个实例的引擎占用、杀软短暂扫描），十几毫秒的失败重试一次通常就过去了；
+   * 另一类是密钥不匹配（Unauthorized），重试只会再错一次、还白等一个超时，因此直接放弃。
+   *
+   * 重试后仍失败时顺带查一次任务数：没有任何未完成任务时这次失败不丢任何东西，
+   * 调用方据此把日志降级为 info（避免"可能丢失未完成任务"的虚假警报）。
+   */
+  private async saveSessionWithRetry(
+    timeoutMs: number
+  ): Promise<{ ok: boolean; error?: unknown; nothingToSave: boolean }> {
+    const { port, secret } = this.getRpcSettings()
+    let lastError: unknown
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        await callAria2Rpc({ port, secret, method: 'aria2.saveSession', timeoutMs })
+        return { ok: true, nothingToSave: false }
+      } catch (error) {
+        lastError = error
+        if (/Unauthorized/i.test(String(error))) break
+        if (attempt === 1) {
+          logger.warn('保存 aria2 会话失败，100ms 后重试一次：', error)
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
+      }
+    }
+
+    return { ok: false, error: lastError, nothingToSave: await this.hasNoPendingTasks(port, secret) }
+  }
+
+  /**
+   * 当前是否没有"会被会话文件保留下来的任务"（活跃 + 等待队列；暂停的任务也在等待队列里）。
+   *
+   * 用途：保存会话失败时区分"确实要丢东西"与"本来就没东西可存"。
+   * 查询失败时按"有任务"处理——保守：宁可多告警一次，也不能把可能存在的任务说成没有。
+   */
+  private async hasNoPendingTasks(port: number, secret: string): Promise<boolean> {
     try {
-      const { port, secret } = this.getRpcSettings()
-      await callAria2Rpc({ port, secret, method: 'aria2.saveSession', timeoutMs })
-      return { success: true }
-    } catch (e) {
-      return { success: false, error: String(e) }
+      const stat = (await callAria2Rpc({
+        port,
+        secret,
+        method: 'aria2.getGlobalStat',
+        timeoutMs: 1500
+      })) as { numActive?: string; numWaiting?: string } | undefined
+      const pending = Number(stat?.numActive ?? '1') + Number(stat?.numWaiting ?? '1')
+      return pending === 0
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * 启动前探测：RPC 端口上是否已经有一个"不是本次要启动的"引擎。
+   *
+   * 为什么需要它：残留实例（上次没退干净）或别的 aria2 客户端占着端口时，现在的表现是
+   * "新引擎绑定端口失败 → 异常退出 → 3 秒后重启"的一串日志，用户看不出真正原因；
+   * 更糟的是应用随后的 RPC 会打到那个外来引擎上——于是留下"保存会话 Unauthorized +
+   * 请求关闭失败"这类查不出所以然的记录（09-30 23:10 那两次就是这么来的）。
+   *
+   * 只记日志、不改变启动行为：那确实是我们自己的旧引擎时，后续表现与现状一致。
+   */
+  private async warnIfForeignEngineOnPort(port: number, secret: string): Promise<void> {
+    let probeError: unknown
+    try {
+      await callAria2Rpc({ port, secret, method: 'aria2.getVersion', timeoutMs: 1200 })
+    } catch (error) {
+      probeError = error
+    }
+
+    // 分类见 aria2Rpc.classifyRpcPortProbe（纯函数，每种输入都有用例钉死）
+    switch (classifyRpcPortProbe(probeError)) {
+      case 'aria2-with-our-secret':
+        logger.warn(
+          `RPC 端口 ${port} 上已有引擎在运行且认可本机密钥：可能是上次未完全退出的残留实例，` +
+            '也可能是手动启动的 aria2。本次启动的新引擎将无法绑定该端口，' +
+            '请检查任务管理器里是否有残留的 aria2c 进程。'
+        )
+        break
+      case 'aria2-with-other-secret':
+        logger.warn(
+          `RPC 端口 ${port} 已被另一个引擎占用（它不认本机密钥）：不是本应用当前的引擎，多半是残留实例。` +
+            '本次启动会因端口被占而失败，且应用的请求会打到它上面，' +
+            '表现为 Unauthorized / 请求关闭失败。请结束残留的 aria2c 进程后重试。'
+        )
+        break
+      case 'non-aria2-service':
+        logger.warn(
+          `RPC 端口 ${port} 上监听的服务不是 aria2（响应不是 JSON-RPC）：端口被其它程序占用，` +
+            '请在「引擎设置」里换一个 rpc-listen-port。'
+        )
+        break
+      case 'unknown':
+        // 有服务在监听但没正常应答（超时等）：不下结论，但留痕——否则现场只剩一片安静
+        logger.info(`启动前探测 RPC 端口 ${port} 未得到确定结果（端口上可能有服务但未正常应答）：`, probeError)
+        break
+      case 'free':
+        break // 端口空闲：正常启动路径，不记录
     }
   }
 

@@ -36,6 +36,43 @@ export class Aria2RpcError extends Error {
 }
 
 /**
+ * 启动前探测 RPC 端口得到的占用情况。
+ *
+ * 用途：把"端口上已经有别的引擎"这件事说清楚。否则现场只是一串
+ * "新引擎异常退出 → 3 秒后重启"，随后还会出现看不懂的
+ * "保存会话 Unauthorized / 请求关闭失败"（2026-09-30 的日志就是这么留下来的）。
+ */
+export type PortOccupancy =
+  /** 端口空闲——正常启动路径 */
+  | 'free'
+  /** 有 aria2 且认我们的密钥：多半是上次没退干净的残留实例 */
+  | 'aria2-with-our-secret'
+  /** 有 aria2 但不认我们的密钥：外来实例 / 别的 aria2 客户端 */
+  | 'aria2-with-other-secret'
+  /** 有服务在监听但不是 aria2（响应不是 JSON-RPC）：端口被别的程序占用 */
+  | 'non-aria2-service'
+  /** 超时等无法下结论的情况 */
+  | 'unknown'
+
+/**
+ * 把一次端口探测的结果分类（纯函数，便于单测）。
+ *
+ * @param error 探测调用抛出的错误；**调用成功时传 null/undefined**（= 有 aria2 且在认我们的密钥）
+ */
+export function classifyRpcPortProbe(error?: unknown): PortOccupancy {
+  if (error === null || error === undefined) return 'aria2-with-our-secret'
+
+  const message = error instanceof Error ? error.message : String(error)
+
+  if (/Aria2 RPC Error:.*Unauthorized/i.test(message)) return 'aria2-with-other-secret'
+  // 协议层有响应（哪怕它嫌参数不对）说明对端确实是 aria2，且已通过 token 校验
+  if (error instanceof Aria2RpcError) return 'aria2-with-our-secret'
+  if (/Invalid JSON-RPC response/i.test(message)) return 'non-aria2-service'
+  if (/ECONNREFUSED|ECONNRESET|EPIPE/i.test(message)) return 'free'
+  return 'unknown'
+}
+
+/**
  * 通过本机 HTTP 调用 aria2 JSON-RPC。
  * - 成功：resolve 结果字段
  * - RPC 返回 error / 网络错误 / 超时 / 响应非 JSON-RPC 结构：reject Error
