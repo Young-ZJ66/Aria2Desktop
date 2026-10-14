@@ -104,15 +104,15 @@
 
 ### 浏览器扩展安装
 
-> **Edge 用户（推荐）**：扩展已提交 **Edge 加载项商店** 审核，上架后可直接从商店安装并随浏览器
-> 自动更新，无需下面的旁加载步骤。App 内「设置 → RPC 安全 → 浏览器扩展」有直达商店的按钮。
+> **Edge 用户（推荐）**：扩展已上架 **Edge 加载项商店**，直接从商店安装即可，随浏览器自动更新，
+> 无需下面的旁加载步骤。App 内「设置 → RPC 安全 → 浏览器扩展」有直达商店的按钮。
 >
 > 商店地址：<https://microsoftedge.microsoft.com/addons/detail/aria2-desktop/fmjmpbnokancjlangmmepdpdebafkngp>
-> （上架后生效；审核期间请用下面两种方式之一安装）
 >
 > 本扩展不计划上架 Chrome 网上应用店，Chrome 用户请使用下方旁加载方式。
 
-审核期间，在 [Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases) 页面下载扩展包后安装：
+Chrome 用户，或需要商店之外的手动版本时，在
+[Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases) 页面下载扩展包后安装：
 
 **⚠️ 新版 Chrome/Edge 已禁止直接安装非商店 `.crx`**（拖入后显示「不来自任何已知来源」并直接
 禁用扩展，没有「保留」按钮）。请按下面两种方式之一安装：

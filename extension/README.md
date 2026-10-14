@@ -20,9 +20,9 @@ Chrome/Edge 扩展：把浏览器里的下载交给 Aria2 Desktop 处理。
 「设置 → RPC 安全设置」更换访问密钥——之后所有客户端都需要重新配对。
 
 ### 普通用户（Edge 走商店；Chrome 用旁加载）
-**Edge**：扩展已提交 **Edge 加载项商店** 审核，上架后直接从商店安装即可（自动更新，无需开发者模式）。
-商店地址：<https://microsoftedge.microsoft.com/addons/detail/aria2-desktop/fmjmpbnokancjlangmmepdpdebafkngp>（上架后生效）。
-审核期间，或需要安装商店之外的手动版本，走下面的方式 A / 方式 B。
+**Edge**：扩展已上架 **Edge 加载项商店**，直接从商店安装即可（自动更新，无需开发者模式）。
+商店地址：<https://microsoftedge.microsoft.com/addons/detail/aria2-desktop/fmjmpbnokancjlangmmepdpdebafkngp>
+Chrome 用户，或需要安装商店之外的手动版本，走下面的方式 A / 方式 B。
 
 > ⚠️ **新版 Chrome/Edge 已禁止直接安装非商店 `.crx`**：拖入 `chrome://extensions/` 后会提示
 > 「此扩展不是来自任何已知来源，可能是在你不知情的情况下添加的」并**直接禁用扩展，没有「保留」按钮**。
@@ -45,7 +45,7 @@ ID 来自签名密钥（见下方「自行打包 .crx」），与仓库 `electro
 `EXTENSION_ID` 一致；更换签名密钥时需同步更新白名单命令。
 
 > 说明：`.crx` 与 `.zip` 都属于**旁加载**，缺点是**不会自动更新**（换版本要手动重装）。
-> **Edge 加载项商店**版本已提交审核，上架后 Edge 用户可直接从商店安装并自动更新；
+> **Edge 加载项商店**版已上架，Edge 用户可直接从商店安装并自动更新；
 > Chrome 网上应用店暂不提交（旁加载是官方保留的开发者通道，长期可用）。
 
 ### 开发者（源码目录）
