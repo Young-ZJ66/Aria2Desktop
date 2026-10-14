@@ -171,7 +171,8 @@ const { t } = useI18n()
 const connectionStore = useConnectionStore()
 const formRef = ref<FormInst | null>(null)
 
-// 商店入口是否可用（未上架时按钮置灰并提示审核中，见 shared/extensionStore）
+// 商店入口是否可用（扩展已于 2026-10-14 上架，即为 true；若商店下架，把它改回 false
+// 按钮就会回到「置灰 + 提示」，见 shared/extensionStore）
 const storeUrlReady = isExtensionStoreAvailable()
 
 const settings = reactive({
@@ -278,7 +279,7 @@ async function copySecret() {
  * 跳转浏览器扩展商店。
  *
  * 链接与"是否已上架"的判断都在 shared/extensionStore（App 侧唯一事实来源）：
- * 扩展仍在商店审核中时按钮是置灰的，不会把用户带到 404 页面。
+ * 未上架时按钮是置灰的，不会把用户带到 404 页面；扩展已于 2026-10-14 上架，当前为可点。
  */
 async function openExtensionStore() {
   if (!storeUrlReady) return
