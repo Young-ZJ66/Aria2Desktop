@@ -89,6 +89,8 @@ export interface AppSettings {
     maxConnectionPerServer?: number
     minSplitSize?: string
     autoStart?: boolean
+    /** 下载完成后自动解压压缩包（zip/7z/tar 系；RAR 不支持） */
+    autoExtract?: boolean
   }
 
   // 速度调度规则（按时段自动切换限速）

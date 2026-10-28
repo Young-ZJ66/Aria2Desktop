@@ -74,6 +74,53 @@ if (manifest) {
   if (!permissions.includes('notifications')) fail('permissions 缺少 notifications（通知会静默失败）')
   ok(`权限: ${permissions}`)
   ok(`host_permissions: ${hosts}`)
+
+  // 版本号必须是 semver（商店上传要求；漏 bump 时至少不会带着非法版本号提交）
+  if (!/^\d+\.\d+\.\d+$/.test(String(manifest.version ?? ''))) {
+    fail(`manifest.version 不是合法 semver: ${manifest.version}`)
+  } else {
+    ok(`扩展版本: ${manifest.version}`)
+  }
+
+  const optional = Array.isArray(manifest.optional_permissions) ? manifest.optional_permissions : []
+  const required = Array.isArray(manifest.permissions) ? manifest.permissions : []
+  // 同一个权限不能既必选又可选项（Chrome 会加载失败）
+  const overlap = optional.filter((p) => required.includes(p))
+  if (overlap.length) fail('权限同时出现在 permissions 与 optional_permissions: ' + overlap.join(', '))
+  else ok(`可选权限: ${JSON.stringify(optional)}`)
+
+  /**
+   * 代码用到的 chrome API 与权限声明必须对得上。
+   *
+   * 为什么需要：把权限从必选改成可选后，`chrome.cookies` / `chrome.scripting` 在未授权时是
+   * undefined——代码里照旧调用就会在运行时静默失败（TS 管不到扩展的纯 JS）。
+   * 这条断言至少保证"用了的 API 一定声明过"，漏声明会在这里红。
+   */
+  const API_PERMISSION = {
+    cookies: 'cookies',
+    scripting: 'scripting',
+    downloads: 'downloads',
+    contextMenus: 'contextMenus',
+    notifications: 'notifications',
+    storage: 'storage',
+    // tabs.query 读取 URL 依赖 activeTab（用户点击图标/右键时临时授予），不需要 tabs 必选权限
+    tabs: 'activeTab'
+  }
+  const declared = new Set([...required, ...optional])
+  const sources = ['background.js', 'popup.js'].map((file) => ({
+    file,
+    code: fs.readFileSync(path.join(extensionDir, file), 'utf8')
+  }))
+  const missingApiPerms = []
+  for (const [api, permission] of Object.entries(API_PERMISSION)) {
+    const pattern = new RegExp(`chrome\\.${api}\\b`)
+    const usedIn = sources.filter(({ code }) => pattern.test(code)).map(({ file }) => file)
+    if (usedIn.length && !declared.has(permission)) {
+      missingApiPerms.push(`chrome.${api}（${usedIn.join('/')}）需要权限 ${permission}`)
+    }
+  }
+  if (missingApiPerms.length) fail('API 与权限声明不一致: ' + missingApiPerms.join('; '))
+  else ok(`代码使用的 chrome API 均有对应权限声明（${Object.keys(API_PERMISSION).length} 类）`)
 }
 
 // ---- 语言包结构（最容易导致"扩展无法加载"的一类） ----

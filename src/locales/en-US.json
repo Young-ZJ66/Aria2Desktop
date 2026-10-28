@@ -118,7 +118,13 @@
     "mode": "Mode",
     "announceList": "Announce List",
     "andMore": "+ {count} more",
-    "uriStatus": "Status"
+    "uriStatus": "Status",
+    "seeders": "Seeders Connected",
+    "connections": "Peers Connected",
+    "selfSeeding": "Seeding",
+    "healthNoSeeder": "No seeders connected — speed may be slow or stalled",
+    "healthSeeders": "{count} seeders online",
+    "healthSeeding": "Seeding from this device"
   },
   "taskPeer": {
     "ip": "IP Address",
@@ -195,6 +201,15 @@
     "minSplitSize": "Split Size",
     "autoStart": "Auto Start",
     "options": "Task Options",
+    "advancedOptions": "Request Headers (optional)",
+    "advancedOptionsTip": "Login-protected sites need the browser's Cookie / Referer here, otherwise downloads return 403",
+    "referer": "Referer",
+    "refererPlaceholder": "e.g. https://example.com/page",
+    "userAgent": "User-Agent",
+    "userAgentPlaceholder": "Leave empty to use the engine default",
+    "customHeaders": "Custom Headers",
+    "customHeadersPlaceholder": "One per line, e.g. Cookie: k=v",
+    "requestHeadersTip": "Headers apply to this task only — never paste credentials from untrusted sources",
     "startDownload": "Start Download",
     "reset": "Reset",
     "invalidUrl": "Please enter a valid download URL",
@@ -234,7 +249,8 @@
     "speedLimitOff": "Speed Limit Off"
   },
   "notification": {
-    "downloadComplete": "Download Complete"
+    "downloadComplete": "Download Complete",
+    "archiveExtracted": "Archive Extracted"
   },
   "statusPage": {
     "title": "Aria2 Status",
@@ -848,6 +864,10 @@
     "downloadCompleteAction": "After All Downloads Complete",
     "downloadCompleteActionTip": "Action to perform when all download tasks are complete",
     "downloadCompleteActionFailed": "Failed to save the after-download action: {error}",
+    "autoExtract": "Extract archives after download",
+    "autoExtractTip": "Extract archives into their own folder once finished (zip / 7z / tar families; RAR is not supported)",
+    "autoExtractFailed": "Automatic extraction failed: {error}",
+    "autoExtractUnavailable": "The system tar command is missing, cannot extract automatically",
     "shutdownFailed": "Could not shut down: {error}",
     "hibernateFailed": "Could not hibernate: {error}",
     "actionNone": "Do Nothing",

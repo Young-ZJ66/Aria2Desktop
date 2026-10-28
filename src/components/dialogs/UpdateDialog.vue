@@ -18,7 +18,11 @@
       <template v-if="uiStore.updateDialogState === 'prompt'">
         <div class="update-dialog-actions">
           <n-button @click="visible = false">{{ t('generalSettings.updateLater') }}</n-button>
-          <n-button type="primary" :loading="starting" @click="startUpdateDownload">
+          <!-- macOS/Linux 不支持应用内安装：直接引导去 Release 页，不让用户走了下载流程才发现装不上 -->
+          <n-button v-if="uiStore.updateManualDownload" type="primary" @click="openReleasePage">
+            {{ t('generalSettings.goToReleasePage') }}
+          </n-button>
+          <n-button v-else type="primary" :loading="starting" @click="startUpdateDownload">
             {{ t('generalSettings.updateNow') }}
           </n-button>
         </div>
@@ -63,7 +67,8 @@ const visible = computed({
     if (value) uiStore.openUpdateDialog({
       version: uiStore.updateVersion,
       notes: uiStore.updateNotes,
-      state: uiStore.updateDialogState
+      state: uiStore.updateDialogState,
+      manualDownload: uiStore.updateManualDownload
     })
     else uiStore.closeUpdateDialog()
   }
@@ -138,6 +143,18 @@ onMounted(() => {
         uiStore.updatePercent = Math.round(status.percent ?? 0)
       } else if (status.state === 'downloaded') {
         uiStore.updateDialogState = 'downloaded'
+      } else if (status.state === 'available') {
+        // 定时复查（主进程 24h）发现新版本：没有 IPC 返回值可拿，弹窗信息全在推送里。
+        // 启动检查路径（runStartupUpdateCheck）也会触发同一次推送——靠"弹窗已开就跳过"
+        // 幂等，不会双开。
+        if (!uiStore.showUpdateDialog) {
+          uiStore.openUpdateDialog({
+            version: status.version ?? '',
+            notes: status.notes,
+            state: 'prompt',
+            manualDownload: status.manualDownload
+          })
+        }
       }
     })
   }
@@ -146,6 +163,13 @@ onMounted(() => {
 onUnmounted(() => {
   unsubscribeUpdateStatus?.()
 })
+
+/** 打开 GitHub Releases 页（用于不支持应用内安装的平台，以及下载失败后的手动兜底） */
+function openReleasePage() {
+  // 经主进程 setWindowOpenHandler 协议白名单校验后交给系统浏览器打开
+  window.open(GITHUB_RELEASES_URL, '_blank', 'noopener')
+  uiStore.closeUpdateDialog()
+}
 
 // 发起下载更新
 async function startUpdateDownload() {

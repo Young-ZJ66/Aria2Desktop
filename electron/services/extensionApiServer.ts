@@ -12,7 +12,9 @@ import {
   isPlainFileName,
   isProbeAllowed,
   parseRequestPathname,
-  sanitizeDownloadFileName
+  sanitizeDownloadFileName,
+  sanitizeRequestHeaders,
+  type SanitizedRequestHeaders
 } from '../utils/extensionApiCore'
 // 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import {
@@ -203,7 +205,7 @@ export class ExtensionApiServer {
       }
       const body = await this.readBodyOrReject(req, res)
       if (!body) return
-      const { status, payload } = await this.buildAdd(body.url, body.fileName)
+      const { status, payload } = await this.buildAdd(body.url, body.fileName, body.headers)
       this.send(res, status, payload)
       return
     }
@@ -273,7 +275,7 @@ export class ExtensionApiServer {
   private async readBodyOrReject(
     req: http.IncomingMessage,
     res: http.ServerResponse
-  ): Promise<{ url: string; fileName: unknown } | null> {
+  ): Promise<{ url: string; fileName: unknown; headers: unknown } | null> {
     let payload: unknown
     try {
       payload = await readJsonBody(req)
@@ -286,7 +288,11 @@ export class ExtensionApiServer {
       this.send(res, 400, { ok: false, code: 'invalid_url', error: 'Invalid url' })
       return null
     }
-    return { url: url.trim(), fileName: (payload as { fileName?: unknown })?.fileName }
+    return {
+      url: url.trim(),
+      fileName: (payload as { fileName?: unknown })?.fileName,
+      headers: (payload as { headers?: unknown })?.headers
+    }
   }
 
   /**
@@ -338,19 +344,28 @@ export class ExtensionApiServer {
    * POST /api/add：由 App 事务化完成「解析 → 重名 → 建任务」，扩展只发一个 URL。
    *
    * 为什么不接受调用方传入 aria2 选项：`dir`（任意路径写入）、`on-download-complete`
-   * （任意命令执行）等都属于注入面，接口只收 url / fileName，其余选项一律由 App 按用户设置生成——
-   * 这同时让扩展建的任务**与 App 内新建的任务选项一致**（连接数、分片大小、是否自动开始），
-   * 修正了此前扩展直连 aria2 时这些设置不生效的问题。
+   * （任意命令执行）等都属于注入面，接口只收 url / fileName / headers，其余选项一律由 App
+   * 按用户设置生成——这同时让扩展建的任务**与 App 内新建的任务选项一致**
+   * （连接数、分片大小、是否自动开始），修正了此前扩展直连 aria2 时这些设置不生效的问题。
+   *
+   * headers 是唯一例外，且**必须净化后才下发**（见 sanitizeRequestHeaders）：
+   * 浏览器扩展能把当前页面的 Cookie/Referer 带过来，否则需要登录的站点（网盘、论坛附件）
+   * 从浏览器发起必然 401/403——这是扩展与独立下载器体验差距最大的一处。
    */
-  private async buildAdd(url: string, fileNameHint: unknown): Promise<{ status: number; payload: Record<string, unknown> }> {
+  private async buildAdd(
+    url: string,
+    fileNameHint: unknown,
+    rawHeaders: unknown
+  ): Promise<{ status: number; payload: Record<string, unknown> }> {
     if (!isAllowedDownloadUri(url)) {
       return { status: 400, payload: { ok: false, code: 'invalid_url', error: 'Unsupported url' } }
     }
 
     const settings = getSettingsFresh()
     const resolved = await this.resolveForUrl(url, fileNameHint)
+    const headers: SanitizedRequestHeaders = sanitizeRequestHeaders(rawHeaders)
 
-    const options: Record<string, string> = {}
+    const options: Record<string, unknown> = {}
     if (resolved.dir) options.dir = resolved.dir
     const out = resolved.out || resolved.fileName
     // 二次防线：out 必须是纯文件名。resolveForUrl 已净化过，这里再断言一次——
@@ -366,6 +381,11 @@ export class ExtensionApiServer {
     if (settings?.download?.minSplitSize) options['min-split-size'] = settings.download.minSplitSize
     if (settings?.download?.autoStart === false) options.pause = 'true'
 
+    // 请求头：aria2 的 `header` 是字符串数组，referer/user-agent 各有专用选项
+    if (headers.header.length > 0) options.header = headers.header
+    if (headers.userAgent) options['user-agent'] = headers.userAgent
+    if (headers.referer) options.referer = headers.referer
+
     try {
       const gid = await callAria2Rpc({
         port: settings?.aria2?.port ?? 6800,
@@ -375,7 +395,11 @@ export class ExtensionApiServer {
         timeoutMs: ADD_RPC_TIMEOUT_MS
       })
       const where = `${resolved.category}${resolved.subdir ? `/${resolved.subdir}` : ''}${resolved.conflict ? '（重名已改名）' : ''}`
-      this.logger.info(`已代扩展创建任务 ${String(gid)}（${where}）`)
+      // 只记录"带了几条头"，绝不记录头内容（Cookie 是凭据，落日志等于泄露）
+      const headerNote = headers.header.length || headers.referer || headers.userAgent
+        ? `，携带 ${headers.header.length} 条请求头${headers.referer ? ' + Referer' : ''}${headers.userAgent ? ' + UA' : ''}`
+        : ''
+      this.logger.info(`已代扩展创建任务 ${String(gid)}（${where}${headerNote}）`)
       return {
         status: 200,
         payload: {

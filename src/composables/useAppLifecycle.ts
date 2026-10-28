@@ -79,6 +79,47 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     }
   }
 
+  /**
+   * 下载完成后自动解压（可选，设置里默认关闭）。
+   *
+   * 为什么放在渲染层触发：压缩包路径只有任务列表知道（aria2 的 files[].path），
+   * 而任务列表在渲染层。主进程负责真正的解压与路径边界校验（见 services/archiveService）。
+   * 规则：
+   * - 只处理第一个文件，且必须是归档格式（主进程再判一次，不支持的格式静默跳过）；
+   * - 格式不支持时**不打扰**用户（下载本身是成功的）；
+   * - 真正失败（无 tar、权限、坏包）才提示，并说明原因。
+   */
+  async function autoExtractIfEnabled(gid: string): Promise<void> {
+    if (!window.electronAPI?.extractArchive) return
+    if (settingsStore.settings.download?.autoExtract !== true) return
+
+    const task = taskStore.allTasks.find(t => t.gid === gid)
+    const filePath = task?.files?.[0]?.path ?? ''
+    if (!filePath) return
+
+    try {
+      const result = await window.electronAPI.extractArchive(filePath)
+      if (result?.extracted) {
+        const name = filePath.split(/[\\/]/).pop() || ''
+        window.electronAPI.sendNotification?.(t('notification.archiveExtracted'), name)
+        return
+      }
+      if (result && !result.success && result.reason !== 'unsupported_format') {
+        message.error(t(result.reason === 'tar_not_available' ? 'generalSettings.autoExtractUnavailable' : 'generalSettings.autoExtractFailed', {
+          error: result.reason ?? t('settings.unknownError')
+        }))
+      }
+    } catch (error) {
+      console.warn('Auto extract failed:', error)
+    }
+  }
+
+  /** 下载完成的统一处理：系统通知 + 可选自动解压 */
+  function handleTaskDownloadComplete(gid: string): void {
+    showDownloadNotification(gid)
+    void autoExtractIfEnabled(gid)
+  }
+
   // 下载全部完成后执行配置的操作（关机/休眠/关闭应用）
   let hadActiveTasks = false
   let downloadCompleteActionPending = false
@@ -137,8 +178,8 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
           clipboardMonitor.handleDetectedUrl(url)
         })
       }
-      // 注册下载完成系统通知
-      unsubscribeDownloadComplete = taskStore.onDownloadComplete(showDownloadNotification)
+      // 注册下载完成处理（系统通知 + 可选自动解压）
+      unsubscribeDownloadComplete = taskStore.onDownloadComplete(handleTaskDownloadComplete)
       if (!hasConnectedOnce) {
         hasConnectedOnce = true
         // 自动关闭对话框（处理启动时竞态导致的对话框未关闭问题）
@@ -168,7 +209,8 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
         uiStore.openUpdateDialog({
           version: result.version || '',
           notes: result.notes,
-          state: result.alreadyDownloaded ? 'downloaded' : 'prompt'
+          state: result.alreadyDownloaded ? 'downloaded' : 'prompt',
+          manualDownload: result.manualDownload
         })
       }
     } catch (error) {

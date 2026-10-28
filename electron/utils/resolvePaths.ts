@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
 import * as fs from 'fs'
+import { isPackagedApp } from './appEnv'
 
 /**
  * 生产环境资源路径解析（单一来源）。
@@ -36,7 +37,7 @@ import * as fs from 'fs'
  * 用 app.getAppPath() 而非 process.cwd()：启动目录不一定是应用目录。
  */
 export function resolveRendererIndexPath(): string {
-  if (app.isPackaged) {
+  if (isPackagedApp) {
     return join(process.resourcesPath, 'app.asar', 'dist', 'vue', 'index.html')
   }
   return join(app.getAppPath(), 'dist', 'vue', 'index.html')
@@ -44,14 +45,29 @@ export function resolveRendererIndexPath(): string {
 
 /**
  * 应用图标路径（窗口与托盘共用）。
- * - 打包环境：`<resources>/Icon.ico`（extraResources 提供）
- * - 未打包：仓库内 `build/Icon.ico`（相对应用目录，不依赖启动时的工作目录）
+ * - Windows：`<resources>/Icon.ico`（extraResources 提供）/ 仓库内 `build/Icon.ico`
+ * - macOS / Linux：`<resources>/icon.png` / `build/icon.png`
+ *
+ * 为什么按平台分格式：`.ico` 只有 Windows 认；macOS/Linux 需要 PNG。
+ * 图标内容同源（build/icon.png 由 Icon.ico 中最大的 256×256 图放大得到），
+ * 因此视觉一致，只是容器格式不同。
  *
  * 文件不存在时返回 null：窗口图标会被 Electron 忽略，托盘则回退到空图像（避免 Tray 构造抛错）。
  */
 export function resolveAppIconPath(): string | null {
-  const iconPath = app.isPackaged
-    ? join(process.resourcesPath, 'Icon.ico')
-    : join(app.getAppPath(), 'build', 'Icon.ico')
+  const fileName = process.platform === 'win32' ? 'Icon.ico' : 'icon.png'
+  const iconPath = isPackagedApp
+    ? join(process.resourcesPath, fileName)
+    : join(app.getAppPath(), 'build', fileName)
   return fs.existsSync(iconPath) ? iconPath : null
+}
+
+/**
+ * 托盘图标路径。
+ *
+ * 与窗口图标同源；macOS/Linux 的托盘尺寸很小（22~24px），由 TrayController 在加载后按尺寸缩放
+ * （`nativeImage.resize`），这里不再单独维护一套托盘素材——少两份二进制资源，也少一处不同步。
+ */
+export function resolveTrayIconPath(): string | null {
+  return resolveAppIconPath()
 }

@@ -165,7 +165,10 @@ module.exports = {
 }
 ```
 
-**权限类型**：`aria2:read`（读取下载状态）、`aria2:write`（控制下载）、`settings:read/write`（读写设置）、`notify`（发送通知）、`network`（网络请求）
+**权限类型**：`aria2:read`（读取下载状态）、`aria2:write`（控制下载）、`settings:read`（读取应用设置，已脱敏：不含任何密钥字段）、`notify`（发送系统通知）
+
+> 权限只用于**约束误操作**，不构成对恶意插件的防护：插件在主进程以 Node 运行（vm 不是安全边界），
+> 能做的事情等价于本机用户。请只安装你信任的插件。
 
 ### 键盘快捷键
 
@@ -201,13 +204,29 @@ npm run dev
 # 构建生产版本（前端 + Electron 主进程编译）
 npm run build
 
-# 打包安装程序（当前平台架构，仅支持 Windows）
+# 打包安装程序（当前平台）
 npm run dist
 
 # 打包 Windows 64 位 / 32 位 / 双架构安装包
 npm run dist:win64
 npm run dist:win32
 npm run dist:win-all
+
+# 打包 macOS（dmg + zip，x64 / arm64）与 Linux（AppImage + deb，x64）
+# 引擎已随仓库提供（macOS/Linux 为 aria2 1.36.0，见 resources/aria2/README.md）
+npm run dist:mac      # 只能在 macOS 上执行（electron-builder 硬性限制）
+npm run dist:linux    # 在 Linux 上执行；Windows 本机可用下面两种方式之一
+
+# 方式 A：Docker（官方推荐）
+docker run --rm -v "$PWD":/project -w /project electronuserland/builder \
+  bash -c "npm ci && npx electron-builder --linux --x64 --publish never"
+
+# 方式 B：WSL2（Windows 自带能力，需先 wsl --install 并装一个发行版）
+# 在 WSL 里进入 /mnt/e/Project/Aria2Desktop 执行 npm ci && npm run dist:linux
+# 方式 C：不需要本机 Linux——推 tag 前手动触发 GitHub Actions「构建 macOS / Linux 安装包」
+
+# 校验指定平台的引擎二进制是否就位
+node scripts/verify-engine.mjs darwin arm64
 
 # 单元测试（vitest）
 npm run test        # 监听模式
@@ -248,7 +267,30 @@ npm run verify:extension-api # 本地接口端到端验证（先 build:electron�
 > （`electron-store`、`electron-log`——后者用于主进程日志落盘），以减小安装包体积。
 > 新增依赖时请遵循此约定：先判断它是否需要在打包后的主进程中使用。
 
-> **平台支持**: 本项目仅构建 Windows 32/64 位版本。32 位打包资源后缀为 `x86`，64 位为 `x64`。推送以 `v` 开头的 tag 会自动触发 GitHub Actions 构建并发布 Release。
+> **平台支持**: 构建配置覆盖 Windows（NSIS 安装包 + 便携 zip，x86/x64）、macOS（dmg + zip，x64/arm64）
+> 与 Linux（AppImage + deb，x64）。三者的差异：
+>
+> | 能力 | Windows | macOS | Linux |
+> |---|---|---|---|
+> | 内置引擎 | ✅ aria2 1.37.0 | ✅ aria2 1.36.0 | ✅ aria2 1.36.0 |
+> | 应用内更新 | ✅ 检查 + 差量下载 + 安装 | 检测到新版本后引导去 Release 页 | 同 macOS |
+> | 开机自启 | 注册表 Run 项 | 登录项 | `~/.config/autostart/*.desktop` |
+> | magnet 协议 | 注册表 | Info.plist（`build.protocols` 生成） | `.desktop` 的 `x-scheme-handler` |
+>
+> **应用内更新机制**（Windows）：
+> - **检查**：`releases/latest` 的 302 重定向拿最新稳定版 tag（服务端保证跳过 pre-release），
+>   启动时检查一次 + 主进程每 24 小时复查一次（托盘常驻不重启也能收到提醒）；
+> - **差量下载**：Release 附带 `<Setup.exe>.blocks.json` 块表，应用端对比本地缓存的上一版
+>   安装包（`userData/updates/`，约 100MB），hash 相同的 4MB 分块直接本地复制、只下载变化部分，
+>   每次更新通常省 70% 以上流量；差量不可用（首次更新/缓存缺失）自动回落全量；
+> - **断点续传**：全量下载中断后从上次位置继续（HTTP Range），不再从头来；
+> - **完整性**：无论差量还是全量，最终都强制比对 Release 附带的 `.sha256`，不匹配拒绝安装。
+>   被篡改的块表只会导致校验失败、回落全量，不会让坏包落地。
+>
+> macOS/Linux 安装包不签名（macOS 首次打开需右键 →「打开」放行）。
+> 引擎二进制的编译方式与 GPLv2 合规说明见 `resources/aria2/README.md`。
+> 推送以 `v` 开头的 tag 会自动触发 GitHub Actions 构建并发布 Windows Release；
+> macOS/Linux 安装包目前由 `构建 macOS / Linux 安装包` 工作流手动触发产出。
 
 ### 项目结构
 ```
@@ -281,8 +323,8 @@ Aria2Desktop/
 │   └── preload.ts          # 预加载脚本（contextBridge API）
 ├── extension/              # Chrome/Edge 浏览器扩展（Manifest V3）
 ├── plugins/                # 示例插件
-├── resources/              # 资源文件（Aria2 引擎二进制、默认配置）
-├── scripts/                # 构建辅助脚本（引擎准备、构建产物校验）
+├── resources/              # 资源文件（aria2 引擎按 平台/架构 存放、默认配置）
+├── scripts/                # 构建辅助脚本（引擎校验、构建产物校验）
 ├── build/                  # 打包配置与图标
 ├── dist/                   # 编译产物
 └── release/                # electron-builder 打包输出目录

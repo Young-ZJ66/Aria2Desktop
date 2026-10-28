@@ -7,7 +7,8 @@ import {
   isPlainFileName,
   isProbeAllowed,
   parseRequestPathname,
-  sanitizeDownloadFileName
+  sanitizeDownloadFileName,
+  sanitizeRequestHeaders
 } from './extensionApiCore'
 
 /**
@@ -230,6 +231,80 @@ describe('isPlainFileName（下发 out 前的二次断言）', () => {
     expect(isPlainFileName('../escape.txt')).toBe(false)
     expect(isPlainFileName('sub/dir/file.txt')).toBe(false)
     expect(isPlainFileName('')).toBe(false)
+  })
+})
+
+/**
+ * 请求头会被原样作为 aria2 的 `header` / `user-agent` / `referer` 下发，
+ * 因此这里就是"扩展能往下载请求里塞什么"的唯一闸门：
+ * CR/LF 必须整条拒绝（请求拆分），逐跳头必须剔除（改 Host 会连到别的主机）。
+ */
+describe('sanitizeRequestHeaders（下发请求头前的净化）', () => {
+  it('普通头归一为小写名称，user-agent / referer 提升为专用字段', () => {
+    expect(sanitizeRequestHeaders([
+      'Cookie: a=1; b=2',
+      'Referer: https://example.com/page',
+      'User-Agent: Mozilla/5.0 Test',
+      'Accept-Language: zh-CN,zh;q=0.9'
+    ])).toEqual({
+      header: ['cookie: a=1; b=2', 'accept-language: zh-CN,zh;q=0.9'],
+      userAgent: 'Mozilla/5.0 Test',
+      referer: 'https://example.com/page'
+    })
+  })
+
+  it('含 CR/LF 的条目整条丢弃（防请求拆分）', () => {
+    const result = sanitizeRequestHeaders([
+      'X-A: 1\r\nCookie: stolen=1',
+      'X-B: 2\nInjected: 1',
+      'X-Ok: fine'
+    ])
+    expect(result.header).toEqual(['x-ok: fine'])
+  })
+
+  it('逐跳头与长度相关头一律剔除（Host 被改写会连到非目标主机）', () => {
+    const result = sanitizeRequestHeaders([
+      'Host: evil.example.com',
+      'Content-Length: 0',
+      'Transfer-Encoding: chunked',
+      'Connection: keep-alive',
+      'Cookie: keep=1'
+    ])
+    expect(result.header).toEqual(['cookie: keep=1'])
+  })
+
+  it('非法名称、空值、非字符串项、无冒号项一律丢弃', () => {
+    const result = sanitizeRequestHeaders([
+      'Bad Name: x',
+      'X-Empty:   ',
+      'no-colon-here',
+      'X-Space:，中文值',
+      42,
+      null
+    ])
+    // 中文值合法（HTTP/1.1 头值本应为 ASCII/latin1，但 aria2 会按字节透传，不做额外限制）
+    expect(result.header).toEqual(['x-space: ，中文值'])
+  })
+
+  it('referer 只接受 http(s) 绝对地址', () => {
+    expect(sanitizeRequestHeaders(['Referer: javascript:alert(1)']).referer).toBe('')
+    expect(sanitizeRequestHeaders(['Referer: file:///C:/x']).referer).toBe('')
+    expect(sanitizeRequestHeaders(['Referer: not a url']).referer).toBe('')
+    expect(sanitizeRequestHeaders(['Referer: http://localhost:8080/a']).referer).toBe('http://localhost:8080/a')
+  })
+
+  it('非数组输入返回空结果（接口不信任调用方类型）', () => {
+    for (const input of [undefined, null, '', 'Cookie: a=1', 42, { header: ['a: b'] }]) {
+      expect(sanitizeRequestHeaders(input)).toEqual({ header: [], userAgent: '', referer: '' })
+    }
+  })
+
+  it('超长与超量输入被截断（接口不能被当作数据通道）', () => {
+    const longValue = `X-Long: ${'a'.repeat(5000)}`
+    expect(sanitizeRequestHeaders([longValue]).header).toEqual([])
+
+    const many = Array.from({ length: 40 }, (_, i) => `X-${i}: v`)
+    expect(sanitizeRequestHeaders(many).header).toHaveLength(24)
   })
 })
 

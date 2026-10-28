@@ -50,7 +50,8 @@ export const defaultSettings: AppSettings = {
     maxConcurrentDownloads: 5,
     maxConnectionPerServer: 5,
     minSplitSize: '10M',
-    autoStart: true
+    autoStart: true,
+    autoExtract: false
   },
 
   category: {

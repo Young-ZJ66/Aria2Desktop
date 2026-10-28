@@ -5,9 +5,9 @@
  */
 
 import { spawn } from 'child_process'
-import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
+import { isPackagedApp } from '../utils/appEnv'
 
 /** yt-dlp 元信息（精简版） */
 export interface YtdlpVideoInfo {
@@ -168,7 +168,7 @@ function execYtdlp(args: string[]): Promise<string> {
  * 现在两条路都通：随包内置则开箱可用；未内置时尊重用户自己装的版本。
  */
 function getYtdlpPath(): string {
-  if (app.isPackaged) {
+  if (isPackagedApp) {
     const exe = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
     const bundled = path.join(process.resourcesPath, 'yt-dlp', exe)
     if (fs.existsSync(bundled)) return bundled

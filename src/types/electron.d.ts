@@ -2,6 +2,10 @@
 export interface UpdateStatus {
   state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
   version?: string
+  /** available 时随推送携带（定时复查路径没有 IPC 返回值，弹窗日志区依赖它） */
+  notes?: string
+  /** 该平台不支持应用内安装（macOS/Linux），弹窗应显示"前往下载"而非"立即更新" */
+  manualDownload?: boolean
   percent?: number
   transferred?: number
   total?: number
@@ -50,6 +54,15 @@ export interface ElectronAPI {
   // 无冲突/上次中断可续传时原样返回
   resolveDownloadConflict: (dir: string, fileName: string) => Promise<{ fileName: string; conflict: boolean }>
 
+  // 下载完成后自动解压（仅支持 zip/7z/tar 系；主进程校验路径必须位于下载目录内）
+  extractArchive: (filePath: string) => Promise<{
+    success: boolean
+    /** 是否执行了解压（false 表示按格式规则跳过，不算失败） */
+    extracted: boolean
+    reason?: string
+    targetDir?: string
+  }>
+
   // 托盘控制
   setTrayEnabled: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
 
@@ -67,6 +80,8 @@ export interface ElectronAPI {
     version?: string
     notes?: string
     alreadyDownloaded?: boolean
+    /** 该平台不支持应用内安装（macOS/Linux），应引导用户去 Release 页 */
+    manualDownload?: boolean
     error?: string
   }>
   checkUpdatesOnStartup: () => Promise<{
@@ -75,6 +90,7 @@ export interface ElectronAPI {
     version?: string
     notes?: string
     alreadyDownloaded?: boolean
+    manualDownload?: boolean
     error?: string
   }>
   downloadUpdate: () => Promise<{ success: boolean; error?: string; checksumUnavailable?: boolean }>

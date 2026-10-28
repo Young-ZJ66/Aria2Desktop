@@ -1,0 +1,113 @@
+name: 构建 macOS / Linux 安装包
+
+# 手动触发：用于在对应系统上产出安装包并人工验证。
+# 刻意与 release.yml 分开——发版流程目前只覆盖 Windows，
+# 等 macOS/Linux 引擎二进制入库、安装包验证通过后，再把两者合并进发版流程。
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 目标平台
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - mac
+          - linux
+
+permissions:
+  contents: read
+
+jobs:
+  build-mac:
+    if: inputs.platform != 'linux'
+    name: 构建 macOS
+    runs-on: macos-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      # 质量闸门与 Windows 一致：类型检查 + 单测 + 扩展静态校验
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: 单元测试
+        run: npm run test:run
+
+      - name: 扩展静态校验
+        run: npm run check:extension
+
+      # 引擎二进制缺失时这里会明确报错并给出编译指引（见 resources/aria2/README.md）
+      - name: 校验 aria2 引擎
+        run: node scripts/verify-engine.mjs darwin ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+
+      # 在真实 macOS 上冒烟：确认二进制可执行（架构匹配、未损坏）
+      - name: 引擎可执行性冒烟
+        run: ./resources/aria2/darwin/${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}/aria2c --version
+
+      - name: 构建安装包
+        run: npm run build && npx electron-builder --mac --publish never
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installers
+          path: |
+            release/*.dmg
+            release/*.zip
+          if-no-files-found: error
+
+  build-linux:
+    if: inputs.platform != 'mac'
+    name: 构建 Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: 单元测试
+        run: npm run test:run
+
+      - name: 扩展静态校验
+        run: npm run check:extension
+
+      - name: 校验 aria2 引擎
+        run: node scripts/verify-engine.mjs linux x64
+
+      # 在真实 Linux 上冒烟：确认二进制可执行（ELF 架构匹配、未损坏）
+      - name: 引擎可执行性冒烟
+        run: ./resources/aria2/linux/x64/aria2c --version
+
+      - name: 构建安装包
+        run: npm run build && npx electron-builder --linux --x64 --publish never
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installers
+          path: |
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: error

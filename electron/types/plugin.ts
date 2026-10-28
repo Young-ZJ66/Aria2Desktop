@@ -21,14 +21,18 @@ export interface PluginManifest {
   permissions?: PluginPermission[]
 }
 
-/** 插件权限类型 */
+/**
+ * 插件权限类型。
+ *
+ * 只列**真实存在**且可约束的能力：`settings:write` 与 `network` 从未提供对应 API，
+ * 且 vm 不是安全边界（见 pluginManager 文件头），声明它们只会制造"已被限制"的错觉，
+ * 故已移除。插件需要额外能力时应显式扩展 PluginContext，而不是先占一个权限名。
+ */
 export type PluginPermission =
   | 'aria2:read'      // 读取下载状态
   | 'aria2:write'     // 控制下载任务
-  | 'settings:read'   // 读取应用设置
-  | 'settings:write'  // 修改应用设置
-  | 'network'         // 网络请求
-  | 'notify'          // 发送通知
+  | 'settings:read'   // 读取应用设置（已脱敏：不含任何密钥字段）
+  | 'notify'          // 发送系统通知
 
 /** 插件运行时上下文（注入到沙箱中的 API） */
 export interface PluginContext {

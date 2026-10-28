@@ -300,6 +300,51 @@
       line-height: 1.6;
       color: var(--text-dim);
     }
+    /* 本页视频列表：每行一个可直接下载的地址 + 发送按钮 */
+    .media-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .media-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 9px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+    }
+    .media-url {
+      flex: 1;
+      min-width: 0;
+      font-size: 11.5px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .media-kind {
+      flex: none;
+      font-size: 10.5px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: var(--secondary);
+      color: var(--text-dim);
+    }
+    .media-item button {
+      flex: none;
+      padding: 4px 10px;
+      border: none;
+      border-radius: 5px;
+      background: var(--primary);
+      color: #fff;
+      font-family: inherit;
+      font-size: 11.5px;
+      cursor: pointer;
+    }
+    .media-item button:hover { background: var(--primary-hover); }
     .visually-hidden {
       position: absolute;
       width: 1px; height: 1px;
@@ -344,6 +389,12 @@
       </div>
       <button class="btn btn-primary" id="sendBtn" type="button"></button>
     </div>
+    <div class="section">
+      <div class="section-title" id="mediaTitle"></div>
+      <button class="btn btn-secondary" id="mediaDetectBtn" type="button"></button>
+      <div class="media-list" id="mediaList" hidden></div>
+      <p class="hint" id="mediaHint" hidden></p>
+    </div>
     <div class="footer" id="footerHint"></div>
   </div>
 
@@ -384,6 +435,16 @@
         </div>
         <label class="toggle">
           <input type="checkbox" id="allowProbe">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="toggle-group">
+        <div>
+          <div class="t-label" id="allowCookiesLabel"></div>
+          <div class="t-desc" id="allowCookiesDesc"></div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="allowCookies">
           <span class="slider"></span>
         </label>
       </div>

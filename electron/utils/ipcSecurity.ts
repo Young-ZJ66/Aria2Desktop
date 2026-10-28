@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
 import { pathToFileURL } from 'url'
 import { isSenderAuthorized, wrapSecureHandler, wrapSecureListener } from './ipcSecurityCore'
 import { resolveRendererIndexPath } from './resolvePaths'
+import { isPackagedApp } from './appEnv'
 
 /**
  * 未授权时的默认失败返回值：覆盖本仓 32/45 个通道的主流形态。
@@ -41,7 +42,7 @@ export function createSenderValidator(getMainWindow: () => BrowserWindow | null)
     return isSenderAuthorized({
       isMainWindow,
       senderUrl: event.sender.getURL(),
-      isPackaged: app.isPackaged,
+      isPackaged: isPackagedApp,
       allowedFileUrl: getRendererEntryFileUrl(),
       allowedFileDirUrl: getRendererEntryDirUrl()
     })

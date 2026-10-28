@@ -274,6 +274,48 @@
   "allowProbeDesc": {
     "message": "Fetch real file names for links without one (e.g. cloud-drive direct links). Not needed while the app is running."
   },
+  "allowCookies": {
+    "message": "Send page cookies with downloads"
+  },
+  "allowCookiesDesc": {
+    "message": "Lets login-protected sites (cloud drives, forum attachments) download without 403 errors. Requires site access permission."
+  },
+  "cookiesEnabled": {
+    "message": "Enabled: downloads will carry the current page cookies"
+  },
+  "cookiesDisabled": {
+    "message": "Disabled: page cookies are no longer sent"
+  },
+  "cookiesPermissionDenied": {
+    "message": "Site access not granted — cannot read cookies"
+  },
+  "mediaSection": {
+    "message": "Video on this page"
+  },
+  "mediaDetect": {
+    "message": "Detect page video"
+  },
+  "mediaDetecting": {
+    "message": "Detecting…"
+  },
+  "mediaNone": {
+    "message": "No directly downloadable video found on this page"
+  },
+  "mediaBlobHint": {
+    "message": "This video is assembled at runtime and cannot be downloaded directly. Copy the page URL and use the app's Stream tab."
+  },
+  "mediaStreamHint": {
+    "message": "This is a segmented stream (m3u8/mpd). Use the app's Stream tab to download it."
+  },
+  "mediaUnsupportedPage": {
+    "message": "This page cannot be scanned (regular web pages only)"
+  },
+  "mediaPermissionDenied": {
+    "message": "No permission for this page — cannot detect video"
+  },
+  "mediaSend": {
+    "message": "Send"
+  },
   "pairingDoneTitle": {
     "message": "Pairing complete"
   },

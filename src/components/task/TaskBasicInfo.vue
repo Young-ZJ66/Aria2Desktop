@@ -106,10 +106,20 @@
       <template #header>
         <div class="card-header">
           <span>BitTorrent {{ t('common.info') }}</span>
+          <n-tag v-if="btHealthText" size="small" :type="seederCount > 0 ? 'success' : 'warning'" :bordered="false">
+            {{ btHealthText }}
+          </n-tag>
         </div>
       </template>
 
+      <!-- 没有任何做种者时速度通常极慢甚至停滞：直接说出来，比让用户盯着 0 KB/s 猜原因强 -->
+      <n-alert v-if="btHealthWarning" type="warning" :bordered="false" class="bt-health-alert">
+        {{ btHealthWarning }}
+      </n-alert>
+
       <n-descriptions :column="2" label-placement="left" class="task-descriptions">
+        <n-descriptions-item :label="t('taskDetail.seeders')">{{ seederCount }}</n-descriptions-item>
+        <n-descriptions-item :label="t('taskDetail.connections')">{{ task.connections || '0' }}</n-descriptions-item>
         <n-descriptions-item :label="t('taskDetail.torrentName')">{{ task.bittorrent.info?.name || t('common.unknown') }}</n-descriptions-item>
         <n-descriptions-item :label="t('taskDetail.createdBy')">{{ task.bittorrent.createdBy || t('common.unknown') }}</n-descriptions-item>
         <n-descriptions-item :label="t('taskDetail.creationDate')">{{ formatDate(task.bittorrent.creationDate) }}</n-descriptions-item>
@@ -162,6 +172,31 @@ const props = defineProps<Props>()
 const { t } = useI18n()
 
 const progressPercent = computed(() => getProgress(props.task))
+
+/**
+ * BT 健康度（可见的那部分）：
+ * aria2 不提供"总做种者数/可用副本数"，能拿到的只有**已连上的**做种者数量（numSeeders）
+ * 与本机是否在做种（seeder）。这足以回答用户最关心的问题——"为什么没速度"。
+ */
+const seederCount = computed(() => {
+  const parsed = Number(props.task.numSeeders ?? 0)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0
+})
+
+const isSeeding = computed(() => props.task.seeder === 'true')
+
+const btHealthText = computed(() => {
+  if (isSeeding.value) return t('taskDetail.healthSeeding')
+  if (seederCount.value > 0) return t('taskDetail.healthSeeders', { count: seederCount.value })
+  return ''
+})
+
+const btHealthWarning = computed(() => {
+  // 只有"正在下载/等待"时才谈健康度：已完成或已停止的任务没连上种子是正常的
+  const downloading = props.task.status === 'active' || props.task.status === 'waiting'
+  if (!downloading) return ''
+  return seederCount.value === 0 ? t('taskDetail.healthNoSeeder') : ''
+})
 
 /**
  * 首个文件路径 / 首个下载链接。
@@ -433,5 +468,9 @@ async function openFileInFolder(filePath: string) {
   font-size: 12px;
   color: var(--text-secondary);
   margin-left: 4px;
+}
+
+.bt-health-alert {
+  margin-bottom: 12px;
 }
 </style>

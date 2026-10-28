@@ -1,7 +1,7 @@
 import { Tray, Menu, app, nativeImage } from 'electron'
 import { WindowController } from './WindowController'
 import { appState } from '../utils/appState'
-import { resolveAppIconPath } from '../utils/resolvePaths'
+import { resolveTrayIconPath } from '../utils/resolvePaths'
 import { createLogger } from '../utils/logger'
 
 // 本文件日志文案自带 [TrayController] 前缀（历史风格），故 scope 传空避免前缀重复
@@ -23,7 +23,8 @@ export class TrayController {
 
     try {
       // 图标路径不存在时回退到空图像，避免 Tray 构造抛错
-      this.tray = new Tray(iconPath ?? nativeImage.createEmpty())
+      const image = this.buildTrayImage()
+      this.tray = new Tray(image ?? nativeImage.createEmpty())
       this.setupContextMenu()
       this.setupEventHandlers()
       this.tray.setToolTip('Aria2 Desktop')
@@ -34,7 +35,23 @@ export class TrayController {
 
   private getIconPath(): string | null {
     // 图标路径口径统一在 resolvePaths（此前这里维护了 5 个候选路径，绝大多数永不命中）
-    return resolveAppIconPath()
+    return resolveTrayIconPath()
+  }
+
+  /**
+   * 构造托盘图像。
+   *
+   * macOS/Linux 的托盘只有 22~24px：直接把 1024px 的 PNG 交给 Tray 会被系统粗暴缩放，
+   * 因此先按目标尺寸重采样；Windows 仍用多尺寸 .ico（系统会自行挑选合适的一档）。
+   */
+  private buildTrayImage(): Electron.NativeImage | string | null {
+    const iconPath = this.getIconPath()
+    if (!iconPath) return null
+    if (process.platform === 'win32') return iconPath
+
+    const image = nativeImage.createFromPath(iconPath)
+    if (image.isEmpty()) return iconPath
+    return image.resize({ width: 22, height: 22, quality: 'best' })
   }
 
   private setupContextMenu() {

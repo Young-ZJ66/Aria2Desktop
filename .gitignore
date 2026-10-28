@@ -13,7 +13,8 @@ docs
 # 运行时数据
 data
 
-# 本地 Aria2 可执行文件副本（构建时由 prepare-aria2c.mjs 按架构生成）
+# 引擎二进制：按 平台/架构 随仓库分发（resources/aria2/<platform>/<arch>/），
+# 旧布局的临时副本（构建期复制产物）不再入库
 resources/aria2c.exe
 
 # 环境变量

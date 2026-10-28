@@ -44,6 +44,31 @@
         </div>
       </div>
     </n-form-item>
+    <n-form-item>
+      <template #label>
+        <span class="option-label">{{ t('newTask.advancedOptions') }}</span>
+      </template>
+      <div class="advanced-wrap">
+        <div class="advanced-tip">{{ t('newTask.advancedOptionsTip') }}</div>
+        <div class="option-item">
+          <span class="option-item-label">{{ t('newTask.referer') }}</span>
+          <n-input v-model:value="form.referer" :placeholder="t('newTask.refererPlaceholder')" />
+        </div>
+        <div class="option-item">
+          <span class="option-item-label">{{ t('newTask.userAgent') }}</span>
+          <n-input v-model:value="form.userAgent" :placeholder="t('newTask.userAgentPlaceholder')" />
+        </div>
+        <div class="option-item">
+          <span class="option-item-label">{{ t('newTask.customHeaders') }}</span>
+          <n-input
+            v-model:value="form.customHeaders"
+            type="textarea"
+            :rows="3"
+            :placeholder="t('newTask.customHeadersPlaceholder')"
+          />
+        </div>
+      </div>
+    </n-form-item>
     <div class="form-actions">
       <n-space>
         <n-button type="primary" :loading="submitting" @click="handleSubmit">
@@ -66,6 +91,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useNewTaskSubmit } from '@/composables/useNewTaskSubmit'
 import { CATEGORY_AUTO, CATEGORY_GENERAL, getFileNameHintFromUri, resolveCategory } from '@/shared/fileCategories'
+import type { Aria2Option } from '@/types/aria2'
 import type { CategoryOption, ComputeTargetDir } from './types'
 
 interface Props {
@@ -95,7 +121,11 @@ const form = reactive({
   maxConnectionPerServer: 5,
   minSplitSize: '20M',
   autoStart: true,
-  category: CATEGORY_AUTO
+  category: CATEGORY_AUTO,
+  // 请求头（可选）：需要登录的站点必须带 Cookie/Referer，否则服务器直接 403
+  referer: '',
+  userAgent: '',
+  customHeaders: ''
 })
 
 const rules: FormRules = {
@@ -183,7 +213,7 @@ async function handleSubmit() {
     },
 
     perform: async (uris) => {
-      const options: Record<string, string> = {}
+      const options: Aria2Option = {}
       const baseDir = form.dir || settingsStore.taskBaseDir
       // precheck 已保证 uris 非空，`?? ''` 只是满足 noUncheckedIndexedAccess
       let fileNameHint = form.fileName || getFileNameHintFromUri(uris[0] ?? '')
@@ -231,6 +261,17 @@ async function handleSubmit() {
       options['min-split-size'] = form.minSplitSize
       if (!form.autoStart) options.pause = 'true'
 
+      // 请求头：Referer / User-Agent 有专用选项，其余按 `Name: value` 走 header 数组。
+      // 这里不做净化：值来自用户本人输入，且 aria2 侧会原样发出（与浏览器扩展入口不同，
+      // 后者是外部调用方，必须在主进程净化）。
+      if (form.referer.trim()) options.referer = form.referer.trim()
+      if (form.userAgent.trim()) options['user-agent'] = form.userAgent.trim()
+      const extraHeaders = form.customHeaders
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.includes(':'))
+      if (extraHeaders.length > 0) options.header = extraHeaders
+
       await taskStore.addUri(uris, options)
       return t('newTask.addedCount', { count: uris.length })
     },
@@ -270,6 +311,9 @@ function handleReset() {
   form.maxConnectionPerServer = 5
   form.minSplitSize = '20M'
   form.autoStart = true
+  form.referer = ''
+  form.userAgent = ''
+  form.customHeaders = ''
 }
 
 /** 选择保存目录（系统目录选择框） */
@@ -331,6 +375,19 @@ async function selectDir() {
 
 .option-item-label {
   font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.advanced-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 80%;
+}
+
+.advanced-tip {
+  font-size: 12px;
+  line-height: 1.6;
   color: var(--text-secondary);
 }
 </style>

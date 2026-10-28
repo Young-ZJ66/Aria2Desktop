@@ -13,7 +13,7 @@
  * 通过 IPC 代理受限 API。
  */
 
-import { app } from 'electron'
+import { app, Notification } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as vm from 'vm'
@@ -224,8 +224,24 @@ export class PluginManager {
       },
       notify: {
         send: (title: string, body: string) => {
-          // 通知通过 IPC 发送到渲染进程
-          logger.info(`[Plugin:${manifest.id}] Notification: ${title} - ${body}`)
+          /**
+           * 真发系统通知（此前只写日志：README 与示例插件都承诺了"发送通知"，
+           * 插件作者调用后用户什么都看不到，属于文档与实现不一致）。
+           * 通知是插件行为，失败一律不外抛——不能因为通知发不出去就让插件的下载回调崩掉。
+           */
+          try {
+            if (!Notification.isSupported()) {
+              logger.warn(`[Plugin:${manifest.id}] 系统不支持通知，已忽略`)
+              return
+            }
+            new Notification({
+              // 限长：插件传入的文案不设上限会撑爆通知中心，也便于日志里定位来源
+              title: `[${manifest.name}] ${String(title ?? '')}`.slice(0, 120),
+              body: String(body ?? '').slice(0, 500)
+            }).show()
+          } catch (error) {
+            logger.warn(`[Plugin:${manifest.id}] 发送通知失败:`, error)
+          }
         }
       }
     }

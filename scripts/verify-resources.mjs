@@ -20,16 +20,17 @@ const required = [
   { file: 'dist/electron/electron/preload.js', why: 'preload 脚本（contextBridge 暴露面）' },
   { file: 'dist/electron/electron/utils/resolvePaths.js', why: '资源路径解析模块（主进程编译产物）' },
   { file: 'dist/vue/index.html', why: '渲染层入口（生产环境唯一加载路径）' },
-  { file: 'build/Icon.ico', why: '窗口/托盘图标（extraResources 映射为 Icon.ico）' }
+  // 图标按平台分格式：Windows 用 .ico，macOS/Linux 用 PNG（1024×1024）
+  { file: 'build/Icon.ico', why: 'Windows 窗口/托盘图标（extraResources 映射为 Icon.ico）' },
+  { file: 'build/icon.png', why: 'macOS/Linux 应用图标（extraResources 映射为 icon.png）' }
 ]
 
 /**
- * 允许缺失但给出提示：内置 aria2 引擎由 prepare-aria2c.mjs 按架构生成，
- * 打包脚本（dist:win64 / dist:win32）在 build 之后才调用它，因此纯 `npm run build` 阶段缺失属正常。
+ * 引擎二进制不在本脚本校验范围内：它按 平台/架构 存放（resources/aria2/<platform>/<arch>/），
+ * 由打包脚本调用 `node scripts/verify-engine.mjs <platform> <arch>` 做**打包前**断言。
+ * 纯 `npm run build` 阶段不需要它，这里只提示，不阻断。
  */
-const warnIfMissing = [
-  { file: 'resources/aria2c.exe', why: '内置 aria2 引擎（打包前需运行 node scripts/prepare-aria2c.mjs <x64|x86>）' }
-]
+const engineHint = 'resources/aria2/<platform>/<arch>/aria2c(.exe)'
 
 const missing = required.filter(({ file }) => !fs.existsSync(path.join(root, file)))
 
@@ -41,10 +42,5 @@ if (missing.length > 0) {
   process.exit(1)
 }
 
-for (const { file, why } of warnIfMissing) {
-  if (!fs.existsSync(path.join(root, file))) {
-    console.warn(`[verify-resources] 提示：${file} 暂不存在 —— ${why}`)
-  }
-}
-
 console.log(`[verify-resources] 构建产物校验通过（${required.length} 项必须项）`)
+console.log(`[verify-resources] 提示：打包前需确认引擎就位 —— ${engineHint}`)

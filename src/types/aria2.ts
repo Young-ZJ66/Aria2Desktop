@@ -88,7 +88,12 @@ export interface Aria2Version {
 }
 
 export interface Aria2Option {
-  [key: string]: string
+  /**
+   * 选项名 → 值。
+   * 绝大多数选项是字符串，但 `header` 是**字符串数组**（aria2 的 --header 可重复），
+   * 因此类型必须放宽；RPC 侧对数组原样透传。
+   */
+  [key: string]: string | string[]
 }
 
 export interface Aria2Peer {

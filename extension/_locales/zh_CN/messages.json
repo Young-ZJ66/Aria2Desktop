@@ -274,6 +274,48 @@
   "allowProbeDesc": {
     "message": "链接里没有文件名时（如网盘直链）向服务器获取真实文件名；应用运行时无需开启"
   },
+  "allowCookies": {
+    "message": "随任务携带页面 Cookie"
+  },
+  "allowCookiesDesc": {
+    "message": "让需要登录的站点（网盘、论坛附件）下载时不返回 403；需授予站点访问权限"
+  },
+  "cookiesEnabled": {
+    "message": "已开启：下载时将携带当前页面 Cookie"
+  },
+  "cookiesDisabled": {
+    "message": "已关闭：不再携带页面 Cookie"
+  },
+  "cookiesPermissionDenied": {
+    "message": "未授予站点访问权限，无法读取 Cookie"
+  },
+  "mediaSection": {
+    "message": "本页视频"
+  },
+  "mediaDetect": {
+    "message": "检测本页视频"
+  },
+  "mediaDetecting": {
+    "message": "检测中…"
+  },
+  "mediaNone": {
+    "message": "本页没有找到可直接下载的视频"
+  },
+  "mediaBlobHint": {
+    "message": "该视频是网页动态拼接的流，无法直接下载；请复制页面地址，用 App 的「流媒体」页下载"
+  },
+  "mediaStreamHint": {
+    "message": "这是分片流地址（m3u8/mpd），请用 App 的「流媒体」页下载"
+  },
+  "mediaUnsupportedPage": {
+    "message": "当前页面不支持检测（仅支持普通网页）"
+  },
+  "mediaPermissionDenied": {
+    "message": "未授予该页面访问权限，无法检测视频"
+  },
+  "mediaSend": {
+    "message": "发送"
+  },
   "pairingDoneTitle": {
     "message": "配对成功"
   },

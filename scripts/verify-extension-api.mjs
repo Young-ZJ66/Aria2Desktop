@@ -6,14 +6,14 @@
  * 1) 桩掉 `require('electron')`（logger 等模块需要）；
  * 2) 用 module cache 替换 settings 访问器（真实实现要 safeStorage 解密，纯 Node 下拿不到密钥），
  *    喂入自制设置：临时下载目录 + 自制 RPC 密钥 + 一份"自定义分类表"（用来证明自定义规则真的生效）；
- * 3) 起一个**真实 aria2 引擎**（仓库自带 resources/aria2c.exe，务必 --no-conf 以免读到用户配置）；
+ * 3) 起一个**真实 aria2 引擎**（仓库自带 resources/aria2/<platform>/<arch>/，务必 --no-conf 以免读到用户配置）；
  * 4) 加载**编译产物** dist/electron/**，打真实 HTTP/RPC 请求逐项断言。
  *
  * 端口说明：服务端用 6809 而不是默认的 6801——**用户本机应用可能正开着并占用 6801**，
  * 那样请求会打到真实应用上、用假密钥全 401，产生一堆"假失败"。
  *
  * 前置：需先 `npm run build:electron`（本脚本验证的是编译产物，不是源码）。
- * 平台：目前依赖 Windows 的 resources/aria2c.exe。
+ * 平台：引擎按当前平台/架构取；Windows 版随仓库提供，macOS/Linux 需自备。
  */
 import Module from 'node:module'
 import fs from 'node:fs'
@@ -35,6 +35,18 @@ const work = fs.mkdtempSync(path.join(os.tmpdir(), 'aria2-api-verify-'))
 const downloadDir = path.join(work, 'downloads')
 fs.mkdirSync(downloadDir, { recursive: true })
 
+/**
+ * 引擎二进制路径：与运行时一致，按 `resources/aria2/<platform>/<arch>/` 取，
+ * 找不到再回落旧布局（`resources/aria2c.exe`），保证老检出仍可跑。
+ */
+function resolveAria2Binary() {
+  const archDir = process.arch === 'ia32' ? 'ia32' : process.arch === 'arm64' ? 'arm64' : 'x64'
+  const binName = process.platform === 'win32' ? 'aria2c.exe' : 'aria2c'
+  const scoped = path.join(root, 'resources', 'aria2', process.platform, archDir, binName)
+  if (fs.existsSync(scoped)) return scoped
+  return path.join(root, 'resources', binName)
+}
+
 const results = []
 const check = (name, ok, detail = '') => results.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' :: ' + detail : ''}`)
 
@@ -43,7 +55,7 @@ if (!fs.existsSync(path.join(DIST, 'services/extensionApiServer.js'))) {
   console.error('未找到编译产物，请先运行: npm run build:electron')
   process.exit(2)
 }
-const aria2Exe = path.join(root, 'resources/aria2c.exe')
+const aria2Exe = resolveAria2Binary()
 if (!fs.existsSync(aria2Exe)) {
   console.error(`未找到 aria2: ${aria2Exe}（本脚本目前依赖 Windows 版 aria2）`)
   process.exit(2)

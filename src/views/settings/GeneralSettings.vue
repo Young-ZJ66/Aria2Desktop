@@ -90,6 +90,17 @@
 
         <n-form-item>
           <template #label>
+            <TipLabel :label="t('generalSettings.autoExtract')" :tip="t('generalSettings.autoExtractTip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.autoExtract"
+            :disabled="!isElectronAvailable"
+            @update:value="handleAutoExtractChange"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
             <TipLabel :label="t('generalSettings.checkForUpdates')" :tip="t('generalSettings.updateCheckTooltip')" />
           </template>
           <div class="update-section">
@@ -232,6 +243,7 @@ const form = reactive({
   autoConnect: true,
   minimizeToTray: true,
   autoLaunch: false,
+  autoExtract: false,
   downloadCompleteAction: 'none' as 'none' | 'shutdown' | 'hibernate' | 'close'
 })
 
@@ -313,7 +325,8 @@ watch(
     settingsStore.settings.autoConnect,
     settingsStore.settings.minimizeToTray,
     settingsStore.settings.autoLaunch,
-    settingsStore.settings.downloadCompleteAction
+    settingsStore.settings.downloadCompleteAction,
+    settingsStore.settings.download?.autoExtract
   ],
   () => {
     loadFormData()
@@ -330,6 +343,7 @@ function loadFormData() {
     autoConnect: settingsStore.settings.autoConnect,
     minimizeToTray: settingsStore.settings.minimizeToTray,
     autoLaunch: settingsStore.settings.autoLaunch,
+    autoExtract: settingsStore.settings.download?.autoExtract === true,
     downloadCompleteAction: settingsStore.settings.downloadCompleteAction || 'none'
   })
 }
@@ -343,7 +357,10 @@ onMounted(async () => {
   // 获取当前应用版本
   if (window.electronAPI?.getAppVersion) {
     try {
-      currentVersion.value = await window.electronAPI.getAppVersion()
+      const version = await window.electronAPI.getAppVersion()
+      // 类型守卫：IPC 校验失败时返回的是 {success:false,error:'Unauthorized'} 对象（不是字符串），
+      // 直接赋给版本号会在界面上渲染出原始 JSON——运行时实测出现过，属于明显的 UI 缺陷。
+      currentVersion.value = typeof version === 'string' && version ? version : ''
     } catch (error) {
       console.warn('Failed to get app version:', error)
     }
@@ -631,6 +648,21 @@ async function handleDownloadCompleteActionChange(value: string) {
   }
 }
 
+// 自动解压开关变化处理：保存失败必须回滚表单，否则用户以为已开启但实际没生效
+async function handleAutoExtractChange(value: boolean) {
+  const previous = settingsStore.settings.download?.autoExtract === true
+  form.autoExtract = value
+  try {
+    await settingsStore.updateDownloadConfig({ autoExtract: value })
+  } catch (error) {
+    console.error('Auto extract change error:', error)
+    form.autoExtract = previous
+    message.error(t('generalSettings.autoExtractFailed', {
+      error: error instanceof Error ? error.message : t('settings.unknownError')
+    }))
+  }
+}
+
 // 检查更新：发现新版本时不自动下载，弹窗展示更新日志（与启动检查行为一致）
 async function checkForUpdates() {
   if (!window.electronAPI?.checkForUpdates) return
@@ -646,7 +678,8 @@ async function checkForUpdates() {
       uiStore.openUpdateDialog({
         version: result.version || '',
         notes: result.notes,
-        state: result.alreadyDownloaded ? 'downloaded' : 'prompt'
+        state: result.alreadyDownloaded ? 'downloaded' : 'prompt',
+        manualDownload: result.manualDownload
       })
     } else {
       // 无新版本或网络错误：统一静默提示已是最新版本

@@ -16,7 +16,9 @@ const DEFAULT_CONFIG = {
   enabled: true,
   interceptAll: false,
   /** 允许向文件服务器探测真实文件名（需已授予全站访问权限，见弹窗开关） */
-  allowProbe: false
+  allowProbe: false,
+  /** 允许把当前页面的 Cookie 随任务下发（需已授予全站访问权限，见弹窗开关） */
+  allowCookies: false
 }
 
 /** RPC 超时：本地引擎正常在毫秒级返回，6 秒足够，超过即视为不可达 */
@@ -178,24 +180,77 @@ function apiErrorMessage(data) {
 }
 
 /**
+ * 汇总要随任务下发的请求头（Referer + Cookie）。
+ *
+ * 为什么需要：需要登录的站点（网盘、论坛附件、企业内网）从浏览器发起时天然带 Cookie/Referer，
+ * 换成独立下载器后这两样消失了，请求直接 401/403。此前扩展完全不带，这类链接必然失败。
+ *
+ * 边界：
+ * - 只对 http(s) 目标采集（magnet/ftp 没有 Cookie 语义，带上反而让 aria2 拒绝）；
+ * - Cookie 需要宿主权限才能读到，未授予时 getAll 会抛错/返回空——一律按"没有 Cookie"处理，
+ *   绝不因为采集失败而阻塞下载；
+ * - Referer 不需要额外权限，来源是下载项自带的 referrer 或当前标签页地址。
+ */
+async function collectRequestHeaders(url, pageUrl, allowCookies) {
+  const headers = []
+  if (!/^https?:\/\//i.test(url)) return headers
+
+  if (pageUrl && /^https?:\/\//i.test(pageUrl)) {
+    headers.push(`Referer: ${pageUrl}`)
+  }
+
+  if (!allowCookies || !chrome.cookies?.getAll) return headers
+  try {
+    const cookies = await chrome.cookies.getAll({ url })
+    if (cookies && cookies.length > 0) {
+      headers.push('Cookie: ' + cookies.map(c => `${c.name}=${c.value}`).join('; '))
+    }
+  } catch { /* 未授予该站点权限时静默跳过 */ }
+  return headers
+}
+
+/**
+ * 把请求头数组落到 aria2 选项上（**回落路径专用**：不经 App 时由扩展自己下发）。
+ * aria2 对 referer / user-agent 有专用选项，混在 header 里会被覆盖，故先挑出这两个。
+ */
+function applyHeadersToOptions(options, headers) {
+  const extra = []
+  for (const raw of headers || []) {
+    if (typeof raw !== 'string') continue
+    const idx = raw.indexOf(':')
+    if (idx <= 0) continue
+    const name = raw.slice(0, idx).trim().toLowerCase()
+    const value = raw.slice(idx + 1).trim()
+    if (!value) continue
+    if (name === 'referer') options.referer = value
+    else if (name === 'user-agent') options['user-agent'] = value
+    else extra.push(`${name}: ${value}`)
+  }
+  if (extra.length > 0) options.header = extra
+  return options
+}
+
+/**
  * 让 App 直接建任务：解析目录、重名改名、选项套用（连接数/分片/是否自动开始）全部在 App 侧完成。
  * 这样扩展建的任务与 App 内新建的任务**行为一致**，扩展也不必再自己维护一份分类规则。
  *
  * @returns null 表示接口不可用（App 未运行 / 未授权 / 版本较旧）→ 调用方回落直连 aria2；
  *          返回 {success:false} 表示失败且**不应回落**（见下方超时说明）。
  */
-async function addViaApp(url, config, fileNameHint = '') {
+async function addViaApp(url, config, fileNameHint = '', headers = []) {
   if (!config.secret) return null
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), APP_ADD_TIMEOUT_MS)
   try {
+    const body = fileNameHint ? { url, fileName: fileNameHint } : { url }
+    if (headers.length > 0) body.headers = headers
     const response = await fetch(`${APP_API_BASE}/api/add`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.secret}`
+        ...buildAppApiHeaders(config.secret)
       },
-      body: JSON.stringify(fileNameHint ? { url, fileName: fileNameHint } : { url }),
+      body: JSON.stringify(body),
       signal: controller.signal
     })
     // 鉴权失败 / 路由不存在（App 版本较旧）→ 视为接口不可用，走直连
@@ -385,7 +440,7 @@ async function rpcCall(method, params, config, timeoutMs = RPC_TIMEOUT_MS) {
 }
 
 // Send download to Aria2
-async function sendToAria2(url, options = {}, fileNameHint = '') {
+async function sendToAria2(url, options = {}, fileNameHint = '', pageUrl = '') {
   const config = await getConfig()
   if (!config.enabled) return { success: false, error: i18n('errDisabled') }
 
@@ -398,12 +453,15 @@ async function sendToAria2(url, options = {}, fileNameHint = '') {
     else delete cleanOptions.out
     const plainHint = sanitizeFileName(fileNameHint) || plainOut
 
+    // 页面上下文（Referer + 可选 Cookie）：登录站点能否下载成功基本取决于它
+    const headers = await collectRequestHeaders(url, pageUrl, config.allowCookies === true)
+
     const callerSpecifiedDir = Object.keys(cleanOptions).includes('dir')
 
     // 1) 优先让 App 建任务：用户自定义分类规则生效、重名统一处理，
     //    且套用与 App 内新建一致的 aria2 选项（连接数/分片/是否自动开始）
     if (!callerSpecifiedDir) {
-      const viaApp = await addViaApp(url, config, plainHint)
+      const viaApp = await addViaApp(url, config, plainHint, headers)
       if (viaApp) return viaApp
     }
 
@@ -416,6 +474,7 @@ async function sendToAria2(url, options = {}, fileNameHint = '') {
     if (target.dir) finalOptions.dir = target.dir
     // out 优先级：调用方给定（如浏览器解析出的文件名）> 本地探测结果
     if (!cleanOptions.out && target.out) finalOptions.out = target.out
+    applyHeadersToOptions(finalOptions, headers)
 
     const gid = await rpcCall('aria2.addUri', [[url], finalOptions], config)
     return {
@@ -488,6 +547,61 @@ function showNotification(titleKey, message, isError = false) {
   } catch { /* 忽略 */ }
 }
 
+/**
+ * 在页面里跑的媒体探测函数（注入到目标标签页执行，不能引用本文件任何变量）。
+ *
+ * 只收集**可直接下载**的地址：`<video src>` / `<source src>` / `poster` 不取。
+ * `blob:` 与 `m3u8/mpd` 另行标记原因——它们要么是 MSE 拼出来的流、要么是分片清单，
+ * 直接交给 aria2 只会得到一个几 KB 的清单文件，需要 App 的流媒体模式处理。
+ */
+function detectPageMedia() {
+  const items = []
+  const seen = new Set()
+  const push = (url, kind, label) => {
+    if (!url || seen.has(url)) return
+    seen.add(url)
+    items.push({ url, kind, label: (label || '').slice(0, 80) })
+  }
+  // blob: 说明视频是 MSE 拼出来的，真实分片在网络层，扩展看不到
+  for (const video of document.querySelectorAll('video')) {
+    const src = video.currentSrc || video.src || ''
+    if (!src) continue
+    const label = video.getAttribute('title') || video.getAttribute('aria-label') || ''
+    if (src.startsWith('blob:')) push(src, 'blob', label)
+    else if (/\.(m3u8|mpd)(?:[?#]|$)/i.test(src)) push(src, 'stream', label)
+    else push(src, 'file', label)
+    for (const source of video.querySelectorAll('source')) {
+      const s = source.src
+      if (s) push(s, /\.(m3u8|mpd)(?:[?#]|$)/i.test(s) ? 'stream' : 'file', '')
+    }
+  }
+  // <audio> 同样支持（播客、音频页），语义与 video 一致
+  for (const audio of document.querySelectorAll('audio')) {
+    const src = audio.currentSrc || audio.src || ''
+    if (src) push(src, src.startsWith('blob:') ? 'blob' : 'file', '')
+  }
+  return items.slice(0, 20)
+}
+
+/** 探测当前标签页的媒体地址（需要 scripting + 该标签页的临时宿主权限，即用户点击扩展图标时授予） */
+async function detectActiveTabMedia() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!tab?.id || !/^https?:\/\//i.test(tab.url || '')) {
+      return { success: false, error: i18n('mediaUnsupportedPage') }
+    }
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: detectPageMedia
+    })
+    const items = Array.isArray(results) && results[0] ? results[0].result || [] : []
+    return { success: true, items, pageUrl: tab.url || '' }
+  } catch (error) {
+    // 未授予该站点权限 / 页面是受限页（chrome://、商店页）时都会走到这里
+    return { success: false, error: i18n('mediaPermissionDenied'), detail: String(error instanceof Error ? error.message : error) }
+  }
+}
+
 // Context menu: Download link with Aria2
 chrome.runtime.onInstalled.addListener(async () => {
   // 更新版本时旧菜单仍然存在，直接用同名 id 创建会报 "Cannot create item with duplicate id"，
@@ -507,7 +621,8 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
   const url = info.linkUrl || info.srcUrl
   if (!url) return
 
-  const result = await sendToAria2(url)
+  // info.pageUrl 需要 tabs/宿主权限才拿得到；拿不到时只是少一个 Referer，不影响下载
+  const result = await sendToAria2(url, {}, '', info.pageUrl || '')
   if (result.success) {
     // 分类/重名结果直接告诉用户：既是有用信息，也让"没分类/被改名"立刻可见、可排查
     showNotification('downloadSent', buildSentMessage(result, {
@@ -536,7 +651,8 @@ chrome.downloads.onDeterminingFilename.addListener(async (downloadItem) => {
   // aria2 的 out 是相对 dir 的，传绝对路径会直接 errorCode=18（sendToAria2 入口也会再兜一次）。
   const suggested = sanitizeFileName(downloadItem.filename)
   const options = suggested ? { out: suggested } : {}
-  const result = await sendToAria2(downloadItem.url, options, suggested)
+  // referrer 由浏览器给出（发起这次下载的页面），是登录站点下载成功的关键
+  const result = await sendToAria2(downloadItem.url, options, suggested, downloadItem.referrer || '')
 
   if (result.success) {
     showNotification('intercepted', buildSentMessage(result, {
@@ -579,7 +695,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'sendToAria2') {
-    sendToAria2(message.url, message.options || {}).then(sendResponse)
+    // pageUrl：弹窗把当前标签页地址带上，作为 Referer（登录站点下载成功的关键）
+    sendToAria2(message.url, message.options || {}, '', message.pageUrl || '').then(sendResponse)
+    return true
+  }
+
+  if (message.action === 'detectPageMedia') {
+    detectActiveTabMedia().then(sendResponse)
     return true
   }
 

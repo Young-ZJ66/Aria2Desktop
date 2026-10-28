@@ -40,10 +40,10 @@ jobs:
       matrix:
         include:
           - electron_arch: x64   # electron-builder 架构参数（固定值）
-            res_arch: x64        # prepare 脚本参数，对应 resources/aria2c-x64.exe
+            res_arch: x64        # 引擎目录名，对应 resources/aria2/win32/x64/
             suffix: x64          # 安装包后缀
           - electron_arch: ia32  # electron-builder 对 32 位使用 ia32（固定值，不可改）
-            res_arch: x86        # 对应 resources/aria2c-x86.exe
+            res_arch: ia32       # 对应 resources/aria2/win32/ia32/
             suffix: x86
 
     steps:
@@ -69,9 +69,10 @@ jobs:
       - name: 单元测试
         run: npm run test:run
 
-      # aria2 已随仓库提交，按目标架构就地复制即可，无需联网下载
-      - name: 准备对应架构的 aria2c
-        run: node scripts/prepare-aria2c.mjs ${{ matrix.res_arch }}
+      # aria2 已随仓库提交（resources/aria2/win32/<arch>/），这里只校验目标架构的引擎就位，
+      # 不联网下载——引擎版本必须与代码一起评审、一起发版
+      - name: 校验目标架构的 aria2c
+        run: node scripts/verify-engine.mjs win32 ${{ matrix.res_arch }}
 
       # 扩展静态校验（语言包结构 / manifest 引用 / i18n 一致性 / 接口端口一致性），
       # 这类问题只能在浏览器里暴露，必须在构建期拦住
@@ -96,6 +97,16 @@ jobs:
       # 仅构建 zip 便携版
       - name: 构建便携版 zip
         run: npx electron-builder --win --publish never --${{ matrix.electron_arch }} --config.win.target=zip --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-portable.${ext}'
+
+      # 为安装包生成差量块表（<Setup.exe>.blocks.json，应用端增量更新用它对照新旧分块，
+      # hash 相同的块从本地旧包复制、只下载变化部分）。格式与 electron/utils/deltaBlocks.ts 对齐；
+      # 便携 zip 不生成——应用内更新只走 NSIS 安装包
+      - name: 生成差量块表
+        shell: pwsh
+        run: |
+          Get-ChildItem release -Filter "*-Setup.exe" | ForEach-Object {
+            node scripts/generate-delta-blocks.mjs $_.FullName
+          }
 
       # 使用仓库中预写的更新日志（.github/release-notes.md，需在推送 tag 前更新并提交）
       #
@@ -165,6 +176,7 @@ jobs:
           $tag = '${{ github.ref_name }}'
           $assets = @(
             Get-ChildItem release -Filter "*-Setup.exe"
+            Get-ChildItem release -Filter "*-Setup.exe.blocks.json"
             Get-ChildItem release -Filter "*-portable.zip"
             Get-ChildItem release -Filter "*.zip" | Where-Object { $_.Name -like "Aria2Desktop-Extension*" }
             Get-ChildItem release -Filter "*.crx"

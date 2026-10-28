@@ -12,6 +12,8 @@ import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import { isAllowedExternalUrl } from '../utils/externalUrlCore'
 import { checkYtdlpAvailable, getVideoInfo, getFormatUrl } from '../services/ytdlpService'
+import { extractArchive } from '../services/archiveService'
+import { getAutoLaunchEnabled, setAutoLaunchEnabled } from '../services/autoLaunch'
 import { PluginManager } from '../services/pluginManager'
 import { createLogger } from '../utils/logger'
 // 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
@@ -58,6 +60,28 @@ function runSystemCommand(file: string, args: string[]): Promise<void> {
   })
 }
 
+/**
+ * 判定路径是否位于下载根目录内（realpath + 大小写不敏感比较）。
+ *
+ * 与 delete-files 用同一口径：先解析符号链接，再做前缀比较，
+ * 避免"校验时是链接、删除时已指向别处"的 TOCTOU 绕过。
+ */
+async function isInsideDownloadRoot(targetPath: string, rootDir: string): Promise<boolean> {
+  const realPathIfExists = async (p: string): Promise<string> => {
+    try {
+      return fs.existsSync(p) ? await fs.promises.realpath(p) : p
+    } catch {
+      return p
+    }
+  }
+  const isWindows = process.platform === 'win32'
+  const normalizeCase = (p: string): string => (isWindows ? p.toLowerCase() : p)
+
+  const root = normalizeCase(await realPathIfExists(path.resolve(rootDir)))
+  const target = normalizeCase(await realPathIfExists(path.resolve(targetPath)))
+  return target === root || target.startsWith(root + path.sep)
+}
+
 export class IpcController {
   private windowController: WindowController
   private trayController: TrayController
@@ -80,9 +104,10 @@ export class IpcController {
     this.pluginManager = new PluginManager(store)
   }
 
-  /** 关闭插件管理器（应用退出时调用） */
+  /** 关闭插件管理器与应用退出时的收尾（应用退出时调用） */
   public shutdown(): void {
     this.pluginManager.shutdown()
+    this.updateController.stopScheduledCheck()
   }
 
   public registerHandlers() {
@@ -93,6 +118,8 @@ export class IpcController {
     this.registerPluginHandlers()
     this.aria2Controller.registerIpcHandlers()
     this.pluginManager.loadAll()
+    // 每日更新复查：托盘常驻的用户可能数天不重启，只靠启动检查会长期错过新版本
+    this.updateController.startScheduledCheck()
   }
 
   /**
@@ -120,25 +147,23 @@ export class IpcController {
       path: app.getPath('downloads').replace(/\\/g, '/')
     }), { getMainWindow: this.windowRef })
 
-    // 开机自启：查询当前是否已启用（仅 Windows 支持）
+    // 开机自启：查询当前状态（Windows/macOS 走系统登录项，Linux 查 XDG autostart 文件）
     registerSecureHandler('get-auto-launch', () => {
       try {
-        const openAtLogin = app.getLoginItemSettings().openAtLogin
-        return { success: true, enabled: openAtLogin }
+        return { success: true, enabled: getAutoLaunchEnabled() }
       } catch (e) {
         return { success: false, error: String(e) }
       }
     }, { getMainWindow: this.windowRef })
 
-    // 开机自启：设置启用/禁用（仅 Windows 支持）
+    // 开机自启：设置启用/禁用（三平台，见 services/autoLaunch 的说明）
     registerSecureHandler('set-auto-launch', (event, enabled: boolean) => {
       try {
-        app.setLoginItemSettings({
-          openAtLogin: !!enabled,
-          path: process.execPath
-        })
-        return { success: true, enabled: !!enabled }
+        setAutoLaunchEnabled(!!enabled)
+        // 回报真实状态：写入可能被系统策略拦下，避免"显示已开启但实际没生效"
+        return { success: true, enabled: getAutoLaunchEnabled() }
       } catch (e) {
+        logger.warn('[IpcController] 设置开机自启失败:', e)
         return { success: false, error: String(e) }
       }
     }, { getMainWindow: this.windowRef })
@@ -455,6 +480,30 @@ export class IpcController {
       'resolve-download-conflict',
       async (_event, dir, fileName) => await resolveConflictingFileName(dir, fileName),
       { getMainWindow: this.windowRef, failureValue: { fileName: '', conflict: false } }
+    )
+
+    /**
+     * 下载完成后自动解压（渲染层在任务完成时调用，仅在设置开启时触发）。
+     *
+     * 与 delete-files 同一套路径边界：压缩包必须落在用户配置的下载目录内，
+     * 否则等于把"解压任意目录下的文件"能力交给了渲染层。
+     * 具体格式支持与执行细节见 services/archiveService。
+     */
+    registerSecureHandler<[string], Promise<{ success: boolean; extracted: boolean; reason?: string; targetDir?: string }>>(
+      'archive-extract',
+      async (_event, filePath) => {
+        if (typeof filePath !== 'string' || !filePath.trim()) {
+          return { success: false, extracted: false, reason: 'invalid_path' }
+        }
+        const baseDir = resolveBaseDownloadDir(getSettingsFresh() ?? undefined)
+        const target = path.resolve(path.normalize(filePath.trim()))
+        if (!baseDir || !(await isInsideDownloadRoot(target, baseDir))) {
+          logger.warn('[IpcController] 拦截解压：路径不在下载目录内')
+          return { success: false, extracted: false, reason: 'path_not_allowed' }
+        }
+        return await extractArchive(target)
+      },
+      { getMainWindow: this.windowRef, failureValue: { success: false, extracted: false, reason: 'Unauthorized' } }
     )
 
     registerSecureHandler('delete-files', async (event, filePaths: string[], taskDir?: string) => {

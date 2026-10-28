@@ -81,7 +81,10 @@ export function useSettingSchema<T extends object>(schema: SettingSchema, form: 
   function applyOptions(options: Aria2Option): void {
     const target = form as Record<string, unknown>
     for (const field of schema.fields) {
-      const raw = options[field.aria2Key]
+      const optionValue = options[field.aria2Key]
+      // 设置页只涉及标量选项；`header` 这类数组选项（仅按任务下发）不参与设置页读写，
+      // 数组值统一折叠为首项，避免污染表单字段类型
+      const raw = Array.isArray(optionValue) ? optionValue[0] : optionValue
       target[field.key] = field.optionToValue
         ? field.optionToValue(raw)
         : defaultOptionToValue(field, raw)

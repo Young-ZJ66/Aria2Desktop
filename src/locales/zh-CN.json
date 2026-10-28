@@ -118,7 +118,13 @@
     "mode": "模式",
     "announceList": "宣布列表",
     "andMore": "等 {count} 个",
-    "uriStatus": "状态"
+    "uriStatus": "状态",
+    "seeders": "已连接种子",
+    "connections": "已连接 Peer",
+    "selfSeeding": "正在做种",
+    "healthNoSeeder": "未连上任何种子（做种者），速度可能很慢或停滞",
+    "healthSeeders": "{count} 个种子在线",
+    "healthSeeding": "本机正在做种"
   },
   "taskPeer": {
     "ip": "IP 地址",
@@ -195,6 +201,15 @@
     "minSplitSize": "分片大小",
     "autoStart": "自动开始",
     "options": "任务选项",
+    "advancedOptions": "请求头（可选）",
+    "advancedOptionsTip": "需要登录的站点可在这里补上浏览器里的 Cookie / Referer，否则下载会返回 403",
+    "referer": "Referer",
+    "refererPlaceholder": "如 https://example.com/page",
+    "userAgent": "User-Agent",
+    "userAgentPlaceholder": "留空则使用引擎默认值",
+    "customHeaders": "自定义请求头",
+    "customHeadersPlaceholder": "每行一条，如 Cookie: k=v",
+    "requestHeadersTip": "请求头随任务下发，仅本次生效；请勿填入来源不明的凭据",
     "startDownload": "开始下载",
     "reset": "重置",
     "invalidUrl": "请输入有效的下载链接",
@@ -234,7 +249,8 @@
     "speedLimitOff": "限速已关闭"
   },
   "notification": {
-    "downloadComplete": "下载完成"
+    "downloadComplete": "下载完成",
+    "archiveExtracted": "已自动解压"
   },
   "statusPage": {
     "title": "Aria2 状态",
@@ -848,6 +864,10 @@
     "downloadCompleteAction": "下载全部完成后",
     "downloadCompleteActionTip": "所有下载任务完成后自动执行的操作",
     "downloadCompleteActionFailed": "「下载全部完成后」设置保存失败：{error}",
+    "autoExtract": "下载完成后自动解压",
+    "autoExtractTip": "压缩包下载完成后自动解压到所在目录（支持 zip / 7z / tar 系；RAR 不支持，需手动解压）",
+    "autoExtractFailed": "自动解压失败：{error}",
+    "autoExtractUnavailable": "系统缺少 tar 命令，无法自动解压",
     "shutdownFailed": "关机未能执行：{error}",
     "hibernateFailed": "休眠未能执行：{error}",
     "actionNone": "不操作",

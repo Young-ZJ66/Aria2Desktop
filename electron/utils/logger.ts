@@ -1,5 +1,5 @@
 import log from 'electron-log/main'
-import { app } from 'electron'
+import { isDevMode } from './appEnv'
 
 /**
  * 主进程统一日志（electron-log 薄封装）。
@@ -35,8 +35,9 @@ export function setupLogging(): void {
   if (initialized) return
   initialized = true
 
-  // 未打包（开发）时控制台全量输出，打包后只留 warn/error
-  const isDev = !app.isPackaged
+  // 未打包（开发）时控制台全量输出，打包后只留 warn/error。
+  // 口径统一走 appEnv（Electron 43 下 app.isPackaged 在开发态也可能为 true，见该模块注释）
+  const isDev = isDevMode
 
   // 文件：保留 info 及以上；路径使用 electron-log 默认（<userData>/logs/main.log），
   // 与项目其它数据（config/aria2/persisted-tasks）同处 userData，便于整体收集

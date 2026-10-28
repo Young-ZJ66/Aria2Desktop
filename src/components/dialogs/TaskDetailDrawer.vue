@@ -173,7 +173,9 @@ async function fetchTaskBase(): Promise<Aria2Task | null> {
     foundTask = await connectionStore.service.tellStatus(gid.value, [
       'gid', 'status', 'totalLength', 'completedLength', 'uploadLength',
       'downloadSpeed', 'uploadSpeed', 'connections', 'numPieces', 'pieceLength',
-      'dir', 'files', 'bittorrent', 'errorCode', 'errorMessage'
+      'dir', 'files', 'bittorrent', 'errorCode', 'errorMessage',
+      // BT 健康度依赖这两个字段：numSeeders 是已连上的做种者数量，seeder 表示本机是否在做种
+      'numSeeders', 'seeder'
     ])
   }
 

@@ -128,6 +128,97 @@ export function isPlainFileName(name: string): boolean {
   return !!name && sanitizeDownloadFileName(name) === name
 }
 
+/** 净化后的请求头：referer/user-agent 走 aria2 专用选项，其余进 header 数组 */
+export interface SanitizedRequestHeaders {
+  /** 任意请求头，每项形如 `Name: value`（不含 user-agent / referer） */
+  header: string[]
+  userAgent: string
+  referer: string
+}
+
+/** 单条请求头最大长度（含名称） */
+const MAX_HEADER_ENTRY_LENGTH = 4096
+/** 请求头总长度上限：足够覆盖登录态 cookie，又不会让接口成为数据通道 */
+const MAX_HEADER_TOTAL_LENGTH = 16384
+/** 单次任务允许的请求头条数上限 */
+const MAX_HEADER_COUNT = 24
+/** HTTP 头名称的合法字符（RFC 7230 token） */
+const HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
+/** 逐跳头与长度相关头：交给 aria2/HTTP 栈自己决定，强行覆盖只会让请求失效 */
+const BLOCKED_HEADER_NAMES = new Set([
+  'host',
+  'content-length',
+  'transfer-encoding',
+  'connection',
+  'keep-alive',
+  'upgrade',
+  'proxy-connection'
+])
+
+/**
+ * 净化扩展带来的请求头（`/api/add` 的 `headers` 字段）。
+ *
+ * 为什么必须净化：这些值最终会成为 aria2 的 `header` / `user-agent` / `referer` 选项，
+ * 原样下发等于把"往下载请求里塞任意内容"的能力交给了调用方。实测风险有两类：
+ * - 头值里的 CR/LF 可以**注入额外的请求头或请求体**（HTTP 响应/请求拆分）；
+ * - `host` 之类的头被改写会让 aria2 连到非目标主机，绕过用户对下载地址的认知。
+ *
+ * 规则：只接受 `Name: value` 形态的字符串数组；名称按 RFC 7230 token 校验并剔除
+ * 逐跳头；值长度与总长度都有上限；名称大小写归一为小写，`referer` / `user-agent`
+ * 提升为专用字段（aria2 对这两个有独立选项，混在 header 里会被覆盖）。
+ *
+ * 放在本模块（不 import electron）是为了可单测——判错一次就是请求拆分漏洞。
+ */
+export function sanitizeRequestHeaders(input: unknown): SanitizedRequestHeaders {
+  const result: SanitizedRequestHeaders = { header: [], userAgent: '', referer: '' }
+  if (!Array.isArray(input)) return result
+
+  let total = 0
+  let accepted = 0
+  for (const raw of input) {
+    if (accepted >= MAX_HEADER_COUNT) break
+    if (typeof raw !== 'string') continue
+
+    // CR/LF 一律拒绝（不 trim 掉，直接判整条非法）：否则 `X-A: 1\r\nCookie: x` 会被拆成两条头
+    if (raw.includes('\r') || raw.includes('\n') || raw.length > MAX_HEADER_ENTRY_LENGTH) continue
+
+    const colon = raw.indexOf(':')
+    if (colon <= 0) continue
+
+    const name = raw.slice(0, colon).trim().toLowerCase()
+    const value = raw.slice(colon + 1).trim()
+    if (!HEADER_NAME_PATTERN.test(name) || !value) continue
+    if (BLOCKED_HEADER_NAMES.has(name)) continue
+
+    total += raw.length
+    if (total > MAX_HEADER_TOTAL_LENGTH) break
+    accepted++
+
+    if (name === 'user-agent') {
+      result.userAgent = value.slice(0, 512)
+      continue
+    }
+    if (name === 'referer') {
+      result.referer = sanitizeReferer(value)
+      continue
+    }
+    result.header.push(`${name}: ${value}`)
+  }
+
+  return result
+}
+
+/** referer 只接受 http(s) 绝对地址（aria2 会原样作为 Referer 发出） */
+function sanitizeReferer(value: string): string {
+  if (value.length > 2048) return ''
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? value : ''
+  } catch {
+    return ''
+  }
+}
+
 /**
  * 配对请求的来源校验（/api/pair 是**唯一**不需要密钥的端点，因此来源必须从严）：
  * Origin 必须存在且是 chrome-extension:// 协议（浏览器上下文里只有扩展能发出这种源），

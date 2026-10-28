@@ -29,6 +29,8 @@ export const useUiStore = defineStore('ui', () => {
   const updateVersion = ref('')
   const updateNotes = ref('')
   const updatePercent = ref(0)
+  /** 该平台不支持应用内安装（macOS/Linux）：弹窗改为引导用户去 Release 页下载 */
+  const updateManualDownload = ref(false)
 
   function openNewTask() {
     showNewTask.value = true
@@ -73,10 +75,11 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   /** 打开更新弹窗（已知新版本时），initialState 用于跳过已完成的下载环节 */
-  function openUpdateDialog(options: { version: string; notes?: string; state?: UpdateDialogState }) {
+  function openUpdateDialog(options: { version: string; notes?: string; state?: UpdateDialogState; manualDownload?: boolean }) {
     updateVersion.value = options.version
     updateNotes.value = options.notes || ''
     updateDialogState.value = options.state || 'prompt'
+    updateManualDownload.value = options.manualDownload === true
     updatePercent.value = 0
     showUpdateDialog.value = true
   }
@@ -97,6 +100,7 @@ export const useUiStore = defineStore('ui', () => {
     updateVersion,
     updateNotes,
     updatePercent,
+    updateManualDownload,
     openNewTask,
     openNewTaskWithUrl,
     openNewTaskWithFile,

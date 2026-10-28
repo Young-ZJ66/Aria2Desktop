@@ -13,6 +13,7 @@ import { ExtensionApiServer } from './services/extensionApiServer'
 import { appState } from './utils/appState'
 import { bindSettingsStore, getSettings } from './utils/settingsAccessor'
 import { setupLogging, createLogger } from './utils/logger'
+import { isPackagedApp } from './utils/appEnv'
 import type { StoreData } from './types/store'
 
 // 日志初始化尽早执行：后续所有模块的日志都走统一出口（级别/落盘策略见 utils/logger.ts）
@@ -48,7 +49,16 @@ process.on('uncaughtException', (error) => {
 // 注意：这不会让开发模式的任务栏图标变成自定义图标（任务栏取的是 exe 内嵌图标 /
 // AUMID 关联快捷方式的图标），它解决的是通知归属与任务栏分组。
 if (process.platform === 'win32') {
-  app.setAppUserModelId(app.isPackaged ? 'com.aria2desktop.app' : process.execPath)
+  app.setAppUserModelId(isPackagedApp ? 'com.aria2desktop.app' : process.execPath)
+}
+
+// Linux AppImage：Chromium 的 setuid 沙箱依赖 `chrome-sandbox` 具备 root:4755 权限，
+// 而 AppImage 以只读镜像挂载，安装时无法设置该权限位，启动即报
+// "The SUID sandbox helper binary was found, but is not configured correctly"。
+// 因此**仅在 AppImage 运行时**关闭沙箱；deb/rpm 安装包由 electron-builder 正确设置权限位，
+// 保持沙箱开启（不无条件 --no-sandbox，避免把整个 Linux 平台的安全性一起降级）。
+if (process.platform === 'linux' && process.env.APPIMAGE) {
+  app.commandLine.appendSwitch('no-sandbox')
 }
 
 // ==========================================
@@ -57,7 +67,7 @@ if (process.platform === 'win32') {
 
 /** 应用可执行文件所在目录（仅用于定位旧版数据） */
 const getAppDirectory = () => {
-  if (app.isPackaged) {
+  if (isPackagedApp) {
     return path.dirname(process.execPath)
   } else {
     return process.cwd()
@@ -239,8 +249,13 @@ windowController.setOnRendererReady(flushPendingUrls)
 if (!gotTheLock) {
   app.quit()
 } else {
-  // 注册 magnet: 协议处理器（生产环境才注册，避免干扰开发环境）
-  if (app.isPackaged) {
+  // 注册 magnet: 协议处理器（生产环境才注册，避免干扰开发环境）。
+  // 各平台的落地方式不同，但都由打包配置提供底层声明：
+  // - Windows：写注册表，无需额外声明；
+  // - macOS：需要 Info.plist 的 CFBundleURLTypes（package.json build.protocols 生成），
+  //   LSSetDefaultHandlerForURLScheme 才会生效；
+  // - Linux：需要 .desktop 声明 x-scheme-handler/magnet（build.linux.mimeTypes）。
+  if (isPackagedApp) {
     app.setAsDefaultProtocolClient('magnet')
   }
 

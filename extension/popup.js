@@ -42,6 +42,11 @@ function initI18n() {
   $('interceptDesc').textContent = i18n('interceptAllDesc')
   $('allowProbeLabel').textContent = i18n('allowProbe')
   $('allowProbeDesc').textContent = i18n('allowProbeDesc')
+  $('allowCookiesLabel').textContent = i18n('allowCookies')
+  $('allowCookiesDesc').textContent = i18n('allowCookiesDesc')
+
+  $('mediaTitle').textContent = i18n('mediaSection')
+  $('mediaDetectBtn').textContent = i18n('mediaDetect')
 
   $('manualTitle').textContent = i18n('manualTitle')
   $('hostLabel').textContent = i18n('host')
@@ -111,15 +116,33 @@ function switchTab(name) {
   $('tabConnect').setAttribute('aria-selected', String(!isSend))
 }
 
+/** 当前标签页地址：既用于预填，也作为发送时的 Referer（仅同源时） */
+let activeTabUrl = ''
+
 /** 读取当前标签页地址填入快捷发送框（仅 http/https，避免填入 chrome:// 这类无意义地址） */
 async function prefillFromActiveTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     const url = tab?.url || ''
     if (/^https?:\/\//i.test(url)) {
+      activeTabUrl = url
       $('quickUrl').value = url
     }
   } catch { /* 无权限或取不到时留空即可 */ }
+}
+
+/**
+ * 发送时该带哪个 Referer：只有目标与当前页同源时才把页面地址当作 Referer。
+ * 手动粘贴的第三方链接带上无关页面的 Referer 只会让服务器更可疑。
+ */
+function refererFor(url) {
+  try {
+    const target = new URL(url)
+    const page = activeTabUrl ? new URL(activeTabUrl) : null
+    return page && page.origin === target.origin ? page.href : ''
+  } catch {
+    return ''
+  }
 }
 
 // Load saved config
@@ -132,6 +155,7 @@ async function loadConfig() {
     $('enabled').checked = response.enabled !== false
     $('interceptAll').checked = response.interceptAll === true
     $('allowProbe').checked = response.allowProbe === true
+    $('allowCookies').checked = response.allowCookies === true
   }
   applyPairingUi(!!response?.secret)
   return response
@@ -212,7 +236,11 @@ async function sendCurrentUrl() {
   btn.disabled = true
   btn.textContent = i18n('sending')
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'sendToAria2', url })
+    const response = await chrome.runtime.sendMessage({
+      action: 'sendToAria2',
+      url,
+      pageUrl: refererFor(url)
+    })
     if (response?.success) {
       // 结果直接可见：重名改名 > 分类子目录 > 未识别到分类，不让人猜
       if (response.conflict && response.renamed) {
@@ -333,7 +361,8 @@ async function saveConfig() {
         secret: $('secret').value.trim(),
         enabled: $('enabled').checked,
         interceptAll: $('interceptAll').checked,
-        allowProbe: $('allowProbe').checked
+        allowProbe: $('allowProbe').checked,
+        allowCookies: $('allowCookies').checked
       }
     })
     if (response?.success) {
@@ -351,10 +380,11 @@ async function saveConfig() {
 }
 
 /**
- * 开关切换即保存：读取已保存配置 → 只替换开关字段 → 存回。
- * enabled / interceptAll 两个开关共用这一个入口（allowProbe 因涉及权限申请单独处理）。
+ * 开关切换即保存：读取已保存配置 → 只替换变化的字段 → 存回。
+ * 走"读-合并-写"而不是用表单值：表单里可能有用户尚未保存的其它输入，
+ * 顺手存进去会让"切换一个开关"变成"提交整页设置"。
  */
-async function persistToggle(key, value) {
+async function patchConfig(patch) {
   const current = await getConfigSafe()
   const config = {
     host: current?.host || 'localhost',
@@ -362,10 +392,11 @@ async function persistToggle(key, value) {
     secret: current?.secret || '',
     enabled: current?.enabled !== false,
     interceptAll: current?.interceptAll === true,
-    allowProbe: current?.allowProbe === true
+    allowProbe: current?.allowProbe === true,
+    allowCookies: current?.allowCookies === true,
+    ...patch
   }
-  config[key] = value
-  await chrome.runtime.sendMessage({ action: 'saveConfig', config })
+  return await chrome.runtime.sendMessage({ action: 'saveConfig', config })
 }
 
 // Test connection
@@ -383,40 +414,172 @@ async function testConnection() {
  */
 $('allowProbe').addEventListener('change', async (event) => {
   const enabled = event.target.checked
-  if (enabled) {
-    try {
-      const granted = await chrome.permissions.request({ origins: ['http://*/*', 'https://*/*'] })
-      if (!granted) {
-        event.target.checked = false
-        showFeedback(i18n('probePermissionDenied'), true)
-        return
-      }
-    } catch {
-      event.target.checked = false
-      showFeedback(i18n('probePermissionDenied'), true)
-      return
-    }
-  } else {
-    try {
-      await chrome.permissions.remove({ origins: ['http://*/*', 'https://*/*'] })
-    } catch { /* 忽略 */ }
-  }
-  await persistAllowProbe(enabled)
+  if (!(await requestSiteAccess(enabled, event, 'probePermissionDenied'))) return
+  const saved = await patchConfig({ allowProbe: enabled })
+  if (saved?.success) showFeedback(i18n(enabled ? 'probeEnabled' : 'probeDisabled'))
 })
 
-/** 只持久化 allowProbe 标志（读取已保存的配置，避免误存表单里尚未保存的其他输入） */
-async function persistAllowProbe(enabled) {
-  const current = await chrome.runtime.sendMessage({ action: 'getConfig' })
-  const config = {
-    host: current?.host || 'localhost',
-    port: current?.port || 6800,
-    secret: current?.secret || '',
-    enabled: current?.enabled !== false,
-    interceptAll: current?.interceptAll === true,
-    allowProbe: enabled
+/**
+ * 「携带页面 Cookie」开关。
+ * 与探测共用同一组站点权限：读 cookie 必须对该站点有宿主权限，
+ * 而扩展只在点击图标时通过 activeTab 临时获得——要让拦截下载/右键菜单也带 Cookie，
+ * 就必须由用户显式授予全站访问权限。
+ */
+$('allowCookies').addEventListener('change', async (event) => {
+  const enabled = event.target.checked
+  // cookies 是可选权限：开启时必须一并申请，否则后台读不到 Cookie（chrome.cookies 为 undefined）
+  if (!(await requestSiteAccess(enabled, event, 'cookiesPermissionDenied', ['cookies']))) return
+  const saved = await patchConfig({ allowCookies: enabled })
+  if (saved?.success) showFeedback(i18n(enabled ? 'cookiesEnabled' : 'cookiesDisabled'))
+})
+
+/**
+ * 申请扩展 API 权限（cookies / scripting 为**可选权限**，manifest 里没声明为必选）。
+ *
+ * 为什么做成可选：这两项只在用户开启对应功能时才需要（携带 Cookie / 检测本页视频），
+ * 必选会让所有安装者都看到"读取 Cookie"这类敏感授权提示，安装阻力与商店审核成本都更高。
+ * `chrome.permissions.request` 必须在**用户手势**里调用，因此只能在弹窗的点击/开关事件中执行，
+ * 不能由 Service Worker 代办。
+ */
+async function ensurePermissions(permissions) {
+  try {
+    if (!chrome.permissions?.request) return false
+    const has = await chrome.permissions.contains({ permissions })
+    if (has) return true
+    return await chrome.permissions.request({ permissions })
+  } catch {
+    return false
   }
-  const saved = await chrome.runtime.sendMessage({ action: 'saveConfig', config })
-  if (saved?.success) showFeedback(i18n(enabled ? 'probeEnabled' : 'probeDisabled'))
+}
+
+/**
+ * 申请/收回全站访问权限 + 可选 API 权限。返回 false 表示用户拒绝，调用方需把开关状态回滚。
+ *
+ * 关闭时的收权是"按需"的：全站 origins 被"探测文件名"与"携带 Cookie"两个开关共用，
+ * 只有两个都关掉时才收回，否则关一个会把另一个也弄坏（权限被撤，功能静默失效）。
+ */
+async function requestSiteAccess(enabled, event, deniedKey, permissions = []) {
+  try {
+    if (enabled) {
+      const granted = await chrome.permissions.request({
+        origins: ['http://*/*', 'https://*/*'],
+        ...(permissions.length ? { permissions } : {})
+      })
+      if (!granted) {
+        event.target.checked = false
+        showFeedback(i18n(deniedKey), true)
+        return false
+      }
+      return true
+    }
+
+    // 关闭：只收回本开关独有的权限；站点权限留给仍开着的那一方
+    const config = await getConfigSafe()
+    const otherUsesSites = permissions.includes('cookies')
+      ? config?.allowProbe === true            // 关 Cookie：探测仍可能要站点权限
+      : config?.allowCookies === true          // 关探测：Cookie 仍可能要站点权限
+    const removeSpec = {}
+    if (permissions.length) removeSpec.permissions = permissions
+    if (!otherUsesSites) removeSpec.origins = ['http://*/*', 'https://*/*']
+    if (Object.keys(removeSpec).length) {
+      await chrome.permissions.remove(removeSpec).catch(() => { /* 收权失败不影响开关本身 */ })
+    }
+    return true
+  } catch {
+    event.target.checked = false
+    showFeedback(i18n(deniedKey), true)
+    return false
+  }
+}
+
+/** 本页视频：检测 → 列出可直接下载的地址 → 一键发送 */
+async function detectMedia() {
+  const btn = $('mediaDetectBtn')
+  btn.disabled = true
+  btn.textContent = i18n('mediaDetecting')
+  $('mediaList').hidden = true
+  $('mediaHint').hidden = true
+  try {
+    // scripting 是可选权限：首次点击时在用户手势内申请，拒绝则如实提示
+    if (!(await ensurePermissions(['scripting']))) {
+      $('mediaHint').textContent = i18n('mediaPermissionDenied')
+      $('mediaHint').hidden = false
+      return
+    }
+    const response = await chrome.runtime.sendMessage({ action: 'detectPageMedia' })
+    if (!response?.success) {
+      $('mediaHint').textContent = response?.error || i18n('mediaPermissionDenied')
+      $('mediaHint').hidden = false
+      return
+    }
+    renderMedia(response.items || [], response.pageUrl || '')
+  } catch {
+    $('mediaHint').textContent = i18n('mediaPermissionDenied')
+    $('mediaHint').hidden = false
+  } finally {
+    btn.disabled = false
+    btn.textContent = i18n('mediaDetect')
+  }
+}
+
+/**
+ * 渲染检测结果。只有 `file` 类型可一键发送：
+ * `blob:` 是页面用 MSE 拼出来的，`m3u8/mpd` 是分片清单——两者直接交给 aria2
+ * 只会得到一个无法播放的小文件，因此如实告知改用 App 的流媒体模式。
+ */
+function renderMedia(items, pageUrl) {
+  const list = $('mediaList')
+  list.textContent = ''
+  const downloadable = items.filter(item => item.kind === 'file' && /^https?:\/\//i.test(item.url))
+
+  if (downloadable.length === 0) {
+    const hasStream = items.some(item => item.kind === 'stream')
+    const hasBlob = items.some(item => item.kind === 'blob')
+    $('mediaHint').textContent = hasStream
+      ? i18n('mediaStreamHint')
+      : hasBlob ? i18n('mediaBlobHint') : i18n('mediaNone')
+    $('mediaHint').hidden = false
+    return
+  }
+
+  for (const item of downloadable) {
+    const row = document.createElement('div')
+    row.className = 'media-item'
+
+    const ext = (item.url.split('?')[0]?.split('.').pop() || '').toUpperCase()
+    const badge = document.createElement('span')
+    badge.className = 'media-kind'
+    badge.textContent = ext.length > 0 && ext.length <= 5 ? ext : i18n('mediaSection')
+    row.appendChild(badge)
+
+    const text = document.createElement('span')
+    text.className = 'media-url'
+    text.textContent = item.label || decodeURIComponent(item.url.split('/').pop() || item.url)
+    text.title = item.url
+    row.appendChild(text)
+
+    const sendBtn = document.createElement('button')
+    sendBtn.type = 'button'
+    sendBtn.textContent = i18n('mediaSend')
+    sendBtn.addEventListener('click', async () => {
+      sendBtn.disabled = true
+      try {
+        const result = await chrome.runtime.sendMessage({
+          action: 'sendToAria2',
+          url: item.url,
+          pageUrl
+        })
+        if (result?.success) showFeedback(i18n('sendSuccessUnclassified'))
+        else showFeedback(result?.error || i18n('errUnknown'), true)
+      } finally {
+        sendBtn.disabled = false
+      }
+    })
+    row.appendChild(sendBtn)
+
+    list.appendChild(row)
+  }
+  list.hidden = false
 }
 
 // Event listeners
@@ -435,13 +598,14 @@ $('pairBtn').addEventListener('click', startPairing)
 $('unpairBtn').addEventListener('click', unpair)
 $('saveBtn').addEventListener('click', saveConfig)
 $('testBtn').addEventListener('click', testConnection)
+$('mediaDetectBtn').addEventListener('click', detectMedia)
 
-// 开关即时保存（allowProbe 因涉及权限申请单独处理，见上）
+// 开关即时保存（allowProbe / allowCookies 涉及权限申请，见上）
 $('enabled').addEventListener('change', async (event) => {
-  await persistToggle('enabled', event.target.checked)
+  await patchConfig({ enabled: event.target.checked })
   if (!event.target.checked) showFeedback(i18n('errDisabled'), true)
 })
-$('interceptAll').addEventListener('change', (event) => persistToggle('interceptAll', event.target.checked))
+$('interceptAll').addEventListener('change', (event) => patchConfig({ interceptAll: event.target.checked }))
 
 // 配对结果由后台写入 storage：监听变化，弹窗开着就实时刷新（关了也不影响配对本身）
 chrome.storage.onChanged.addListener((changes, area) => {

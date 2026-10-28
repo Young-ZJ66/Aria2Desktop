@@ -17,14 +17,16 @@
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "dist:win64": "npm run dist:win64:prepare && npm run dist:win64:nsis && npm run dist:win64:portable",
-    "dist:win64:prepare": "npm run build && node scripts/prepare-aria2c.mjs x64",
+    "dist:win64:prepare": "npm run build && node scripts/verify-engine.mjs win32 x64",
     "dist:win64:nsis": "electron-builder --win --x64 --config.win.target=nsis --config.win.artifactName=\"Aria2Desktop-${version}-x64-Setup.${ext}\"",
     "dist:win64:portable": "electron-builder --win --x64 --config.win.target=zip --config.win.artifactName=\"Aria2Desktop-${version}-x64-portable.${ext}\"",
     "dist:win32": "npm run dist:win32:prepare && npm run dist:win32:nsis && npm run dist:win32:portable",
-    "dist:win32:prepare": "npm run build && node scripts/prepare-aria2c.mjs x86",
+    "dist:win32:prepare": "npm run build && node scripts/verify-engine.mjs win32 ia32",
     "dist:win32:nsis": "electron-builder --win --ia32 --config.win.target=nsis --config.win.artifactName=\"Aria2Desktop-${version}-x86-Setup.${ext}\"",
     "dist:win32:portable": "electron-builder --win --ia32 --config.win.target=zip --config.win.artifactName=\"Aria2Desktop-${version}-x86-portable.${ext}\"",
     "dist:win-all": "npm run dist:win64 && npm run dist:win32",
+    "dist:mac": "npm run build && node scripts/verify-engine.mjs darwin x64 && node scripts/verify-engine.mjs darwin arm64 && electron-builder --mac",
+    "dist:linux": "npm run build && node scripts/verify-engine.mjs linux x64 && electron-builder --linux --x64",
     "pack:extension": "node scripts/pack-extension-crx.mjs",
     "pack:extension-zip": "node scripts/pack-extension-zip.mjs",
     "check:extension": "node scripts/check-extension.mjs",
@@ -73,7 +75,6 @@
   "build": {
     "appId": "com.aria2desktop.app",
     "productName": "Aria2Desktop",
-    "icon": "build/Icon.ico",
     "compression": "normal",
     "publish": [
       {
@@ -100,14 +101,12 @@
       "dist/vue/**/*",
       "build/**/*"
     ],
-    "extraResources": [
+    "protocols": [
       {
-        "from": "resources/aria2c.exe",
-        "to": "aria2c.exe"
-      },
-      {
-        "from": "build/Icon.ico",
-        "to": "Icon.ico"
+        "name": "Magnet",
+        "schemes": [
+          "magnet"
+        ]
       }
     ],
     "win": {
@@ -115,7 +114,17 @@
       "icon": "build/Icon.ico",
       "signAndEditExecutable": true,
       "artifactName": "Aria2Desktop-${version}-${arch}-Setup.${ext}",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "extraResources": [
+        {
+          "from": "resources/aria2/win32/${arch}/aria2c.exe",
+          "to": "aria2c.exe"
+        },
+        {
+          "from": "build/Icon.ico",
+          "to": "Icon.ico"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -129,6 +138,83 @@
       "shortcutName": "Aria2 Desktop",
       "perMachine": false,
       "runAfterFinish": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.png",
+      "artifactName": "Aria2Desktop-${version}-${arch}.${ext}",
+      "identity": null,
+      "hardenedRuntime": false,
+      "darkModeSupport": true,
+      "extraResources": [
+        {
+          "from": "resources/aria2/darwin/${arch}/aria2c",
+          "to": "aria2c"
+        },
+        {
+          "from": "build/icon.png",
+          "to": "icon.png"
+        }
+      ]
+    },
+    "dmg": {
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 410,
+          "y": 230,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 130,
+          "y": 230,
+          "type": "file"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network",
+      "icon": "build/icon.png",
+      "artifactName": "Aria2Desktop-${version}-${arch}.${ext}",
+      "mimeTypes": [
+        "x-scheme-handler/magnet",
+        "application/x-bittorrent",
+        "application/x-metallink"
+      ],
+      "extraResources": [
+        {
+          "from": "resources/aria2/linux/${arch}/aria2c",
+          "to": "aria2c"
+        },
+        {
+          "from": "build/icon.png",
+          "to": "icon.png"
+        }
+      ]
     }
   },
   "allowScripts": {

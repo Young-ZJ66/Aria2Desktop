@@ -34,6 +34,9 @@ const electronAPI = {
   resolveDownloadConflict: (dir: string, fileName: string) =>
     ipcRenderer.invoke('resolve-download-conflict', dir, fileName),
 
+  // 下载完成后自动解压（仅在设置开启时由渲染层调用；主进程校验路径必须位于下载目录内）
+  extractArchive: (filePath: string) => ipcRenderer.invoke('archive-extract', filePath),
+
   // 托盘控制
   setTrayEnabled: (enabled: boolean) => ipcRenderer.invoke('set-tray-enabled', enabled),
   setWindowTheme: (isDark: boolean) => ipcRenderer.invoke('set-window-theme', isDark),
