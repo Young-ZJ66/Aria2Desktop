@@ -108,6 +108,11 @@ jobs:
             node scripts/generate-delta-blocks.mjs $_.FullName
           }
 
+      # 产物断言：安装包 / 便携版 / 差量块表必须齐全、体积合理、版本号与 package.json 一致。
+      # Release 发布后无法撤回重发，这一步失败就直接终止。
+      - name: 校验安装包与块表产物
+        run: node scripts/verify-dist.mjs win ${{ matrix.res_arch }} --require-blocks
+
       # 使用仓库中预写的更新日志（.github/release-notes.md，需在推送 tag 前更新并提交）
       #
       # 版本一致性断言：本仓**真实发生过** tag 与日志错配——v1.0.3 与 v1.0.6 两个 tag 指向了同一个提交，

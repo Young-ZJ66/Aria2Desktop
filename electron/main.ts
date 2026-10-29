@@ -16,6 +16,13 @@ import { setupLogging, createLogger } from './utils/logger'
 import { isPackagedApp } from './utils/appEnv'
 import type { StoreData } from './types/store'
 
+// E2E / CI：允许把 userData 指向隔离目录，避免自动化测试读写开发者真实的设置、插件与任务记录。
+// 只在显式设置环境变量时生效（正常运行不受影响），且必须早于任何 app.getPath / 日志初始化。
+const e2eUserData = process.env.ARIA2_E2E_USER_DATA
+if (e2eUserData) {
+  app.setPath('userData', e2eUserData)
+}
+
 // 日志初始化尽早执行：后续所有模块的日志都走统一出口（级别/落盘策略见 utils/logger.ts）
 setupLogging()
 const logger = createLogger('Main')

@@ -58,6 +58,10 @@ jobs:
       - name: 构建安装包
         run: npm run build && npx electron-builder --mac --publish never
 
+      # 防止 electron-builder "命令成功但产物不全"：dmg/zip 的 x64 与 arm64 必须齐全且体积合理
+      - name: 校验安装包产物
+        run: node scripts/verify-dist.mjs mac
+
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
@@ -102,6 +106,10 @@ jobs:
 
       - name: 构建安装包
         run: npm run build && npx electron-builder --linux --x64 --publish never
+
+      # AppImage 与 deb 必须同时存在且体积合理
+      - name: 校验安装包产物
+        run: node scripts/verify-dist.mjs linux
 
       - name: 上传产物
         uses: actions/upload-artifact@v4

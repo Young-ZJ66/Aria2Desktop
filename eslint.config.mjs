@@ -9,6 +9,7 @@ export default withVueTs(
       'node_modules/**',
       'dist/**',
       'release/**',
+      'test-results/**',
       'data/**',
       '.vscode/**',
       '.idea/**',

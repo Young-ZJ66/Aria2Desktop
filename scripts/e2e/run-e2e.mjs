@@ -1,0 +1,224 @@
+/**
+ * E2E 编排器：一条命令跑完"真实应用 UI + 插件运行时 + 自动解压 + 浏览器扩展"检查。
+ *
+ * 用法：
+ *   npm run test:e2e                 # 应用 UI 必跑；找到 Chrome for Testing 时附带扩展检查
+ *   npm run test:e2e -- --skip-extension
+ *   E2E_CHROME_PATH=/path/to/chrome npm run test:e2e
+ *
+ * 环境隔离：Electron 使用本次运行独立的 userData 目录（Windows 改 APPDATA、
+ * Linux 改 XDG_CONFIG_HOME、macOS 改 HOME），不会读写开发者真实的设置与插件。
+ */
+
+import fs from 'node:fs'
+import path from 'node:path'
+import http from 'node:http'
+import { spawn, spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
+import { collectErrors, connect, createReporter, httpJson, killTree, sleep, waitFor } from './lib/cdp.mjs'
+import { runAppUi } from './app-ui.mjs'
+import { runExtensionCheck, resolveChromePath } from './extension.mjs'
+
+const require = createRequire(import.meta.url)
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)
+const outDir = path.join(root, 'test-results', 'e2e', stamp)
+const userDataRoot = path.join(outDir, 'userdata')
+const vitePort = Number(process.env.E2E_VITE_PORT || 5173)
+const cdpPort = Number(process.env.E2E_CDP_PORT || 9334)
+const skipExtension = process.argv.includes('--skip-extension') || process.env.E2E_SKIP_EXTENSION === '1'
+
+fs.mkdirSync(outDir, { recursive: true })
+const reporter = createReporter()
+const children = []
+let downloadServer = null
+
+function logFile(name) {
+  return fs.createWriteStream(path.join(outDir, `log-${name}.log`), { flags: 'a' })
+}
+
+function httpStatus(url) {
+  return new Promise((resolve) => {
+    const req = http.get(url, (res) => {
+      res.resume()
+      resolve(res.statusCode ?? 0)
+    })
+    req.on('error', () => resolve(0))
+    req.setTimeout(2000, () => req.destroy())
+  })
+}
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: root,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+    ...options
+  })
+  if (result.status !== 0) throw new Error(`命令失败（${command} ${args.join(' ')}）退出码 ${result.status}`)
+}
+
+function start(command, args, name, env = {}) {
+  const child = spawn(command, args, {
+    cwd: root,
+    env: { ...process.env, ...env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    // 仅 .cmd/.bat 包装器需要 shell；electron.exe 直接执行，避免 shell 解析路径
+    shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(command),
+    detached: process.platform !== 'win32'
+  })
+  child.stdout.pipe(logFile(`${name}-out`))
+  child.stderr.pipe(logFile(`${name}-err`))
+  children.push({ name, child })
+  return child
+}
+
+function prepareIsolatedUserData() {
+  const userData = path.join(userDataRoot, 'aria2-desktop')
+  fs.mkdirSync(userData, { recursive: true })
+  // 阻止旧版数据迁移把仓库 data/ 下的真实任务复制进来（迁移逻辑见 electron/main.ts）
+  fs.writeFileSync(path.join(userData, '.legacy-data-migrated'), 'e2e')
+  const pluginDir = path.join(userData, 'plugins', 'e2e-runtime')
+  fs.mkdirSync(pluginDir, { recursive: true })
+  fs.writeFileSync(
+    path.join(pluginDir, 'manifest.json'),
+    JSON.stringify(
+      {
+        id: 'com.e2e.runtime',
+        name: 'E2E Runtime Plugin',
+        version: '1.0.0',
+        description: 'E2E runtime verification plugin',
+        author: 'e2e',
+        main: 'index.js',
+        permissions: ['notify', 'settings:read']
+      },
+      null,
+      2
+    )
+  )
+  fs.writeFileSync(
+    path.join(pluginDir, 'index.js'),
+    `module.exports = {
+  onActivate() { console.log('E2E plugin activated') },
+  onDeactivate() { console.log('E2E plugin deactivated') }
+}
+`
+  )
+  // 应用启动时读取该变量并把 userData 指向隔离目录（见 electron/main.ts 顶部）
+  return { ARIA2_E2E_USER_DATA: userData }
+}
+
+async function main() {
+  // 前置：编译主进程 && 端口空闲
+  console.log('==> 编译主进程')
+  run('npm', ['run', 'build:electron'])
+  if ((await httpStatus(`http://localhost:${vitePort}/`)) !== 0) {
+    throw new Error(`端口 ${vitePort} 已被占用，请先关闭正在运行的 dev server`)
+  }
+
+  const viteBin = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'vite.cmd' : 'vite')
+  console.log('==> 启动 Vite dev server')
+  const vite = start(viteBin, ['--port', String(vitePort), '--strictPort'], 'vite')
+
+  await waitFor(async () => (await httpStatus(`http://localhost:${vitePort}/`)) === 200, {
+    timeoutMs: 90000,
+    label: 'Vite dev server 就绪'
+  })
+  reporter.check('Vite dev server 就绪', true)
+
+  const isolatedEnv = prepareIsolatedUserData()
+  const electronPath = require('electron')
+  console.log('==> 启动 Electron（隔离 userData）')
+  const electron = start(electronPath, ['.', `--remote-debugging-port=${cdpPort}`], 'electron', {
+    NODE_ENV: 'development',
+    ...isolatedEnv
+  })
+
+  // 本地下载源：让 E2E 真正走一遍"新建任务 → 引擎下载 → 完成"的链路。
+  // 分块慢速发送（8KB / 200ms），保证任务在列表里可见，避免"瞬间完成"导致误判。
+  const downloadBytes = 64 * 1024
+  const downloadBody = Buffer.alloc(downloadBytes, 7)
+  downloadServer = http.createServer((req, res) => {
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': downloadBody.length,
+      'Accept-Ranges': 'none'
+    })
+    let offset = 0
+    const step = 8 * 1024
+    const timer = setInterval(() => {
+      res.write(downloadBody.subarray(offset, offset + step))
+      offset += step
+      if (offset >= downloadBody.length) {
+        clearInterval(timer)
+        res.end()
+      }
+    }, 200)
+    req.on('close', () => clearInterval(timer))
+  })
+  await new Promise((resolve) => downloadServer.listen(0, '127.0.0.1', resolve))
+  const downloadUrl = `http://127.0.0.1:${downloadServer.address().port}/e2e-${stamp}.bin`
+  const tempDownloadDir = path.join(outDir, 'downloads')
+  fs.mkdirSync(tempDownloadDir, { recursive: true })
+
+  const target = await waitFor(
+    async () => {
+      const list = await httpJson(`http://127.0.0.1:${cdpPort}/json/list`)
+      if (!Array.isArray(list)) return null
+      return list.find((t) => t.type === 'page' && String(t.url).startsWith('http://localhost:5173')) ?? null
+    },
+    { timeoutMs: 90000, label: 'Electron 渲染层出现' }
+  )
+  reporter.check('Electron 渲染层已连接', true)
+
+  const session = await connect(target.webSocketDebuggerUrl)
+  await session.send('Runtime.enable')
+  await session.send('Log.enable')
+  await session.send('Page.enable')
+
+  await runAppUi({
+    session,
+    reporter,
+    outDir,
+    expectedVersion: JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version,
+    pluginName: 'E2E Runtime Plugin',
+    stamp,
+    downloadUrl,
+    downloadBytes,
+    tempDownloadDir
+  })
+
+  reporter.check('渲染层无未捕获异常 / error 级日志', collectErrors(session).length === 0)
+  session.close()
+
+  if (skipExtension) {
+    console.log('SKIP 扩展 E2E：按参数跳过')
+  } else if (!resolveChromePath()) {
+    console.log('SKIP 扩展 E2E：未找到 Chrome for Testing（设置 E2E_CHROME_PATH 后启用）')
+  } else {
+    console.log('==> 扩展 E2E（Chrome for Testing）')
+    await runExtensionCheck({ extensionDir: path.join(root, 'extension'), outDir, reporter })
+  }
+
+  // 应用进程异常退出也算失败（例如主进程崩溃但断言已跑完）
+  reporter.check('Electron 进程在测试期间保持运行', electron.exitCode === null)
+  return reporter.summary()
+}
+
+let exitCode = 1
+try {
+  exitCode = await main()
+} catch (error) {
+  console.error(`\nE2E 运行失败：${error instanceof Error ? error.message : error}`)
+  exitCode = 1
+} finally {
+  if (downloadServer) downloadServer.close()
+  for (const { name, child } of children.reverse()) {
+    console.log(`==> 清理 ${name}`)
+    killTree(child.pid)
+  }
+  await sleep(500)
+  console.log(`\n截图与日志：${outDir}`)
+}
+process.exit(exitCode ? 1 : 0)

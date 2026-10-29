@@ -262,6 +262,16 @@ describe('sanitizeRequestHeaders（下发请求头前的净化）', () => {
     expect(result.header).toEqual(['x-ok: fine'])
   })
 
+  it('含其他控制字符（NUL/VT/DEL）的条目整条丢弃', () => {
+    const result = sanitizeRequestHeaders([
+      'X-A: 1\u0000evil',
+      'X-B: 2\u000b',
+      'X-C: 3\u007f',
+      'X-Ok: fine'
+    ])
+    expect(result.header).toEqual(['x-ok: fine'])
+  })
+
   it('逐跳头与长度相关头一律剔除（Host 被改写会连到非目标主机）', () => {
     const result = sanitizeRequestHeaders([
       'Host: evil.example.com',

@@ -179,8 +179,14 @@ export function sanitizeRequestHeaders(input: unknown): SanitizedRequestHeaders 
     if (accepted >= MAX_HEADER_COUNT) break
     if (typeof raw !== 'string') continue
 
-    // CR/LF 一律拒绝（不 trim 掉，直接判整条非法）：否则 `X-A: 1\r\nCookie: x` 会被拆成两条头
-    if (raw.includes('\r') || raw.includes('\n') || raw.length > MAX_HEADER_ENTRY_LENGTH) continue
+    // CR/LF 一律拒绝（不 trim 掉，直接判整条非法）：否则 `X-A: 1\r\nCookie: x` 会被拆成两条头。
+    // 其余控制字符（NUL/VT/FF/DEL 等）同样不属于合法 header 值，一并整条拒绝，
+    // 避免被 aria2 原样写进请求行后产生不可预期的行为
+    const hasIllegalControl = raw.split('').some((ch) => {
+      const code = ch.charCodeAt(0)
+      return code <= 0x08 || code === 0x0b || code === 0x0c || (code >= 0x0e && code <= 0x1f) || code === 0x7f
+    })
+    if (raw.includes('\r') || raw.includes('\n') || hasIllegalControl || raw.length > MAX_HEADER_ENTRY_LENGTH) continue
 
     const colon = raw.indexOf(':')
     if (colon <= 0) continue

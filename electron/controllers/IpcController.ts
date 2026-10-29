@@ -495,7 +495,10 @@ export class IpcController {
         if (typeof filePath !== 'string' || !filePath.trim()) {
           return { success: false, extracted: false, reason: 'invalid_path' }
         }
-        const baseDir = resolveBaseDownloadDir(getSettingsFresh() ?? undefined)
+        // 基础目录口径与新建任务/引擎默认目录一致：设置未配置时回落到系统「下载」目录
+        //（aria2.conf 的 dir 默认值同样是 app.getPath('downloads')，否则全新配置下
+        //  「自动解压 / 删除文件」会把所有路径都判为越界）
+        const baseDir = resolveBaseDownloadDir(getSettingsFresh() ?? undefined) || app.getPath('downloads')
         const target = path.resolve(path.normalize(filePath.trim()))
         if (!baseDir || !(await isInsideDownloadRoot(target, baseDir))) {
           logger.warn('[IpcController] 拦截解压：路径不在下载目录内')
@@ -513,7 +516,8 @@ export class IpcController {
       // 基础目录口径与渲染层/扩展接口统一走 resolveBaseDownloadDir
       const settings = getSettingsFresh()
       const allowedRoots: string[] = []
-      const settingDir = resolveBaseDownloadDir(settings ?? undefined)
+      // 与 archive-extract 同一口径：设置未配置时用系统「下载」目录兜底
+      const settingDir = resolveBaseDownloadDir(settings ?? undefined) || app.getPath('downloads')
       if (settingDir) allowedRoots.push(path.resolve(settingDir))
       // 未配置任何允许目录时拒绝所有删除操作，防止任意路径被删
       if (allowedRoots.length === 0) {
