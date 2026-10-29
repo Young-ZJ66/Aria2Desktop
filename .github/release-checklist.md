@@ -34,6 +34,7 @@ npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解�
 - [ ] 安装包冒烟：Windows 安装后能启动并连上引擎；macOS/Linux 若本机可用需人工安装一次
 - [ ] 差量块表为 CDC 格式（`format: 2`、`chunking: "cdc"`），并抽查与上一版安装包的实际复用率
       （`node scripts/generate-delta-blocks.mjs` + `planDelta` 可离线计算；低于 50% 需调查分块参数）
+- [ ] 注意：从旧版（固定分块缓存）首次升级仍会走全量，确认日志中的回落原因符合预期
 
 ### 本地打包的已知环境问题
 
