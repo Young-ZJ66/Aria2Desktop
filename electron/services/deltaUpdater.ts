@@ -164,7 +164,7 @@ function fetchRange(
   })
 }
 
-/** 从旧包 fd 复制一段到目标 fd（按 4MB 切片，避免大段一次性占内存） */
+/** 从旧包 fd 复制一段到目标 fd（按 4MB 切片，避免大段一次性占内存；与块大小无关） */
 async function copySpan(
   srcFd: fs.promises.FileHandle,
   targetFd: fs.promises.FileHandle,

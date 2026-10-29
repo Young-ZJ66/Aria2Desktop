@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isDeltaBlockTable, planDelta, type DeltaBlockTable } from './deltaBlocks'
+import { isDeltaBlockTable, planDelta, type CdcDeltaBlockTable, type DeltaBlockTable } from './deltaBlocks'
 
 /** 构造一张合法块表：size 按 blocks 自动汇总，保证测试只关心块本身 */
 function makeTable(version: string, blockSize: number, hashes: string[]): DeltaBlockTable {
@@ -15,6 +15,17 @@ function makeTable(version: string, blockSize: number, hashes: string[]): DeltaB
 }
 
 const h = (n: number): string => 'a'.repeat(62) + String(n).padStart(2, '0')
+
+/** 构造 CDC（format=2）块表：块长可变 */
+function makeCdcTable(version: string, sizes: number[], hashes: string[]): CdcDeltaBlockTable {
+  let offset = 0
+  const blocks = sizes.map((size, i) => {
+    const entry = { offset, size, sha256: hashes[i]! }
+    offset += size
+    return entry
+  })
+  return { version, size: offset, format: 2, chunking: 'cdc', avgBlockSize: 1024 * 1024, blocks }
+}
 
 describe('isDeltaBlockTable（接口边界：网络/磁盘内容不可信）', () => {
   const valid = makeTable('1.0.10', 4 * 1024 * 1024, [h(1), h(2), h(3)])
@@ -44,6 +55,24 @@ describe('isDeltaBlockTable（接口边界：网络/磁盘内容不可信）', (
     })).toBe(false)
     // 少一块：总覆盖 < size
     expect(isDeltaBlockTable({ ...valid, blocks: valid.blocks.slice(0, 2) })).toBe(false)
+  })
+
+  it('CDC 格式（format=2，块长可变）合法表通过', () => {
+    const cdc = makeCdcTable('1.0.11', [1024 * 1024, 3 * 1024 * 1024, 500 * 1024], [h(1), h(2), h(3)])
+    expect(isDeltaBlockTable(cdc)).toBe(true)
+  })
+
+  it('CDC 格式缺 chunking/avgBlockSize 或未知 format 一律拒绝', () => {
+    const cdc = makeCdcTable('1.0.11', [1024 * 1024, 1024 * 1024], [h(1), h(2)])
+    expect(isDeltaBlockTable({ ...cdc, chunking: 'fixed' })).toBe(false)
+    expect(isDeltaBlockTable({ ...cdc, avgBlockSize: 0 })).toBe(false)
+    expect(isDeltaBlockTable({ ...cdc, format: 3 })).toBe(false)
+    // 去掉 format 字段则按旧格式要求 blockSize：未提供 → 拒绝
+    const rest: Record<string, unknown> = { ...cdc }
+    delete rest.format
+    delete rest.chunking
+    delete rest.avgBlockSize
+    expect(isDeltaBlockTable(rest)).toBe(false)
   })
 })
 
@@ -102,5 +131,18 @@ describe('planDelta（差量计划的正确性）', () => {
     const byTarget = [...plan.ops].sort((a, b) => a.targetOffset - b.targetOffset)
     expect(byTarget.map(o => o.targetOffset)).toEqual([0, BLOCK, BLOCK * 2])
     expect(plan.ops.every(o => o.targetOffset + o.size <= newT.size)).toBe(true)
+  })
+
+  it('CDC 变长块：按块长复制，远程字节等于实际变化块的字节数', () => {
+    const sizes = [1024 * 1024, 3 * 1024 * 1024, 500 * 1024]
+    const oldT = makeCdcTable('1.0.10', sizes, [h(1), h(2), h(3)])
+    const newT = makeCdcTable('1.0.11', sizes, [h(1), h(9), h(3)])
+    const plan = planDelta(oldT, newT)
+    expect(plan.remoteBytes).toBe(sizes[1])
+    // 第一块与第三块命中旧表对应偏移；中间块整块走远端
+    expect(plan.ops[0]?.source).toEqual({ type: 'local', offset: 0 })
+    expect(plan.ops[1]?.source).toEqual({ type: 'remote', offset: sizes[0] })
+    expect(plan.ops[1]?.size).toBe(sizes[1])
+    expect(plan.ops[2]?.source).toEqual({ type: 'local', offset: sizes[0] + sizes[1] })
   })
 })

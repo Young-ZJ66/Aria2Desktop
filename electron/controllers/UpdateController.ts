@@ -291,7 +291,8 @@ export class UpdateController {
       let checksumResult: { checksumUnavailable?: boolean } | undefined
       if (this.isDeltaCapable()) {
         try {
-          // 差量：本地缓存着上次安装包时，只下载变化分块（通常每次更新省 70-80% 流量）。
+          // 差量：本地缓存着上次安装包时，只下载变化分块。块表用内容定义分块（CDC），
+          // 实测相邻版本可复用约 94% 字节；收益不足 20% 或校验失败时自动回落全量。
           // 组装产物落在同一个 .download 路径，校验/转正/安装流程与全量完全一致；
           // 组装完仍走 verifyChecksum 全量校验——块表不是信任边界（见 deltaUpdater 的说明）
           const delta = await downloadDelta({

@@ -1,9 +1,11 @@
 /**
  * 差量更新的块表（delta blocks）纯逻辑。
  *
- * 什么是块表：把安装包按固定块大小（4MB）切分，记录每块的 offset/size/sha256。
- * CI 端在发布时生成并上传（`<安装包>.blocks.json`），应用端更新时下载新版块表，
- * 与本地缓存的上版块表对比——hash 相同的块直接从旧文件复制，只下载变化的部分。
+ * 什么是块表：把安装包按**内容定义分块**（CDC，切点见 utils/deltaChunker）切开，
+ * 记录每块的 offset/size/sha256。CI 端在发布时生成并上传（`<安装包>.blocks.json`），
+ * 应用端更新时下载新版块表，与本地缓存的上版块表对比——hash 相同的块直接从旧文件复制，
+ * 只下载变化的部分。历史版本使用固定 4MB 分块（实测相邻安装包命中率为 0，
+ * 因此 v1.1.1 起改为 CDC；两种格式都仍可读取）。
  *
  * 为什么自己定义格式而不是用 electron-builder 的 .blockmap：blockmap 是 zstd 压缩的，
  * 解压依赖较新的 Node 内建（node:zlib 的 zstd 支持），而本格式是纯 JSON——
@@ -24,16 +26,31 @@ export interface DeltaBlockEntry {
   sha256: string
 }
 
-/** 安装包的完整块表（`<安装包>.blocks.json` 的 JSON 结构） */
-export interface DeltaBlockTable {
+/** 安装包块表的公共字段 */
+interface DeltaBlockTableBase {
   /** 生成该表的版本号（从安装包文件名解析，下载端用于防错位） */
   version: string
   /** 安装包总字节数 */
   size: number
-  /** 分块大小（字节，当前为 4MB） */
-  blockSize: number
   blocks: DeltaBlockEntry[]
 }
+
+/** 旧格式：固定 blockSize 切分（v1.1.0 及更早发布的块表） */
+export interface LegacyDeltaBlockTable extends DeltaBlockTableBase {
+  /** 固定分块大小（字节） */
+  blockSize: number
+}
+
+/** 新格式：内容定义分块（v1.1.1 起由 scripts/generate-delta-blocks.mjs 生成） */
+export interface CdcDeltaBlockTable extends DeltaBlockTableBase {
+  format: 2
+  chunking: 'cdc'
+  /** 平均块大小（字节），仅用于展示/统计 */
+  avgBlockSize: number
+}
+
+/** 安装包的完整块表（`<安装包>.blocks.json` 的 JSON 结构，兼容两种格式） */
+export type DeltaBlockTable = LegacyDeltaBlockTable | CdcDeltaBlockTable
 
 /** 差量计划中的一条指令：把某段字节写到目标文件的指定位置 */
 export interface DeltaOp {
@@ -58,7 +75,16 @@ export function isDeltaBlockTable(value: unknown): value is DeltaBlockTable {
   const v = value as Record<string, unknown>
   if (typeof v.version !== 'string' || !v.version) return false
   if (!Number.isSafeInteger(v.size) || (v.size as number) <= 0) return false
-  if (!Number.isSafeInteger(v.blockSize) || (v.blockSize as number) <= 0) return false
+
+  // 格式分支：format=2 为 CDC（要求 chunking/avgBlockSize）；无 format 视为旧版固定分块
+  if (v.format !== undefined) {
+    if (v.format !== 2) return false
+    if (v.chunking !== 'cdc') return false
+    if (!Number.isSafeInteger(v.avgBlockSize) || (v.avgBlockSize as number) <= 0) return false
+  } else {
+    if (!Number.isSafeInteger(v.blockSize) || (v.blockSize as number) <= 0) return false
+  }
+
   if (!Array.isArray(v.blocks) || v.blocks.length === 0) return false
   let covered = 0
   for (const block of v.blocks) {

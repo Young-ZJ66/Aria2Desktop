@@ -1,7 +1,11 @@
 /**
  * 为安装包生成差量块表（`<安装包>.blocks.json`）。
  *
- * 用法：node scripts/generate-delta-blocks.mjs <Setup.exe 路径> [块大小MB，默认 4]
+ * 用法：node scripts/generate-delta-blocks.mjs <Setup.exe 路径>
+ *
+ * 分块算法是内容定义分块（CDC），实现见 electron/utils/deltaChunker.ts。
+ * 本脚本直接复用编译产物，保证"生成端切点"与单元测试使用的实现完全一致；
+ * 因此运行前需要 `npm run build:electron`（CI 工作流在打包前已经执行过）。
  *
  * 输出与该文件同目录、同名的 `.blocks.json`，由 release 工作流上传到 Release。
  * 应用端（electron/services/deltaUpdater.ts）下载后与本地缓存的上版块表对比，
@@ -13,16 +17,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { pathToFileURL, fileURLToPath } from 'node:url'
 
 const target = process.argv[2]
 if (!target || !fs.existsSync(target)) {
-  console.error(`用法: node scripts/generate-delta-blocks.mjs <Setup.exe 路径> [块大小MB]`)
-  process.exit(1)
-}
-
-const blockSizeMB = Number(process.argv[3] || 4)
-if (!Number.isInteger(blockSizeMB) || blockSizeMB <= 0 || blockSizeMB > 64) {
-  console.error(`块大小需为 1-64 之间的整数 MB：${blockSizeMB}`)
+  console.error('用法: node scripts/generate-delta-blocks.mjs <Setup.exe 路径>')
   process.exit(1)
 }
 
@@ -35,33 +34,35 @@ if (!versionMatch) {
   process.exit(1)
 }
 
-const blockSize = blockSizeMB * 1024 * 1024
-const size = fs.statSync(target).size
-
-const blocks = []
-let offset = 0
-// 顺序分块流式计算 SHA-256：100MB 量级整读会占大内存，分块读的峰值只是一个块的缓冲
-const fd = fs.openSync(target, 'r')
-try {
-  const buffer = Buffer.allocUnsafe(blockSize)
-  while (offset < size) {
-    const want = Math.min(blockSize, size - offset)
-    const bytesRead = fs.readSync(fd, buffer, 0, want, offset)
-    if (bytesRead !== want) {
-      console.error(`读取不完整（${bytesRead}/${want} @ ${offset}），文件可能在生成期间被修改`)
-      process.exit(1)
-    }
-    blocks.push({ offset, size: bytesRead, sha256: crypto.createHash('sha256').update(buffer.subarray(0, bytesRead)).digest('hex') })
-    offset += bytesRead
-  }
-} finally {
-  fs.closeSync(fd)
+const chunkerPath = fileURLToPath(new URL('../dist/electron/electron/utils/deltaChunker.js', import.meta.url))
+if (!fs.existsSync(chunkerPath)) {
+  console.error('缺少编译后的分块器（dist/electron/electron/utils/deltaChunker.js）。请先执行 npm run build:electron')
+  process.exit(1)
 }
+const chunkerModule = await import(pathToFileURL(chunkerPath).href)
+const computeChunkSpans = chunkerModule.computeChunkSpans ?? chunkerModule.default?.computeChunkSpans
+const avgBlockSize = chunkerModule.CDC_AVG_SIZE ?? chunkerModule.default?.CDC_AVG_SIZE
+if (typeof computeChunkSpans !== 'function' || typeof avgBlockSize !== 'number') {
+  console.error('分块器导出不符合预期（computeChunkSpans / CDC_AVG_SIZE），请重新编译主进程')
+  process.exit(1)
+}
+
+const size = fs.statSync(target).size
+const buffer = fs.readFileSync(target)
+
+const spans = computeChunkSpans(buffer)
+const blocks = spans.map((span) => ({
+  offset: span.offset,
+  size: span.size,
+  sha256: crypto.createHash('sha256').update(buffer.subarray(span.offset, span.offset + span.size)).digest('hex')
+}))
 
 const table = {
   version: versionMatch[1],
   size,
-  blockSize,
+  format: 2,
+  chunking: 'cdc',
+  avgBlockSize,
   blocks
 }
 
@@ -75,5 +76,7 @@ if (covered !== size || blocks[0]?.offset !== 0) {
   process.exit(1)
 }
 
-const remoteBytesHint = blocks.length
-console.log(`已生成 ${path.basename(outPath)}：${remoteBytesHint} 块 × ${blockSizeMB}MB，总 ${size} 字节，v${table.version}`)
+const avgMB = (size / blocks.length / 1048576).toFixed(2)
+console.log(
+  `已生成 ${path.basename(outPath)}：${blocks.length} 块（CDC，平均 ${avgMB}MB），总 ${size} 字节，v${table.version}`
+)
