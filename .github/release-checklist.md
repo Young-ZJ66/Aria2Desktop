@@ -42,6 +42,9 @@ npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解�
   多为 SmartScreen / 安全软件拦截未签名 exe。以 CI 产物为准，本机可先把 `release/` 加入排除目录或临时关闭 SmartScreen。
 - `Timeout awaiting 'request'`：electron-builder 需要下载打包工具（winCodeSign / 7zip 等），网络受限时会卡住；
   CI 的 windows-latest 预置了缓存，不受影响。
+- 安全软件（如腾讯电脑管家、第三方杀软）可能拦截未签名 exe 的执行或 userData 写入，
+  表现为打包版启动即退出（`-2147483645` / `EPERM`，且无日志）。实机验证打包版前需临时允许/加白，
+  或改用干净虚拟机；CI 产物已通过体积、校验和与块表断言。
 
 ## 4. 发布
 
