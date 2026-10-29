@@ -6,6 +6,8 @@ import * as crypto from 'crypto'
 import { URL } from 'url'
 // 版本比较已抽到 utils/version（纯函数，便于单测）
 import { compareVersions } from '../utils/version'
+// tag / 更新日志的解析是纯字符串判定，抽到 releaseFeed 后可按真实报文固化边界用例
+import { extractReleaseNotes, parseStableTagFromLocation } from '../utils/releaseFeed'
 import { downloadDelta, saveDeltaCache, discardDeltaCache } from '../services/deltaUpdater'
 import { createLogger } from '../utils/logger'
 import { isPackagedApp } from '../utils/appEnv'
@@ -214,9 +216,9 @@ export class UpdateController {
       const req = https.request(this.buildRequestOptions(RELEASES_LATEST_URL, 'HEAD'), (res) => {
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           res.resume()
-          const match = /\/tag\/([^/<"']+)/.exec(res.headers.location)
-          if (match) {
-            resolve(match[1])
+          const tag = parseStableTagFromLocation(res.headers.location)
+          if (tag) {
+            resolve(tag)
             return
           }
           reject(new Error('No release tag found in redirect Location'))
@@ -244,14 +246,9 @@ export class UpdateController {
     let notes = ''
     try {
       const body = await this.fetchText(RELEASES_ATOM_URL)
-      // 逐个 entry 块找 tag 匹配；链接形态形如 .../releases/tag/v1.0.9
-      const entries = body.match(/<entry>[\s\S]*?<\/entry>/g) ?? []
-      for (const entry of entries) {
-        if (!entry.includes(`/tag/${tag}`)) continue
-        const contentMatch = /<content[^>]*>([\s\S]*?)<\/content>/.exec(entry)
-        if (contentMatch) notes = this.decodeHtmlEntities(contentMatch[1]).trim()
-        break
-      }
+      // 按 tag 精确匹配（不能取第一条 entry：它可能是 pre-release；也不能用 includes：
+      // v1.1.0 是 v1.1.0-beta.1 的前缀）
+      notes = extractReleaseNotes(body, tag)
       if (!notes) {
         logger.warn(`[UpdateController] atom 中未找到 tag ${tag} 的日志条目（可能已翻页），日志留空`)
       }
@@ -261,16 +258,6 @@ export class UpdateController {
     }
 
     return { tag, notes }
-  }
-
-  /** 反转义 atom 内容中的 HTML 实体 */
-  private decodeHtmlEntities(input: string): string {
-    return input
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&amp;/g, '&')
   }
 
   /** 按版本与当前架构构造安装包下载地址（命名规则与打包产物保持一致） */
