@@ -49,10 +49,14 @@ npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解�
 ## 4. 发布
 
 - [ ] 推送 tag：`git tag vX.Y.Z && git push origin vX.Y.Z`
-- [ ] `release.yml` 全绿（类型检查、单测、扩展校验、接口端到端、产物断言）
+- [ ] `release.yml` 全绿（Windows x64/x86、macOS、Linux 四个构建 job + 扩展；各含产物断言）
 - [ ] Release 资产齐全：
       - Windows x64/x86：`Setup.exe`、`portable.zip`、`Setup.exe.blocks.json`、`.sha256`
+      - macOS：`*-x64.dmg` / `*-arm64.dmg`、`*-x64.zip` / `*-arm64.zip`、`.sha256`
+      - Linux：`*-x86_64.AppImage`、`*-amd64.deb`、`.sha256`
       - 扩展：`Aria2Desktop-Extension-*.zip`、`.crx`（配置了签名密钥时）
+- [ ] 手动触发的 `build-unix.yml` 只上传 Actions artifacts，**不会**自动进入 Release；
+      发版资产以上表中 `release.yml` 的产物为准
 - [ ] 更新日志没有指向错误的版本（检查首行版本号）
 
 ## 5. 发布后验证（必须）

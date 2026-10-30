@@ -203,3 +203,104 @@ jobs:
           }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # macOS 安装包：在真实的 macOS 运行器上构建（Windows 无法交叉产出 dmg）。
+  # 依赖 Windows job 先创建 Release，再往同一个 tag 上传资产。
+  build-mac:
+    needs: [build]
+    name: 构建 macOS
+    runs-on: macos-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: 单元测试
+        run: npm run test:run
+
+      - name: 扩展静态校验
+        run: npm run check:extension
+
+      # 双架构（Intel / Apple Silicon）都要有引擎，且冒烟当前运行器架构
+      - name: 校验 aria2 引擎（x64 / arm64）
+        run: |
+          node scripts/verify-engine.mjs darwin x64
+          node scripts/verify-engine.mjs darwin arm64
+          ./resources/aria2/darwin/${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}/aria2c --version
+
+      - name: 构建安装包
+        run: npm run build && npx electron-builder --mac --publish never
+
+      - name: 校验安装包产物
+        run: node scripts/verify-dist.mjs mac
+
+      - name: 上传到 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          for f in release/*.dmg release/*.zip; do
+            [ -e "$f" ] || continue
+            sha256sum "$f" | awk '{print $1}' > "$f.sha256"
+            gh release upload "$tag" "$f" "$f.sha256" --clobber
+          done
+
+  # Linux 安装包：AppImage + deb（x64）
+  build-linux:
+    needs: [build]
+    name: 构建 Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: 单元测试
+        run: npm run test:run
+
+      - name: 扩展静态校验
+        run: npm run check:extension
+
+      - name: 校验 aria2 引擎
+        run: |
+          node scripts/verify-engine.mjs linux x64
+          ./resources/aria2/linux/x64/aria2c --version
+
+      - name: 构建安装包
+        run: npm run build && npx electron-builder --linux --x64 --publish never
+
+      - name: 校验安装包产物
+        run: node scripts/verify-dist.mjs linux
+
+      - name: 上传到 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          for f in release/*.AppImage release/*.deb; do
+            [ -e "$f" ] || continue
+            sha256sum "$f" | awk '{print $1}' > "$f.sha256"
+            gh release upload "$tag" "$f" "$f.sha256" --clobber
+          done
