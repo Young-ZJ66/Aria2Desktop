@@ -60,9 +60,11 @@ function buildRequirements() {
   }
 
   if (platform === 'linux') {
+    // electron-builder 对 Linux 的 ${arch} 宏按目标格式映射：AppImage→x86_64、deb→amd64
+    // （见 builder-util 的 getArtifactArchName），不是 Windows 的 x64。
     return [
-      { label: 'AppImage（x64）', test: (f) => f === `Aria2Desktop-${version}-x64.AppImage`, min: installerMin },
-      { label: 'deb（x64）', test: (f) => f === `Aria2Desktop-${version}-x64.deb`, min: installerMin }
+      { label: 'AppImage（x86_64）', test: (f) => f === `Aria2Desktop-${version}-x86_64.AppImage`, min: installerMin },
+      { label: 'deb（amd64）', test: (f) => f === `Aria2Desktop-${version}-amd64.deb`, min: installerMin }
     ]
   }
 
@@ -106,6 +108,12 @@ function main() {
 
   if (failures.length) {
     console.error(`\n结果：${failures.length} 项失败`)
+    // 失败时打印目录内容：命名规则（尤其 Linux 的 x86_64/amd64）变化时无需再盲猜一轮
+    console.error('产物目录内容：')
+    for (const name of files.sort()) {
+      const size = fs.statSync(path.join(releaseDir, name)).size
+      console.error(`  - ${name}（${formatSize(size)}）`)
+    }
     process.exit(1)
   }
   console.log(`\n结果：${requirements.length} 类产物全部就位`)
