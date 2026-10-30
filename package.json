@@ -5,7 +5,7 @@
   "main": "dist/electron/electron/main.js",
   "author": "Young-ZJ66",
   "license": "MIT",
-  "homepage": "./",
+  "homepage": "https://github.com/Young-ZJ66/Aria2Desktop",
   "scripts": {
     "dev": "concurrently --kill-others --kill-others-on-fail \"npm run dev:vue\" \"npm run dev:electron\"",
     "dev:vue": "vite",
@@ -200,6 +200,7 @@
         "deb"
       ],
       "category": "Network",
+      "maintainer": "Young-ZJ66 <youngzj66@users.noreply.github.com>",
       "icon": "build/icon.png",
       "artifactName": "Aria2Desktop-${version}-${arch}.${ext}",
       "mimeTypes": [
