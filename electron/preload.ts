@@ -112,11 +112,22 @@ const electronAPI = {
     }
   },
 
+  // 托盘菜单快捷动作（新建下载/设置/暂停全部/恢复全部）
+  onTrayAction: (callback: (action: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, action: string) => callback(action)
+    ipcRenderer.on('tray-action', listener)
+    return () => {
+      ipcRenderer.removeListener('tray-action', listener)
+    }
+  },
+
   // 插件管理
   pluginsList: () => ipcRenderer.invoke('plugins-list'),
   pluginsEnable: (id: string) => ipcRenderer.invoke('plugins-enable', id),
   pluginsDisable: (id: string) => ipcRenderer.invoke('plugins-disable', id),
   pluginsUninstall: (id: string) => ipcRenderer.invoke('plugins-uninstall', id),
+  pluginsDir: () => ipcRenderer.invoke('plugins-dir'),
+  pluginsOpenDir: () => ipcRenderer.invoke('plugins-open-dir'),
 
   // 下载事件转发给主进程插件系统（aria2 通知由渲染层的 WebSocket 接收，插件运行在主进程）
   notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart', gid: string, name: string) =>
@@ -124,6 +135,7 @@ const electronAPI = {
 
   // yt-dlp 流媒体支持（可选外部引擎，首次使用时按需下载）
   ytdlpCheck: () => ipcRenderer.invoke('ytdlp-check'),
+  ytdlpCheckUpdate: () => ipcRenderer.invoke('ytdlp-check-update'),
   ytdlpInstall: () => ipcRenderer.invoke('ytdlp-install'),
   onYtdlpInstallProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: { percent: number; transferred: number; total: number }) => callback(progress)
@@ -135,6 +147,7 @@ const electronAPI = {
 
   // ffmpeg：合并音视频时按需下载
   ffmpegCheck: () => ipcRenderer.invoke('ffmpeg-check'),
+  ffmpegCheckUpdate: () => ipcRenderer.invoke('ffmpeg-check-update'),
   ffmpegInstall: () => ipcRenderer.invoke('ffmpeg-install'),
   onFfmpegInstallProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: { percent: number; transferred: number; total: number }) => callback(progress)

@@ -224,17 +224,26 @@ export interface ElectronAPI {
   // 主进程窗口焦点时推送的剪贴板 URL
   onClipboardUrlDetected: (callback: (url: string) => void) => () => void
 
+  // 托盘菜单快捷动作（new-task / settings / pause-all / resume-all）
+  onTrayAction: (callback: (action: string) => void) => () => void
+
   // 插件管理
   pluginsList: () => Promise<Array<{ manifest: { id: string; name: string; version: string; description?: string; author?: string; permissions?: string[] }; enabled: boolean; path: string; error?: string }>>
   pluginsEnable: (id: string) => Promise<{ success: boolean }>
   pluginsDisable: (id: string) => Promise<{ success: boolean }>
   pluginsUninstall: (id: string) => Promise<{ success: boolean }>
+  /** 插件目录真实路径（由主进程解析，跨平台一致） */
+  pluginsDir: () => Promise<{ success: boolean; path?: string; error?: string }>
+  /** 打开插件目录（主进程用真实路径打开，不存在时自动创建） */
+  pluginsOpenDir: () => Promise<{ success: boolean; error?: string }>
 
   /** 把 aria2 下载事件转发给主进程插件系统（fire-and-forget，无返回值） */
   notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart', gid: string, name: string) => void
 
   // yt-dlp 流媒体支持（可选外部引擎，首次使用时按需下载）
   ytdlpCheck: () => Promise<{ available: boolean; version?: string; error?: string; source?: 'downloaded' | 'bundled' | 'path'; installable: boolean; approxSizeMB?: number }>
+  /** 检查 yt-dlp 是否有新版本（GitHub Release 最新 tag 与本地版本比较） */
+  ytdlpCheckUpdate: () => Promise<{ success: boolean; updateAvailable: boolean; checkable: boolean; currentVersion?: string; latestVersion?: string; error?: string }>
   /** 下载当前平台的官方 yt-dlp（校验 SHA-256 后安装到 userData），进度走 onYtdlpInstallProgress */
   ytdlpInstall: () => Promise<{ success: boolean; version?: string; error?: string }>
   /** 订阅安装进度，返回取消订阅函数 */
@@ -244,6 +253,8 @@ export interface ElectronAPI {
 
   // ffmpeg：合并音视频时按需下载
   ffmpegCheck: () => Promise<{ available: boolean; version?: string; error?: string; source?: 'downloaded' | 'path'; installable: boolean; approxSizeMB?: number }>
+  /** 检查 ffmpeg 是否有新构建（滚动构建按构建日期比较） */
+  ffmpegCheckUpdate: () => Promise<{ success: boolean; updateAvailable: boolean; checkable: boolean; currentVersion?: string; latestVersion?: string; error?: string }>
   ffmpegInstall: () => Promise<{ success: boolean; version?: string; error?: string }>
   onFfmpegInstallProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
 

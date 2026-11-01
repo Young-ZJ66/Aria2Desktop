@@ -11,8 +11,8 @@ import { registerSecureHandler, registerSecureListener } from '../utils/ipcSecur
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import { isAllowedExternalUrl } from '../utils/externalUrlCore'
-import { checkYtdlpAvailable, getVideoInfo, getFormatUrl, installYtdlp } from '../services/ytdlpService'
-import { checkFfmpegAvailable, installFfmpeg } from '../services/ffmpegService'
+import { checkYtdlpAvailable, getVideoInfo, getFormatUrl, installYtdlp, checkYtdlpUpdate } from '../services/ytdlpService'
+import { checkFfmpegAvailable, installFfmpeg, checkFfmpegUpdate } from '../services/ffmpegService'
 import { startStreamDownload, cancelStreamDownload, type StreamDownloadRequest } from '../services/streamDownloadService'
 import { extractArchive } from '../services/archiveService'
 import { getAutoLaunchEnabled, setAutoLaunchEnabled } from '../services/autoLaunch'
@@ -575,12 +575,10 @@ export class IpcController {
           // 删除时使用校验阶段的 realpath 目标（target），而非二次 path.normalize，
           // 减小 TOCTOU 窗口：符号链接在校验与被删之间被替换时，不会沿新链接删除目录外文件
           try {
-            const stats = await fs.promises.stat(target)
-            if (stats.isDirectory()) {
-              await fs.promises.rm(target, { recursive: true, force: true })
-            } else {
-              await fs.promises.unlink(target)
-            }
+            // 先 stat 确认存在：不存在时返回 Not found，而不是让 trashItem 抛出模糊错误
+            await fs.promises.stat(target)
+            // 移到系统回收站（Windows 回收站 / macOS 废纸篓 / Linux Trash），误删可恢复
+            await shell.trashItem(target)
             results.push({ path: p, success: true })
           } catch (statErr) {
             if ((statErr as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -648,9 +646,19 @@ export class IpcController {
       failureValue: { success: false, error: 'Unauthorized' }
     })
 
+    registerSecureHandler('ytdlp-check-update', async () => await checkYtdlpUpdate(), {
+      getMainWindow: this.windowRef,
+      failureValue: { success: false, updateAvailable: false, checkable: false, error: 'Unauthorized' }
+    })
+
     registerSecureHandler('ffmpeg-check', async () => await checkFfmpegAvailable(), {
       getMainWindow: this.windowRef,
       failureValue: { available: false, installable: false, error: 'Unauthorized' }
+    })
+
+    registerSecureHandler('ffmpeg-check-update', async () => await checkFfmpegUpdate(), {
+      getMainWindow: this.windowRef,
+      failureValue: { success: false, updateAvailable: false, checkable: false, error: 'Unauthorized' }
     })
 
     registerSecureHandler('ffmpeg-install', async (event) => {
@@ -733,5 +741,24 @@ export class IpcController {
     registerSecureHandler('plugins-uninstall', (event, pluginId: string) => ({
       success: this.pluginManager.uninstall(pluginId)
     }), { getMainWindow: this.windowRef })
+
+    // 插件目录：返回真实路径供渲染层展示；打开目录也由主进程完成
+    // （渲染层此前用 '%APPDATA%/...' 提示文本直接调 open-path，环境变量未展开必然失败）
+    registerSecureHandler('plugins-dir', () => ({
+      success: true,
+      path: this.pluginManager.getPluginDir()
+    }), { getMainWindow: this.windowRef })
+
+    registerSecureHandler('plugins-open-dir', async () => {
+      const dir = this.pluginManager.getPluginDir()
+      try {
+        // 目录正常情况下已由 PluginManager 创建，这里兜底防止被手动删除
+        await fs.promises.mkdir(dir, { recursive: true })
+        const error = await shell.openPath(dir)
+        return error ? { success: false, error } : { success: true }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    }, { getMainWindow: this.windowRef })
   }
 }
