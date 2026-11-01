@@ -168,13 +168,49 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
 
     const popupInfo = await evalIn(
       session,
-      `JSON.stringify({ text: document.body.innerText, width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })`
+      `JSON.stringify({
+        text: document.body.innerText,
+        width: document.documentElement.scrollWidth,
+        height: document.documentElement.scrollHeight,
+        bodyHeight: Math.round(document.body.getBoundingClientRect().height),
+        bodyWidth: Math.round(document.body.getBoundingClientRect().width)
+      })`
     )
     const info = JSON.parse(popupInfo)
     reporter.check('popup 已渲染', info.width > 200 && info.height > 300, `${info.width}x${info.height}`)
     reporter.check('popup 包含扩展主界面文案', /Aria2 Desktop/.test(info.text) && /发送|Send|配对|Pair/i.test(info.text))
+    // 信息密度回归：整页内容高度受限、无横向溢出（提示文案精简 + 紧凑布局）
+    reporter.check('popup 内容高度不超过 480px', info.bodyHeight > 0 && info.bodyHeight <= 480, `body ${info.bodyHeight}px`)
+    reporter.check('popup 无横向溢出', info.bodyWidth <= 341, `body ${info.bodyWidth}px`)
     reporter.check('popup 无运行时异常', collectErrors(session).length === 0)
     await capture(session, path.join(outDir, '07-extension-popup.png'))
+
+    // 发送页布局（未配对时默认停在「配对与设置」）：切过去校验操作按钮与输入框同排、页面紧凑
+    await evalIn(session, `document.getElementById('tabSend').click()`)
+    await sleep(400)
+    const sendLayout = await evalIn(
+      session,
+      `(() => {
+        const input = document.getElementById('quickUrl').getBoundingClientRect()
+        const btn = document.getElementById('sendBtn').getBoundingClientRect()
+        const videoBtns = [...document.querySelectorAll('#pageVideoBtn')]
+        return {
+          bodyHeight: Math.round(document.body.getBoundingClientRect().height),
+          bodyWidth: Math.round(document.body.getBoundingClientRect().width),
+          sendBtnSameRow: Math.abs(btn.top - input.top) <= 2 && Math.abs(btn.height - input.height) <= 6,
+          singleVideoButton: videoBtns.length === 1,
+          videoButtonText: videoBtns[0] ? (videoBtns[0].innerText || '').trim() : ''
+        }
+      })()`
+    )
+    reporter.check('发送按钮与链接输入框同一行', sendLayout?.sendBtnSameRow === true, JSON.stringify(sendLayout))
+    reporter.check(
+      '本页视频合并为单个通用按钮',
+      sendLayout?.singleVideoButton === true && /下载本页视频|Download page video/i.test(String(sendLayout?.videoButtonText)),
+      JSON.stringify(sendLayout)
+    )
+    reporter.check('popup 发送页布局紧凑', sendLayout?.bodyHeight > 0 && sendLayout.bodyHeight <= 400, `body ${sendLayout?.bodyHeight}px`)
+    await capture(session, path.join(outDir, '07b-extension-popup-send.png'))
     session.close()
 
     return { skipped: false }

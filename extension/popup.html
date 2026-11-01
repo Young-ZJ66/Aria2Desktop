@@ -49,32 +49,34 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      padding: 14px 14px 12px;
+      padding: 12px 12px 10px;
     }
 
     .header {
       display: flex;
       align-items: center;
-      gap: 9px;
-      margin-bottom: 12px;
+      gap: 8px;
+      margin-bottom: 10px;
     }
-    .header img { width: 28px; height: 28px; border-radius: 6px; }
-    .header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
+    .header img { width: 24px; height: 24px; border-radius: 5px; }
+    .header h1 { font-size: 14px; font-weight: 600; letter-spacing: 0.2px; }
 
-    /* 状态条：spinner + 文案；连接/断开/检测中三态 */
+    /* 状态胶囊放在标题右侧：省掉一整行高度，长文案单行截断（完整内容在 title 里） */
     .status {
+      margin-left: auto;
+      flex: none;
+      max-width: 172px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 7px 11px;
-      border-radius: 8px;
-      margin-bottom: 12px;
-      font-size: 12.5px;
-      word-break: break-word;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
       background: var(--panel);
       border: 1px solid var(--border);
       color: var(--text-dim);
     }
+    .status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .status.connected { background: var(--success-bg); border-color: transparent; color: var(--success); }
     .status.disconnected { background: var(--danger-bg); border-color: transparent; color: var(--danger); }
     .status-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
@@ -91,22 +93,22 @@
 
     .tabs {
       display: flex;
-      gap: 4px;
-      margin-bottom: 12px;
-      padding: 3px;
+      gap: 2px;
+      margin-bottom: 10px;
+      padding: 2px;
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 8px;
     }
     .tab {
       flex: 1;
-      padding: 7px 8px;
+      padding: 6px 8px;
       border: none;
       border-radius: 6px;
       background: transparent;
       color: var(--text-dim);
       font-family: inherit;
-      font-size: 12.5px;
+      font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       transition: background 0.15s, color 0.15s;
@@ -121,49 +123,49 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      padding: 9px 11px;
-      margin-bottom: 12px;
-      border-radius: 8px;
+      gap: 8px;
+      padding: 7px 10px;
+      margin-bottom: 10px;
+      border-radius: 7px;
       background: var(--warn-bg);
-      font-size: 12px;
-      line-height: 1.45;
+      font-size: 11.5px;
+      line-height: 1.4;
       color: var(--warn);
     }
     .banner button {
       flex: none;
-      padding: 5px 12px;
+      padding: 4px 10px;
       border: none;
-      border-radius: 6px;
+      border-radius: 5px;
       background: var(--primary);
       color: #fff;
       font-family: inherit;
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 500;
       cursor: pointer;
       white-space: nowrap;
     }
     .banner button:hover { background: var(--primary-hover); }
 
-    .section { margin-bottom: 13px; }
+    .section { margin-bottom: 10px; }
     .section-title {
-      font-size: 11px;
+      font-size: 10.5px;
       color: var(--text-dim);
-      margin-bottom: 7px;
+      margin-bottom: 6px;
       text-transform: uppercase;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.5px;
     }
-    .form-group { margin-bottom: 10px; }
-    .form-group label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+    .form-group { margin-bottom: 8px; }
+    .form-group label { display: block; font-size: 11.5px; color: var(--text-dim); margin-bottom: 3px; }
     .input-wrap { position: relative; }
     .input-wrap input {
       width: 100%;
-      padding: 8px 10px;
+      padding: 6px 9px;
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 7px;
+      border-radius: 6px;
       color: var(--text);
-      font-size: 13px;
+      font-size: 12.5px;
       transition: border-color 0.15s;
     }
     .input-wrap input:focus { border-color: var(--primary); outline: none; }
@@ -171,41 +173,46 @@
     /* 输入框内嵌的次要按钮（粘贴/显示密钥） */
     .input-suffix {
       position: absolute;
-      right: 5px;
+      right: 4px;
       top: 50%;
       transform: translateY(-50%);
-      padding: 3px 8px;
+      padding: 2px 7px;
       border: none;
-      border-radius: 5px;
+      border-radius: 4px;
       background: transparent;
       color: var(--text-dim);
       font-family: inherit;
-      font-size: 11.5px;
+      font-size: 11px;
       cursor: pointer;
     }
     .input-suffix:hover { color: var(--text); background: var(--secondary); }
     .hint {
-      margin-top: 5px;
-      font-size: 11px;
-      line-height: 1.55;
+      margin-top: 4px;
+      font-size: 10.5px;
+      line-height: 1.5;
       color: var(--text-dim);
     }
     .row { display: flex; gap: 8px; }
     .row .form-group { flex: 1; }
 
+    /* 输入框 + 发送按钮同一行：少一行高度，日常操作路径更短 */
+    .send-row { display: flex; gap: 6px; }
+    .send-row .input-wrap { flex: 1; min-width: 0; }
+    .send-row .btn { flex: none; width: auto; min-width: 62px; padding: 0 12px; }
+
     .toggle-group {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      padding: 7px 0;
+      gap: 10px;
+      padding: 6px 0;
     }
     .toggle-group + .toggle-group { border-top: 1px solid var(--border); }
-    .toggle-group .t-label { font-size: 13px; }
+    .toggle-group .t-label { font-size: 12.5px; }
     .toggle-group .t-desc {
-      margin-top: 2px;
-      font-size: 11px;
-      line-height: 1.5;
+      margin-top: 1px;
+      font-size: 10.5px;
+      line-height: 1.4;
       color: var(--text-dim);
     }
     .toggle { position: relative; flex: none; width: 38px; height: 21px; cursor: pointer; }
@@ -233,11 +240,11 @@
 
     .btn {
       width: 100%;
-      padding: 9px 10px;
+      padding: 8px 10px;
       border: none;
-      border-radius: 8px;
+      border-radius: 7px;
       font-family: inherit;
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 500;
       cursor: pointer;
       transition: background 0.15s, opacity 0.15s;
@@ -260,19 +267,17 @@
     }
     .btn-row { display: flex; gap: 8px; }
     .btn-row .btn { flex: 1; }
-    .btn + .btn { margin-top: 8px; }
-    .btn-row .btn + .btn { margin-top: 0; }
 
     /* 手动配置折叠区：默认收起，日常只看到一键配对 */
     details.manual {
-      margin-top: 10px;
+      margin-top: 8px;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 7px;
       background: var(--panel);
     }
     details.manual summary {
-      padding: 8px 11px;
-      font-size: 12px;
+      padding: 7px 10px;
+      font-size: 11.5px;
       color: var(--text-dim);
       cursor: pointer;
       user-select: none;
@@ -281,12 +286,12 @@
     details.manual summary::-webkit-details-marker { display: none; }
     details.manual summary:hover { color: var(--text); }
     details.manual[open] summary { border-bottom: 1px solid var(--border); }
-    details.manual .manual-body { padding: 11px; }
+    details.manual .manual-body { padding: 10px; }
 
     .feedback {
-      min-height: 17px;
-      margin-top: 9px;
-      font-size: 12px;
+      min-height: 16px;
+      margin-top: 6px;
+      font-size: 11.5px;
       line-height: 1.5;
       word-break: break-word;
       color: var(--text-dim);
@@ -295,12 +300,12 @@
     .feedback.error { color: var(--danger); }
 
     .footer {
-      margin-top: 8px;
-      padding-top: 10px;
+      margin-top: 6px;
+      padding-top: 8px;
       border-top: 1px solid var(--border);
       text-align: center;
-      font-size: 11px;
-      line-height: 1.6;
+      font-size: 10.5px;
+      line-height: 1.5;
       color: var(--text-dim);
     }
     /* 本页视频列表：每行一个可直接下载的地址 + 发送按钮 */
@@ -313,8 +318,8 @@
     .media-item {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 7px 9px;
+      gap: 6px;
+      padding: 6px 8px;
       border: 1px solid var(--border);
       border-radius: 6px;
       background: var(--panel);
@@ -322,7 +327,7 @@
     .media-url {
       flex: 1;
       min-width: 0;
-      font-size: 11.5px;
+      font-size: 11px;
       color: var(--text-dim);
       white-space: nowrap;
       overflow: hidden;
@@ -330,21 +335,21 @@
     }
     .media-kind {
       flex: none;
-      font-size: 10.5px;
-      padding: 1px 6px;
+      font-size: 10px;
+      padding: 1px 5px;
       border-radius: 999px;
       background: var(--secondary);
       color: var(--text-dim);
     }
     .media-item button {
       flex: none;
-      padding: 4px 10px;
+      padding: 3px 8px;
       border: none;
-      border-radius: 5px;
+      border-radius: 4px;
       background: var(--primary);
       color: #fff;
       font-family: inherit;
-      font-size: 11.5px;
+      font-size: 11px;
       cursor: pointer;
     }
     .media-item button:hover { background: var(--primary-hover); }
@@ -363,11 +368,10 @@
   <div class="header">
     <img src="icons/icon48.png" alt="">
     <h1>Aria2 Desktop</h1>
-  </div>
-
-  <div id="status" class="status loading" role="status" aria-live="polite">
-    <span class="status-dot"></span>
-    <span id="statusText"></span>
+    <div id="status" class="status loading" role="status" aria-live="polite">
+      <span class="status-dot"></span>
+      <span id="statusText" class="status-text"></span>
+    </div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -383,19 +387,18 @@
     </div>
     <div class="section">
       <div class="section-title" id="quickSendTitle"></div>
-      <div class="form-group">
+      <div class="send-row">
         <label for="quickUrl" class="visually-hidden" id="quickUrlLabel"></label>
         <div class="input-wrap">
           <input type="text" id="quickUrl" spellcheck="false">
           <button class="input-suffix" id="pasteBtn" type="button" title=""></button>
         </div>
+        <button class="btn btn-primary" id="sendBtn" type="button"></button>
       </div>
-      <button class="btn btn-primary" id="sendBtn" type="button"></button>
     </div>
     <div class="section">
       <div class="section-title" id="mediaTitle"></div>
-      <button class="btn btn-secondary" id="mediaDetectBtn" type="button"></button>
-      <button class="btn btn-secondary" id="streamPageBtn" type="button"></button>
+      <button class="btn btn-secondary" id="pageVideoBtn" type="button"></button>
       <div class="media-list" id="mediaList" hidden></div>
       <p class="hint" id="mediaHint" hidden></p>
     </div>

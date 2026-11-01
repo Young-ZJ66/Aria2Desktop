@@ -48,8 +48,7 @@ function initI18n() {
   $('allowCookiesDesc').textContent = i18n('allowCookiesDesc')
 
   $('mediaTitle').textContent = i18n('mediaSection')
-  $('mediaDetectBtn').textContent = i18n('mediaDetect')
-  $('streamPageBtn').textContent = i18n('streamPageBtn')
+  $('pageVideoBtn').textContent = i18n('pageVideoBtn')
 
   $('manualTitle').textContent = i18n('manualTitle')
   $('hostLabel').textContent = i18n('host')
@@ -92,6 +91,8 @@ function setStatus(state, text) {
     : state === 'disconnected' ? 'status disconnected' : 'status loading'
   $('status').className = cls
   $('statusText').textContent = text
+  // 胶囊宽度有限：完整文案放进 title，鼠标悬停仍可看到
+  $('statusText').title = text
 }
 
 /**
@@ -108,7 +109,7 @@ function applyPairingUi(paired) {
   btn.classList.toggle('btn-danger-ghost', paired)
   $('pairHint').textContent = i18n(paired ? 'unpairHint' : 'pairHint')
   $('pairBanner').hidden = paired
-  $('streamPageBtn').disabled = !paired
+  $('pageVideoBtn').disabled = !paired
   $('sendBtn').disabled = !paired
   $('quickUrl').disabled = !paired
   $('pasteBtn').disabled = !paired
@@ -507,44 +508,20 @@ async function requestSiteAccess(enabled, event, deniedKey, permissions = []) {
   }
 }
 
-/** 本页视频：检测 → 列出可直接下载的地址 → 一键发送 */
-async function detectMedia() {
-  const btn = $('mediaDetectBtn')
-  btn.disabled = true
-  btn.textContent = i18n('mediaDetecting')
-  $('mediaList').hidden = true
-  $('mediaHint').hidden = true
-  try {
-    // scripting 是可选权限：首次点击时在用户手势内申请，拒绝则如实提示
-    if (!(await ensurePermissions(['scripting']))) {
-      $('mediaHint').textContent = i18n('mediaPermissionDenied')
-      $('mediaHint').hidden = false
-      return
-    }
-    const response = await chrome.runtime.sendMessage({ action: 'detectPageMedia' })
-    if (!response?.success) {
-      $('mediaHint').textContent = response?.error || i18n('mediaPermissionDenied')
-      $('mediaHint').hidden = false
-      return
-    }
-    renderMedia(response.items || [], response.pageUrl || '')
-  } catch {
-    $('mediaHint').textContent = i18n('mediaPermissionDenied')
-    $('mediaHint').hidden = false
-  } finally {
-    btn.disabled = false
-    btn.textContent = i18n('mediaDetect')
-  }
-}
+/** App 侧暂不可用的错误码：退回「检测本页直链」仍能下载 */
+const STREAM_FALLBACK_CODES = new Set(['unreachable', 'ytdlp_missing', 'ffmpeg_missing'])
 
 /**
- * 把**当前页面**交给 App 的 yt-dlp 下载模式（B 站等音视频分离站点）。
- * 与「本页视频」检测不同：这里不需要拿到媒体直链，App 自己解析并合并音轨。
+ * 下载本页视频（统一入口）：
+ * 1) 优先交给 App 的 yt-dlp 解析（支持 1000+ 站点，自动合并音轨）；
+ * 2) App 未运行 / 缺 yt-dlp / 缺 ffmpeg 时，退回检测本页可直接下载的直链并列出。
  */
-async function streamCurrentPage() {
-  const btn = $('streamPageBtn')
+async function downloadPageVideo() {
+  const btn = $('pageVideoBtn')
   btn.disabled = true
-  btn.textContent = i18n('streamPageSending')
+  btn.textContent = i18n('pageVideoWorking')
+  $('mediaList').hidden = true
+  $('mediaHint').hidden = true
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab?.url || !/^https?:\/\//i.test(tab.url)) {
@@ -558,15 +535,44 @@ async function streamCurrentPage() {
     })
     if (result?.success) {
       showFeedback(i18n('streamPageSent'))
-    } else {
-      showFeedback(result?.error || i18n('streamPageFailed', ['']), true)
+      return
     }
+    if (result?.code && STREAM_FALLBACK_CODES.has(result.code)) {
+      const count = await detectAndListMedia()
+      if (count > 0) {
+        showFeedback(i18n('streamPageFallback'))
+        return
+      }
+    }
+    showFeedback(result?.error || i18n('streamPageFailed', ['']), true)
   } catch {
     showFeedback(i18n('streamPageUnreachable'), true)
   } finally {
-    btn.textContent = i18n('streamPageBtn')
+    btn.textContent = i18n('pageVideoBtn')
     // 未配对时保持禁用（loadConfig / 配对变化会更新 secret 输入框）
     btn.disabled = !$('secret').value.trim()
+  }
+}
+
+/** 退回路径：检测本页可直接下载的直链（scripting 为可选权限，首次点击时申请） */
+async function detectAndListMedia() {
+  if (!(await ensurePermissions(['scripting']))) {
+    $('mediaHint').textContent = i18n('mediaPermissionDenied')
+    $('mediaHint').hidden = false
+    return 0
+  }
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'detectPageMedia' })
+    if (!response?.success) {
+      $('mediaHint').textContent = response?.error || i18n('mediaPermissionDenied')
+      $('mediaHint').hidden = false
+      return 0
+    }
+    return renderMedia(response.items || [], response.pageUrl || '')
+  } catch {
+    $('mediaHint').textContent = i18n('mediaPermissionDenied')
+    $('mediaHint').hidden = false
+    return 0
   }
 }
 
@@ -587,7 +593,7 @@ function renderMedia(items, pageUrl) {
       ? i18n('mediaStreamHint')
       : hasBlob ? i18n('mediaBlobHint') : i18n('mediaNone')
     $('mediaHint').hidden = false
-    return
+    return 0
   }
 
   for (const item of downloadable) {
@@ -628,6 +634,7 @@ function renderMedia(items, pageUrl) {
     list.appendChild(row)
   }
   list.hidden = false
+  return downloadable.length
 }
 
 // Event listeners
@@ -645,8 +652,7 @@ $('bannerPairBtn').addEventListener('click', () => {
 $('pairBtn').addEventListener('click', () => (isPaired ? unpair() : startPairing()))
 $('saveBtn').addEventListener('click', saveConfig)
 $('testBtn').addEventListener('click', testConnection)
-$('mediaDetectBtn').addEventListener('click', detectMedia)
-$('streamPageBtn').addEventListener('click', streamCurrentPage)
+$('pageVideoBtn').addEventListener('click', downloadPageVideo)
 
 // 开关即时保存（allowProbe / allowCookies 涉及权限申请，见上）
 $('enabled').addEventListener('change', async (event) => {

@@ -553,11 +553,11 @@ async function getAppStatus() {
  */
 async function streamPageVideo(pageUrl, title) {
   if (!/^https?:\/\//i.test(pageUrl || '')) {
-    return { success: false, error: i18n('streamPageUnsupported') }
+    return { success: false, code: 'invalid_url', error: i18n('streamPageUnsupported') }
   }
   const config = await getConfig()
   if (!config.secret) {
-    return { success: false, error: i18n('streamPageNeedPair') }
+    return { success: false, code: 'not_paired', error: i18n('streamPageNeedPair') }
   }
 
   try {
@@ -569,13 +569,13 @@ async function streamPageVideo(pageUrl, title) {
     })
     const data = await response.json().catch(() => null)
     if (response.ok && data?.ok) return { success: true }
-    if (data?.code === 'ytdlp_missing') return { success: false, error: i18n('streamPageYtdlpMissing') }
-    if (data?.code === 'ffmpeg_missing') return { success: false, error: i18n('streamPageFfmpegMissing') }
-    if (data?.code === 'invalid_url') return { success: false, error: i18n('streamPageUnsupported') }
-    return { success: false, error: i18n('streamPageFailed', [data?.error || String(response.status)]) }
+    if (data?.code === 'ytdlp_missing') return { success: false, code: 'ytdlp_missing', error: i18n('streamPageYtdlpMissing') }
+    if (data?.code === 'ffmpeg_missing') return { success: false, code: 'ffmpeg_missing', error: i18n('streamPageFfmpegMissing') }
+    if (data?.code === 'invalid_url') return { success: false, code: 'invalid_url', error: i18n('streamPageUnsupported') }
+    return { success: false, code: 'failed', error: i18n('streamPageFailed', [data?.error || String(response.status)]) }
   } catch {
     // 请求超时 / App 未运行 / 接口不可达都归到这里
-    return { success: false, error: i18n('streamPageUnreachable') }
+    return { success: false, code: 'unreachable', error: i18n('streamPageUnreachable') }
   }
 }
 
