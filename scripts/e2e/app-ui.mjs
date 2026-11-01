@@ -189,6 +189,40 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
   reporter.check('新建任务弹窗可打开', /新建|New|链接|URL/i.test(String(newTaskText)))
   reporter.check('新建任务包含请求头区域', /请求头|Request headers|Referer|User-Agent/i.test(String(newTaskText)))
+
+  // —— 流媒体页：验证 yt-dlp 入口（已安装显示表单 / 未安装显示按需下载）——
+  const streamTab = await evalIn(
+    session,
+    `(() => {
+      const tab = [...document.querySelectorAll('.n-modal .n-tabs-tab')].find((e) => /流媒体|Streaming/i.test(e.textContent || ''))
+      if (!tab) return 'no-tab'
+      tab.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('切换到流媒体页', streamTab === 'clicked', String(streamTab))
+  await sleep(900)
+  const streamText = await evalIn(
+    session,
+    `(() => { const m = [...document.querySelectorAll('.n-modal')].find((el) => el.offsetParent !== null); return m ? m.innerText : '(no modal)' })()`
+  )
+  reporter.check(
+    '流媒体页提供按需下载或已安装表单',
+    /下载 yt-dlp|Download yt-dlp|当前平台暂不支持|does not support automatic|输入视频|Enter video/i.test(String(streamText)),
+    String(streamText).slice(0, 80)
+  )
+  // 回到链接下载页，后续仍按原流程提交真实下载任务
+  const backToUriTab = await evalIn(
+    session,
+    `(() => {
+      const tab = [...document.querySelectorAll('.n-modal .n-tabs-tab')].find((e) => /链接下载|URL Download/i.test(e.textContent || ''))
+      if (!tab) return 'no-tab'
+      tab.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('切回链接下载页', backToUriTab === 'clicked', String(backToUriTab))
+  await sleep(600)
   await capture(session, path.join(outDir, '04-new-task.png'))
 
   // —— 真实下载：填 URL + 临时目录并提交，等待引擎完成 ——

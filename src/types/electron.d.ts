@@ -207,8 +207,12 @@ export interface ElectronAPI {
   /** 把 aria2 下载事件转发给主进程插件系统（fire-and-forget，无返回值） */
   notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart', gid: string, name: string) => void
 
-  // yt-dlp 流媒体支持（可选外部引擎）
-  ytdlpCheck: () => Promise<{ available: boolean; version?: string; error?: string }>
+  // yt-dlp 流媒体支持（可选外部引擎，首次使用时按需下载）
+  ytdlpCheck: () => Promise<{ available: boolean; version?: string; error?: string; source?: 'downloaded' | 'bundled' | 'path'; installable: boolean; approxSizeMB?: number }>
+  /** 下载当前平台的官方 yt-dlp（校验 SHA-256 后安装到 userData），进度走 onYtdlpInstallProgress */
+  ytdlpInstall: () => Promise<{ success: boolean; version?: string; error?: string }>
+  /** 订阅安装进度，返回取消订阅函数 */
+  onYtdlpInstallProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
   ytdlpVideoInfo: (url: string) => Promise<{ success: boolean; info?: { title: string; url: string; ext: string; filesize: number | null; format: string; formats: Array<{ formatId: string; ext: string; resolution: string; fps: number | null; filesize: number | null; vcodec: string; acodec: string; note: string }> }; error?: string }>
   ytdlpFormatUrl: (url: string, formatId: string) => Promise<{ success: boolean; downloadUrl?: string; title?: string; ext?: string; error?: string }>
 

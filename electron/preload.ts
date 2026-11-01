@@ -122,8 +122,14 @@ const electronAPI = {
   notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart', gid: string, name: string) =>
     ipcRenderer.send('download-event', kind, gid, name),
 
-  // yt-dlp 流媒体支持（可选外部引擎）
+  // yt-dlp 流媒体支持（可选外部引擎，首次使用时按需下载）
   ytdlpCheck: () => ipcRenderer.invoke('ytdlp-check'),
+  ytdlpInstall: () => ipcRenderer.invoke('ytdlp-install'),
+  onYtdlpInstallProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { percent: number; transferred: number; total: number }) => callback(progress)
+    ipcRenderer.on('ytdlp-install-progress', handler)
+    return () => { ipcRenderer.removeListener('ytdlp-install-progress', handler) }
+  },
   ytdlpVideoInfo: (url: string) => ipcRenderer.invoke('ytdlp-video-info', url),
   ytdlpFormatUrl: (url: string, formatId: string) => ipcRenderer.invoke('ytdlp-format-url', url, formatId),
 

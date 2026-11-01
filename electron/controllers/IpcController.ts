@@ -11,7 +11,7 @@ import { registerSecureHandler, registerSecureListener } from '../utils/ipcSecur
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import { isAllowedExternalUrl } from '../utils/externalUrlCore'
-import { checkYtdlpAvailable, getVideoInfo, getFormatUrl } from '../services/ytdlpService'
+import { checkYtdlpAvailable, getVideoInfo, getFormatUrl, installYtdlp } from '../services/ytdlpService'
 import { extractArchive } from '../services/archiveService'
 import { getAutoLaunchEnabled, setAutoLaunchEnabled } from '../services/autoLaunch'
 import { PluginManager } from '../services/pluginManager'
@@ -627,11 +627,23 @@ export class IpcController {
     }, { getMainWindow: this.windowRef })
   }
 
-  /** yt-dlp 流媒体支持（可选外部引擎） */
+  /** yt-dlp 流媒体支持（可选外部引擎，按需下载） */
   private registerYtdlpHandlers() {
     registerSecureHandler('ytdlp-check', async () => await checkYtdlpAvailable(), {
       getMainWindow: this.windowRef,
-      failureValue: { available: false, error: 'Unauthorized' }
+      failureValue: { available: false, installable: false, error: 'Unauthorized' }
+    })
+
+    // 下载/校验/替换都在主进程完成；进度经独立事件推给渲染层（invoke 本身只返回最终结果）
+    registerSecureHandler('ytdlp-install', async (event) => {
+      return await installYtdlp((progress) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('ytdlp-install-progress', progress)
+        }
+      })
+    }, {
+      getMainWindow: this.windowRef,
+      failureValue: { success: false, error: 'Unauthorized' }
     })
 
     registerSecureHandler('ytdlp-video-info', async (event, url: string) => await getVideoInfo(url), {

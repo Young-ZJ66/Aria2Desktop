@@ -2,6 +2,32 @@
   <n-alert v-if="!ytdlpAvailable" type="warning" :bordered="false" style="margin-bottom: 12px;">
     {{ t('newTask.streamUrlTip') }}
   </n-alert>
+
+  <!-- 未安装：按需下载（仅一次，安装到本机 userData；不增加安装包体积） -->
+  <div v-if="!ytdlpAvailable" class="ytdlp-install">
+    <p class="ytdlp-install-hint">
+      {{ ytdlpInstallable ? t('newTask.streamYtdlpInstallHint') : t('newTask.streamYtdlpUnsupported') }}
+    </p>
+    <n-button
+      v-if="ytdlpInstallable"
+      type="primary"
+      :loading="ytdlpInstalling"
+      :disabled="ytdlpInstalling"
+      @click="installYtdlp"
+    >
+      {{ ytdlpInstalling
+        ? t('newTask.streamYtdlpInstalling')
+        : t('newTask.streamYtdlpInstall', { size: ytdlpApproxSizeMB ?? '—' }) }}
+    </n-button>
+    <n-progress
+      v-if="ytdlpInstalling && ytdlpInstallPercent > 0"
+      type="line"
+      :percentage="ytdlpInstallPercent"
+      :height="6"
+      style="margin-top: 10px;"
+    />
+  </div>
+
   <template v-else>
     <!-- 检测到的 yt-dlp 版本：放在**可用**分支才可达——
          检测不通过时后端不返回 version（只有 available:false + error），
@@ -39,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from '@/utils/feedback'
 import { useUiStore } from '@/stores/uiStore'
@@ -61,6 +87,12 @@ const settingsStore = useSettingsStore()
 
 const ytdlpAvailable = ref(false)
 const ytdlpVersion = ref('')
+const ytdlpInstallable = ref(false)
+const ytdlpApproxSizeMB = ref<number | null>(null)
+const ytdlpInstalling = ref(false)
+const ytdlpInstallPercent = ref(0)
+/** 取消安装进度订阅（组件卸载时调用，避免弹窗反复打开累积监听器） */
+let unsubscribeProgress: (() => void) | null = null
 const streamUrl = ref('')
 const streamFetching = ref(false)
 const streamDownloading = ref(false)
@@ -75,16 +107,58 @@ const streamFormatOptions = computed(() =>
   }))
 )
 
-// 检查 yt-dlp 是否可用（决定显示提示还是表单），未安装时顺带记录版本信息为空
+// 检查 yt-dlp 是否可用（决定显示表单还是"按需下载"按钮）
+async function checkAvailable() {
+  if (!window.electronAPI?.ytdlpCheck) return
+  try {
+    const result = await window.electronAPI.ytdlpCheck()
+    ytdlpAvailable.value = result.available
+    ytdlpVersion.value = result.version ?? ''
+    ytdlpInstallable.value = result.installable === true
+    ytdlpApproxSizeMB.value = result.approxSizeMB ?? null
+  } catch { /* 忽略 */ }
+}
+
 onMounted(async () => {
-  if (window.electronAPI?.ytdlpCheck) {
-    try {
-      const result = await window.electronAPI.ytdlpCheck()
-      ytdlpAvailable.value = result.available
-      ytdlpVersion.value = result.version ?? ''
-    } catch { /* 忽略 */ }
+  // 进度是独立事件通道（invoke 只返回最终结果）
+  if (window.electronAPI?.onYtdlpInstallProgress) {
+    unsubscribeProgress = window.electronAPI.onYtdlpInstallProgress((progress) => {
+      ytdlpInstallPercent.value = progress.percent ?? 0
+    })
   }
+  await checkAvailable()
 })
+
+onUnmounted(() => {
+  unsubscribeProgress?.()
+  unsubscribeProgress = null
+})
+
+/**
+ * 一键下载 yt-dlp：主进程负责下载、SHA-256 校验与安装，
+ * 成功后重新探测，表单直接在下方出现（无需重启应用）。
+ */
+async function installYtdlp() {
+  if (!window.electronAPI?.ytdlpInstall || ytdlpInstalling.value) return
+  ytdlpInstalling.value = true
+  ytdlpInstallPercent.value = 0
+  try {
+    const result = await window.electronAPI.ytdlpInstall()
+    if (result.success) {
+      message.success(t('newTask.streamYtdlpInstallSuccess', { version: result.version || '—' }))
+      await checkAvailable()
+    } else {
+      message.error(t('newTask.streamYtdlpInstallFailed', { error: result.error || '' }))
+    }
+  } catch (error) {
+    message.error(t('newTask.streamYtdlpInstallFailed', {
+      error: error instanceof Error ? error.message : String(error)
+    }))
+  } finally {
+    ytdlpInstalling.value = false
+    ytdlpInstallPercent.value = 0
+  }
+}
 
 async function fetchStreamInfo() {
   if (!streamUrl.value.trim() || !window.electronAPI?.ytdlpVideoInfo) return
@@ -144,6 +218,17 @@ async function handleStreamDownload() {
 .ytdlp-detected {
   margin-bottom: 8px;
   font-size: 11.5px;
+  opacity: 0.85;
+}
+
+.ytdlp-install {
+  margin-bottom: 12px;
+}
+
+.ytdlp-install-hint {
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.5;
   opacity: 0.85;
 }
 </style>
