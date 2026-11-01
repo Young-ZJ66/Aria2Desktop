@@ -180,12 +180,12 @@ async function downloadOnce(
   })
 }
 
-/** GET 文本（用于官方校验文件）。同样走系统代理与自动重定向；瞬时失败重试 */
-export async function fetchText(url: string): Promise<string> {
+/** GET 文本（用于官方校验文件 / Release 元信息）。同样走系统代理与自动重定向；瞬时失败重试 */
+export async function fetchText(url: string, maxBytes = MAX_TEXT_BYTES): Promise<string> {
   let lastError: Error | null = null
   for (let attempt = 1; attempt <= TEXT_ATTEMPTS; attempt++) {
     try {
-      return await fetchTextOnce(url)
+      return await fetchTextOnce(url, maxBytes)
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error))
       if (attempt < TEXT_ATTEMPTS) {
@@ -197,7 +197,7 @@ export async function fetchText(url: string): Promise<string> {
   throw lastError ?? new Error('获取文本失败')
 }
 
-async function fetchTextOnce(url: string): Promise<string> {
+async function fetchTextOnce(url: string, maxBytes: number): Promise<string> {
   const downloadSession = await getDownloadSession()
   return new Promise((resolve, reject) => {
     const request = net.request({ session: downloadSession, url, redirect: 'follow', useSessionCookies: false })
@@ -229,8 +229,8 @@ async function fetchTextOnce(url: string): Promise<string> {
       response.on('data', (chunk: Buffer) => {
         idle?.reset()
         bytes += chunk.length
-        if (bytes > MAX_TEXT_BYTES) {
-          fail(new Error('校验文件异常（响应体过大）'))
+        if (bytes > maxBytes) {
+          fail(new Error('响应体过大'))
           return
         }
         body += chunk.toString()

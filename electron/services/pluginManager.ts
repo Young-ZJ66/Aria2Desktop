@@ -72,6 +72,11 @@ export class PluginManager {
     }
   }
 
+  /** 插件目录的真实路径（渲染层展示/打开目录用，避免硬编码 %APPDATA% 之类的伪路径） */
+  getPluginDir(): string {
+    return this.pluginDir
+  }
+
   /** 加载所有插件 */
   loadAll(): void {
     const disabledList = this.getDisabledList()

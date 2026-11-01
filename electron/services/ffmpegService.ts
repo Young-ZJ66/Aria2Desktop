@@ -15,6 +15,7 @@ import { app } from 'electron'
 import { resolveFfmpegAsset } from '../utils/ffmpegAssets'
 import { findSha256ForFile } from '../utils/sha256Sums'
 import { downloadToFile, fetchText, type DownloadProgress } from '../utils/downloader'
+import { ffmpegBuildDate, formatDateStamp, isoToDateStamp } from '../utils/componentUpdate'
 import { computeFileSha256 } from '../utils/fileHash'
 import { createLogger } from '../utils/logger'
 
@@ -41,6 +42,19 @@ export interface FfmpegInstallResult {
   version?: string
   error?: string
 }
+
+/** 检查更新结果（与 yt-dlp 同一形状，便于界面复用） */
+export interface FfmpegUpdateResult {
+  success: boolean
+  updateAvailable: boolean
+  checkable: boolean
+  currentVersion?: string
+  latestVersion?: string
+  error?: string
+}
+
+/** Release 元信息（GitHub API `latest` 返回滚动构建的资产更新时间） */
+const RELEASE_API_LATEST = 'https://api.github.com/repos/yt-dlp/FFmpeg-Builds/releases/latest'
 
 export type FfmpegInstallProgress = DownloadProgress
 
@@ -95,6 +109,74 @@ export async function checkFfmpegAvailable(): Promise<FfmpegCheckResult> {
       source: resolved.source,
       installable: Boolean(asset),
       approxSizeMB: asset?.approxSizeMB
+    }
+  }
+}
+
+/**
+ * 检查 ffmpeg 是否有更新。
+ * FFmpeg-Builds 是每日滚动构建、没有语义化版本：用本地版本号里的构建日期
+ * 与 Release 资产的更新时间做比较。
+ */
+export async function checkFfmpegUpdate(): Promise<FfmpegUpdateResult> {
+  const status = await checkFfmpegAvailable()
+  if (!status.available) {
+    return {
+      success: false,
+      updateAvailable: false,
+      checkable: false,
+      error: status.error || 'ffmpeg 未安装'
+    }
+  }
+  const current = String(status.version || '').trim()
+  const localDate = ffmpegBuildDate(current)
+  if (!localDate) {
+    return {
+      success: false,
+      updateAvailable: false,
+      checkable: false,
+      currentVersion: current,
+      error: '当前版本不含构建日期，无法自动比较（请自行更新）'
+    }
+  }
+  const asset = resolveFfmpegAsset(process.platform, process.arch)
+  if (!asset) {
+    return {
+      success: false,
+      updateAvailable: false,
+      checkable: false,
+      currentVersion: current,
+      error: '当前平台不支持自动更新 ffmpeg'
+    }
+  }
+  try {
+    const raw = await fetchText(RELEASE_API_LATEST, 4 * 1024 * 1024)
+    const data = JSON.parse(raw) as { assets?: Array<{ name?: string; updated_at?: string }> }
+    const matched = data.assets?.find((item) => item.name === asset.fileName)
+    const remoteDate = isoToDateStamp(String(matched?.updated_at || ''))
+    if (!remoteDate) {
+      return {
+        success: false,
+        updateAvailable: false,
+        checkable: true,
+        currentVersion: current,
+        error: '未能获取最新构建信息'
+      }
+    }
+    return {
+      success: true,
+      checkable: true,
+      updateAvailable: remoteDate > localDate,
+      currentVersion: current,
+      latestVersion: formatDateStamp(remoteDate)
+    }
+  } catch (error) {
+    return {
+      success: false,
+      updateAvailable: false,
+      checkable: true,
+      currentVersion: current,
+      error: error instanceof Error ? error.message : String(error)
     }
   }
 }
@@ -202,8 +284,15 @@ function runFfmpegVersion(command: string): Promise<string> {
     })
     proc.on('exit', (code) => {
       clearTimeout(timer)
-      if (code === 0) resolve(stdout.split(/\r?\n/)[0]?.trim() || 'ffmpeg')
-      else reject(new Error(stderr.trim() || `ffmpeg exited with code ${code}`))
+      if (code === 0) {
+        const firstLine = stdout.split(/\r?\n/)[0]?.trim() || 'ffmpeg'
+        // 首行形如 "ffmpeg version N-128251-g6d1bfd7609-20261031 Copyright (c) ..."：
+        // 只取版本号本身，避免版权声明这类长文本进入界面
+        const match = /^ffmpeg version\s+([^\s]+)/i.exec(firstLine)
+        resolve(match?.[1] ?? firstLine)
+      } else {
+        reject(new Error(stderr.trim() || `ffmpeg exited with code ${code}`))
+      }
     })
   })
 }

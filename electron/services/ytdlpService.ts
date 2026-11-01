@@ -17,6 +17,7 @@ import { resolveYtdlpAsset } from '../utils/ytdlpAssets'
 import { findSha256ForFile } from '../utils/sha256Sums'
 import { computeFileSha256 } from '../utils/fileHash'
 import { downloadToFile, fetchText, type DownloadProgress } from '../utils/downloader'
+import { isNewerVersion } from '../utils/componentUpdate'
 import { createLogger } from '../utils/logger'
 
 const logger = createLogger('YtdlpService')
@@ -65,6 +66,20 @@ export interface YtdlpInstallResult {
   version?: string
   error?: string
 }
+
+/** 检查更新结果（与 ffmpeg 共用同一形状，便于界面复用） */
+export interface YtdlpUpdateResult {
+  success: boolean
+  updateAvailable: boolean
+  /** 版本是否可比较（未安装时为 false） */
+  checkable: boolean
+  currentVersion?: string
+  latestVersion?: string
+  error?: string
+}
+
+/** yt-dlp 官方 Release 元信息（GitHub API `latest` 会返回当前 tag） */
+const RELEASE_API_LATEST = 'https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest'
 
 export type YtdlpInstallProgress = DownloadProgress
 
@@ -126,6 +141,52 @@ export async function checkYtdlpAvailable(): Promise<YtdlpCheckResult> {
       source: resolved.source,
       installable,
       approxSizeMB
+    }
+  }
+}
+
+/**
+ * 检查 yt-dlp 是否有更新：GitHub Release 最新 tag 与本地版本比较。
+ * 网络失败只返回错误，不影响已安装版本继续使用。
+ */
+export async function checkYtdlpUpdate(): Promise<YtdlpUpdateResult> {
+  const status = await checkYtdlpAvailable()
+  if (!status.available) {
+    return {
+      success: false,
+      updateAvailable: false,
+      checkable: status.installable,
+      error: status.error || 'yt-dlp 未安装'
+    }
+  }
+  const current = String(status.version || '').trim()
+  try {
+    const raw = await fetchText(RELEASE_API_LATEST, 512 * 1024)
+    const data = JSON.parse(raw) as { tag_name?: string }
+    const latest = String(data.tag_name || '').trim()
+    if (!latest) {
+      return {
+        success: false,
+        updateAvailable: false,
+        checkable: true,
+        currentVersion: current,
+        error: '无法解析最新版本号'
+      }
+    }
+    return {
+      success: true,
+      checkable: true,
+      updateAvailable: current ? isNewerVersion(latest, current) : true,
+      currentVersion: current,
+      latestVersion: latest
+    }
+  } catch (error) {
+    return {
+      success: false,
+      updateAvailable: false,
+      checkable: true,
+      currentVersion: current,
+      error: error instanceof Error ? error.message : String(error)
     }
   }
 }

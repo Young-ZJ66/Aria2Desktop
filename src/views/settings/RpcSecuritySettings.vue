@@ -103,20 +103,6 @@
         </n-form-item>
       </n-card>
 
-      <!-- 浏览器扩展：一键跳到商店安装（链接与"是否已上架"的判断见 shared/extensionStore） -->
-      <n-card :title="t('settings.rpc.groupExtension')" class="setting-group">
-        <p class="extension-desc">{{ t('settings.rpc.extensionDesc') }}</p>
-        <n-space align="center" :size="12">
-          <n-button type="primary" :disabled="!storeUrlReady" @click="openExtensionStore">
-            <template #icon>
-              <n-icon><ExtensionPuzzleOutline /></n-icon>
-            </template>
-            {{ t('settings.rpc.getExtension') }}
-          </n-button>
-          <span v-if="!storeUrlReady" class="pending-hint">{{ t('settings.rpc.storePending') }}</span>
-        </n-space>
-      </n-card>
-
       <!-- TLS 加密 -->
       <n-card :title="t('settings.rpc.groupTls')" class="setting-group">
         <n-form-item>
@@ -154,7 +140,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOpenOutline, CopyOutline, ExtensionPuzzleOutline } from '@vicons/ionicons5'
+import { FolderOpenOutline, CopyOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import type { FormRules, FormInst } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
@@ -164,16 +150,11 @@ import AppSwitch from '@/components/AppSwitch.vue'
 import type { SettingSchema } from '@/types/settingSchema'
 import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
-import { EXTENSION_STORE_URL, isExtensionStoreAvailable } from '@/shared/extensionStore'
 import { isReservedSecretPrefix } from '@/shared/secretPrefix'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
 const formRef = ref<FormInst | null>(null)
-
-// 商店入口是否可用（扩展已于 2026-10-14 上架，即为 true；若商店下架，把它改回 false
-// 按钮就会回到「置灰 + 提示」，见 shared/extensionStore）
-const storeUrlReady = isExtensionStoreAvailable()
 
 const settings = reactive({
   enableRpc: true,
@@ -275,23 +256,6 @@ async function copySecret() {
   else message.error(t('settings.rpc.secretCopyFailed'))
 }
 
-/**
- * 跳转浏览器扩展商店。
- *
- * 链接与"是否已上架"的判断都在 shared/extensionStore（App 侧唯一事实来源）：
- * 未上架时按钮是置灰的，不会把用户带到 404 页面；扩展已于 2026-10-14 上架，当前为可点。
- */
-async function openExtensionStore() {
-  if (!storeUrlReady) return
-  // 防御：旧版 preload 没有该方法（升级后未重启时会走到这里），此时退化为提示手动访问
-  if (typeof window.electronAPI?.openExternalUrl !== 'function') {
-    message.warning(t('settings.rpc.extensionOpenFailed'))
-    return
-  }
-  const result = await window.electronAPI.openExternalUrl(EXTENSION_STORE_URL)
-  if (!result?.success) message.error(t('settings.rpc.extensionOpenFailed'))
-}
-
 // 选择证书/私钥文件
 async function selectFile(field: 'rpcCertificate' | 'rpcPrivateKey', title: string) {
   if (!window.electronAPI) {
@@ -318,18 +282,5 @@ async function selectFile(field: 'rpcCertificate' | 'rpcPrivateKey', title: stri
 <style scoped>
 .setting-group {
   margin-bottom: 16px;
-}
-
-/* 与 SettingsPage 的 .settings-description 同口径，保持卡片内说明文字一致 */
-.extension-desc {
-  margin: 0 0 12px 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.pending-hint {
-  color: var(--text-secondary);
-  font-size: 13px;
 }
 </style>

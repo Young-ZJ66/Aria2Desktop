@@ -231,6 +231,19 @@
       <!-- 下载行为 -->
       <n-card :title="t('settings.download.behavior')" class="setting-group">
 
+        <n-form-item path="userAgent">
+          <template #label>
+            <TipLabel :label="t('settings.download.userAgent')" :tip="t('settings.download.userAgentTip')" />
+          </template>
+          <n-select
+            v-model:value="settings.userAgent"
+            :options="userAgentOptions"
+            filterable
+            tag
+            :placeholder="t('settings.download.userAgentPlaceholder')"
+          />
+        </n-form-item>
+
         <n-form-item path="continue">
           <template #label>
             <TipLabel :label="t('settings.download.continue')" :tip="t('settings.download.continueTip')" />
@@ -466,8 +479,9 @@
 import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FolderOutline, AddOutline, RemoveOutline, TrashOutline } from '@vicons/ionicons5'
+import type { FormRules, FormInst, SelectOption } from 'naive-ui'
 import { message } from '@/utils/feedback'
-import type { FormRules, FormInst } from 'naive-ui'
+import { aria2DefaultUserAgent, USER_AGENT_PRESETS } from '@/shared/userAgents'
 
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
@@ -476,6 +490,7 @@ import { parseSizeToUnit } from '@/utils/size'
 import type { SettingSchema } from '@/types/settingSchema'
 import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useConnectionStore } from '@/stores/connectionStore'
+import { useStatsStore } from '@/stores/statsStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 import type { CategoryRule } from '@/shared/appSettings'
@@ -487,6 +502,7 @@ import {
 } from '@/shared/fileCategories'
 
 const connectionStore = useConnectionStore()
+const statsStore = useStatsStore()
 const { t } = useI18n()
 const formRef = ref<FormInst | null>(null)
 
@@ -495,6 +511,7 @@ const isElectron = computed(() => !!window.electronAPI)
 // 表单数据
 const settings = reactive({
   dir: '',
+  userAgent: '',
   maxConcurrentDownloads: 5,
   maxConnectionPerServer: 5,
   split: 5,
@@ -567,6 +584,18 @@ const downloadResultOptions = computed(() => [
   { label: t('settings.download.downloadResultHide'), value: 'hide' }
 ])
 
+/** 默认 UA：引擎默认（aria2/x.y.z）+ 常见浏览器预设；也可直接输入自定义 UA */
+const userAgentOptions = computed<SelectOption[]>(() => {
+  const engineDefault = aria2DefaultUserAgent(statsStore.version?.version)
+  return [
+    {
+      label: t('settings.download.userAgentEngineDefault', { version: engineDefault }),
+      value: engineDefault
+    },
+    ...USER_AGENT_PRESETS.map(preset => ({ label: preset.label, value: preset.value }))
+  ]
+})
+
 // 表单验证规则
 const rules: FormRules = {
   maxConcurrentDownloads: [
@@ -597,6 +626,7 @@ const downloadSettingsSchema: SettingSchema = {
       key: 'dir', aria2Key: 'dir', type: 'string', default: '',
       valueToOption: (value) => (value ? String(value) : '')
     },
+    { key: 'userAgent', aria2Key: 'user-agent', type: 'string', default: '' },
     { key: 'maxConcurrentDownloads', aria2Key: 'max-concurrent-downloads', type: 'number', default: 5, min: 1, max: 16 },
     { key: 'maxConnectionPerServer', aria2Key: 'max-connection-per-server', type: 'number', default: 16, min: 1, max: 16 },
     { key: 'split', aria2Key: 'split', type: 'number', default: 16 },
