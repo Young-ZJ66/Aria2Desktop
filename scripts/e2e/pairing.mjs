@@ -95,7 +95,13 @@ export async function runPairingCheck({ extensionDir, outDir, reporter }) {
     const config = JSON.parse(stored)
     reporter.check('配对请求到达 App 且来源为扩展', requests.some((r) => r.url === '/api/pair' && r.origin?.startsWith('chrome-extension://')), JSON.stringify(requests))
     reporter.check('等待超过 30s 后配对结果仍写入 storage', config?.config?.secret === 'e2e-pair-secret', stored)
-    reporter.check('重新打开弹窗显示已配对（无未配对横幅）', (await evalIn(verifySession, `document.getElementById('pairBanner').hidden`)) === true)
+    // 必须断言**实际可见性**：只看 hidden 属性会漏掉 CSS display 覆盖（.banner{display:flex}），
+    // 那正是"已配对却仍显示未配对横幅"的真实原因
+    const bannerVisible = await evalIn(
+      verifySession,
+      `(() => { const el = document.getElementById('pairBanner'); return el.offsetParent !== null && getComputedStyle(el).display !== 'none' })()`
+    )
+    reporter.check('重新打开弹窗不再显示未配对横幅', bannerVisible === false)
     await capture(verifySession, path.join(outDir, '08-extension-paired.png'))
     verifySession.close()
   } catch (error) {
