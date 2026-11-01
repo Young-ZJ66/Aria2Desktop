@@ -19,8 +19,22 @@
     </div>
 
     <div class="sidebar-footer">
-      <!-- 左下角操作行：设置 / 主题切换 / GitHub -->
+      <!-- 左下角操作行：通知 / 设置 / 主题切换 / GitHub -->
       <div class="footer-actions">
+        <button
+          class="footer-btn"
+          :title="t('notificationCenter.title')"
+          @click="uiStore.openNotifications()"
+        >
+          <n-badge
+            :value="notificationStore.unreadCount"
+            :max="99"
+            :show="notificationStore.unreadCount > 0"
+            :offset="[-2, 2]"
+          >
+            <n-icon :size="16"><NotificationsOutline /></n-icon>
+          </n-badge>
+        </button>
         <button
           class="footer-btn"
           :title="t('app.settings')"
@@ -81,13 +95,15 @@ import {
   SettingsOutline,
   SunnyOutline,
   MoonOutline,
-  LogoGithub
+  LogoGithub,
+  NotificationsOutline
 } from '@vicons/ionicons5'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useStreamTaskStore } from '@/stores/streamTaskStore'
+import { useNotificationStore } from '@/stores/notificationStore'
 import appIcon from '@/../build/Icon.ico'
 
 const GITHUB_URL = 'https://github.com/Young-ZJ66/Aria2Desktop'
@@ -99,6 +115,7 @@ const uiStore = useUiStore()
 const connectionStore = useConnectionStore()
 const settingsStore = useSettingsStore()
 const streamTaskStore = useStreamTaskStore()
+const notificationStore = useNotificationStore()
 
 function renderIcon(icon: Component) {
   return () => h(NIcon, null, { default: () => h(icon) })

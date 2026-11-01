@@ -40,6 +40,9 @@
             <!-- 全局任务详情抽屉 -->
             <TaskDetailDrawer />
 
+            <!-- 应用内通知中心 -->
+            <NotificationDrawer />
+
             <!-- 全局更新弹窗（启动检查与设置页手动检查共用） -->
             <UpdateDialog />
 
@@ -73,6 +76,7 @@ import ConnectionDialog from '@/components/dialogs/ConnectionDialog.vue'
 import NewTaskDialog from '@/components/dialogs/NewTaskDialog.vue'
 import SettingsDialog from '@/components/dialogs/SettingsDialog.vue'
 import TaskDetailDrawer from '@/components/dialogs/TaskDetailDrawer.vue'
+import NotificationDrawer from '@/components/dialogs/NotificationDrawer.vue'
 import UpdateDialog from '@/components/dialogs/UpdateDialog.vue'
 
 const connectionStore = useConnectionStore()

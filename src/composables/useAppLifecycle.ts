@@ -6,6 +6,8 @@ import { useStatsStore } from '@/stores/statsStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useNotificationStore } from '@/stores/notificationStore'
+import { useDownloadHistoryStore } from '@/stores/downloadHistoryStore'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
 import { message } from '@/utils/feedback'
 import { initLocalService, stopStatusCheck } from '@/composables/useAria2LocalService'
@@ -29,6 +31,8 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   const settingsStore = useSettingsStore()
   const { t } = useI18n()
   const uiStore = useUiStore()
+  const notificationStore = useNotificationStore()
+  const downloadHistoryStore = useDownloadHistoryStore()
   const trafficMonitor = useTrafficMonitor()
   const autoRefresh = useAutoRefresh()
   const clipboardMonitor = useClipboardMonitor()
@@ -41,8 +45,10 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
 
   let unsubscribeConfig: (() => void) | null = null
   let unsubscribeDownloadComplete: (() => void) | null = null
+  let unsubscribeDownloadError: (() => void) | null = null
   let unsubscribePendingUrl: (() => void) | null = null
   let unsubscribeClipboardUrl: (() => void) | null = null
+  let unsubscribeTrayAction: (() => void) | null = null
 
   // Windows 任务栏进度条：活动任务数 > 0 时显示整体进度
   function updateTaskbarProgress() {
@@ -66,11 +72,15 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   watch(() => taskStore.activeTasks, updateTaskbarProgress)
 
   // 下载完成系统通知：通过主进程 Electron Notification API 发送（比 Web API 可靠）
-  function showDownloadNotification(gid: string) {
-
+  function getNotificationTaskName(gid: string): string {
     const task = taskStore.allTasks.find(t => t.gid === gid)
-    const taskName = task?.bittorrent?.info?.name ||
+    return task?.bittorrent?.info?.name ||
       task?.files?.[0]?.path?.split(/[\\/]/).pop() || gid
+  }
+
+  function showDownloadNotification(gid: string) {
+    const task = taskStore.allTasks.find(t => t.gid === gid)
+    const taskName = getNotificationTaskName(gid)
     const size = task ? Math.round(parseInt(task.totalLength || '0', 10) / 1024 / 1024) : 0
     const sizeText = size > 0 ? ` (${size} MB)` : ''
 
@@ -114,8 +124,11 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     }
   }
 
-  /** 下载完成的统一处理：系统通知 + 可选自动解压 */
+  /** 下载完成的统一处理：应用内记录 + 系统通知 + 可选自动解压 */
   function handleTaskDownloadComplete(gid: string): void {
+    notificationStore.push({ type: 'complete', gid, name: getNotificationTaskName(gid) })
+    const task = taskStore.allTasks.find(t => t.gid === gid)
+    downloadHistoryStore.record(Number(task?.totalLength) || 0)
     showDownloadNotification(gid)
     void autoExtractIfEnabled(gid)
   }
@@ -178,8 +191,33 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
           clipboardMonitor.handleDetectedUrl(url)
         })
       }
+      // 托盘菜单快捷动作（与侧边栏/快捷键走同一套 store 方法）
+      if (window.electronAPI?.onTrayAction) {
+        unsubscribeTrayAction = window.electronAPI.onTrayAction((action) => {
+          switch (action) {
+            case 'new-task':
+              uiStore.openNewTask()
+              break
+            case 'settings':
+              uiStore.openSettings()
+              break
+            case 'pause-all':
+              void taskStore.pauseAllTasks()
+              break
+            case 'resume-all':
+              void taskStore.unpauseAllTasks()
+              break
+          }
+        })
+      }
       // 注册下载完成处理（系统通知 + 可选自动解压）
       unsubscribeDownloadComplete = taskStore.onDownloadComplete(handleTaskDownloadComplete)
+      // 下载失败也进入应用内通知中心（系统通知同样发一条）
+      unsubscribeDownloadError = taskStore.onDownloadError((gid) => {
+        const name = getNotificationTaskName(gid)
+        notificationStore.push({ type: 'error', gid, name })
+        window.electronAPI?.sendNotification?.(t('notification.downloadFailed'), name)
+      })
       if (!hasConnectedOnce) {
         hasConnectedOnce = true
         // 自动关闭对话框（处理启动时竞态导致的对话框未关闭问题）
@@ -193,6 +231,10 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       unsubscribeClipboardUrl = null
       unsubscribeDownloadComplete?.()
       unsubscribeDownloadComplete = null
+      unsubscribeDownloadError?.()
+      unsubscribeDownloadError = null
+      unsubscribeTrayAction?.()
+      unsubscribeTrayAction = null
     }
   })
 
@@ -304,8 +346,10 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     keyboardShortcuts.stop()
     unsubscribeConfig?.()
     unsubscribeDownloadComplete?.()
+    unsubscribeDownloadError?.()
     unsubscribeClipboardUrl?.()
     unsubscribePendingUrl?.()
+    unsubscribeTrayAction?.()
     themeManager.disposeSystemThemeListener()
     connectionStore.disconnect()
   })

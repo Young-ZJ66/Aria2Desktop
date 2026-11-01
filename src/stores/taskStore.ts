@@ -496,6 +496,18 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  // 下载失败回调（应用内通知中心）
+  type DownloadErrorCallback = (gid: string) => void
+  const downloadErrorCallbacks: DownloadErrorCallback[] = []
+
+  function onDownloadError(callback: DownloadErrorCallback): () => void {
+    downloadErrorCallbacks.push(callback)
+    return () => {
+      const idx = downloadErrorCallbacks.indexOf(callback)
+      if (idx > -1) downloadErrorCallbacks.splice(idx, 1)
+    }
+  }
+
   /**
    * 把 aria2 下载事件转发给主进程的插件系统。
    *
@@ -533,11 +545,21 @@ export const useTaskStore = defineStore('task', () => {
     notifyPlugins('downloadStart', gid)
   }
 
+  /** 下载失败：先刷新列表，再通知应用内通知中心 */
+  async function handleDownloadError(event: unknown) {
+    await loadAllTasks()
+    const gid = (event as { gid?: string } | undefined)?.gid || ''
+    for (const cb of downloadErrorCallbacks) {
+      try { cb(gid) } catch { /* 忽略回调异常 */ }
+    }
+  }
+
   watch(() => connectionStore.service, (service, oldService) => {
     if (oldService) {
       downloadEvents.forEach(evt => oldService.off(evt, handleDownloadEvent))
       oldService.off('downloadComplete', handleDownloadComplete)
       oldService.off('downloadStart', handleDownloadStart)
+      oldService.off('downloadError', handleDownloadError)
     }
     if (service) {
       downloadEvents.forEach(evt => service.on(evt, handleDownloadEvent))
@@ -546,6 +568,8 @@ export const useTaskStore = defineStore('task', () => {
       service.on('downloadComplete', handleDownloadComplete)
       service.off('downloadStart', handleDownloadEvent)
       service.on('downloadStart', handleDownloadStart)
+      service.off('downloadError', handleDownloadEvent)
+      service.on('downloadError', handleDownloadError)
     }
   }, { immediate: true })
 
@@ -571,6 +595,7 @@ export const useTaskStore = defineStore('task', () => {
     pauseAllTasks,
     unpauseAllTasks,
     clearTasks,
-    onDownloadComplete
+    onDownloadComplete,
+    onDownloadError
   }
 })

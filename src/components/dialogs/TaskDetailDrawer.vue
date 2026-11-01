@@ -34,6 +34,10 @@
               />
             </n-tab-pane>
 
+            <n-tab-pane v-if="task.bittorrent && task.status !== 'complete'" :name="'files'" :tab="t('taskDetail.filesInfo')">
+              <TaskFilesInfo :task="task" @changed="fetchAndMergeDetails" />
+            </n-tab-pane>
+
             <n-tab-pane :name="'servers'" :tab="t('taskDetail.serverInfo')">
               <TaskServerInfo :servers="taskServers" />
             </n-tab-pane>
@@ -83,6 +87,7 @@ import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
 import type { Aria2Task, Aria2Uri, Aria2Server, Aria2Peer } from '@/types/aria2'
 import TaskBasicInfo from '@/components/task/TaskBasicInfo.vue'
+import TaskFilesInfo from '@/components/task/TaskFilesInfo.vue'
 import TaskServerInfo from '@/components/task/TaskServerInfo.vue'
 import TaskPeerInfo from '@/components/task/TaskPeerInfo.vue'
 import TaskPiecesInfo from '@/components/task/TaskPiecesInfo.vue'

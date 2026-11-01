@@ -18,10 +18,15 @@ export const useUiStore = defineStore('ui', () => {
 
   // 设置弹窗（页内弹窗承载全部设置页面）
   const showSettings = ref(false)
+  /** 当前设置页签：记住上次位置，也允许其他页面直接打开指定页（如流媒体页跳转「工具与扩展」） */
+  const settingsTab = ref('general')
 
   // 任务详情抽屉
   const showTaskDetail = ref(false)
   const taskDetailGid = ref<string | null>(null)
+
+  // 应用内通知中心（侧边栏铃铛打开）
+  const showNotifications = ref(false)
 
   // 更新弹窗（启动检查与设置页手动检查共用）
   const showUpdateDialog = ref(false)
@@ -56,7 +61,8 @@ export const useUiStore = defineStore('ui', () => {
     newTaskPrefilledFile.value = null
   }
 
-  function openSettings() {
+  function openSettings(tab?: string) {
+    if (tab) settingsTab.value = tab
     showSettings.value = true
   }
 
@@ -72,6 +78,14 @@ export const useUiStore = defineStore('ui', () => {
   function closeTaskDetail() {
     showTaskDetail.value = false
     taskDetailGid.value = null
+  }
+
+  function openNotifications() {
+    showNotifications.value = true
+  }
+
+  function closeNotifications() {
+    showNotifications.value = false
   }
 
   /** 打开更新弹窗（已知新版本时），initialState 用于跳过已完成的下载环节 */
@@ -93,8 +107,10 @@ export const useUiStore = defineStore('ui', () => {
     newTaskPrefilledUrl,
     newTaskPrefilledFile,
     showSettings,
+    settingsTab,
     showTaskDetail,
     taskDetailGid,
+    showNotifications,
     showUpdateDialog,
     updateDialogState,
     updateVersion,
@@ -109,6 +125,8 @@ export const useUiStore = defineStore('ui', () => {
     closeSettings,
     openTaskDetail,
     closeTaskDetail,
+    openNotifications,
+    closeNotifications,
     openUpdateDialog,
     closeUpdateDialog
   }

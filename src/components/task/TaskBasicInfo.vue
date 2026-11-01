@@ -91,12 +91,16 @@
       </n-descriptions>
 
       <!-- 文件操作按钮 -->
-      <div v-if="task.files?.length && task.status === 'complete'" class="file-actions">
-        <n-button v-if="isElectron" size="small" type="primary" ghost @click="openFileInFolder(firstFilePath)">
+      <div v-if="task.files?.length" class="file-actions">
+        <n-button v-if="isElectron && task.status === 'complete'" size="small" type="primary" ghost @click="openFileInFolder(firstFilePath)">
           <template #icon>
             <n-icon><FolderOpenOutline /></n-icon>
           </template>
           {{ t('task.openLocation') }}
+        </n-button>
+        <!-- 失败任务：带着原链接打开新建弹窗，先改参数再重试 -->
+        <n-button v-if="task.status === 'error' && firstUri" size="small" @click="retryWithOptions">
+          {{ t('taskDetail.retryWithOptions') }}
         </n-button>
       </div>
     </n-card>
@@ -152,6 +156,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CopyOutline, FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
+import { useUiStore } from '@/stores/uiStore'
 import type { Aria2Task, Aria2Uri } from '@/types/aria2'
 import {
   formatSize,
@@ -170,6 +175,14 @@ interface Props {
 
 const props = defineProps<Props>()
 const { t } = useI18n()
+const uiStore = useUiStore()
+
+/** 重试并编辑：把失败任务的原始链接带回新建弹窗 */
+function retryWithOptions() {
+  if (!firstUri.value) return
+  uiStore.closeTaskDetail()
+  uiStore.openNewTaskWithUrl(firstUri.value)
+}
 
 const progressPercent = computed(() => getProgress(props.task))
 

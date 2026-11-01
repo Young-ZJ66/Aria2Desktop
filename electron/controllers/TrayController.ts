@@ -60,12 +60,34 @@ export class TrayController {
     // 按系统语言切换托盘菜单文案（主进程无 i18n 实例，简单分流中英文）
     const isZh = app.getLocale().startsWith('zh')
     const labels = {
+      newTask: isZh ? '新建下载' : 'New Download',
+      settings: isZh ? '设置' : 'Settings',
+      pauseAll: isZh ? '暂停全部' : 'Pause All',
+      resumeAll: isZh ? '恢复全部' : 'Resume All',
       show: isZh ? '显示主窗口' : 'Show Main Window',
       hide: isZh ? '隐藏窗口' : 'Hide Window',
       quit: isZh ? '退出' : 'Quit'
     }
 
     const contextMenu = Menu.buildFromTemplate([
+      {
+        label: labels.newTask,
+        click: () => this.sendAction('new-task')
+      },
+      {
+        label: labels.settings,
+        click: () => this.sendAction('settings')
+      },
+      { type: 'separator' },
+      {
+        label: labels.pauseAll,
+        click: () => this.sendAction('pause-all')
+      },
+      {
+        label: labels.resumeAll,
+        click: () => this.sendAction('resume-all')
+      },
+      { type: 'separator' },
       {
         label: labels.show,
         click: () => this.windowController.show()
@@ -87,6 +109,15 @@ export class TrayController {
     ])
 
     this.tray.setContextMenu(contextMenu)
+  }
+
+  /** 托盘的快捷动作统一交给渲染层执行（新建/设置/暂停/恢复都依赖前端状态） */
+  private sendAction(action: string) {
+    this.windowController.show()
+    const win = this.windowController.getMainWindow()
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('tray-action', action)
+    }
   }
 
   private setupEventHandlers() {
