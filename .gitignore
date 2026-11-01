@@ -37,6 +37,7 @@ resources/aria2c.exe
 .vscode
 .idea
 .trae
+.trae-html-share-packages
 .augment
 .sanshu-memory
 .workbuddy
