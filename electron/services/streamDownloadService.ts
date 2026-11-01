@@ -27,19 +27,34 @@ const PROGRESS_TEMPLATE =
   '%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress._speed_str)s|%(progress._eta_str)s|' +
   '%(progress.speed)s'
 
-/** 同一时刻只允许一条流媒体下载（界面是单按钮，重复点击复用会互相干扰） */
+/** 进行中的下载（允许多条并发：App 流媒体页与扩展整页下载都可能发起） */
 const activeDownloads = new Map<string, ActiveDownload>()
 
 export interface StreamDownloadRequest {
   url: string
-  formatId: string
-  /** 是否把最佳音轨合并进来（选到纯视频格式时为 true） */
-  merge: boolean
+  /**
+   * 选定的格式 id（App 流媒体页用）。
+   * 省略时按“最佳视频+最佳音频”下载（扩展把整页链接交给 App 的场景）。
+   */
+  formatId?: string
+  /** 是否把最佳音轨合并进来；省略时按 true 处理（分离流站点必须合并） */
+  merge?: boolean
+  /** 视频标题（列表展示用；来自扩展的标签页标题或 App 流媒体页） */
+  title?: string
   /** 保存目录（绝对路径，通常是设置里的任务目录） */
   outputDir: string
 }
 
 export type StreamDownloadEvent =
+  | {
+    type: 'started'
+    id: string
+    url: string
+    title?: string
+    formatId?: string
+    merge: boolean
+    outputDir: string
+  }
   | {
     type: 'progress'
     id: string
@@ -84,14 +99,17 @@ export async function startStreamDownload(
   if (!/^https?:$/.test(parsedUrl.protocol)) {
     return { success: false, code: 'invalid_request', error: 'Unsupported URL scheme' }
   }
-  if (!FORMAT_ID_PATTERN.test(request.formatId)) {
+  const hasFormatId = typeof request.formatId === 'string' && request.formatId.length > 0
+  if (hasFormatId && !FORMAT_ID_PATTERN.test(request.formatId!)) {
     return { success: false, code: 'invalid_request', error: 'Invalid format id' }
   }
   if (!path.isAbsolute(request.outputDir)) {
     return { success: false, code: 'invalid_request', error: 'Invalid output directory' }
   }
 
-  if (request.merge) {
+  // 有指定格式：纯视频格式合并最佳音轨；无指定格式（扩展整页下载）：最佳视频+最佳音频
+  const merge = hasFormatId ? request.merge !== false : true
+  if (merge) {
     const ffmpeg = await checkFfmpegAvailable()
     if (!ffmpeg.available) {
       return {
@@ -112,16 +130,14 @@ export async function startStreamDownload(
     }
   }
 
-  if (activeDownloads.size > 0) {
-    return { success: false, code: 'invalid_request', error: '已有流媒体下载正在进行，请先等待或取消' }
-  }
-
   const id = `sd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
   const finalPathFile = path.join(app.getPath('temp'), `ytdlp-final-${id}.txt`)
   fs.rmSync(finalPathFile, { force: true })
 
-  const ffmpegLocation = request.merge ? getFfmpegLocation() : ''
-  const selector = request.merge ? `${request.formatId}+bestaudio/best` : request.formatId
+  const ffmpegLocation = merge ? getFfmpegLocation() : ''
+  const selector = hasFormatId
+    ? (merge ? `${request.formatId}+bestaudio/best` : request.formatId!)
+    : 'bv*+ba/b'
   const args = [
     '--newline',
     '--progress',
@@ -146,6 +162,15 @@ export async function startStreamDownload(
     detached: process.platform !== 'win32'
   })
   activeDownloads.set(id, { proc, cancelled: false })
+  onEvent({
+    type: 'started',
+    id,
+    url: request.url,
+    title: request.title,
+    formatId: request.formatId,
+    merge,
+    outputDir: request.outputDir
+  })
 
   let stderrTail = ''
   let fallbackPath = ''

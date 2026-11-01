@@ -49,6 +49,7 @@ function initI18n() {
 
   $('mediaTitle').textContent = i18n('mediaSection')
   $('mediaDetectBtn').textContent = i18n('mediaDetect')
+  $('streamPageBtn').textContent = i18n('streamPageBtn')
 
   $('manualTitle').textContent = i18n('manualTitle')
   $('hostLabel').textContent = i18n('host')
@@ -107,6 +108,7 @@ function applyPairingUi(paired) {
   btn.classList.toggle('btn-danger-ghost', paired)
   $('pairHint').textContent = i18n(paired ? 'unpairHint' : 'pairHint')
   $('pairBanner').hidden = paired
+  $('streamPageBtn').disabled = !paired
   $('sendBtn').disabled = !paired
   $('quickUrl').disabled = !paired
   $('pasteBtn').disabled = !paired
@@ -536,6 +538,39 @@ async function detectMedia() {
 }
 
 /**
+ * 把**当前页面**交给 App 的 yt-dlp 下载模式（B 站等音视频分离站点）。
+ * 与「本页视频」检测不同：这里不需要拿到媒体直链，App 自己解析并合并音轨。
+ */
+async function streamCurrentPage() {
+  const btn = $('streamPageBtn')
+  btn.disabled = true
+  btn.textContent = i18n('streamPageSending')
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!tab?.url || !/^https?:\/\//i.test(tab.url)) {
+      showFeedback(i18n('streamPageUnsupported'), true)
+      return
+    }
+    const result = await chrome.runtime.sendMessage({
+      action: 'streamPageVideo',
+      pageUrl: tab.url,
+      title: tab.title || ''
+    })
+    if (result?.success) {
+      showFeedback(i18n('streamPageSent'))
+    } else {
+      showFeedback(result?.error || i18n('streamPageFailed', ['']), true)
+    }
+  } catch {
+    showFeedback(i18n('streamPageUnreachable'), true)
+  } finally {
+    btn.textContent = i18n('streamPageBtn')
+    // 未配对时保持禁用（loadConfig / 配对变化会更新 secret 输入框）
+    btn.disabled = !$('secret').value.trim()
+  }
+}
+
+/**
  * 渲染检测结果。只有 `file` 类型可一键发送：
  * `blob:` 是页面用 MSE 拼出来的，`m3u8/mpd` 是分片清单——两者直接交给 aria2
  * 只会得到一个无法播放的小文件，因此如实告知改用 App 的流媒体模式。
@@ -611,6 +646,7 @@ $('pairBtn').addEventListener('click', () => (isPaired ? unpair() : startPairing
 $('saveBtn').addEventListener('click', saveConfig)
 $('testBtn').addEventListener('click', testConnection)
 $('mediaDetectBtn').addEventListener('click', detectMedia)
+$('streamPageBtn').addEventListener('click', streamCurrentPage)
 
 // 开关即时保存（allowProbe / allowCookies 涉及权限申请，见上）
 $('enabled').addEventListener('change', async (event) => {

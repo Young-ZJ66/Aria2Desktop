@@ -21,6 +21,10 @@ export interface StartStreamTaskInput {
   title: string
 }
 
+function baseName(filePath: string): string {
+  return filePath.split(/[\\/]/).pop() || filePath
+}
+
 export const useStreamTaskStore = defineStore('streamTask', () => {
   const tasks = ref<StreamTask[]>([])
   let unsubscribe: (() => void) | null = null
@@ -50,28 +54,47 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
       merge: input.merge,
       outputDir: input.outputDir
     })
-    if (result.success && result.id) {
-      tasks.value.unshift({
-        gid: result.id,
-        url: input.url,
-        formatId: input.formatId,
-        merge: input.merge,
-        outputDir: input.outputDir,
-        title: input.title || input.url,
-        status: 'active',
-        percent: 0,
-        speedBytes: 0,
-        speedText: '',
-        eta: '',
-        totalBytes: 0,
-        downloadedBytes: 0,
-        createdAt: Date.now()
-      })
+    if (result.success && result.id && !findByGid(result.id)) {
+      // 正常情况下 started 事件已经建立了记录；这里兜底（事件与 invoke 回包存在时序差）
+      pushTask(result.id, input)
     }
     return result
   }
 
+  function pushTask(id: string, input: StartStreamTaskInput): void {
+    tasks.value.unshift({
+      gid: id,
+      url: input.url,
+      formatId: input.formatId,
+      merge: input.merge,
+      outputDir: input.outputDir,
+      title: input.title || input.url,
+      status: 'active',
+      percent: 0,
+      speedBytes: 0,
+      speedText: '',
+      eta: '',
+      totalBytes: 0,
+      downloadedBytes: 0,
+      createdAt: Date.now()
+    })
+  }
+
   function handleEvent(event: StreamDownloadEvent): void {
+    if (event.type === 'started') {
+      // 扩展发起的下载只会在事件里出现，渲染层据此建立列表记录
+      if (!findByGid(event.id)) {
+        pushTask(event.id, {
+          url: event.url,
+          formatId: event.formatId ?? '',
+          merge: event.merge,
+          outputDir: event.outputDir,
+          title: event.title ?? ''
+        })
+      }
+      return
+    }
+
     const task = findByGid(event.id)
     if (!task) return
 
@@ -93,6 +116,8 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
       task.eta = ''
       task.filePath = event.filePath
       task.completedAt = Date.now()
+      // 扩展只给了页面 URL 时，用最终文件名替换掉 URL，列表展示更可读
+      if (!task.title || task.title === task.url) task.title = baseName(event.filePath)
       return
     }
 
@@ -140,6 +165,9 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
     }
     return result
   }
+
+  // 扩展发起的下载不会经过 startTask，store 一被使用就装好监听
+  ensureListener()
 
   return {
     tasks,

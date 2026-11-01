@@ -302,10 +302,10 @@
     "message": "本页没有找到可直接下载的视频"
   },
   "mediaBlobHint": {
-    "message": "该视频是网页动态拼接的流，无法直接下载；请复制页面地址，用 App 的「流媒体」页下载"
+    "message": "该视频由网页动态拼接，无法直接下载；可点上方「用 App 下载本页视频」"
   },
   "mediaStreamHint": {
-    "message": "这是分片流地址（m3u8/mpd），请用 App 的「流媒体」页下载"
+    "message": "这是分片流地址（m3u8/mpd）；可点上方「用 App 下载本页视频」"
   },
   "mediaUnsupportedPage": {
     "message": "当前页面不支持检测（仅支持普通网页）"
@@ -315,6 +315,33 @@
   },
   "mediaSend": {
     "message": "发送"
+  },
+  "streamPageBtn": {
+    "message": "用 App 下载本页视频"
+  },
+  "streamPageSending": {
+    "message": "正在交给 App 解析…"
+  },
+  "streamPageSent": {
+    "message": "已交给 App 下载，进度见 App 的下载列表"
+  },
+  "streamPageNeedPair": {
+    "message": "请先在「配对与设置」完成配对"
+  },
+  "streamPageYtdlpMissing": {
+    "message": "App 尚未安装 yt-dlp，请先在 App 的「流媒体」页下载"
+  },
+  "streamPageFfmpegMissing": {
+    "message": "App 缺少 ffmpeg，无法合并音轨，请先在 App 的「流媒体」页下载"
+  },
+  "streamPageFailed": {
+    "message": "交给 App 失败：$1"
+  },
+  "streamPageUnreachable": {
+    "message": "未检测到 Aria2 Desktop（未运行或版本过旧）"
+  },
+  "streamPageUnsupported": {
+    "message": "当前页面不是可下载的网页地址"
   },
   "pairingDoneTitle": {
     "message": "配对成功"

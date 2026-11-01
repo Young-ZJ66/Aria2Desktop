@@ -302,10 +302,10 @@
     "message": "No directly downloadable video found on this page"
   },
   "mediaBlobHint": {
-    "message": "This video is assembled at runtime and cannot be downloaded directly. Copy the page URL and use the app's Stream tab."
+    "message": "This video is assembled at runtime and cannot be downloaded directly. Use “Download this page with App” above."
   },
   "mediaStreamHint": {
-    "message": "This is a segmented stream (m3u8/mpd). Use the app's Stream tab to download it."
+    "message": "This is a segmented stream (m3u8/mpd). Use “Download this page with App” above."
   },
   "mediaUnsupportedPage": {
     "message": "This page cannot be scanned (regular web pages only)"
@@ -315,6 +315,33 @@
   },
   "mediaSend": {
     "message": "Send"
+  },
+  "streamPageBtn": {
+    "message": "Download this page with App"
+  },
+  "streamPageSending": {
+    "message": "Sending to App…"
+  },
+  "streamPageSent": {
+    "message": "Sent to App — check the download list there"
+  },
+  "streamPageNeedPair": {
+    "message": "Pair with Aria2 Desktop first (Pairing & Settings tab)"
+  },
+  "streamPageYtdlpMissing": {
+    "message": "yt-dlp is not installed in the app. Open the app's Stream tab to download it."
+  },
+  "streamPageFfmpegMissing": {
+    "message": "ffmpeg is missing in the app, so audio cannot be merged. Open the app's Stream tab to download it."
+  },
+  "streamPageFailed": {
+    "message": "Failed to send to App: $1"
+  },
+  "streamPageUnreachable": {
+    "message": "Aria2 Desktop not detected (not running or too old)"
+  },
+  "streamPageUnsupported": {
+    "message": "This page is not a downloadable web page"
   },
   "pairingDoneTitle": {
     "message": "Pairing complete"

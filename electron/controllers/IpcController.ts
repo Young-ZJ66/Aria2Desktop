@@ -670,14 +670,15 @@ export class IpcController {
       if (
         !input
         || typeof input.url !== 'string'
-        || typeof input.formatId !== 'string'
-        || typeof input.merge !== 'boolean'
+        || (input.formatId !== undefined && typeof input.formatId !== 'string')
+        || (input.merge !== undefined && typeof input.merge !== 'boolean')
+        || (input.title !== undefined && typeof input.title !== 'string')
         || typeof input.outputDir !== 'string'
       ) {
         return { success: false, code: 'invalid_request', error: 'Invalid request' }
       }
       return await startStreamDownload(
-        { url: input.url, formatId: input.formatId, merge: input.merge, outputDir: input.outputDir },
+        { url: input.url, formatId: input.formatId, merge: input.merge, title: input.title, outputDir: input.outputDir },
         (streamEvent) => {
           if (!event.sender.isDestroyed()) {
             event.sender.send('stream-download-event', streamEvent)

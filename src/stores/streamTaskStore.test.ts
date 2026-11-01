@@ -64,6 +64,33 @@ describe('streamTaskStore', () => {
     expect(mapped.files[0]?.path).toBe('D:/Downloads/测试视频.mp4')
   })
 
+  it('扩展发起的下载：仅收到 started 事件也会建立列表记录', async () => {
+    const store = useStreamTaskStore()
+    // 先发起一次（顺带安装事件监听），再用另一个 id 模拟扩展发起的下载
+    await store.startTask({
+      url: 'https://example.com/a',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads',
+      title: '页面下载'
+    })
+
+    emit?.({
+      type: 'started',
+      id: 'sd-ext-1',
+      url: 'https://www.bilibili.com/video/BV1GJ411x7h7',
+      title: 'B 站视频',
+      merge: true,
+      outputDir: 'D:/Downloads'
+    })
+
+    const extensionTask = store.findByGid('sd-ext-1')
+    expect(extensionTask).toBeDefined()
+    expect(extensionTask?.status).toBe('active')
+    expect(extensionTask?.title).toBe('B 站视频')
+    expect(store.tasks).toHaveLength(2)
+  })
+
   it('失败任务保留在列表（便于重试），取消则移除', async () => {
     const store = useStreamTaskStore()
     await store.startTask({

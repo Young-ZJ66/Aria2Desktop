@@ -194,6 +194,11 @@ const extensionApiServer = new ExtensionApiServer({
         'Only allow this while installing your own extension — deny unknown requests.'
     })
     return choice.response === 0
+  },
+  // 扩展发起的流媒体下载没有经过渲染层，需要把事件转发给主窗口才能进入下载列表
+  sendStreamEvent: (event) => {
+    const win = windowController.getMainWindow()
+    if (win && !win.isDestroyed()) win.webContents.send('stream-download-event', event)
   }
 })
 

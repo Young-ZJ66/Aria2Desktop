@@ -1,7 +1,10 @@
 import * as http from 'http'
+import { app } from 'electron'
 import { createLogger } from '../utils/logger'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { callAria2Rpc } from '../utils/aria2Rpc'
+import { checkYtdlpAvailable } from './ytdlpService'
+import { startStreamDownload, type StreamDownloadEvent } from './streamDownloadService'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import {
   EXTENSION_API_HOST,
@@ -59,6 +62,11 @@ export interface ExtensionApiDeps {
    * 请求侧的任何字符串都不会进入对话框文本。返回 true 表示用户点击了"允许"。
    */
   confirmPairing: () => Promise<boolean>
+  /**
+   * 把流媒体下载事件转发给主窗口。
+   * 扩展发起的下载没有走渲染层的「流媒体页」，需要渲染层靠这些事件建立任务列表记录。
+   */
+  sendStreamEvent: (event: StreamDownloadEvent) => void
 }
 
 /** 引擎版本查询超时：接口要快速返回，拿不到版本不影响其它字段 */
@@ -210,6 +218,46 @@ export class ExtensionApiServer {
       return
     }
 
+    /**
+     * POST /api/stream：把**整页链接**交给 App 的 yt-dlp 下载模式。
+     * 用于 B 站这类音视频分离、直链带签名校验的站点（扩展自己拿不到可用的媒体地址）。
+     * 需要 App 已安装 yt-dlp 与 ffmpeg，错误码由扩展负责翻译成人话。
+     */
+    if (pathname === '/api/stream') {
+      if (req.method !== 'POST') {
+        this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
+        return
+      }
+      const body = await this.readBodyOrReject(req, res)
+      if (!body) return
+      if (!isAllowedDownloadUri(body.url)) {
+        this.send(res, 400, { ok: false, code: 'invalid_url', error: 'Unsupported url' })
+        return
+      }
+
+      const ytdlp = await checkYtdlpAvailable()
+      if (!ytdlp.available) {
+        this.send(res, 200, { ok: false, code: 'ytdlp_missing', error: 'yt-dlp is not installed in the app' })
+        return
+      }
+
+      const settings = getSettingsFresh()
+      // 与普通下载一致：优先用户配置目录，未配置时落到系统下载目录
+      const outputDir = resolveBaseDownloadDir(settings ?? undefined) || app.getPath('downloads')
+      const started = await startStreamDownload(
+        {
+          url: body.url,
+          title: typeof body.title === 'string' ? body.title.slice(0, 200) : undefined,
+          outputDir
+        },
+        (event) => this.deps.sendStreamEvent(event)
+      )
+      this.send(res, 200, started.success
+        ? { ok: true, id: started.id }
+        : { ok: false, code: started.code ?? 'failed', error: started.error ?? 'Failed' })
+      return
+    }
+
     this.send(res, 404, { ok: false, code: 'not_found', error: 'Not Found' })
   }
 
@@ -275,7 +323,7 @@ export class ExtensionApiServer {
   private async readBodyOrReject(
     req: http.IncomingMessage,
     res: http.ServerResponse
-  ): Promise<{ url: string; fileName: unknown; headers: unknown } | null> {
+  ): Promise<{ url: string; fileName: unknown; headers: unknown; title: unknown } | null> {
     let payload: unknown
     try {
       payload = await readJsonBody(req)
@@ -291,7 +339,8 @@ export class ExtensionApiServer {
     return {
       url: url.trim(),
       fileName: (payload as { fileName?: unknown })?.fileName,
-      headers: (payload as { headers?: unknown })?.headers
+      headers: (payload as { headers?: unknown })?.headers,
+      title: (payload as { title?: unknown })?.title
     }
   }
 

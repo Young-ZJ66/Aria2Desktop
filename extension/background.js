@@ -545,6 +545,41 @@ async function getAppStatus() {
 }
 
 /**
+ * 把整页链接交给 App 的 yt-dlp 下载模式。
+ *
+ * 与直链发送的区别：交给 App 的是**页面地址**，由 App 解析并合并音视频。
+ * 适用于 B 站这类 MSE/DASH 页面（扩展拿不到可用的媒体直链）。
+ * 需要的 App 能力（yt-dlp / ffmpeg）由 App 侧检查，这里只负责翻译错误码。
+ */
+async function streamPageVideo(pageUrl, title) {
+  if (!/^https?:\/\//i.test(pageUrl || '')) {
+    return { success: false, error: i18n('streamPageUnsupported') }
+  }
+  const config = await getConfig()
+  if (!config.secret) {
+    return { success: false, error: i18n('streamPageNeedPair') }
+  }
+
+  try {
+    const response = await fetch(`${APP_API_BASE}/api/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...buildAppApiHeaders(config.secret) },
+      body: JSON.stringify({ url: pageUrl, title: title || '' }),
+      signal: AbortSignal.timeout(15000)
+    })
+    const data = await response.json().catch(() => null)
+    if (response.ok && data?.ok) return { success: true }
+    if (data?.code === 'ytdlp_missing') return { success: false, error: i18n('streamPageYtdlpMissing') }
+    if (data?.code === 'ffmpeg_missing') return { success: false, error: i18n('streamPageFfmpegMissing') }
+    if (data?.code === 'invalid_url') return { success: false, error: i18n('streamPageUnsupported') }
+    return { success: false, error: i18n('streamPageFailed', [data?.error || String(response.status)]) }
+  } catch {
+    // 请求超时 / App 未运行 / 接口不可达都归到这里
+    return { success: false, error: i18n('streamPageUnreachable') }
+  }
+}
+
+/**
  * 显示系统通知。
  * 通知是"锦上添花"：权限缺失、被系统关闭、或不可用时一律静默失败，
  * 绝不能因为通知发不出去而让下载流程报错。
@@ -717,6 +752,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === 'detectPageMedia') {
     detectActiveTabMedia().then(sendResponse)
+    return true
+  }
+
+  if (message.action === 'streamPageVideo') {
+    streamPageVideo(String(message.pageUrl || ''), String(message.title || '')).then(sendResponse)
     return true
   }
 

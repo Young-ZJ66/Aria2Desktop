@@ -143,7 +143,7 @@ const electronAPI = {
   },
 
   // yt-dlp 下载模式（分离音视频站点：由 yt-dlp 下载并合并）
-  streamDownloadStart: (request: { url: string; formatId: string; merge: boolean; outputDir: string }) =>
+  streamDownloadStart: (request: { url: string; formatId?: string; merge?: boolean; title?: string; outputDir: string }) =>
     ipcRenderer.invoke('stream-download-start', request),
   streamDownloadCancel: (id: string) => ipcRenderer.invoke('stream-download-cancel', id),
   onStreamDownloadEvent: (callback: (event: unknown) => void) => {

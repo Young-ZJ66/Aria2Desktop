@@ -21,6 +21,15 @@ export type { Aria2UpdateConfig } from '@/shared/electronBridge'
 /** yt-dlp 下载模式的进度/结果事件（主进程 → 渲染层） */
 export type StreamDownloadEvent =
   | {
+    type: 'started'
+    id: string
+    url: string
+    title?: string
+    formatId?: string
+    merge: boolean
+    outputDir: string
+  }
+  | {
     type: 'progress'
     id: string
     percent: number
@@ -239,7 +248,7 @@ export interface ElectronAPI {
   onFfmpegInstallProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
 
   // yt-dlp 下载模式（分离音视频站点：由 yt-dlp 下载并合并音轨）
-  streamDownloadStart: (request: { url: string; formatId: string; merge: boolean; outputDir: string }) => Promise<{ success: boolean; id?: string; code?: 'ffmpeg_missing' | 'invalid_request'; error?: string }>
+  streamDownloadStart: (request: { url: string; formatId?: string; merge?: boolean; title?: string; outputDir: string }) => Promise<{ success: boolean; id?: string; code?: 'ffmpeg_missing' | 'invalid_request'; error?: string }>
   streamDownloadCancel: (id: string) => Promise<boolean>
   onStreamDownloadEvent: (callback: (event: StreamDownloadEvent) => void) => () => void
 
