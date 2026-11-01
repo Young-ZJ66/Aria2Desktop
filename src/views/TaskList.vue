@@ -114,6 +114,7 @@ import { getUserFriendlyError } from '@/utils/errorMessages'
 import { useTaskStore } from '@/stores/taskStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useStreamTaskStore } from '@/stores/streamTaskStore'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { taskTimeService } from '@/services/taskTimeService'
 import { taskPersistenceService } from '@/services/taskPersistenceService'
@@ -147,6 +148,7 @@ const props = defineProps<Props>()
 const taskStore = useTaskStore()
 const connectionStore = useConnectionStore()
 const uiStore = useUiStore()
+const streamTaskStore = useStreamTaskStore()
 const { t } = useI18n()
 
 // 批量删除对话框状态
@@ -238,24 +240,33 @@ const title = computed(() => {
 
 const allTasks = computed(() => {
   let tasks: Aria2Task[] = []
+  // yt-dlp 流媒体下载不在 aria2 队列里，但按用户预期一并显示在对应列表
+  const streamTasks = (statuses: Array<'active' | 'complete' | 'error'>) =>
+    streamTaskStore.tasks
+      .filter(task => statuses.includes(task.status))
+      .map(task => streamTaskStore.toAria2Task(task))
 
   switch (props.taskType) {
     case 'active':
-      tasks = [...taskStore.activeTasks]
+      tasks = [...taskStore.activeTasks, ...streamTasks(['active'])]
       break
     case 'waiting':
       tasks = [...taskStore.waitingTasks]
       break
     case 'stopped':
       // 已停止列表只展示已完成任务，失败/错误任务归入下载任务列表
-      tasks = taskStore.stoppedTasks.filter(task => task.status !== 'error')
+      tasks = [
+        ...taskStore.stoppedTasks.filter(task => task.status !== 'error'),
+        ...streamTasks(['complete'])
+      ]
       break
     case 'active-and-waiting':
       // 下载任务列表：正在下载 + 等待 + 失败/错误（方便点击重试）
       tasks = [
         ...taskStore.activeTasks,
         ...taskStore.waitingTasks,
-        ...taskStore.stoppedTasks.filter(task => task.status === 'error')
+        ...taskStore.stoppedTasks.filter(task => task.status === 'error'),
+        ...streamTasks(['active', 'error'])
       ]
       break
     default:
@@ -342,18 +353,26 @@ const filteredTasks = computed(() => {
 // 任务统计
 const taskStats = computed(() => getTaskStats(filteredTasks.value))
 
+/**
+ * 可批量选择的任务：yt-dlp 流媒体任务没有 aria2 gid，批量暂停/删除无法作用于它们，
+ * 因此不参与勾选（行内仍提供取消/重试/移除）。
+ */
+const selectableTasks = computed(() =>
+  filteredTasks.value.filter(task => !streamTaskStore.findByGid(task.gid))
+)
+
 // 表头全选复选框状态
 const allChecked = computed(() =>
-  filteredTasks.value.length > 0 && filteredTasks.value.every(t => selectedTaskGids.value.has(t.gid))
+  selectableTasks.value.length > 0 && selectableTasks.value.every(t => selectedTaskGids.value.has(t.gid))
 )
 const indeterminate = computed(() => {
-  const selected = filteredTasks.value.filter(t => selectedTaskGids.value.has(t.gid))
-  return selected.length > 0 && selected.length < filteredTasks.value.length
+  const selected = selectableTasks.value.filter(t => selectedTaskGids.value.has(t.gid))
+  return selected.length > 0 && selected.length < selectableTasks.value.length
 })
 
 function handleSelectAllChange(checked: boolean) {
   if (checked) {
-    selectAll(filteredTasks.value)
+    selectAll(selectableTasks.value)
   } else {
     clearSelection()
   }
@@ -380,9 +399,10 @@ function getFileTypeIcon(task: Aria2Task): Component {
   return CATEGORY_ICON_MAP[category] || DocumentOutline
 }
 
-// 格式化完成时间标签
+// 格式化完成时间标签（流媒体任务没有 taskTimeService 记录，回退到任务自身的 completionTime）
 function formatCompleteTimeLabel(task: Aria2Task): string {
   const completeTime = taskTimeService.getCompleteTime(task.gid)
+    ?? (task.completionTime ? Number(task.completionTime) * 1000 : undefined)
   return completeTime ? formatCompleteTime(completeTime) : '--'
 }
 
@@ -400,7 +420,10 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         'onUpdate:checked': handleSelectAllChange,
         'aria-label': t('task.selectAll')
       }),
-    render: (row: Aria2Task) => h(TaskCheckbox, { task: row })
+    render: (row: Aria2Task) =>
+      streamTaskStore.findByGid(row.gid)
+        ? h('span', { class: 'stream-task-no-select', 'aria-hidden': 'true' })
+        : h(TaskCheckbox, { task: row })
   },
   {
     key: 'gid',
@@ -487,20 +510,24 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     width: 200,
     fixed: 'right',
     align: 'center',
-    render: (row: Aria2Task) =>
-      h(TaskRowActions, {
+    render: (row: Aria2Task) => {
+      const isStreamTask = Boolean(streamTaskStore.findByGid(row.gid))
+      return h(TaskRowActions, {
         gid: row.gid,
         status: row.status,
         operating: operatingTasks.value.has(row.gid),
         showOpenLocation: props.taskType === 'stopped',
+        // 流媒体任务没有 aria2 详情（tellStatus 会失败），隐藏详情入口
+        showDetail: !isStreamTask,
         task: row,
         onUnpause: unpauseTask,
-        onRetry: retryTask,
-        onPause: pauseTask,
+        onRetry: isStreamTask ? retryStreamTask : retryTask,
+        onPause: isStreamTask ? cancelStreamTask : pauseTask,
         'onOpen-location': (task: Aria2Task) => openTaskLocation(task),
-        onRemove: removeTask,
+        onRemove: isStreamTask ? removeStreamTask : removeTask,
         'onView-detail': viewTaskDetail
       })
+    }
   }
 ])
 
@@ -569,6 +596,55 @@ async function retryTask(gid: string) {
   }
 }
 
+/**
+ * 流媒体任务（yt-dlp）：取消 / 重试 / 从列表移除。
+ * 这些操作不经过 aria2，直接调用 streamTaskStore。
+ */
+async function cancelStreamTask(gid: string) {
+  if (operatingTasks.value.has(gid)) return
+  operatingTasks.value.add(gid)
+  try {
+    const cancelled = await streamTaskStore.cancelTask(gid)
+    if (cancelled) message.success(t('task.streamCancelDone'))
+  } catch (error: unknown) {
+    console.error('取消流媒体下载失败:', error)
+    message.error(t('task.pauseFailed', { error: getUserFriendlyError(error) }))
+  } finally {
+    operatingTasks.value.delete(gid)
+  }
+}
+
+async function retryStreamTask(gid: string) {
+  if (operatingTasks.value.has(gid)) return
+  operatingTasks.value.add(gid)
+  try {
+    const result = await streamTaskStore.retryTask(gid)
+    if (result.success) {
+      message.success(t('task.taskRetried'))
+    } else {
+      message.error(t('task.retryFailed', { error: getUserFriendlyError(result.error) }))
+    }
+  } catch (error: unknown) {
+    console.error('重试流媒体下载失败:', error)
+    message.error(t('task.retryFailed', { error: getUserFriendlyError(error) }))
+  } finally {
+    operatingTasks.value.delete(gid)
+  }
+}
+
+async function removeStreamTask(gid: string) {
+  confirm({
+    title: t('delete.title'),
+    content: t('task.streamRemoveConfirm'),
+    positiveText: t('delete.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      await streamTaskStore.removeTask(gid)
+      message.success(t('task.streamRemoveDone'))
+    }
+  })
+}
+
 async function removeTask(gid: string) {
   try {
     const task = filteredTasks.value.find(t => t.gid === gid)
@@ -631,6 +707,8 @@ async function removeTask(gid: string) {
 
 // 行点击选择任务
 function handleRowSelect(row: Aria2Task) {
+  // 流媒体任务不参与批量操作，点击行不勾选
+  if (streamTaskStore.findByGid(row.gid)) return
   toggleTask(row)
 }
 

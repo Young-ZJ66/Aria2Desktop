@@ -28,6 +28,8 @@ export type StreamDownloadEvent =
     eta?: string
     downloadedBytes?: number
     totalBytes?: number
+    /** 速度原始值（字节/秒） */
+    speedBytes?: number
   }
   | { type: 'completed'; id: string; filePath: string }
   | { type: 'failed'; id: string; error: string }

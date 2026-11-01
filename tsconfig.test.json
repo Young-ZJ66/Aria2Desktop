@@ -3,7 +3,7 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2020"],
+    "lib": ["ES2020", "DOM"],
     "noEmit": true,
     "types": ["node"],
     "esModuleInterop": true,

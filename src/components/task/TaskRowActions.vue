@@ -62,8 +62,9 @@
       <n-icon class="action-icon"><TrashOutline /></n-icon>
     </button>
 
-    <!-- 详情按钮 -->
+    <!-- 详情按钮（yt-dlp 流媒体任务没有 aria2 详情，由父级隐藏） -->
     <button
+      v-if="showDetail"
       :title="t('task.viewDetail')"
       :aria-label="t('task.viewDetail')"
       class="task-action-btn"
@@ -92,6 +93,8 @@ interface Props {
   status: string
   operating: boolean
   showOpenLocation: boolean
+  /** 是否显示详情按钮（流媒体任务无 aria2 详情） */
+  showDetail?: boolean
   task: Aria2Task
 }
 
@@ -105,7 +108,7 @@ interface Emits {
 }
 
 const { t } = useI18n()
-defineProps<Props>()
+withDefaults(defineProps<Props>(), { showDetail: true })
 defineEmits<Emits>()
 </script>
 

@@ -21,10 +21,11 @@ const logger = createLogger('StreamDownload')
 /** 进度模板前缀：解析 yt-dlp 输出时靠它做行筛选，避免混入其它日志 */
 const PROGRESS_MARKER = '__YTDLP_PROGRESS__'
 
-/** 进度模板字段：百分比｜已下载字节｜总字节｜估算总字节｜速度｜剩余时间 */
+/** 进度模板字段：百分比｜已下载字节｜总字节｜估算总字节｜速度｜剩余时间｜速度（字节/秒） */
 const PROGRESS_TEMPLATE =
   `download:${PROGRESS_MARKER}%(progress._percent_str)s|%(progress.downloaded_bytes)s|` +
-  '%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress._speed_str)s|%(progress._eta_str)s'
+  '%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress._speed_str)s|%(progress._eta_str)s|' +
+  '%(progress.speed)s'
 
 /** 同一时刻只允许一条流媒体下载（界面是单按钮，重复点击复用会互相干扰） */
 const activeDownloads = new Map<string, ActiveDownload>()
@@ -47,6 +48,8 @@ export type StreamDownloadEvent =
     eta?: string
     downloadedBytes?: number
     totalBytes?: number
+    /** 速度原始值（字节/秒），供任务列表排序/格式化使用 */
+    speedBytes?: number
   }
   | { type: 'completed'; id: string; filePath: string }
   | { type: 'failed'; id: string; error: string }
@@ -250,6 +253,7 @@ function parseProgressLine(line: string): {
   eta?: string
   downloadedBytes?: number
   totalBytes?: number
+  speedBytes?: number
 } | null {
   const parts = line.slice(PROGRESS_MARKER.length).split('|')
   if (parts.length < 6) return null
@@ -259,13 +263,15 @@ function parseProgressLine(line: string): {
   const total = Number(parts[2]) || Number(parts[3]) || 0
   const speed = parts[4] && !/Unknown|N\/A/i.test(parts[4]) ? parts[4].trim() : undefined
   const eta = parts[5] && !/Unknown|N\/A/i.test(parts[5]) ? parts[5].trim() : undefined
+  const speedBytes = Number(parts[6]) || undefined
   if (!Number.isFinite(percent) && total <= 0) return null
   return {
     percent: Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 0,
     speed,
     eta,
     downloadedBytes: downloaded || undefined,
-    totalBytes: total || undefined
+    totalBytes: total || undefined,
+    speedBytes
   }
 }
 

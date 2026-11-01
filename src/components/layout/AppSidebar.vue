@@ -87,6 +87,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useStreamTaskStore } from '@/stores/streamTaskStore'
 import appIcon from '@/../build/Icon.ico'
 
 const GITHUB_URL = 'https://github.com/Young-ZJ66/Aria2Desktop'
@@ -97,6 +98,7 @@ const taskStore = useTaskStore()
 const uiStore = useUiStore()
 const connectionStore = useConnectionStore()
 const settingsStore = useSettingsStore()
+const streamTaskStore = useStreamTaskStore()
 
 function renderIcon(icon: Component) {
   return () => h(NIcon, null, { default: () => h(icon) })
@@ -104,13 +106,15 @@ function renderIcon(icon: Component) {
 
 const activeKey = computed(() => route.path)
 
-// 下载任务计数包含失败/错误任务（错误任务归入下载任务列表）
+// 下载任务计数包含失败/错误任务（错误任务归入下载任务列表），以及 yt-dlp 流媒体任务
 const activeAndWaitingCount = computed(() =>
   taskStore.activeTasks.length + taskStore.waitingTasks.length +
-  taskStore.stoppedTasks.filter(task => task.status === 'error').length
+  taskStore.stoppedTasks.filter(task => task.status === 'error').length +
+  streamTaskStore.activeTasks.length + streamTaskStore.errorTasks.length
 )
 const stoppedCount = computed(() =>
-  taskStore.stoppedTasks.filter(task => task.status !== 'error').length
+  taskStore.stoppedTasks.filter(task => task.status !== 'error').length +
+  streamTaskStore.completedTasks.length
 )
 
 const menuOptions = computed<MenuOption[]>(() => [

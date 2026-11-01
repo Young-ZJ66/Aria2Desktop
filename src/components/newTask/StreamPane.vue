@@ -40,14 +40,14 @@
         <n-input
           v-model:value="streamUrl"
           :placeholder="t('newTask.streamUrlPlaceholder')"
-          :disabled="streamModeDownloading"
+          :disabled="streamDownloading || streamStarting"
           @keyup.enter="fetchStreamInfo"
         />
       </n-form-item>
       <n-button
         type="primary"
         :loading="streamFetching"
-        :disabled="!streamUrl.trim() || streamModeDownloading"
+        :disabled="!streamUrl.trim() || streamDownloading || streamStarting"
         @click="fetchStreamInfo"
       >
         {{ t('newTask.streamSelectFormat') }}
@@ -59,7 +59,7 @@
         <n-select
           v-model:value="selectedFormatId"
           :options="streamFormatOptions"
-          :disabled="streamModeDownloading"
+          :disabled="streamDownloading || streamStarting"
         />
       </n-form-item>
 
@@ -76,7 +76,7 @@
               <n-button
                 size="small"
                 :loading="ffmpegInstalling"
-                :disabled="ffmpegInstalling || streamModeDownloading"
+                :disabled="ffmpegInstalling || streamStarting"
                 @click="installFfmpeg"
               >
                 {{ ffmpegInstalling
@@ -97,34 +97,15 @@
         </div>
       </template>
 
-      <!-- yt-dlp 下载中：进度 + 取消 -->
-      <div v-if="streamModeDownloading" class="stream-progress">
-        <n-progress type="line" :percentage="Math.round(streamProgressPercent)" :height="8" />
-        <div class="stream-progress-meta">
-          <span>{{ t('newTask.streamDownloadingPercent', { percent: Math.round(streamProgressPercent) }) }}</span>
-          <span v-if="streamProgressSpeed">
-            {{ t('newTask.streamSpeedEta', { speed: streamProgressSpeed, eta: streamProgressEta || '—' }) }}
-          </span>
-          <n-button size="tiny" quaternary @click="cancelStreamDownload">
-            {{ t('newTask.streamCancel') }}
-          </n-button>
-        </div>
-      </div>
-      <div v-else class="form-actions">
+      <!-- yt-dlp 下载在后台执行并进入「下载任务」列表；这里只需要发起请求 -->
+      <div class="form-actions">
         <n-button
           type="primary"
-          :loading="streamDownloading"
+          :loading="streamDownloading || streamStarting"
           :disabled="!selectedFormatId || (selectedIsVideoOnly && !ffmpegAvailable)"
           @click="handleStreamDownload"
         >
           {{ t('newTask.streamDownload') }}
-        </n-button>
-      </div>
-
-      <div v-if="streamOutputFile" class="stream-result">
-        <span>{{ t('newTask.streamSavedTo', { file: baseName(streamOutputFile) }) }}</span>
-        <n-button size="tiny" text type="primary" @click="openOutputFolder">
-          {{ t('newTask.streamOpenFolder') }}
         </n-button>
       </div>
     </div>
@@ -138,7 +119,7 @@ import { message } from '@/utils/feedback'
 import { useUiStore } from '@/stores/uiStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import type { StreamDownloadEvent } from '@/types/electron'
+import { useStreamTaskStore } from '@/stores/streamTaskStore'
 
 /**
  * 流媒体下载页（yt-dlp）。
@@ -156,6 +137,7 @@ const { t } = useI18n()
 const uiStore = useUiStore()
 const taskStore = useTaskStore()
 const settingsStore = useSettingsStore()
+const streamTaskStore = useStreamTaskStore()
 
 const ytdlpAvailable = ref(false)
 const ytdlpVersion = ref('')
@@ -177,18 +159,12 @@ const streamFormats = ref<Array<{ formatId: string; ext: string; resolution: str
 const selectedFormatId = ref<string | null>(null)
 const streamTitle = ref('')
 
-/** yt-dlp 下载模式（分离音视频格式） */
-const streamModeDownloading = ref(false)
-const streamDownloadId = ref('')
-const streamProgressPercent = ref(0)
-const streamProgressSpeed = ref('')
-const streamProgressEta = ref('')
-const streamOutputFile = ref('')
+/** yt-dlp 下载模式（分离音视频格式）：发起后由 streamTaskStore 跟踪并显示在任务列表 */
+const streamStarting = ref(false)
 
 /** 取消订阅函数（组件卸载时统一清理，避免弹窗反复打开累积监听器） */
 let unsubscribeYtdlpProgress: (() => void) | null = null
 let unsubscribeFfmpegProgress: (() => void) | null = null
-let unsubscribeStreamEvent: (() => void) | null = null
 
 const streamFormatOptions = computed(() =>
   streamFormats.value.map(f => {
@@ -249,25 +225,14 @@ onMounted(async () => {
       ffmpegInstallPercent.value = progress.percent ?? 0
     })
   }
-  if (window.electronAPI?.onStreamDownloadEvent) {
-    unsubscribeStreamEvent = window.electronAPI.onStreamDownloadEvent(handleStreamEvent)
-  }
   await Promise.all([checkAvailable(), checkFfmpeg()])
 })
 
 onUnmounted(() => {
   unsubscribeYtdlpProgress?.()
   unsubscribeFfmpegProgress?.()
-  unsubscribeStreamEvent?.()
   unsubscribeYtdlpProgress = null
   unsubscribeFfmpegProgress = null
-  unsubscribeStreamEvent = null
-  // 弹窗关闭即放弃这次流媒体下载：它不在 aria2 队列里，无法重新挂接进度，
-  // 继续在后台跑只会让用户既看不到、也取消不了。
-  if (streamDownloadId.value) {
-    void window.electronAPI?.streamDownloadCancel?.(streamDownloadId.value)
-    streamDownloadId.value = ''
-  }
 })
 
 /** 下载/安装 yt-dlp：主进程负责下载、SHA-256 校验与安装 */
@@ -321,7 +286,6 @@ async function fetchStreamInfo() {
   streamFetching.value = true
   streamFormats.value = []
   selectedFormatId.value = null
-  streamOutputFile.value = ''
   try {
     const result = await window.electronAPI.ytdlpVideoInfo(streamUrl.value.trim())
     if (result.success && result.info) {
@@ -393,75 +357,38 @@ async function handleStreamDownload() {
   }
 }
 
-/** 启动 yt-dlp 下载模式（进度与结果通过事件回传） */
+/** 启动 yt-dlp 下载模式：任务进入「下载任务」列表，进度/取消都在列表里操作 */
 async function startStreamModeDownload() {
-  if (!window.electronAPI?.streamDownloadStart || streamModeDownloading.value) return
+  if (!window.electronAPI?.streamDownloadStart || streamStarting.value) return
   const outputDir = await resolveOutputDir()
   if (!outputDir) {
     message.error(t('newTask.streamNoDir'))
     return
   }
 
-  streamModeDownloading.value = true
-  streamProgressPercent.value = 0
-  streamProgressSpeed.value = ''
-  streamProgressEta.value = ''
-  streamOutputFile.value = ''
-
-  const result = await window.electronAPI.streamDownloadStart({
-    url: streamUrl.value.trim(),
-    formatId: selectedFormatId.value ?? '',
-    merge: true,
-    outputDir
-  })
-  if (!result.success) {
-    streamModeDownloading.value = false
-    if (result.code === 'ffmpeg_missing') {
-      message.warning(t('newTask.streamFfmpegRequired'))
-      await checkFfmpeg()
-    } else {
-      message.error(result.error || t('newTask.streamParseFailed'))
+  streamStarting.value = true
+  try {
+    const result = await streamTaskStore.startTask({
+      url: streamUrl.value.trim(),
+      formatId: selectedFormatId.value ?? '',
+      merge: true,
+      outputDir,
+      title: streamTitle.value
+    })
+    if (!result.success) {
+      if (result.code === 'ffmpeg_missing') {
+        message.warning(t('newTask.streamFfmpegRequired'))
+        await checkFfmpeg()
+      } else {
+        message.error(result.error || t('newTask.streamParseFailed'))
+      }
+      return
     }
-    return
+    message.success(t('newTask.streamAddedToList'))
+    uiStore.closeNewTask()
+  } finally {
+    streamStarting.value = false
   }
-  streamDownloadId.value = result.id ?? ''
-}
-
-function handleStreamEvent(event: StreamDownloadEvent) {
-  if (event.id !== streamDownloadId.value) return
-  if (event.type === 'progress') {
-    streamProgressPercent.value = event.percent
-    streamProgressSpeed.value = event.speed ?? ''
-    streamProgressEta.value = event.eta ?? ''
-    return
-  }
-
-  streamModeDownloading.value = false
-  streamDownloadId.value = ''
-
-  if (event.type === 'completed') {
-    streamProgressPercent.value = 100
-    streamOutputFile.value = event.filePath
-    message.success(t('newTask.streamDownloadDone', { file: baseName(event.filePath) }))
-  } else if (event.type === 'cancelled') {
-    message.info(t('newTask.streamCancelled'))
-  } else {
-    message.error(event.error || t('newTask.streamParseFailed'))
-  }
-}
-
-async function cancelStreamDownload() {
-  if (!streamDownloadId.value || !window.electronAPI?.streamDownloadCancel) return
-  await window.electronAPI.streamDownloadCancel(streamDownloadId.value)
-}
-
-function openOutputFolder() {
-  if (!streamOutputFile.value) return
-  void window.electronAPI?.showItemInFolder(streamOutputFile.value)
-}
-
-function baseName(filePath: string): string {
-  return filePath.split(/[\\/]/).pop() || filePath
 }
 
 /**
@@ -523,28 +450,5 @@ function sanitizeFileName(name: string): string {
 
 .ffmpeg-row-head .stream-note {
   margin: 0;
-}
-
-.stream-progress {
-  margin-top: 4px;
-}
-
-.stream-progress-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 6px;
-  font-size: 12px;
-  opacity: 0.85;
-}
-
-.stream-result {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 12px;
-  word-break: break-all;
 }
 </style>
