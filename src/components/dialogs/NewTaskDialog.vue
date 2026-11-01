@@ -4,7 +4,7 @@
     :title="t('newTask.title')"
     preset="card"
     style="width: 620px; max-width: 92vw"
-    content-style="max-height: 72vh; overflow-y: auto; padding-right: 4px;"
+    content-style="max-height: calc(100vh - 170px); overflow-y: auto; scrollbar-gutter: stable;"
     :bordered="false"
     :mask-closable="true"
     display-directive="show"
@@ -15,9 +15,17 @@
          所以"填了一半关掉再打开"时内容还在。内容常驻才能保持这一点。
       2) n-tabs 默认懒渲染：未激活的页在首次切换前不存在，会让预填（剪贴板 URL / 拖入文件）丢事件。
     -->
-    <n-tabs v-model:value="activeTab" type="line" animated display-directive="show">
+    <!-- 页签有固定宽度：pane 内边距必须配 border-box，否则右侧会被撑出容器导致输入框被裁切 -->
+    <n-tabs
+      v-model:value="activeTab"
+      type="line"
+      animated
+      display-directive="show"
+      pane-style="padding: 6px 8px 0; box-sizing: border-box;"
+    >
       <n-tab-pane name="uri" :tab="t('newTask.uriTab')">
         <UriPane
+          ref="uriPaneRef"
           :category-options="categoryOptions"
           :compute-target-dir="computeTargetDir"
           :is-electron="isElectron"
@@ -27,6 +35,7 @@
 
       <n-tab-pane name="torrent" :tab="t('newTask.torrentTab')">
         <TorrentPane
+          ref="torrentPaneRef"
           :category-options="categoryOptions"
           :compute-target-dir="computeTargetDir"
           :check-file-size="checkFileSize"
@@ -38,6 +47,7 @@
 
       <n-tab-pane name="metalink" :tab="t('newTask.metalinkTab')">
         <MetalinkPane
+          ref="metalinkPaneRef"
           :category-options="categoryOptions"
           :compute-target-dir="computeTargetDir"
           :check-file-size="checkFileSize"
@@ -48,9 +58,29 @@
       </n-tab-pane>
 
       <n-tab-pane name="stream" :tab="t('newTask.streamTab')">
-        <StreamPane />
+        <StreamPane ref="streamPaneRef" />
       </n-tab-pane>
     </n-tabs>
+
+    <!-- 操作按钮放在 card footer：与滚动内容分离，内容再长也始终可见 -->
+    <template #footer>
+      <div class="dialog-footer">
+        <n-space v-if="activePane">
+          <n-button
+            v-if="activePane.actionVisible"
+            type="primary"
+            :loading="activePane.submitting"
+            :disabled="activePane.actionDisabled"
+            @click="activePane.submit()"
+          >
+            {{ activePane.actionLabel }}
+          </n-button>
+          <n-button v-if="activePane.reset" @click="activePane.reset()">
+            {{ t('newTask.reset') }}
+          </n-button>
+        </n-space>
+      </div>
+    </template>
 
     <!-- 隐藏的文件输入框：由壳持有（只有一个），各 pane 通过 requestPickFile 借用 -->
     <input
@@ -89,6 +119,34 @@ const settingsStore = useSettingsStore()
 const { t } = useI18n()
 
 const activeTab = ref('uri')
+
+/**
+ * 各标签页向外暴露的操作能力：footer 按钮由壳统一渲染，
+ * 页面里只保留表单，滚动时按钮不会跟着滚走。
+ */
+interface PaneActions {
+  submit: () => void | Promise<void>
+  reset?: () => void
+  submitting: boolean
+  actionVisible: boolean
+  actionDisabled: boolean
+  actionLabel: string
+}
+
+const uriPaneRef = ref<PaneActions | null>(null)
+const torrentPaneRef = ref<PaneActions | null>(null)
+const metalinkPaneRef = ref<PaneActions | null>(null)
+const streamPaneRef = ref<PaneActions | null>(null)
+
+const activePane = computed<PaneActions | null>(() => {
+  switch (activeTab.value) {
+    case 'uri': return uriPaneRef.value
+    case 'torrent': return torrentPaneRef.value
+    case 'metalink': return metalinkPaneRef.value
+    case 'stream': return streamPaneRef.value
+    default: return null
+  }
+})
 
 const isElectron = computed(() => !!window.electronAPI)
 
@@ -214,3 +272,10 @@ function handleFileInputChange(event: Event) {
   onFilePicked = null
 }
 </script>
+
+<style scoped>
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

@@ -1,57 +1,38 @@
 <template>
-  <n-alert v-if="!ytdlpAvailable" type="warning" :bordered="false" style="margin-bottom: 12px;">
-    {{ t('newTask.streamUrlTip') }}
-  </n-alert>
-
-  <!-- 未安装：按需下载（仅一次，安装到本机 userData；不增加安装包体积） -->
-  <div v-if="!ytdlpAvailable" class="ytdlp-install">
-    <p class="ytdlp-install-hint">
-      {{ ytdlpInstallable ? t('newTask.streamYtdlpInstallHint') : t('newTask.streamYtdlpUnsupported') }}
-    </p>
-    <n-button
-      v-if="ytdlpInstallable"
-      type="primary"
-      :loading="ytdlpInstalling"
-      :disabled="ytdlpInstalling"
-      @click="installYtdlp"
-    >
-      {{ ytdlpInstalling
-        ? t('newTask.streamYtdlpInstalling')
-        : t('newTask.streamYtdlpInstall', { size: ytdlpApproxSizeMB ?? '—' }) }}
-    </n-button>
-    <n-progress
-      v-if="ytdlpInstalling && ytdlpInstallPercent > 0"
-      type="line"
-      :percentage="ytdlpInstallPercent"
-      :height="6"
-      style="margin-top: 10px;"
-    />
+  <!-- 组件检测/安装在「设置 → 工具与扩展」；完成检测前只显示检测中，避免闪出未安装 -->
+  <div v-if="!componentStore.ytdlp.checked" class="ytdlp-checking">
+    <n-spin size="small" />
+    <span>{{ t('newTask.streamChecking') }}</span>
   </div>
 
+  <template v-else-if="!componentStore.ytdlp.available">
+    <n-alert type="warning" :bordered="false" style="margin-bottom: 12px;">
+      {{ t('newTask.streamUrlTip') }}
+    </n-alert>
+    <n-button type="primary" @click="openComponentSettings">
+      {{ t('newTask.openComponentSettings') }}
+    </n-button>
+  </template>
+
   <template v-else>
-    <!-- 检测到的 yt-dlp 版本：放在**可用**分支才可达——
-         检测不通过时后端不返回 version（只有 available:false + error），
-         此前把它渲染在告警分支里，那行永远不会出现。 -->
-    <div v-if="ytdlpVersion" class="ytdlp-detected">
-      {{ t('newTask.streamYtdlpVersion', { version: ytdlpVersion }) }}
-    </div>
     <n-form>
-      <n-form-item :label="t('newTask.urisLabel')" label-placement="top">
-        <n-input
-          v-model:value="streamUrl"
-          :placeholder="t('newTask.streamUrlPlaceholder')"
-          :disabled="streamDownloading || streamStarting"
-          @keyup.enter="fetchStreamInfo"
-        />
+      <n-form-item :label="t('newTask.urisLabel')" label-placement="top" :show-feedback="false">
+        <n-input-group>
+          <n-input
+            v-model:value="streamUrl"
+            :placeholder="t('newTask.streamUrlPlaceholder')"
+            :disabled="streamDownloading || streamStarting"
+            @keyup.enter="fetchStreamInfo"
+          />
+          <n-button
+            :loading="streamFetching"
+            :disabled="!streamUrl.trim() || streamDownloading || streamStarting"
+            @click="fetchStreamInfo"
+          >
+            {{ t('newTask.streamParse') }}
+          </n-button>
+        </n-input-group>
       </n-form-item>
-      <n-button
-        type="primary"
-        :loading="streamFetching"
-        :disabled="!streamUrl.trim() || streamDownloading || streamStarting"
-        @click="fetchStreamInfo"
-      >
-        {{ t('newTask.streamSelectFormat') }}
-      </n-button>
     </n-form>
 
     <div v-if="streamFormats.length > 0" style="margin-top: 16px;">
@@ -63,63 +44,34 @@
         />
       </n-form-item>
 
-      <!-- B 站等站点只提供分离的视频/音频流：由 yt-dlp 下载并合并，需要 ffmpeg -->
-      <template v-if="selectedIsVideoOnly">
-        <p class="stream-note">{{ t('newTask.streamVideoOnlyHint') }}</p>
+      <!-- 分离的视频流由 App 自动合并最佳音轨：ffmpeg 就绪时不额外打扰，只缺组件时提示 -->
+      <template v-if="selectedIsVideoOnly && !componentStore.ffmpeg.available">
         <div class="ffmpeg-row">
-          <template v-if="ffmpegAvailable">
-            <span class="stream-note">{{ t('newTask.streamFfmpegReady') }}</span>
-          </template>
-          <template v-else-if="ffmpegInstallable">
-            <div class="ffmpeg-row-head">
-              <span class="stream-note">{{ t('newTask.streamFfmpegRequired') }}</span>
-              <n-button
-                size="small"
-                :loading="ffmpegInstalling"
-                :disabled="ffmpegInstalling || streamStarting"
-                @click="installFfmpeg"
-              >
-                {{ ffmpegInstalling
-                  ? t('newTask.streamFfmpegInstalling')
-                  : t('newTask.streamFfmpegInstall', { size: ffmpegApproxSizeMB ?? '—' }) }}
-              </n-button>
-            </div>
-            <n-progress
-              v-if="ffmpegInstalling && ffmpegInstallPercent > 0"
-              type="line"
-              :percentage="ffmpegInstallPercent"
-              :height="5"
-              :show-indicator="false"
-              style="margin-top: 6px;"
-            />
-          </template>
-          <span v-else class="stream-note">{{ t('newTask.streamFfmpegManual') }}</span>
+          <span class="stream-note">
+            {{ !componentStore.ffmpeg.checked
+              ? t('newTask.streamFfmpegChecking')
+              : componentStore.ffmpeg.installable
+                ? t('newTask.streamFfmpegRequired')
+                : t('newTask.streamFfmpegManual') }}
+          </span>
+          <n-button size="tiny" quaternary type="primary" @click="openComponentSettings">
+            {{ t('newTask.openComponentSettings') }}
+          </n-button>
         </div>
       </template>
-
-      <!-- yt-dlp 下载在后台执行并进入「下载任务」列表；这里只需要发起请求 -->
-      <div class="form-actions">
-        <n-button
-          type="primary"
-          :loading="streamDownloading || streamStarting"
-          :disabled="!selectedFormatId || (selectedIsVideoOnly && !ffmpegAvailable)"
-          @click="handleStreamDownload"
-        >
-          {{ t('newTask.streamDownload') }}
-        </n-button>
-      </div>
     </div>
   </template>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from '@/utils/feedback'
 import { useUiStore } from '@/stores/uiStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useStreamTaskStore } from '@/stores/streamTaskStore'
+import { useComponentStore } from '@/stores/componentStore'
 
 /**
  * 流媒体下载页（yt-dlp）。
@@ -127,6 +79,9 @@ import { useStreamTaskStore } from '@/stores/streamTaskStore'
  * 两种下载路径：
  * - 合成格式（视频+音频）：仍然只取直链交给 aria2，享受队列与多线程；
  * - 分离格式（B 站等）：交给 yt-dlp 下载并合并最佳音轨（需要 ffmpeg）。
+ *
+ * 组件（yt-dlp / ffmpeg）的检测与安装统一在「设置 → 工具与扩展」，
+ * 本页只读取共享状态并提示；未安装时引导用户去设置页。
  *
  * 与另外三页不同，这里**不走 useNewTaskSubmit 的提交骨架**：
  * 它没有表单校验、不做连接校验（由 addUri 自身报错），并有独立的两段式流程
@@ -138,19 +93,7 @@ const uiStore = useUiStore()
 const taskStore = useTaskStore()
 const settingsStore = useSettingsStore()
 const streamTaskStore = useStreamTaskStore()
-
-const ytdlpAvailable = ref(false)
-const ytdlpVersion = ref('')
-const ytdlpInstallable = ref(false)
-const ytdlpApproxSizeMB = ref<number | null>(null)
-const ytdlpInstalling = ref(false)
-const ytdlpInstallPercent = ref(0)
-
-const ffmpegAvailable = ref(false)
-const ffmpegInstallable = ref(false)
-const ffmpegApproxSizeMB = ref<number | null>(null)
-const ffmpegInstalling = ref(false)
-const ffmpegInstallPercent = ref(0)
+const componentStore = useComponentStore()
 
 const streamUrl = ref('')
 const streamFetching = ref(false)
@@ -162,9 +105,11 @@ const streamTitle = ref('')
 /** yt-dlp 下载模式（分离音视频格式）：发起后由 streamTaskStore 跟踪并显示在任务列表 */
 const streamStarting = ref(false)
 
-/** 取消订阅函数（组件卸载时统一清理，避免弹窗反复打开累积监听器） */
-let unsubscribeYtdlpProgress: (() => void) | null = null
-let unsubscribeFfmpegProgress: (() => void) | null = null
+onMounted(() => {
+  // 组件检测与安装都收敛到「设置 → 工具与扩展」，这里只复用共享状态
+  void componentStore.checkYtdlp()
+  void componentStore.checkFfmpeg()
+})
 
 const streamFormatOptions = computed(() =>
   streamFormats.value.map(f => {
@@ -190,96 +135,6 @@ const selectedIsVideoOnly = computed(() => {
   const format = selectedFormat.value
   return !!format && format.vcodec !== 'none' && format.acodec === 'none'
 })
-
-// 检查 yt-dlp 是否可用（决定显示表单还是"按需下载"按钮）
-async function checkAvailable() {
-  if (!window.electronAPI?.ytdlpCheck) return
-  try {
-    const result = await window.electronAPI.ytdlpCheck()
-    ytdlpAvailable.value = result.available
-    ytdlpVersion.value = result.version ?? ''
-    ytdlpInstallable.value = result.installable === true
-    ytdlpApproxSizeMB.value = result.approxSizeMB ?? null
-  } catch { /* 忽略 */ }
-}
-
-async function checkFfmpeg() {
-  if (!window.electronAPI?.ffmpegCheck) return
-  try {
-    const result = await window.electronAPI.ffmpegCheck()
-    ffmpegAvailable.value = result.available
-    ffmpegInstallable.value = result.installable === true
-    ffmpegApproxSizeMB.value = result.approxSizeMB ?? null
-  } catch { /* 忽略 */ }
-}
-
-onMounted(async () => {
-  // 进度是独立事件通道（invoke 只返回最终结果）
-  if (window.electronAPI?.onYtdlpInstallProgress) {
-    unsubscribeYtdlpProgress = window.electronAPI.onYtdlpInstallProgress((progress) => {
-      ytdlpInstallPercent.value = progress.percent ?? 0
-    })
-  }
-  if (window.electronAPI?.onFfmpegInstallProgress) {
-    unsubscribeFfmpegProgress = window.electronAPI.onFfmpegInstallProgress((progress) => {
-      ffmpegInstallPercent.value = progress.percent ?? 0
-    })
-  }
-  await Promise.all([checkAvailable(), checkFfmpeg()])
-})
-
-onUnmounted(() => {
-  unsubscribeYtdlpProgress?.()
-  unsubscribeFfmpegProgress?.()
-  unsubscribeYtdlpProgress = null
-  unsubscribeFfmpegProgress = null
-})
-
-/** 下载/安装 yt-dlp：主进程负责下载、SHA-256 校验与安装 */
-async function installYtdlp() {
-  if (!window.electronAPI?.ytdlpInstall || ytdlpInstalling.value) return
-  ytdlpInstalling.value = true
-  ytdlpInstallPercent.value = 0
-  try {
-    const result = await window.electronAPI.ytdlpInstall()
-    if (result.success) {
-      message.success(t('newTask.streamYtdlpInstallSuccess', { version: result.version || '—' }))
-      await checkAvailable()
-    } else {
-      message.error(t('newTask.streamYtdlpInstallFailed', { error: result.error || '' }))
-    }
-  } catch (error) {
-    message.error(t('newTask.streamYtdlpInstallFailed', {
-      error: error instanceof Error ? error.message : String(error)
-    }))
-  } finally {
-    ytdlpInstalling.value = false
-    ytdlpInstallPercent.value = 0
-  }
-}
-
-/** 下载 ffmpeg（合并音轨时使用）：主进程负责校验与解压 */
-async function installFfmpeg() {
-  if (!window.electronAPI?.ffmpegInstall || ffmpegInstalling.value) return
-  ffmpegInstalling.value = true
-  ffmpegInstallPercent.value = 0
-  try {
-    const result = await window.electronAPI.ffmpegInstall()
-    if (result.success) {
-      message.success(t('newTask.streamFfmpegInstallSuccess', { version: result.version || '—' }))
-      await checkFfmpeg()
-    } else {
-      message.error(t('newTask.streamFfmpegInstallFailed', { error: result.error || '' }))
-    }
-  } catch (error) {
-    message.error(t('newTask.streamFfmpegInstallFailed', {
-      error: error instanceof Error ? error.message : String(error)
-    }))
-  } finally {
-    ffmpegInstalling.value = false
-    ffmpegInstallPercent.value = 0
-  }
-}
 
 async function fetchStreamInfo() {
   if (!streamUrl.value.trim() || !window.electronAPI?.ytdlpVideoInfo) return
@@ -378,7 +233,7 @@ async function startStreamModeDownload() {
     if (!result.success) {
       if (result.code === 'ffmpeg_missing') {
         message.warning(t('newTask.streamFfmpegRequired'))
-        await checkFfmpeg()
+        await componentStore.checkFfmpeg(true)
       } else {
         message.error(result.error || t('newTask.streamParseFailed'))
       }
@@ -390,6 +245,35 @@ async function startStreamModeDownload() {
     streamStarting.value = false
   }
 }
+
+/** 组件安装入口在设置页：关闭新建任务弹窗并直接打开「工具与扩展」页 */
+function openComponentSettings() {
+  uiStore.closeNewTask()
+  uiStore.openSettings('components')
+}
+
+/** 重置本页：清空链接、解析结果与已选画质 */
+function handleReset() {
+  streamUrl.value = ''
+  streamFormats.value = []
+  selectedFormatId.value = null
+  streamTitle.value = ''
+}
+
+// 按钮由弹窗 footer 统一渲染（开始下载在解析格式后才可用）
+defineExpose({
+  submit: handleStreamDownload,
+  reset: handleReset,
+  submitting: computed(() => streamDownloading.value || streamStarting.value),
+  actionVisible: true,
+  actionDisabled: computed(() =>
+    !selectedFormatId.value
+    || (selectedIsVideoOnly.value && !componentStore.ffmpeg.available)
+    || streamDownloading.value
+    || streamStarting.value
+  ),
+  actionLabel: computed(() => t('newTask.startDownload'))
+})
 
 /**
  * 把视频标题收敛成纯文件名（aria2 的 out 必须是相对路径的文件名）。
@@ -407,27 +291,13 @@ function sanitizeFileName(name: string): string {
 </script>
 
 <style scoped>
-.form-actions {
+.ytdlp-checking {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-}
-
-.ytdlp-detected {
-  margin-bottom: 8px;
-  font-size: 11.5px;
-  opacity: 0.85;
-}
-
-.ytdlp-install {
-  margin-bottom: 12px;
-}
-
-.ytdlp-install-hint {
-  margin-bottom: 8px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
   font-size: 12px;
-  line-height: 1.5;
-  opacity: 0.85;
+  color: var(--text-secondary);
 }
 
 .stream-note {
@@ -438,17 +308,14 @@ function sanitizeFileName(name: string): string {
 }
 
 .ffmpeg-row {
-  margin-bottom: 8px;
-}
-
-.ffmpeg-row-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  margin-bottom: 8px;
 }
 
-.ffmpeg-row-head .stream-note {
+.ffmpeg-row .stream-note {
   margin: 0;
 }
 </style>

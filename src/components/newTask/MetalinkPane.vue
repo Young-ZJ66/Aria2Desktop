@@ -22,19 +22,11 @@
     <n-form-item :label="t('newTask.categoryLabel')" label-placement="top">
       <n-select v-model:value="form.category" :options="categoryOptions" />
     </n-form-item>
-    <div class="form-actions">
-      <n-space>
-        <n-button type="primary" :loading="submitting" @click="handleSubmit">
-          {{ t('newTask.startDownload') }}
-        </n-button>
-        <n-button @click="handleReset">{{ t('newTask.reset') }}</n-button>
-      </n-space>
-    </div>
   </n-form>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CloudUploadOutline } from '@vicons/ionicons5'
 import type { FormInst, FormRules } from 'naive-ui'
@@ -140,15 +132,19 @@ function handleReset() {
   formRef.value?.restoreValidation()
   form.metalinkFile = null
 }
+
+// 按钮由弹窗 footer 统一渲染（滚动内容时始终可见）
+defineExpose({
+  submit: handleSubmit,
+  reset: handleReset,
+  submitting,
+  actionVisible: true,
+  actionDisabled: false,
+  actionLabel: computed(() => t('newTask.startDownload'))
+})
 </script>
 
 <style scoped>
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-}
-
 .file-drop-area {
   width: 100%;
   height: 150px;
@@ -162,7 +158,7 @@ function handleReset() {
   background-color: var(--bg-tertiary);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease, transform 0.18s var(--ease-out);
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
 .file-drop-area:hover,
@@ -170,7 +166,6 @@ function handleReset() {
   border-color: var(--color-primary);
   background-color: var(--bg-hover);
   color: var(--color-primary);
-  transform: scale(1.012);
 }
 
 .drop-text {

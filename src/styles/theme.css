@@ -188,6 +188,12 @@ html.theme-transition ::-webkit-scrollbar-thumb {
   transition: background-color 0.28s ease !important;
 }
 
+/* 输入框焦点外发光：Naive UI 自带的焦点光晕偏内收，在弹窗里左右两侧容易显得被留白“吃掉”。
+   这里再补一层柔和外发光，让四边的焦点提示都完整可见 */
+.n-input--focus {
+  box-shadow: 0 0 0 3px rgba(79, 110, 242, 0.16);
+}
+
 /* =========================================
    通用动效类
    - .fade-in：元素出现时的淡入（空状态、抽屉内容等轻量场景）
