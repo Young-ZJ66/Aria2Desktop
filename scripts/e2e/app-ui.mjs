@@ -189,6 +189,16 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
   reporter.check('新建任务弹窗可打开', /新建|New|链接|URL/i.test(String(newTaskText)))
   reporter.check('新建任务包含请求头区域', /请求头|Request headers|Referer|User-Agent/i.test(String(newTaskText)))
+  const modalFits = await evalIn(
+    session,
+    `(() => {
+      const modal = [...document.querySelectorAll('.n-modal')].find((el) => el.offsetParent !== null)
+      if (!modal) return null
+      const rect = modal.getBoundingClientRect()
+      return rect.top >= 0 && rect.bottom <= window.innerHeight + 1
+    })()`
+  )
+  reporter.check('新建任务弹窗不超出窗口高度', modalFits === true)
 
   // —— 流媒体页：验证 yt-dlp 入口（已安装显示表单 / 未安装显示按需下载）——
   const streamTab = await evalIn(
