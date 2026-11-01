@@ -50,6 +50,51 @@ export function resolveChromePath() {
   return DEFAULT_CHROME_CANDIDATES.find((candidate) => fs.existsSync(candidate)) ?? findPlaywrightChromium()
 }
 
+/**
+ * 在 CDP 目标里找到"本扩展"的 service worker：逐个求值 manifest，版本匹配才算命中。
+ *
+ * 不能按"列表里出现任意 chrome-extension:// 目标"判断——Chromium 自带的组件扩展
+ * 也有 service worker（且可能先于本扩展出现），按顺序取会把它们当成本扩展，
+ * 后续 popup 地址、manifest 断言全部落到别的扩展上。
+ *
+ * @returns {Promise<{extensionId: string, browserManifest: object} | null>}
+ */
+export async function findExtensionServiceWorker(port, expectedVersion, { timeoutMs = 30000 } = {}) {
+  return waitFor(
+    async () => {
+      const list = await httpJson(`http://127.0.0.1:${port}/json/list`)
+      const swTargets = Array.isArray(list)
+        ? list.filter((t) => t.type === 'service_worker' && String(t.url).startsWith('chrome-extension://'))
+        : []
+      for (const target of swTargets) {
+        const session = await connect(target.webSocketDebuggerUrl)
+        try {
+          // 上下文未初始化时 chrome.runtime 可能还不可用，异常留到下一轮重试
+          const raw = await evalIn(
+            session,
+            `JSON.stringify({
+              name: chrome.runtime.getManifest().name,
+              version: chrome.runtime.getManifest().version,
+              permissions: chrome.runtime.getManifest().permissions,
+              optional: chrome.runtime.getManifest().optional_permissions
+            })`
+          )
+          const parsed = raw ? JSON.parse(raw) : null
+          if (parsed?.version === expectedVersion) {
+            return { extensionId: new URL(target.url).host, browserManifest: parsed }
+          }
+        } catch {
+          // 非本扩展 / 尚未就绪：继续下一个目标或下一轮
+        } finally {
+          session.close()
+        }
+      }
+      return null
+    },
+    { timeoutMs, intervalMs: 500, label: '扩展 service worker 就绪' }
+  ).catch(() => null)
+}
+
 export async function runExtensionCheck({ extensionDir, outDir, reporter, port = 9444 }) {
   const chromePath = resolveChromePath()
   if (!chromePath) {
@@ -83,16 +128,10 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
   })
 
   try {
-    const targets = await waitFor(
-      async () => {
-        const list = await httpJson(`http://127.0.0.1:${port}/json/list`)
-        const found = Array.isArray(list) ? list.filter((t) => String(t.url).startsWith('chrome-extension://')) : []
-        return found.length ? found : null
-      },
-      { timeoutMs: 20000, label: '扩展目标出现在 CDP 列表' }
-    ).catch(() => null)
+    // 等"能读到自己 manifest 的那个 SW"，理由见 findExtensionServiceWorker
+    const found = await findExtensionServiceWorker(port, manifest.version)
 
-    if (!targets) {
+    if (!found) {
       throw new Error(
         `扩展未在浏览器中加载。--load-extension 可能被该浏览器忽略（Google Chrome 137+ 不支持），请改用 Chrome for Testing。stderr=${stderr
           .split('\n')
@@ -101,42 +140,8 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
       )
     }
 
-    let extensionId = null
-    let browserManifest = null
-    for (const target of targets.filter((t) => t.type === 'service_worker')) {
-      const session = await connect(target.webSocketDebuggerUrl)
-      // SW 目标在 /json/list 里出现时，脚本上下文未必已初始化（chrome.runtime 可能还是 undefined）。
-      // 直接求值会抛异常导致整项检查失败，这里短暂重试，超时后跳过该目标。
-      const raw = await waitFor(
-        async () => {
-          try {
-            return await evalIn(
-              session,
-              `JSON.stringify({
-                name: chrome.runtime.getManifest().name,
-                version: chrome.runtime.getManifest().version,
-                permissions: chrome.runtime.getManifest().permissions,
-                optional: chrome.runtime.getManifest().optional_permissions
-              })`
-            )
-          } catch {
-            return null
-          }
-        },
-        { timeoutMs: 5000, intervalMs: 200, label: 'service worker 上下文就绪' }
-      ).catch(() => null)
-      session.close()
-      if (!raw) continue
-      const parsed = JSON.parse(raw)
-      if (parsed.version === manifest.version) {
-        extensionId = new URL(target.url).host
-        browserManifest = parsed
-        break
-      }
-    }
-
-    reporter.check('扩展在真实浏览器中注册了 service worker', Boolean(extensionId), extensionId ?? '(未找到)')
-    if (!extensionId) return { skipped: false }
+    const { extensionId, browserManifest } = found
+    reporter.check('扩展在真实浏览器中注册了 service worker', Boolean(extensionId), extensionId)
 
     const actualPermissions = [...(browserManifest.permissions ?? [])].sort()
     const actualOptional = [...(browserManifest.optional ?? [])].sort()

@@ -16,9 +16,17 @@ import path from 'node:path'
 import http from 'node:http'
 import { spawn } from 'node:child_process'
 import { capture, connect, evalIn, httpJson, killTree, sleep, waitFor } from './lib/cdp.mjs'
-import { resolveChromePath } from './extension.mjs'
+import { findExtensionServiceWorker, resolveChromePath } from './extension.mjs'
 
 const PAIR_DELAY_MS = 35000
+
+/** 打开 popup 后等 DOM 就绪：固定 sleep 在机器繁忙时可能取到还没加载完的页面 */
+async function waitForPopupReady(session) {
+  await waitFor(
+    async () => await evalIn(session, `document.readyState === 'complete' && !!document.getElementById('pairBtn')`),
+    { timeoutMs: 15000, intervalMs: 300, label: '配对弹窗就绪' }
+  )
+}
 
 export async function runPairingCheck({ extensionDir, outDir, reporter }) {
   const chromePath = resolveChromePath()
@@ -64,20 +72,17 @@ export async function runPairingCheck({ extensionDir, outDir, reporter }) {
   )
 
   try {
-    const targets = await waitFor(
-      async () => {
-        const list = await httpJson('http://127.0.0.1:9473/json/list')
-        return list.filter((t) => t.type === 'service_worker' && t.url.includes('background.js')).length ? list : null
-      },
-      { timeoutMs: 20000, label: '扩展 SW 就绪' }
-    )
-    const swTarget = targets.filter((t) => t.type === 'service_worker' && t.url.includes('background.js')).pop()
-    const extensionId = new URL(swTarget.url).host
+    // 只认"manifest 版本与本扩展一致"的 SW：Chromium 自带组件扩展也有 background.js，
+    // 按 URL/顺序挑选会误取到别的扩展，后续打开的 popup 里根本没有配对按钮
+    const manifestVersion = JSON.parse(fs.readFileSync(path.join(extDir, 'manifest.json'), 'utf8')).version
+    const found = await findExtensionServiceWorker(9473, manifestVersion, { timeoutMs: 20000 })
+    if (!found) throw new Error('扩展 service worker 未就绪')
+    const { extensionId } = found
 
     const popup = await httpJson(`http://127.0.0.1:9473/json/new?chrome-extension://${extensionId}/popup.html`, 'PUT')
     const session = await connect(popup.webSocketDebuggerUrl)
     await session.send('Runtime.enable')
-    await sleep(1000)
+    await waitForPopupReady(session)
     await evalIn(session, `document.getElementById('pairBtn').click()`)
     // 模拟真实操作：点完配对后弹窗失焦关闭，用户切到 App 点「允许」
     await sleep(300)
@@ -89,7 +94,7 @@ export async function runPairingCheck({ extensionDir, outDir, reporter }) {
     const reopened = await httpJson(`http://127.0.0.1:9473/json/new?chrome-extension://${extensionId}/popup.html`, 'PUT')
     const verifySession = await connect(reopened.webSocketDebuggerUrl)
     await verifySession.send('Runtime.enable')
-    await sleep(1200)
+    await waitForPopupReady(verifySession)
 
     const stored = await evalIn(verifySession, `chrome.storage.local.get('config').then(JSON.stringify)`)
     const config = JSON.parse(stored)
@@ -102,6 +107,11 @@ export async function runPairingCheck({ extensionDir, outDir, reporter }) {
       `(() => { const el = document.getElementById('pairBanner'); return el.offsetParent !== null && getComputedStyle(el).display !== 'none' })()`
     )
     reporter.check('重新打开弹窗不再显示未配对横幅', bannerVisible === false)
+    // 同一个按钮应切换成「解除配对」，而不是额外出现第二个按钮
+    const pairBtnText = await evalIn(verifySession, `document.getElementById('pairBtn').textContent`)
+    reporter.check('配对按钮切换为解除配对', /解除配对|Unpair/i.test(String(pairBtnText)), String(pairBtnText))
+    const hasExtraUnpair = await evalIn(verifySession, `document.getElementById('unpairBtn') !== null`)
+    reporter.check('不存在额外的解除配对按钮', hasExtraUnpair === false)
     await capture(verifySession, path.join(outDir, '08-extension-paired.png'))
     verifySession.close()
   } catch (error) {

@@ -20,6 +20,8 @@ let feedbackTimer = null
 /** 两段式解除配对的定时器（3 秒内再次点击才执行） */
 let unpairArmTimer = null
 let unpairArmed = false
+/** 当前是否已配对：同一个按钮在「一键配对 / 解除配对」两种角色间切换 */
+let isPaired = false
 
 // 初始化界面文本
 function initI18n() {
@@ -56,7 +58,6 @@ function initI18n() {
 
   $('saveBtn').textContent = i18n('saveSettings')
   $('testBtn').textContent = i18n('testConnection')
-  $('unpairBtn').textContent = i18n('unpair')
   $('footerHint').textContent = i18n('rightClickHint')
   $('tabSend').textContent = i18n('tabSend')
   $('tabConnect').textContent = i18n('tabConnect')
@@ -92,10 +93,20 @@ function setStatus(state, text) {
   $('statusText').textContent = text
 }
 
-/** 根据是否有密钥切换"已配对/未配对"的界面形态（发送页横幅 + 解除按钮显隐 + 发送可用性） */
+/**
+ * 根据是否已配对切换界面形态。
+ * 配对/解除共用**同一个按钮**：未配对时是「一键配对」，已配对时是「解除配对」，
+ * 不额外占一行按钮，也避免两个入口同时可见时用户不知道点哪个。
+ */
 function applyPairingUi(paired) {
+  isPaired = paired
+  const btn = $('pairBtn')
+  resetUnpairArm(btn)
+  btn.textContent = i18n(paired ? 'unpair' : 'pairWithApp')
+  btn.classList.toggle('btn-primary', !paired)
+  btn.classList.toggle('btn-danger-ghost', paired)
+  $('pairHint').textContent = i18n(paired ? 'unpairHint' : 'pairHint')
   $('pairBanner').hidden = paired
-  $('unpairBtn').hidden = !paired
   $('sendBtn').disabled = !paired
   $('quickUrl').disabled = !paired
   $('pasteBtn').disabled = !paired
@@ -281,13 +292,15 @@ function startPairing() {
 function onPairingResult(result) {
   const btn = $('pairBtn')
   btn.disabled = false
-  btn.textContent = i18n('pairWithApp')
   if (result?.ok) {
     showFeedback(i18n('pairingSuccess'))
+    // 配对成功后同一个按钮切换为「解除配对」
+    applyPairingUi(true)
     // 配对是"一次性设置"，完成后自动回到日常的发送模式，减少一次多余点击
     switchTab('send')
-  } else if (result?.error) {
-    showFeedback(result.error, true)
+  } else {
+    applyPairingUi(false)
+    if (result?.error) showFeedback(result.error, true)
   }
   refreshStatus()
 }
@@ -297,7 +310,7 @@ function onPairingResult(result) {
 // 注意：这只影响扩展本地；如需**彻底撤销授权**（让旧密钥作废），
 // 要在 Aria2 Desktop 的「设置 → RPC 安全设置」中更换访问密钥，之后所有客户端都需重新配对。
 async function unpair() {
-  const btn = $('unpairBtn')
+  const btn = $('pairBtn')
   if (!unpairArmed) {
     unpairArmed = true
     btn.classList.add('armed')
@@ -594,8 +607,7 @@ $('bannerPairBtn').addEventListener('click', () => {
   switchTab('connect')
   startPairing()
 })
-$('pairBtn').addEventListener('click', startPairing)
-$('unpairBtn').addEventListener('click', unpair)
+$('pairBtn').addEventListener('click', () => (isPaired ? unpair() : startPairing()))
 $('saveBtn').addEventListener('click', saveConfig)
 $('testBtn').addEventListener('click', testConnection)
 $('mediaDetectBtn').addEventListener('click', detectMedia)
