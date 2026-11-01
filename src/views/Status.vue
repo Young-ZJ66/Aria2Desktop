@@ -22,6 +22,16 @@
       </n-grid>
     </n-card>
 
+    <!-- 概览摘要：今日/累计下载量与任务状态计数 -->
+    <n-card class="summary-card" :bordered="false">
+      <div class="summary-grid">
+        <div v-for="item in summaryItems" :key="item.label" class="summary-item">
+          <span class="summary-value">{{ item.value }}</span>
+          <span class="summary-label">{{ item.label }}</span>
+        </div>
+      </div>
+    </n-card>
+
     <!-- 流量统计卡片 -->
     <n-card class="traffic-card" :bordered="false" :title="t('statusPage.trafficStats')">
       <!-- 实时流量图（位于所有小卡片上方） -->
@@ -69,6 +79,7 @@ import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useStatsStore } from '@/stores/statsStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useDownloadHistoryStore } from '@/stores/downloadHistoryStore'
 import { formatSpeed, formatSize } from '@/utils/taskFormatters'
 import { getTaskStats } from '@/utils/taskUtils'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
@@ -91,6 +102,7 @@ const connectionStore = useConnectionStore()
 const taskStore = useTaskStore()
 const statsStore = useStatsStore()
 const settingsStore = useSettingsStore()
+const downloadHistoryStore = useDownloadHistoryStore()
 const { t } = useI18n()
 
 // 暗色模式判断（与 AppSidebar 一致）：dark 或 auto 跟随系统
@@ -111,6 +123,18 @@ const allTasks = computed(() => [
   ...taskStore.stoppedTasks
 ])
 const allTaskStats = computed(() => getTaskStats(allTasks.value))
+
+const seedingCount = computed(() =>
+  taskStore.activeTasks.filter(task => task.seeder === 'true').length
+)
+
+const summaryItems = computed(() => [
+  { label: t('statusPage.todayDownloaded'), value: formatSize(downloadHistoryStore.todayBytes) },
+  { label: t('statusPage.totalDownloaded'), value: formatSize(downloadHistoryStore.totalBytes) },
+  { label: t('statusPage.activeTasks'), value: String(taskStore.activeTasks.length) },
+  { label: t('statusPage.waitingTasks'), value: String(taskStore.waitingTasks.length) },
+  { label: t('statusPage.seedingTasks'), value: String(seedingCount.value) }
+])
 
 // 服务信息
 /** 服务器信息卡片项；tagType 限定为 n-tag 支持的取值（否则模板里 :type 会因 string 过宽报错） */
@@ -380,6 +404,39 @@ function updateTrafficChart() {
   border-radius: 10px;
   box-shadow: var(--shadow-light);
   transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.summary-card {
+  margin-bottom: 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  box-shadow: var(--shadow-light);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 2px;
+}
+
+.summary-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.summary-label {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .info-item {

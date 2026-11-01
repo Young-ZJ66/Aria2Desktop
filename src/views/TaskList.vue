@@ -48,11 +48,28 @@
         <n-button size="small" quaternary @click="importTasks" :title="t('task.importTasks')">
           <template #icon><n-icon><ImportIcon /></n-icon></template>
         </n-button>
+        <!-- 分类 / 来源类型筛选：与现有表格页共用，不额外拆路由 -->
+        <n-select
+          v-model:value="selectedCategory"
+          :options="categoryOptions"
+          :placeholder="t('task.allCategories')"
+          size="small"
+          clearable
+          style="width: 110px;"
+        />
+        <n-select
+          v-model:value="selectedKind"
+          :options="kindOptions"
+          :placeholder="t('task.allTypes')"
+          size="small"
+          clearable
+          style="width: 104px;"
+        />
         <n-input
           v-model:value="searchText"
           :placeholder="t('task.searchPlaceholder')"
           clearable
-          style="min-width: 180px; max-width: 280px;"
+          style="flex: 0 0 200px; width: 200px;"
         >
           <template #prefix>
             <n-icon><SearchOutline /></n-icon>
@@ -68,7 +85,7 @@
         :data="filteredTasks"
         :row-key="(row: Aria2Task) => row.gid"
         :row-props="rowProps"
-        :scroll-x="1200"
+        :scroll-x="920"
         :min-row-height="60"
         flex-height
         virtual-scroll
@@ -115,6 +132,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useStreamTaskStore } from '@/stores/streamTaskStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { useTaskSelection } from '@/composables/useTaskSelection'
 import { taskTimeService } from '@/services/taskTimeService'
 import { taskPersistenceService } from '@/services/taskPersistenceService'
@@ -130,6 +148,8 @@ import {
   searchTasks
 } from '@/utils/taskUtils'
 import { getFileCategory } from '@/utils/fileTypeIcons'
+import { CATEGORY_GENERAL, resolveCategory } from '@/shared/fileCategories'
+import { detectTaskKind, type TaskKind } from '@/utils/taskKind'
 import {
   formatSize,
   formatSpeed,
@@ -149,6 +169,7 @@ const taskStore = useTaskStore()
 const connectionStore = useConnectionStore()
 const uiStore = useUiStore()
 const streamTaskStore = useStreamTaskStore()
+const settingsStore = useSettingsStore()
 const { t } = useI18n()
 
 // 批量删除对话框状态
@@ -180,6 +201,8 @@ const {
 // 状态
 const loading = ref(false)
 const searchText = ref('')
+const selectedCategory = ref<string | null>(null)
+const selectedKind = ref<TaskKind | null>(null)
 
 // 列头排序状态：Naive UI 的 sorter 是非受控的（组件内部管理三态循环），
 // 但切页/切列表会销毁组件导致排序丢失——这里用受控 sortOrderer 恢复，并在变化时持久化。
@@ -277,6 +300,30 @@ const allTasks = computed(() => {
   return sortTasksByStatus(tasks)
 })
 
+/** 分类筛选选项：内置分类 + 用户自定义分类（与新建任务下拉同口径） */
+const categoryOptions = computed(() =>
+  (settingsStore.categoryConfig.categories ?? []).map(category => ({
+    label: category.id === CATEGORY_GENERAL
+      ? t('newTask.categoryGeneral')
+      : (category.name || t(`newTask.category.${category.id}`)),
+    value: category.id
+  }))
+)
+
+/** 来源类型筛选选项（Metalink 创建后与 HTTP 无法区分，不单列） */
+const kindOptions = computed(() => [
+  { label: t('task.typeHttp'), value: 'http' },
+  { label: t('task.typeFtp'), value: 'ftp' },
+  { label: t('task.typeBt'), value: 'bt' },
+  { label: t('task.typeMagnet'), value: 'magnet' },
+  { label: t('task.typeStream'), value: 'stream' }
+])
+
+/** 任务所属分类（按文件名扩展名，与自动分类落盘使用同一套规则） */
+function taskCategoryId(task: Aria2Task): string {
+  return resolveCategory(getTaskName(task), settingsStore.categoryConfig.categories ?? []).id
+}
+
 /**
  * 快速路径的形态判定：aria2 的 gid 是小写十六进制（通常 16 位）。
  * 只接受**小写**：混用大小写时字典序与数值序不再等价（'A' < 'a'），
@@ -328,6 +375,17 @@ function sortTasksByStatus(tasks: Aria2Task[]): Aria2Task[] {
 // 排序和过滤后的任务
 const filteredTasks = computed(() => {
   let tasks = [...allTasks.value]
+
+  // 分类 / 来源类型筛选（不拆路由，保持现有表格页结构）
+  if (selectedCategory.value) {
+    tasks = tasks.filter(task => taskCategoryId(task) === selectedCategory.value)
+  }
+  if (selectedKind.value) {
+    const kind = selectedKind.value
+    tasks = tasks.filter(task =>
+      detectTaskKind(task, streamTaskStore.findByGid(task.gid) !== undefined) === kind
+    )
+  }
 
   // 搜索过滤（复用 taskUtils.searchTasks 的统一实现，避免两份过滤逻辑漂移）
   if (searchText.value.trim()) {
@@ -411,7 +469,7 @@ function formatCompleteTimeLabel(task: Aria2Task): string {
 const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'selection',
-    width: 55,
+    width: 48,
     fixed: 'left',
     title: () =>
       h(NCheckbox, {
@@ -426,15 +484,9 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         : h(TaskCheckbox, { task: row })
   },
   {
-    key: 'gid',
-    title: t('task.gid'),
-    width: 120,
-    ellipsis: { tooltip: true }
-  },
-  {
     key: 'name',
     title: t('task.fileName'),
-    width: 280,
+    width: 210,
     sorter: (a: Aria2Task, b: Aria2Task) => getTaskName(a).localeCompare(getTaskName(b)),
     render: (row: Aria2Task) => {
       const name = getTaskName(row)
@@ -450,14 +502,14 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'size',
     title: t('task.size'),
-    width: 100,
+    width: 78,
     sorter: (a: Aria2Task, b: Aria2Task) => (parseInt(a.totalLength, 10) || 0) - (parseInt(b.totalLength, 10) || 0),
     render: (row: Aria2Task) => formatSize(row.totalLength)
   },
   {
     key: 'progress',
     title: t('task.progress'),
-    width: 140,
+    width: 110,
     sorter: (a: Aria2Task, b: Aria2Task) => getProgress(a) - getProgress(b),
     render: (row: Aria2Task) =>
       h(NProgress, {
@@ -471,7 +523,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'status',
     title: t('task.status'),
-    width: 130,
+    width: 96,
     sorter: (a: Aria2Task, b: Aria2Task) => a.status.localeCompare(b.status),
     render: (row: Aria2Task) =>
       h(NTag, { type: getStatusType(row.status), size: 'small' }, { default: () => t('status.' + row.status) })
@@ -479,7 +531,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'downloadSpeed',
     title: t('task.downloadSpeed'),
-    width: 120,
+    width: 100,
     sorter: (a: Aria2Task, b: Aria2Task) => (parseInt(a.downloadSpeed, 10) || 0) - (parseInt(b.downloadSpeed, 10) || 0),
     render: (row: Aria2Task) => formatSpeed(row.downloadSpeed)
   },
@@ -487,14 +539,14 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     ? {
       key: 'completeTime',
       title: t('task.completeTime'),
-      width: 150,
+      width: 120,
       sorter: (a: Aria2Task, b: Aria2Task) => (taskTimeService.getCompleteTime(a.gid) || 0) - (taskTimeService.getCompleteTime(b.gid) || 0),
       render: (row: Aria2Task) => formatCompleteTimeLabel(row)
     }
     : {
       key: 'remainingTime',
       title: t('task.remainingTime'),
-      width: 120,
+      width: 110,
       sorter: (a: Aria2Task, b: Aria2Task) => {
         const aSpeed = parseInt(a.downloadSpeed, 10) || 0
         const bSpeed = parseInt(b.downloadSpeed, 10) || 0
@@ -507,7 +559,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'actions',
     title: t('task.actions'),
-    width: 200,
+    width: 160,
     fixed: 'right',
     align: 'center',
     render: (row: Aria2Task) => {
@@ -1132,13 +1184,14 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   margin: 16px 0;
   padding: 16px;
   background: var(--bg-primary);
   border: 1px solid var(--border-light);
   border-radius: 8px;
   box-shadow: var(--shadow-light);
-  gap: 16px;
+  gap: 12px;
   transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -1152,7 +1205,9 @@ watch(
 .action-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .action-divider {

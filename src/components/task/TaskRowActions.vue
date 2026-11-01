@@ -1,10 +1,10 @@
 <template>
   <div class="action-buttons">
-    <!-- 开始按钮 - 暂停状态 -->
+    <!-- 开始按钮 - 暂停状态（BT 已完成的任务显示为“重新做种”） -->
     <button
       v-if="status === 'paused'"
-      :title="t('task.startDownload')"
-      :aria-label="t('task.startDownload')"
+      :title="isPausedSeeding ? t('task.resumeSeeding') : t('task.startDownload')"
+      :aria-label="isPausedSeeding ? t('task.resumeSeeding') : t('task.startDownload')"
       class="task-action-btn"
       :disabled="operating"
       @click.stop="$emit('unpause', gid)"
@@ -26,11 +26,11 @@
       <n-icon v-else class="action-icon"><RefreshOutline /></n-icon>
     </button>
 
-    <!-- 暂停按钮 - 活跃状态 -->
+    <!-- 暂停按钮 - 活跃状态（做种中的 BT 任务显示为“停止做种”） -->
     <button
       v-else-if="status === 'active'"
-      :title="t('task.pauseDownload')"
-      :aria-label="t('task.pauseDownload')"
+      :title="isSeeding ? t('task.stopSeeding') : t('task.pauseDownload')"
+      :aria-label="isSeeding ? t('task.stopSeeding') : t('task.pauseDownload')"
       class="task-action-btn"
       :disabled="operating"
       @click.stop="$emit('pause', gid)"
@@ -77,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   PlayOutline,
@@ -108,8 +109,19 @@ interface Emits {
 }
 
 const { t } = useI18n()
-withDefaults(defineProps<Props>(), { showDetail: true })
+const props = withDefaults(defineProps<Props>(), { showDetail: true })
 defineEmits<Emits>()
+
+/** 正在做种（aria2 只对 BT 任务返回 seeder） */
+const isSeeding = computed(() => props.task.seeder === 'true')
+
+/** 已完成但处于暂停状态的 BT 任务：开始按钮语义是“重新做种” */
+const isPausedSeeding = computed(() => {
+  if (!props.task.bittorrent || props.task.status !== 'paused') return false
+  const total = Number(props.task.totalLength) || 0
+  const completed = Number(props.task.completedLength) || 0
+  return total > 0 && completed >= total
+})
 </script>
 
 <style scoped>
@@ -123,16 +135,16 @@ defineEmits<Emits>()
 .task-action-btn {
   border: none;
   background: transparent;
-  padding: 8px;
-  margin: 0 3px;
+  padding: 7px;
+  margin: 0 1px;
   border-radius: 6px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s ease;
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 30px;
+  min-height: 30px;
 }
 
 .task-action-btn:hover {

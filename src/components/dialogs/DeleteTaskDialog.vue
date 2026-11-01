@@ -29,6 +29,7 @@
             <n-checkbox v-model:checked="deleteFiles" :disabled="fileList.length === 0">
               {{ t('delete.deleteFiles') }}
             </n-checkbox>
+            <div v-if="deleteFiles" class="trash-hint">{{ t('delete.toTrashHint') }}</div>
           </div>
         </div>
       </div>
@@ -168,6 +169,13 @@ function handleConfirm() {
 .file-delete-option {
   text-align: left;
   margin-top: 20px;
+}
+
+.trash-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
 }
 
 .option-section h4 {
