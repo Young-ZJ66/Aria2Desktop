@@ -133,6 +133,25 @@ const electronAPI = {
   ytdlpVideoInfo: (url: string) => ipcRenderer.invoke('ytdlp-video-info', url),
   ytdlpFormatUrl: (url: string, formatId: string) => ipcRenderer.invoke('ytdlp-format-url', url, formatId),
 
+  // ffmpeg：合并音视频时按需下载
+  ffmpegCheck: () => ipcRenderer.invoke('ffmpeg-check'),
+  ffmpegInstall: () => ipcRenderer.invoke('ffmpeg-install'),
+  onFfmpegInstallProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { percent: number; transferred: number; total: number }) => callback(progress)
+    ipcRenderer.on('ffmpeg-install-progress', handler)
+    return () => { ipcRenderer.removeListener('ffmpeg-install-progress', handler) }
+  },
+
+  // yt-dlp 下载模式（分离音视频站点：由 yt-dlp 下载并合并）
+  streamDownloadStart: (request: { url: string; formatId: string; merge: boolean; outputDir: string }) =>
+    ipcRenderer.invoke('stream-download-start', request),
+  streamDownloadCancel: (id: string) => ipcRenderer.invoke('stream-download-cancel', id),
+  onStreamDownloadEvent: (callback: (event: unknown) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload)
+    ipcRenderer.on('stream-download-event', handler)
+    return () => { ipcRenderer.removeListener('stream-download-event', handler) }
+  },
+
   // 通知主进程渲染进程已就绪
   notifyAppReady: () => ipcRenderer.send('app-ready'),
 

@@ -1,5 +1,5 @@
 /**
- * yt-dlp 按需下载的纯逻辑（平台资产映射、官方校验文件解析）。
+ * yt-dlp 按需下载的纯逻辑（平台资产映射）。
  *
  * 独立成文件是为了可单测：主进程服务（ytdlpService）会 import electron，
  * 而 vitest 里没有 Electron 运行时。
@@ -36,20 +36,4 @@ const ASSETS: Record<string, YtdlpAsset> = {
 /** 返回当前平台可自动安装的资产；不支持的平台返回 null（UI 回退为手动安装提示） */
 export function resolveYtdlpAsset(platform: NodeJS.Platform | string, arch: string): YtdlpAsset | null {
   return ASSETS[`${platform}-${arch}`] ?? null
-}
-
-/**
- * 从官方 `SHA2-256SUMS` 中取出指定文件的 SHA-256。
- *
- * 行格式为 `<64 位 hex>  <文件名>`（也可能带 `*` 前缀，如 GNU coreutils 的二进制模式）。
- * 找不到或格式异常返回 null——调用方应据此拒绝安装，绝不"校验缺失就放行"。
- */
-export function findYtdlpChecksum(sumsText: string, fileName: string): string | null {
-  for (const rawLine of sumsText.split(/\r?\n/)) {
-    const match = /^([0-9a-f]{64})\s+\*?(.+?)\s*$/i.exec(rawLine.trim())
-    if (match && match[2] === fileName) {
-      return match[1].toLowerCase()
-    }
-  }
-  return null
 }

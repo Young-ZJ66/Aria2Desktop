@@ -9,25 +9,20 @@
  */
 
 import { spawn } from 'child_process'
-import * as crypto from 'crypto'
 import * as fs from 'fs'
 import * as path from 'path'
-import { app, net } from 'electron'
+import { app } from 'electron'
 import { isPackagedApp } from '../utils/appEnv'
-import { findYtdlpChecksum, resolveYtdlpAsset } from '../utils/ytdlpAssets'
+import { resolveYtdlpAsset } from '../utils/ytdlpAssets'
+import { findSha256ForFile } from '../utils/sha256Sums'
+import { computeFileSha256 } from '../utils/fileHash'
+import { downloadToFile, fetchText, type DownloadProgress } from '../utils/downloader'
 import { createLogger } from '../utils/logger'
 
 const logger = createLogger('YtdlpService')
 
 /** yt-dlp 官方 Release 的固定下载前缀（`latest` 会 302 到当前最新 tag） */
 const RELEASE_BASE = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download'
-
-/** 30 秒无数据视为断流（GitHub 直连被重置时能尽快给出可行动的提示） */
-const IDLE_TIMEOUT_MS = 30_000
-/** 校验文件很小，10 秒足够 */
-const TEXT_IDLE_TIMEOUT_MS = 10_000
-/** 校验文件防御性上限（正常约 1.6 KB） */
-const MAX_TEXT_BYTES = 64 * 1024
 
 /** yt-dlp 元信息（精简版） */
 export interface YtdlpVideoInfo {
@@ -71,11 +66,7 @@ export interface YtdlpInstallResult {
   error?: string
 }
 
-export interface YtdlpInstallProgress {
-  percent: number
-  transferred: number
-  total: number
-}
+export type YtdlpInstallProgress = DownloadProgress
 
 interface ResolvedExecutable {
   command: string
@@ -112,6 +103,11 @@ function resolveExecutable(): ResolvedExecutable {
     if (fs.existsSync(bundled)) return { command: bundled, source: 'bundled' }
   }
   return { command: 'yt-dlp', source: 'path' }
+}
+
+/** 供 yt-dlp 下载模式复用：实际要执行的 yt-dlp 命令 */
+export function getYtdlpExecutablePath(): string {
+  return resolveExecutable().command
 }
 
 /** 检查 yt-dlp 是否可用（含来源与自动安装能力） */
@@ -166,14 +162,14 @@ async function performInstall(
 
     // 先取官方校验和：拿不到就停止，绝不安装未校验的可执行文件
     const sums = await fetchText(`${RELEASE_BASE}/SHA2-256SUMS`)
-    const expected = findYtdlpChecksum(sums, asset.fileName)
+    const expected = findSha256ForFile(sums, asset.fileName)
     if (!expected) {
       return { success: false, error: '官方校验文件中缺少该平台的 SHA-256，已停止安装' }
     }
 
-    await downloadFile(`${RELEASE_BASE}/${asset.fileName}`, tempPath, onProgress)
+    await downloadToFile(`${RELEASE_BASE}/${asset.fileName}`, tempPath, onProgress)
 
-    const actual = await computeSha256(tempPath)
+    const actual = await computeFileSha256(tempPath)
     if (actual !== expected) {
       fs.rmSync(tempPath, { force: true })
       logger.warn(`yt-dlp 校验失败：期望 ${expected.slice(0, 12)}…，实际 ${actual.slice(0, 12)}…`)
@@ -335,172 +331,5 @@ function execYtdlp(args: string[], command = resolveExecutable().command): Promi
         reject(new Error(stderr || `yt-dlp exited with code ${code}`))
       }
     })
-  })
-}
-
-/** 空闲超时守卫：一段时间内没有任何数据回调就触发失败（避免请求永久挂起） */
-function startIdleTimer(timeoutMs: number, onTimeout: () => void): { reset: () => void; clear: () => void } {
-  let timer: NodeJS.Timeout | null = null
-  const clear = () => {
-    if (timer) {
-      clearTimeout(timer)
-      timer = null
-    }
-  }
-  const reset = () => {
-    clear()
-    timer = setTimeout(onTimeout, timeoutMs)
-  }
-  reset()
-  return { reset, clear }
-}
-
-/**
- * 通过 Electron `net` 下载（走 Chromium 网络栈，自动使用系统代理——
- * 国内用户多数只配置系统代理，Node 原生 https 不会读取它）。
- * 重定向由 `redirect: 'follow'` 处理（GitHub 资产会 302 到 CDN）。
- */
-function downloadFile(
-  url: string,
-  destPath: string,
-  onProgress?: (progress: YtdlpInstallProgress) => void
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const request = net.request({ url, redirect: 'follow', useSessionCookies: false })
-    let settled = false
-    let fileStream: fs.WriteStream | null = null
-    let idle: ReturnType<typeof startIdleTimer> | null = null
-
-    const fail = (error: Error) => {
-      if (settled) return
-      settled = true
-      idle?.clear()
-      try { request.abort() } catch { /* 已结束的请求忽略 */ }
-      fileStream?.destroy()
-      reject(error)
-    }
-
-    const succeed = () => {
-      if (settled) return
-      settled = true
-      idle?.clear()
-      resolve()
-    }
-
-    idle = startIdleTimer(IDLE_TIMEOUT_MS, () => {
-      fail(new Error('下载超时（30 秒无数据），请检查网络或系统代理'))
-    })
-
-    request.on('error', (error) => fail(error instanceof Error ? error : new Error(String(error))))
-
-    request.on('response', (response) => {
-      const status = response.statusCode ?? 0
-      if (status < 200 || status >= 300) {
-        fail(new Error(`下载失败：HTTP ${status}`))
-        return
-      }
-
-      const total = Number(String(response.headers['content-length'] ?? 0)) || 0
-      let transferred = 0
-      let lastReportAt = 0
-      fileStream = fs.createWriteStream(destPath, { flags: 'w' })
-      fileStream.on('error', fail)
-
-      // Electron 的 IncomingMessage 不暴露 pause/resume，无法做背压控制；
-      // 单文件 20–40 MB，让 WriteStream 内部缓冲即可（内存占用可控且实现更简单）。
-      response.on('data', (chunk: Buffer) => {
-        if (settled) return
-        idle?.reset()
-        transferred += chunk.length
-        fileStream?.write(chunk)
-
-        const now = Date.now()
-        if (onProgress && total > 0 && (now - lastReportAt >= 100 || transferred >= total)) {
-          lastReportAt = now
-          onProgress({
-            percent: Math.min(100, Math.round((transferred / total) * 100)),
-            transferred,
-            total
-          })
-        }
-      })
-
-      response.on('end', () => {
-        if (settled) return
-        fileStream!.end(() => {
-          onProgress?.({ percent: 100, transferred, total: total || transferred })
-          succeed()
-        })
-      })
-
-      response.on('error', (error) => fail(error instanceof Error ? error : new Error(String(error))))
-    })
-
-    request.end()
-  })
-}
-
-/** GET 文本（用于官方 SHA2-256SUMS）。同样走系统代理与自动重定向 */
-function fetchText(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const request = net.request({ url, redirect: 'follow', useSessionCookies: false })
-    let settled = false
-    let idle: ReturnType<typeof startIdleTimer> | null = null
-
-    const fail = (error: Error) => {
-      if (settled) return
-      settled = true
-      idle?.clear()
-      try { request.abort() } catch { /* 已结束的请求忽略 */ }
-      reject(error)
-    }
-
-    idle = startIdleTimer(TEXT_IDLE_TIMEOUT_MS, () => {
-      fail(new Error('获取校验文件超时，请检查网络或系统代理'))
-    })
-
-    request.on('error', (error) => fail(error instanceof Error ? error : new Error(String(error))))
-
-    request.on('response', (response) => {
-      const status = response.statusCode ?? 0
-      if (status < 200 || status >= 300) {
-        fail(new Error(`获取校验文件失败：HTTP ${status}`))
-        return
-      }
-      let body = ''
-      let bytes = 0
-      response.on('data', (chunk: Buffer) => {
-        idle?.reset()
-        bytes += chunk.length
-        if (bytes > MAX_TEXT_BYTES) {
-          fail(new Error('校验文件异常（响应体过大）'))
-          return
-        }
-        body += chunk.toString()
-      })
-      response.on('end', () => {
-        if (settled) return
-        settled = true
-        idle?.clear()
-        resolve(body)
-      })
-      response.on('error', (error) => fail(error instanceof Error ? error : new Error(String(error))))
-    })
-
-    request.end()
-  })
-}
-
-/**
- * 流式计算文件 SHA-256。
- * 二进制 20–40 MB，readFileSync 整包读入会阻塞主进程事件循环（UI 冻结、IPC 无响应）。
- */
-function computeSha256(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256')
-    const stream = fs.createReadStream(filePath)
-    stream.on('data', (chunk) => hash.update(chunk))
-    stream.on('error', reject)
-    stream.on('end', () => resolve(hash.digest('hex')))
   })
 }

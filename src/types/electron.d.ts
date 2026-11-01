@@ -18,6 +18,21 @@ export interface UpdateStatus {
 import type { Aria2UpdateConfig } from '@/shared/electronBridge'
 export type { Aria2UpdateConfig } from '@/shared/electronBridge'
 
+/** yt-dlp 下载模式的进度/结果事件（主进程 → 渲染层） */
+export type StreamDownloadEvent =
+  | {
+    type: 'progress'
+    id: string
+    percent: number
+    speed?: string
+    eta?: string
+    downloadedBytes?: number
+    totalBytes?: number
+  }
+  | { type: 'completed'; id: string; filePath: string }
+  | { type: 'failed'; id: string; error: string }
+  | { type: 'cancelled'; id: string }
+
 export interface ElectronAPI {
   // 应用信息
   getAppVersion: () => Promise<string>
@@ -215,6 +230,16 @@ export interface ElectronAPI {
   onYtdlpInstallProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
   ytdlpVideoInfo: (url: string) => Promise<{ success: boolean; info?: { title: string; url: string; ext: string; filesize: number | null; format: string; formats: Array<{ formatId: string; ext: string; resolution: string; fps: number | null; filesize: number | null; vcodec: string; acodec: string; note: string }>; httpHeaders?: Record<string, string> }; error?: string }>
   ytdlpFormatUrl: (url: string, formatId: string) => Promise<{ success: boolean; downloadUrl?: string; title?: string; ext?: string; httpHeaders?: Record<string, string>; error?: string }>
+
+  // ffmpeg：合并音视频时按需下载
+  ffmpegCheck: () => Promise<{ available: boolean; version?: string; error?: string; source?: 'downloaded' | 'path'; installable: boolean; approxSizeMB?: number }>
+  ffmpegInstall: () => Promise<{ success: boolean; version?: string; error?: string }>
+  onFfmpegInstallProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
+
+  // yt-dlp 下载模式（分离音视频站点：由 yt-dlp 下载并合并音轨）
+  streamDownloadStart: (request: { url: string; formatId: string; merge: boolean; outputDir: string }) => Promise<{ success: boolean; id?: string; code?: 'ffmpeg_missing' | 'invalid_request'; error?: string }>
+  streamDownloadCancel: (id: string) => Promise<boolean>
+  onStreamDownloadEvent: (callback: (event: StreamDownloadEvent) => void) => () => void
 
   // 通知主进程渲染进程已就绪
   notifyAppReady: () => void

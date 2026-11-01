@@ -12,6 +12,8 @@ import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import { isAllowedExternalUrl } from '../utils/externalUrlCore'
 import { checkYtdlpAvailable, getVideoInfo, getFormatUrl, installYtdlp } from '../services/ytdlpService'
+import { checkFfmpegAvailable, installFfmpeg } from '../services/ffmpegService'
+import { startStreamDownload, cancelStreamDownload, type StreamDownloadRequest } from '../services/streamDownloadService'
 import { extractArchive } from '../services/archiveService'
 import { getAutoLaunchEnabled, setAutoLaunchEnabled } from '../services/autoLaunch'
 import { PluginManager } from '../services/pluginManager'
@@ -627,7 +629,7 @@ export class IpcController {
     }, { getMainWindow: this.windowRef })
   }
 
-  /** yt-dlp 流媒体支持（可选外部引擎，按需下载） */
+  /** yt-dlp / ffmpeg 流媒体能力（按需下载） */
   private registerYtdlpHandlers() {
     registerSecureHandler('ytdlp-check', async () => await checkYtdlpAvailable(), {
       getMainWindow: this.windowRef,
@@ -644,6 +646,55 @@ export class IpcController {
     }, {
       getMainWindow: this.windowRef,
       failureValue: { success: false, error: 'Unauthorized' }
+    })
+
+    registerSecureHandler('ffmpeg-check', async () => await checkFfmpegAvailable(), {
+      getMainWindow: this.windowRef,
+      failureValue: { available: false, installable: false, error: 'Unauthorized' }
+    })
+
+    registerSecureHandler('ffmpeg-install', async (event) => {
+      return await installFfmpeg((progress) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('ffmpeg-install-progress', progress)
+        }
+      })
+    }, {
+      getMainWindow: this.windowRef,
+      failureValue: { success: false, error: 'Unauthorized' }
+    })
+
+    // yt-dlp 下载模式（需要合并音轨时使用）：进度/完成/失败/取消走事件通道
+    registerSecureHandler('stream-download-start', async (event, request: unknown) => {
+      const input = request as Partial<StreamDownloadRequest> | null
+      if (
+        !input
+        || typeof input.url !== 'string'
+        || typeof input.formatId !== 'string'
+        || typeof input.merge !== 'boolean'
+        || typeof input.outputDir !== 'string'
+      ) {
+        return { success: false, code: 'invalid_request', error: 'Invalid request' }
+      }
+      return await startStreamDownload(
+        { url: input.url, formatId: input.formatId, merge: input.merge, outputDir: input.outputDir },
+        (streamEvent) => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('stream-download-event', streamEvent)
+          }
+        }
+      )
+    }, {
+      getMainWindow: this.windowRef,
+      failureValue: { success: false, code: 'invalid_request', error: 'Unauthorized' }
+    })
+
+    registerSecureHandler('stream-download-cancel', (event, id: unknown) => {
+      if (typeof id !== 'string' || !id) return false
+      return cancelStreamDownload(id)
+    }, {
+      getMainWindow: this.windowRef,
+      failureValue: false
     })
 
     registerSecureHandler('ytdlp-video-info', async (event, url: string) => await getVideoInfo(url), {

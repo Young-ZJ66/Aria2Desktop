@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findYtdlpChecksum, resolveYtdlpAsset } from './ytdlpAssets'
+import { resolveYtdlpAsset } from './ytdlpAssets'
 
 describe('resolveYtdlpAsset', () => {
   it('Windows 各架构映射到对应的单文件 exe', () => {
@@ -23,32 +23,5 @@ describe('resolveYtdlpAsset', () => {
   it('不支持的平台返回 null（调用方回退到手动安装）', () => {
     expect(resolveYtdlpAsset('linux', 'arm')).toBeNull()
     expect(resolveYtdlpAsset('freebsd', 'x64')).toBeNull()
-  })
-})
-
-describe('findYtdlpChecksum', () => {
-  const sums = [
-    'a'.repeat(64) + '  yt-dlp',
-    'b'.repeat(64) + '  yt-dlp.exe',
-    'c'.repeat(64) + '  yt-dlp_macos',
-    'd'.repeat(64) + ' *yt-dlp_linux',
-    ''
-  ].join('\n')
-
-  it('按文件名精确匹配', () => {
-    expect(findYtdlpChecksum(sums, 'yt-dlp.exe')).toBe('b'.repeat(64))
-    expect(findYtdlpChecksum(sums, 'yt-dlp_macos')).toBe('c'.repeat(64))
-  })
-
-  it('兼容二进制模式的 * 前缀', () => {
-    expect(findYtdlpChecksum(sums, 'yt-dlp_linux')).toBe('d'.repeat(64))
-  })
-
-  it('不做子串匹配（yt-dlp 不能命中 yt-dlp.exe）', () => {
-    expect(findYtdlpChecksum(sums, 'yt-dlp_linux_aarch64')).toBeNull()
-  })
-
-  it('格式异常的行被忽略', () => {
-    expect(findYtdlpChecksum('not-a-hash  yt-dlp.exe', 'yt-dlp.exe')).toBeNull()
   })
 })

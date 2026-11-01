@@ -40,10 +40,16 @@
         <n-input
           v-model:value="streamUrl"
           :placeholder="t('newTask.streamUrlPlaceholder')"
+          :disabled="streamModeDownloading"
           @keyup.enter="fetchStreamInfo"
         />
       </n-form-item>
-      <n-button type="primary" :loading="streamFetching" :disabled="!streamUrl.trim()" @click="fetchStreamInfo">
+      <n-button
+        type="primary"
+        :loading="streamFetching"
+        :disabled="!streamUrl.trim() || streamModeDownloading"
+        @click="fetchStreamInfo"
+      >
         {{ t('newTask.streamSelectFormat') }}
       </n-button>
     </n-form>
@@ -53,13 +59,72 @@
         <n-select
           v-model:value="selectedFormatId"
           :options="streamFormatOptions"
+          :disabled="streamModeDownloading"
         />
       </n-form-item>
-      <!-- B 站等站点只提供分离的视频/音频流，单条直链无法合并，提前说明避免"下完没声音" -->
-      <p v-if="selectedIsVideoOnly" class="stream-note">{{ t('newTask.streamVideoOnlyHint') }}</p>
-      <div class="form-actions">
-        <n-button type="primary" :loading="streamDownloading" :disabled="!selectedFormatId" @click="handleStreamDownload">
+
+      <!-- B 站等站点只提供分离的视频/音频流：由 yt-dlp 下载并合并，需要 ffmpeg -->
+      <template v-if="selectedIsVideoOnly">
+        <p class="stream-note">{{ t('newTask.streamVideoOnlyHint') }}</p>
+        <div class="ffmpeg-row">
+          <template v-if="ffmpegAvailable">
+            <span class="stream-note">{{ t('newTask.streamFfmpegReady') }}</span>
+          </template>
+          <template v-else-if="ffmpegInstallable">
+            <div class="ffmpeg-row-head">
+              <span class="stream-note">{{ t('newTask.streamFfmpegRequired') }}</span>
+              <n-button
+                size="small"
+                :loading="ffmpegInstalling"
+                :disabled="ffmpegInstalling || streamModeDownloading"
+                @click="installFfmpeg"
+              >
+                {{ ffmpegInstalling
+                  ? t('newTask.streamFfmpegInstalling')
+                  : t('newTask.streamFfmpegInstall', { size: ffmpegApproxSizeMB ?? '—' }) }}
+              </n-button>
+            </div>
+            <n-progress
+              v-if="ffmpegInstalling && ffmpegInstallPercent > 0"
+              type="line"
+              :percentage="ffmpegInstallPercent"
+              :height="5"
+              :show-indicator="false"
+              style="margin-top: 6px;"
+            />
+          </template>
+          <span v-else class="stream-note">{{ t('newTask.streamFfmpegManual') }}</span>
+        </div>
+      </template>
+
+      <!-- yt-dlp 下载中：进度 + 取消 -->
+      <div v-if="streamModeDownloading" class="stream-progress">
+        <n-progress type="line" :percentage="Math.round(streamProgressPercent)" :height="8" />
+        <div class="stream-progress-meta">
+          <span>{{ t('newTask.streamDownloadingPercent', { percent: Math.round(streamProgressPercent) }) }}</span>
+          <span v-if="streamProgressSpeed">
+            {{ t('newTask.streamSpeedEta', { speed: streamProgressSpeed, eta: streamProgressEta || '—' }) }}
+          </span>
+          <n-button size="tiny" quaternary @click="cancelStreamDownload">
+            {{ t('newTask.streamCancel') }}
+          </n-button>
+        </div>
+      </div>
+      <div v-else class="form-actions">
+        <n-button
+          type="primary"
+          :loading="streamDownloading"
+          :disabled="!selectedFormatId || (selectedIsVideoOnly && !ffmpegAvailable)"
+          @click="handleStreamDownload"
+        >
           {{ t('newTask.streamDownload') }}
+        </n-button>
+      </div>
+
+      <div v-if="streamOutputFile" class="stream-result">
+        <span>{{ t('newTask.streamSavedTo', { file: baseName(streamOutputFile) }) }}</span>
+        <n-button size="tiny" text type="primary" @click="openOutputFolder">
+          {{ t('newTask.streamOpenFolder') }}
         </n-button>
       </div>
     </div>
@@ -73,9 +138,14 @@ import { message } from '@/utils/feedback'
 import { useUiStore } from '@/stores/uiStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import type { StreamDownloadEvent } from '@/types/electron'
 
 /**
  * 流媒体下载页（yt-dlp）。
+ *
+ * 两种下载路径：
+ * - 合成格式（视频+音频）：仍然只取直链交给 aria2，享受队列与多线程；
+ * - 分离格式（B 站等）：交给 yt-dlp 下载并合并最佳音轨（需要 ffmpeg）。
  *
  * 与另外三页不同，这里**不走 useNewTaskSubmit 的提交骨架**：
  * 它没有表单校验、不做连接校验（由 addUri 自身报错），并有独立的两段式流程
@@ -93,14 +163,32 @@ const ytdlpInstallable = ref(false)
 const ytdlpApproxSizeMB = ref<number | null>(null)
 const ytdlpInstalling = ref(false)
 const ytdlpInstallPercent = ref(0)
-/** 取消安装进度订阅（组件卸载时调用，避免弹窗反复打开累积监听器） */
-let unsubscribeProgress: (() => void) | null = null
+
+const ffmpegAvailable = ref(false)
+const ffmpegInstallable = ref(false)
+const ffmpegApproxSizeMB = ref<number | null>(null)
+const ffmpegInstalling = ref(false)
+const ffmpegInstallPercent = ref(0)
+
 const streamUrl = ref('')
 const streamFetching = ref(false)
 const streamDownloading = ref(false)
 const streamFormats = ref<Array<{ formatId: string; ext: string; resolution: string; filesize: number | null; vcodec: string; acodec: string; note: string }>>([])
 const selectedFormatId = ref<string | null>(null)
 const streamTitle = ref('')
+
+/** yt-dlp 下载模式（分离音视频格式） */
+const streamModeDownloading = ref(false)
+const streamDownloadId = ref('')
+const streamProgressPercent = ref(0)
+const streamProgressSpeed = ref('')
+const streamProgressEta = ref('')
+const streamOutputFile = ref('')
+
+/** 取消订阅函数（组件卸载时统一清理，避免弹窗反复打开累积监听器） */
+let unsubscribeYtdlpProgress: (() => void) | null = null
+let unsubscribeFfmpegProgress: (() => void) | null = null
+let unsubscribeStreamEvent: (() => void) | null = null
 
 const streamFormatOptions = computed(() =>
   streamFormats.value.map(f => {
@@ -121,7 +209,7 @@ const selectedFormat = computed(() =>
   streamFormats.value.find(f => f.formatId === selectedFormatId.value) ?? null
 )
 
-/** 当前选中格式只有视频没有音轨（单条直链无法合并） */
+/** 当前选中格式只有视频没有音轨（需要 yt-dlp 下载并合并） */
 const selectedIsVideoOnly = computed(() => {
   const format = selectedFormat.value
   return !!format && format.vcodec !== 'none' && format.acodec === 'none'
@@ -139,25 +227,50 @@ async function checkAvailable() {
   } catch { /* 忽略 */ }
 }
 
+async function checkFfmpeg() {
+  if (!window.electronAPI?.ffmpegCheck) return
+  try {
+    const result = await window.electronAPI.ffmpegCheck()
+    ffmpegAvailable.value = result.available
+    ffmpegInstallable.value = result.installable === true
+    ffmpegApproxSizeMB.value = result.approxSizeMB ?? null
+  } catch { /* 忽略 */ }
+}
+
 onMounted(async () => {
   // 进度是独立事件通道（invoke 只返回最终结果）
   if (window.electronAPI?.onYtdlpInstallProgress) {
-    unsubscribeProgress = window.electronAPI.onYtdlpInstallProgress((progress) => {
+    unsubscribeYtdlpProgress = window.electronAPI.onYtdlpInstallProgress((progress) => {
       ytdlpInstallPercent.value = progress.percent ?? 0
     })
   }
-  await checkAvailable()
+  if (window.electronAPI?.onFfmpegInstallProgress) {
+    unsubscribeFfmpegProgress = window.electronAPI.onFfmpegInstallProgress((progress) => {
+      ffmpegInstallPercent.value = progress.percent ?? 0
+    })
+  }
+  if (window.electronAPI?.onStreamDownloadEvent) {
+    unsubscribeStreamEvent = window.electronAPI.onStreamDownloadEvent(handleStreamEvent)
+  }
+  await Promise.all([checkAvailable(), checkFfmpeg()])
 })
 
 onUnmounted(() => {
-  unsubscribeProgress?.()
-  unsubscribeProgress = null
+  unsubscribeYtdlpProgress?.()
+  unsubscribeFfmpegProgress?.()
+  unsubscribeStreamEvent?.()
+  unsubscribeYtdlpProgress = null
+  unsubscribeFfmpegProgress = null
+  unsubscribeStreamEvent = null
+  // 弹窗关闭即放弃这次流媒体下载：它不在 aria2 队列里，无法重新挂接进度，
+  // 继续在后台跑只会让用户既看不到、也取消不了。
+  if (streamDownloadId.value) {
+    void window.electronAPI?.streamDownloadCancel?.(streamDownloadId.value)
+    streamDownloadId.value = ''
+  }
 })
 
-/**
- * 一键下载 yt-dlp：主进程负责下载、SHA-256 校验与安装，
- * 成功后重新探测，表单直接在下方出现（无需重启应用）。
- */
+/** 下载/安装 yt-dlp：主进程负责下载、SHA-256 校验与安装 */
 async function installYtdlp() {
   if (!window.electronAPI?.ytdlpInstall || ytdlpInstalling.value) return
   ytdlpInstalling.value = true
@@ -180,18 +293,42 @@ async function installYtdlp() {
   }
 }
 
+/** 下载 ffmpeg（合并音轨时使用）：主进程负责校验与解压 */
+async function installFfmpeg() {
+  if (!window.electronAPI?.ffmpegInstall || ffmpegInstalling.value) return
+  ffmpegInstalling.value = true
+  ffmpegInstallPercent.value = 0
+  try {
+    const result = await window.electronAPI.ffmpegInstall()
+    if (result.success) {
+      message.success(t('newTask.streamFfmpegInstallSuccess', { version: result.version || '—' }))
+      await checkFfmpeg()
+    } else {
+      message.error(t('newTask.streamFfmpegInstallFailed', { error: result.error || '' }))
+    }
+  } catch (error) {
+    message.error(t('newTask.streamFfmpegInstallFailed', {
+      error: error instanceof Error ? error.message : String(error)
+    }))
+  } finally {
+    ffmpegInstalling.value = false
+    ffmpegInstallPercent.value = 0
+  }
+}
+
 async function fetchStreamInfo() {
   if (!streamUrl.value.trim() || !window.electronAPI?.ytdlpVideoInfo) return
   streamFetching.value = true
   streamFormats.value = []
   selectedFormatId.value = null
+  streamOutputFile.value = ''
   try {
     const result = await window.electronAPI.ytdlpVideoInfo(streamUrl.value.trim())
     if (result.success && result.info) {
       streamTitle.value = result.info.title
       streamFormats.value = result.info.formats
       // 优先选"视频+音频"合成格式（能直接得到有声音的文件）；
-      // 站点只提供分离流时（如 B 站）退回最后一个格式，并在下方明确提示无音轨
+      // 站点只提供分离流时（如 B 站）退回最后一个格式，并在下方明确提示
       const combined = streamFormats.value.filter(f => f.vcodec !== 'none' && f.acodec !== 'none')
       selectedFormatId.value =
         combined[combined.length - 1]?.formatId
@@ -207,8 +344,29 @@ async function fetchStreamInfo() {
   }
 }
 
+/** 下载保存目录：设置里的任务目录，未配置时用系统下载目录 */
+async function resolveOutputDir(): Promise<string> {
+  const base = settingsStore.taskBaseDir
+  if (base) return base
+  try {
+    const info = await window.electronAPI?.getDefaultDownloadDir?.()
+    return info?.path ?? ''
+  } catch {
+    return ''
+  }
+}
+
 async function handleStreamDownload() {
-  if (!selectedFormatId.value || !window.electronAPI?.ytdlpFormatUrl) return
+  const format = selectedFormat.value
+  if (!selectedFormatId.value || !format) return
+
+  // 分离的视频流：交给 yt-dlp 下载并合并最佳音轨（直链无法自带音频）
+  if (format.vcodec !== 'none' && format.acodec === 'none') {
+    await startStreamModeDownload()
+    return
+  }
+
+  if (!window.electronAPI?.ytdlpFormatUrl) return
   streamDownloading.value = true
   try {
     const result = await window.electronAPI.ytdlpFormatUrl(streamUrl.value.trim(), selectedFormatId.value)
@@ -233,6 +391,77 @@ async function handleStreamDownload() {
   } finally {
     streamDownloading.value = false
   }
+}
+
+/** 启动 yt-dlp 下载模式（进度与结果通过事件回传） */
+async function startStreamModeDownload() {
+  if (!window.electronAPI?.streamDownloadStart || streamModeDownloading.value) return
+  const outputDir = await resolveOutputDir()
+  if (!outputDir) {
+    message.error(t('newTask.streamNoDir'))
+    return
+  }
+
+  streamModeDownloading.value = true
+  streamProgressPercent.value = 0
+  streamProgressSpeed.value = ''
+  streamProgressEta.value = ''
+  streamOutputFile.value = ''
+
+  const result = await window.electronAPI.streamDownloadStart({
+    url: streamUrl.value.trim(),
+    formatId: selectedFormatId.value ?? '',
+    merge: true,
+    outputDir
+  })
+  if (!result.success) {
+    streamModeDownloading.value = false
+    if (result.code === 'ffmpeg_missing') {
+      message.warning(t('newTask.streamFfmpegRequired'))
+      await checkFfmpeg()
+    } else {
+      message.error(result.error || t('newTask.streamParseFailed'))
+    }
+    return
+  }
+  streamDownloadId.value = result.id ?? ''
+}
+
+function handleStreamEvent(event: StreamDownloadEvent) {
+  if (event.id !== streamDownloadId.value) return
+  if (event.type === 'progress') {
+    streamProgressPercent.value = event.percent
+    streamProgressSpeed.value = event.speed ?? ''
+    streamProgressEta.value = event.eta ?? ''
+    return
+  }
+
+  streamModeDownloading.value = false
+  streamDownloadId.value = ''
+
+  if (event.type === 'completed') {
+    streamProgressPercent.value = 100
+    streamOutputFile.value = event.filePath
+    message.success(t('newTask.streamDownloadDone', { file: baseName(event.filePath) }))
+  } else if (event.type === 'cancelled') {
+    message.info(t('newTask.streamCancelled'))
+  } else {
+    message.error(event.error || t('newTask.streamParseFailed'))
+  }
+}
+
+async function cancelStreamDownload() {
+  if (!streamDownloadId.value || !window.electronAPI?.streamDownloadCancel) return
+  await window.electronAPI.streamDownloadCancel(streamDownloadId.value)
+}
+
+function openOutputFolder() {
+  if (!streamOutputFile.value) return
+  void window.electronAPI?.showItemInFolder(streamOutputFile.value)
+}
+
+function baseName(filePath: string): string {
+  return filePath.split(/[\\/]/).pop() || filePath
 }
 
 /**
@@ -279,5 +508,43 @@ function sanitizeFileName(name: string): string {
   font-size: 12px;
   line-height: 1.5;
   opacity: 0.85;
+}
+
+.ffmpeg-row {
+  margin-bottom: 8px;
+}
+
+.ffmpeg-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ffmpeg-row-head .stream-note {
+  margin: 0;
+}
+
+.stream-progress {
+  margin-top: 4px;
+}
+
+.stream-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.stream-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+  word-break: break-all;
 }
 </style>
