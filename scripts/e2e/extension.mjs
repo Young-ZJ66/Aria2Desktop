@@ -105,15 +105,26 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
     let browserManifest = null
     for (const target of targets.filter((t) => t.type === 'service_worker')) {
       const session = await connect(target.webSocketDebuggerUrl)
-      const raw = await evalIn(
-        session,
-        `JSON.stringify({
-          name: chrome.runtime.getManifest().name,
-          version: chrome.runtime.getManifest().version,
-          permissions: chrome.runtime.getManifest().permissions,
-          optional: chrome.runtime.getManifest().optional_permissions
-        })`
-      )
+      // SW 目标在 /json/list 里出现时，脚本上下文未必已初始化（chrome.runtime 可能还是 undefined）。
+      // 直接求值会抛异常导致整项检查失败，这里短暂重试，超时后跳过该目标。
+      const raw = await waitFor(
+        async () => {
+          try {
+            return await evalIn(
+              session,
+              `JSON.stringify({
+                name: chrome.runtime.getManifest().name,
+                version: chrome.runtime.getManifest().version,
+                permissions: chrome.runtime.getManifest().permissions,
+                optional: chrome.runtime.getManifest().optional_permissions
+              })`
+            )
+          } catch {
+            return null
+          }
+        },
+        { timeoutMs: 5000, intervalMs: 200, label: 'service worker 上下文就绪' }
+      ).catch(() => null)
       session.close()
       if (!raw) continue
       const parsed = JSON.parse(raw)

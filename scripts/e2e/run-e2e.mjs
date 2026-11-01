@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { collectErrors, connect, createReporter, httpJson, killTree, sleep, waitFor } from './lib/cdp.mjs'
 import { runAppUi } from './app-ui.mjs'
 import { runExtensionCheck, resolveChromePath } from './extension.mjs'
+import { runPairingCheck } from './pairing.mjs'
 
 const require = createRequire(import.meta.url)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -74,11 +75,66 @@ function start(command, args, name, env = {}) {
   return child
 }
 
-function prepareIsolatedUserData() {
+/**
+ * 预置隔离 userData 的设置与引擎配置。
+ *
+ * 为什么不给应用加测试专用环境变量：设置、aria2.conf、连接预设才是引擎端口的
+ * 真实来源，直接在隔离数据里写成 6810，主进程与渲染层两侧自然一致；
+ * 也避免为测试在正式代码里留下分支。
+ */
+function prepareIsolatedUserData({ rpcPort, downloadDir }) {
   const userData = path.join(userDataRoot, 'aria2-desktop')
   fs.mkdirSync(userData, { recursive: true })
   // 阻止旧版数据迁移把仓库 data/ 下的真实任务复制进来（迁移逻辑见 electron/main.ts）
   fs.writeFileSync(path.join(userData, '.legacy-data-migrated'), 'e2e')
+
+  // electron-store 数据（路径见 electron/main.ts 的 configDir）
+  const settingsDir = path.join(userData, 'config')
+  fs.mkdirSync(settingsDir, { recursive: true })
+  const localConfig = {
+    host: 'localhost',
+    port: rpcPort,
+    protocol: 'http',
+    secret: '',
+    path: '/jsonrpc'
+  }
+  fs.writeFileSync(
+    path.join(settingsDir, 'aria2-desktop-settings.json'),
+    JSON.stringify(
+      {
+        settings: {
+          aria2: { ...localConfig },
+          connectionProfiles: [{ id: 'default', name: '', config: { ...localConfig } }],
+          activeProfileId: 'default'
+        }
+      },
+      null,
+      2
+    )
+  )
+
+  // 引擎配置（路径见 electron/utils/resourceManager.ts）
+  const aria2Dir = path.join(userData, 'aria2')
+  fs.mkdirSync(aria2Dir, { recursive: true })
+  fs.writeFileSync(
+    path.join(aria2Dir, 'aria2.conf'),
+    `# Aria2 Configuration File (E2E)
+dir=${downloadDir.replace(/\\/g, '/')}
+rpc-listen-port=${rpcPort}
+rpc-allow-origin-all=true
+enable-rpc=true
+event-poll=select
+max-concurrent-downloads=5
+max-connection-per-server=16
+min-split-size=10M
+split=16
+continue=true
+save-session-interval=60
+log-level=warn
+max-mmap-limit=0
+`,
+    { encoding: 'utf-8', mode: 0o600 }
+  )
   const pluginDir = path.join(userData, 'plugins', 'e2e-runtime')
   fs.mkdirSync(pluginDir, { recursive: true })
   fs.writeFileSync(
@@ -127,7 +183,10 @@ async function main() {
   })
   reporter.check('Vite dev server 就绪', true)
 
-  const isolatedEnv = prepareIsolatedUserData()
+  const tempDownloadDir = path.join(outDir, 'downloads')
+  fs.mkdirSync(tempDownloadDir, { recursive: true })
+  // 正式版可能正在运行并占用 6800：隔离数据里的引擎改用 6810
+  const isolatedEnv = prepareIsolatedUserData({ rpcPort: 6810, downloadDir: tempDownloadDir })
   const electronPath = require('electron')
   console.log('==> 启动 Electron（隔离 userData）')
   const electron = start(electronPath, ['.', `--remote-debugging-port=${cdpPort}`], 'electron', {
@@ -159,8 +218,6 @@ async function main() {
   })
   await new Promise((resolve) => downloadServer.listen(0, '127.0.0.1', resolve))
   const downloadUrl = `http://127.0.0.1:${downloadServer.address().port}/e2e-${stamp}.bin`
-  const tempDownloadDir = path.join(outDir, 'downloads')
-  fs.mkdirSync(tempDownloadDir, { recursive: true })
 
   const target = await waitFor(
     async () => {
@@ -199,6 +256,8 @@ async function main() {
   } else {
     console.log('==> 扩展 E2E（Chrome for Testing）')
     await runExtensionCheck({ extensionDir: path.join(root, 'extension'), outDir, reporter })
+    console.log('==> 配对回归（等待 35s，覆盖 MV3 SW 回收场景）')
+    await runPairingCheck({ extensionDir: path.join(root, 'extension'), outDir, reporter })
   }
 
   // 应用进程异常退出也算失败（例如主进程崩溃但断言已跑完）

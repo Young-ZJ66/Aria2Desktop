@@ -350,6 +350,17 @@ async function saveConfig(config) {
  */
 async function startPairing() {
   let result
+  // MV3 的 Service Worker 空闲约 30s 会被浏览器回收；而用户切到 App、读完确认框再点「允许」
+  // 很可能超过 30s。SW 一旦被回收，进行中的 fetch 会被中断，**App 已允许但扩展没写入密钥**
+  // ——表现为"配对成功却仍显示未配对，点去配对又重复弹窗"。
+  // 定时调用扩展 API 可重置空闲计时，把 SW 保活到配对返回（最长受下面的 120s 超时约束）。
+  const keepAlive = setInterval(() => {
+    try {
+      chrome.runtime.getPlatformInfo()?.catch?.(() => {})
+    } catch {
+      // 忽略：保活失败不应影响配对本身
+    }
+  }, 20000)
   try {
     const response = await fetch(`${APP_API_BASE}/api/pair`, {
       method: 'POST',
@@ -381,7 +392,11 @@ async function startPairing() {
       ? { ok: false, error: i18n('pairingTimeout') }
       : { ok: false, error: i18n('pairingUnreachable') }
   }
-  await chrome.storage.local.set({ lastPairing: { ...result, at: Date.now() } })
+  try {
+    await chrome.storage.local.set({ lastPairing: { ...result, at: Date.now() } })
+  } finally {
+    clearInterval(keepAlive)
+  }
   return result
 }
 

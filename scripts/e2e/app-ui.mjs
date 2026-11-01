@@ -106,9 +106,9 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   await sleep(1400)
   const settingsText = await evalIn(
     session,
-    `(() => { const m = [...document.querySelectorAll('.n-modal')].find((el) => el.offsetParent !== null); return m ? m.innerText : '(no modal)' })()`
+    `(() => { const m = document.querySelector('.settings-dialog-body'); return m ? m.innerText : '(no settings)' })()`
   )
-  reporter.check('设置弹窗可打开', settingsText !== '(no modal)')
+  reporter.check('设置弹窗可打开', settingsText !== '(no settings)')
   reporter.check(
     `设置页显示当前版本 ${expectedVersion}`,
     typeof settingsText === 'string' && settingsText.includes(expectedVersion),
@@ -170,7 +170,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
   await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
   await sleep(900)
-  reporter.check('设置弹窗可按 Esc 关闭', (await evalIn(session, `![...document.querySelectorAll('.n-modal')].some((el) => el.offsetParent !== null)`)) === true)
+  reporter.check('设置弹窗可按 Esc 关闭', (await evalIn(session, `!document.querySelector('.settings-dialog-body')`)) === true)
 
   const newTaskOpen = await evalIn(
     session,
@@ -185,7 +185,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   await sleep(1400)
   const newTaskText = await evalIn(
     session,
-    `(() => { const m = [...document.querySelectorAll('.n-modal')].find((el) => el.offsetParent !== null); return m ? m.innerText : '(no modal)' })()`
+    `(() => { const m = [...document.querySelectorAll('.n-modal')].find((el) => el.offsetParent !== null && el.querySelector('textarea')); return m ? m.innerText : '(no modal)' })()`
   )
   reporter.check('新建任务弹窗可打开', /新建|New|链接|URL/i.test(String(newTaskText)))
   reporter.check('新建任务包含请求头区域', /请求头|Request headers|Referer|User-Agent/i.test(String(newTaskText)))
