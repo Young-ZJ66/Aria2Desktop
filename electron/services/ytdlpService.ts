@@ -37,6 +37,8 @@ export interface YtdlpVideoInfo {
   filesize: number | null
   format: string        // 格式描述
   formats: YtdlpFormat[]
+  /** 直链下载时服务器要求的请求头（Referer/User-Agent 等），需原样交给 aria2 */
+  httpHeaders: Record<string, string>
 }
 
 export interface YtdlpFormat {
@@ -238,7 +240,8 @@ export async function getVideoInfo(url: string): Promise<{ success: boolean; inf
         ext: bestExt,
         filesize: data.filesize || data.filesize_approx || null,
         format: data.format || `${bestExt} (best)`,
-        formats
+        formats,
+        httpHeaders: normalizeHttpHeaders(data.http_headers)
       }
     }
   } catch (error) {
@@ -246,8 +249,8 @@ export async function getVideoInfo(url: string): Promise<{ success: boolean; inf
   }
 }
 
-/** 获取指定格式的直接下载 URL */
-export async function getFormatUrl(url: string, formatId: string): Promise<{ success: boolean; downloadUrl?: string; title?: string; ext?: string; error?: string }> {
+/** 获取指定格式的直接下载 URL（同时返回该直链要求的请求头） */
+export async function getFormatUrl(url: string, formatId: string): Promise<{ success: boolean; downloadUrl?: string; title?: string; ext?: string; httpHeaders?: Record<string, string>; error?: string }> {
   // formatId 直接拼入 -f 参数：校验只允许 yt-dlp 合法格式标识字符，
   // 防止以 "--" 开头的值被 yt-dlp 误解析为命令行选项（参数注入）
   if (!/^[A-Za-z0-9+._-]+$/.test(formatId)) {
@@ -269,11 +272,26 @@ export async function getFormatUrl(url: string, formatId: string): Promise<{ suc
       success: true,
       downloadUrl: data.url || '',
       title: data.title || 'Unknown',
-      ext: data.ext || 'mp4'
+      ext: data.ext || 'mp4',
+      // Bilibili 等站点会对直链校验 Referer/User-Agent，缺了它们 aria2 会直接 403
+      httpHeaders: normalizeHttpHeaders(data.http_headers)
     }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
+}
+
+/**
+ * 收敛 yt-dlp 的 http_headers 为字符串字典。
+ * 非字符串值一律丢弃（RPC/aria2 只接受 `Header: value` 形式的字符串）。
+ */
+function normalizeHttpHeaders(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {}
+  const headers: Record<string, string> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'string' && value) headers[key] = value
+  }
+  return headers
 }
 
 /**

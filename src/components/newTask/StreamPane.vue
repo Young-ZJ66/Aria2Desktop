@@ -55,6 +55,8 @@
           :options="streamFormatOptions"
         />
       </n-form-item>
+      <!-- B 站等站点只提供分离的视频/音频流，单条直链无法合并，提前说明避免"下完没声音" -->
+      <p v-if="selectedIsVideoOnly" class="stream-note">{{ t('newTask.streamVideoOnlyHint') }}</p>
       <div class="form-actions">
         <n-button type="primary" :loading="streamDownloading" :disabled="!selectedFormatId" @click="handleStreamDownload">
           {{ t('newTask.streamDownload') }}
@@ -96,16 +98,34 @@ let unsubscribeProgress: (() => void) | null = null
 const streamUrl = ref('')
 const streamFetching = ref(false)
 const streamDownloading = ref(false)
-const streamFormats = ref<Array<{ formatId: string; ext: string; resolution: string; filesize: number | null; note: string }>>([])
+const streamFormats = ref<Array<{ formatId: string; ext: string; resolution: string; filesize: number | null; vcodec: string; acodec: string; note: string }>>([])
 const selectedFormatId = ref<string | null>(null)
 const streamTitle = ref('')
 
 const streamFormatOptions = computed(() =>
-  streamFormats.value.map(f => ({
-    label: `${f.resolution || f.ext} ${f.note ? `(${f.note})` : ''} ${f.filesize ? ` - ${Math.round(f.filesize / 1024 / 1024)}MB` : ''}`,
-    value: f.formatId
-  }))
+  streamFormats.value.map(f => {
+    // 音轨有无必须写在选项里：B 站等站点只有分离流，选到纯视频会"下完没声音"
+    const kind = f.vcodec === 'none'
+      ? t('newTask.streamKindAudioOnly')
+      : f.acodec === 'none'
+        ? t('newTask.streamKindVideoOnly')
+        : t('newTask.streamKindVideoAudio')
+    return {
+      label: `${f.resolution || f.ext} · ${kind}${f.note ? ` (${f.note})` : ''}${f.filesize ? ` - ${Math.round(f.filesize / 1024 / 1024)}MB` : ''}`,
+      value: f.formatId
+    }
+  })
 )
+
+const selectedFormat = computed(() =>
+  streamFormats.value.find(f => f.formatId === selectedFormatId.value) ?? null
+)
+
+/** 当前选中格式只有视频没有音轨（单条直链无法合并） */
+const selectedIsVideoOnly = computed(() => {
+  const format = selectedFormat.value
+  return !!format && format.vcodec !== 'none' && format.acodec === 'none'
+})
 
 // 检查 yt-dlp 是否可用（决定显示表单还是"按需下载"按钮）
 async function checkAvailable() {
@@ -170,10 +190,13 @@ async function fetchStreamInfo() {
     if (result.success && result.info) {
       streamTitle.value = result.info.title
       streamFormats.value = result.info.formats
-      // 自动选择最佳格式（列表非空已判断，`?.` 只是满足 noUncheckedIndexedAccess）
-      if (streamFormats.value.length > 0) {
-        selectedFormatId.value = streamFormats.value[streamFormats.value.length - 1]?.formatId ?? null
-      }
+      // 优先选"视频+音频"合成格式（能直接得到有声音的文件）；
+      // 站点只提供分离流时（如 B 站）退回最后一个格式，并在下方明确提示无音轨
+      const combined = streamFormats.value.filter(f => f.vcodec !== 'none' && f.acodec !== 'none')
+      selectedFormatId.value =
+        combined[combined.length - 1]?.formatId
+        ?? streamFormats.value[streamFormats.value.length - 1]?.formatId
+        ?? null
     } else {
       message.error(result.error || t('newTask.streamParseFailed'))
     }
@@ -190,10 +213,15 @@ async function handleStreamDownload() {
   try {
     const result = await window.electronAPI.ytdlpFormatUrl(streamUrl.value.trim(), selectedFormatId.value)
     if (result.success && result.downloadUrl) {
-      const options: Record<string, string> = {}
-      if (result.title) options.out = `${result.title}.${result.ext || 'mp4'}`
+      const options: Record<string, string | string[]> = {}
+      if (result.title) options.out = `${sanitizeFileName(result.title)}.${result.ext || 'mp4'}`
       const baseDir = settingsStore.taskBaseDir
       if (baseDir) options.dir = baseDir
+      // 直链通常校验 Referer/User-Agent（Bilibili 等），缺了这些请求头 aria2 会 403。
+      // 请求头由 yt-dlp 给出，原样转成 aria2 的 `header` 数组（可重复选项）。
+      const headerLines = Object.entries(result.httpHeaders ?? {})
+        .map(([name, value]) => `${name}: ${value}`)
+      if (headerLines.length > 0) options.header = headerLines
       await taskStore.addUri([result.downloadUrl], options)
       message.success(t('newTask.addedCount', { count: 1 }))
       uiStore.closeNewTask()
@@ -205,6 +233,20 @@ async function handleStreamDownload() {
   } finally {
     streamDownloading.value = false
   }
+}
+
+/**
+ * 把视频标题收敛成纯文件名（aria2 的 out 必须是相对路径的文件名）。
+ * 去除路径成分、控制符与 Windows 非法字符；全角标点（如「？」）本身合法，保留。
+ */
+function sanitizeFileName(name: string): string {
+  const last = name.split(/[\\/]/).pop() || ''
+  let cleaned = ''
+  for (const ch of last) {
+    if (ch.charCodeAt(0) <= 0x1f || '<>:"|?*'.includes(ch)) continue
+    cleaned += ch
+  }
+  return cleaned.trim() || 'stream'
 }
 </script>
 
@@ -227,6 +269,13 @@ async function handleStreamDownload() {
 
 .ytdlp-install-hint {
   margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+.stream-note {
+  margin: -4px 0 8px;
   font-size: 12px;
   line-height: 1.5;
   opacity: 0.85;

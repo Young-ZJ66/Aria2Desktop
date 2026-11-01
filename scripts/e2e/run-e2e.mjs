@@ -166,22 +166,27 @@ max-mmap-limit=0
 }
 
 async function main() {
-  // 前置：编译主进程 && 端口空闲
+  // 前置：编译主进程
   console.log('==> 编译主进程')
   run('npm', ['run', 'build:electron'])
-  if ((await httpStatus(`http://localhost:${vitePort}/`)) !== 0) {
-    throw new Error(`端口 ${vitePort} 已被占用，请先关闭正在运行的 dev server`)
+
+  // 5173 被开发中的 `npm run dev` 占用时直接复用：Electron 的开发地址是写死的
+  // http://localhost:5173（见 WindowController），另起端口既没用也不必要。
+  const viteRunning = (await httpStatus(`http://localhost:${vitePort}/`)) === 200
+  if (viteRunning) {
+    console.log(`==> 检测到已运行的 Vite dev server（${vitePort}），直接复用`)
+    reporter.check('Vite dev server 就绪（复用已运行实例）', true)
+  } else {
+    const viteBin = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'vite.cmd' : 'vite')
+    console.log('==> 启动 Vite dev server')
+    start(viteBin, ['--port', String(vitePort), '--strictPort'], 'vite')
+
+    await waitFor(async () => (await httpStatus(`http://localhost:${vitePort}/`)) === 200, {
+      timeoutMs: 90000,
+      label: 'Vite dev server 就绪'
+    })
+    reporter.check('Vite dev server 就绪', true)
   }
-
-  const viteBin = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'vite.cmd' : 'vite')
-  console.log('==> 启动 Vite dev server')
-  const vite = start(viteBin, ['--port', String(vitePort), '--strictPort'], 'vite')
-
-  await waitFor(async () => (await httpStatus(`http://localhost:${vitePort}/`)) === 200, {
-    timeoutMs: 90000,
-    label: 'Vite dev server 就绪'
-  })
-  reporter.check('Vite dev server 就绪', true)
 
   const tempDownloadDir = path.join(outDir, 'downloads')
   fs.mkdirSync(tempDownloadDir, { recursive: true })
@@ -223,7 +228,7 @@ async function main() {
     async () => {
       const list = await httpJson(`http://127.0.0.1:${cdpPort}/json/list`)
       if (!Array.isArray(list)) return null
-      return list.find((t) => t.type === 'page' && String(t.url).startsWith('http://localhost:5173')) ?? null
+      return list.find((t) => t.type === 'page' && String(t.url).startsWith(`http://localhost:${vitePort}`)) ?? null
     },
     { timeoutMs: 90000, label: 'Electron 渲染层出现' }
   )
