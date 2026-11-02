@@ -44,6 +44,9 @@
               {{ item.type === 'error' ? t('notification.downloadFailed') : t('notification.downloadComplete') }}
               · {{ formatTime(item.createdAt) }}
             </span>
+            <span v-if="item.detail" class="notification-detail" :title="item.detail">
+              {{ item.detail }}
+            </span>
           </span>
           <span v-if="!item.read" class="notification-dot" aria-hidden="true" />
         </button>
@@ -149,6 +152,15 @@ function openItem(item: AppNotification) {
 .notification-sub {
   font-size: 11.5px;
   color: var(--text-secondary);
+}
+
+/* 失败原因常是一整句，单行截断 + 悬停看全，避免撑高整条通知 */
+.notification-detail {
+  font-size: 11.5px;
+  color: var(--color-warning);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notification-dot {

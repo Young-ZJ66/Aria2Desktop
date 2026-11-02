@@ -15,6 +15,8 @@ export interface AppNotification {
   type: AppNotificationType
   gid: string
   name: string
+  /** 失败原因（人话）。老记录没有这个字段，渲染时按可选处理 */
+  detail?: string
   createdAt: number
   read: boolean
 }
@@ -41,7 +43,12 @@ function loadItems(): AppNotification[] {
         && ((item as AppNotification).type === 'complete' || (item as AppNotification).type === 'error')
       )
       .slice(0, MAX_ITEMS)
-      .map(item => ({ ...item, read: item.read === true }))
+      .map(item => ({
+        ...item,
+        read: item.read === true,
+        // 历史记录里可能是任意类型，非字符串一律当没有
+        detail: typeof item.detail === 'string' && item.detail ? item.detail : undefined
+      }))
   } catch {
     return []
   }
@@ -60,7 +67,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     }
   }
 
-  function push(input: { type: AppNotificationType; gid: string; name: string }) {
+  function push(input: { type: AppNotificationType; gid: string; name: string; detail?: string }) {
     if (!input.gid) return
     const latest = items.value[0]
     if (
@@ -76,6 +83,7 @@ export const useNotificationStore = defineStore('notifications', () => {
       type: input.type,
       gid: input.gid,
       name: input.name,
+      detail: input.detail || undefined,
       createdAt: Date.now(),
       read: false
     })

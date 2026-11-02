@@ -7,6 +7,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useNotificationStore } from '@/stores/notificationStore'
+import { classifyAria2Error } from '@/shared/aria2Error'
 import { useDownloadHistoryStore } from '@/stores/downloadHistoryStore'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
 import { message } from '@/utils/feedback'
@@ -221,8 +222,15 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       // 下载失败也进入应用内通知中心（系统通知同样发一条）
       unsubscribeDownloadError = taskStore.onDownloadError((gid) => {
         const name = getNotificationTaskName(gid)
-        notificationStore.push({ type: 'error', gid, name })
-        window.electronAPI?.sendNotification?.(t('notification.downloadFailed'), name)
+        // 引擎给的是 errorCode / 英文原话，通知里只说"下载失败"用户没法判断该改什么
+        const task = taskStore.allTasks.find(t => t.gid === gid)
+        const kind = classifyAria2Error(task?.errorCode)
+        const detail = kind === 'unknown' ? '' : t(`taskDetail.aria2Error.${kind}`)
+        notificationStore.push({ type: 'error', gid, name, detail })
+        window.electronAPI?.sendNotification?.(
+          t('notification.downloadFailed'),
+          detail ? `${name} · ${detail}` : name
+        )
       })
       if (!hasConnectedOnce) {
         hasConnectedOnce = true
