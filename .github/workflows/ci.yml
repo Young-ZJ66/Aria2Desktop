@@ -15,10 +15,13 @@ on:
 permissions:
   contents: read
 
-# 同一分支连续推送时只保留最新一次运行，旧的一律取消——比排队跑完再发现已经过时更省时间
+# 同一分支连续推送时：PR 只保留最新一次（旧的一律取消），main 上不取消而是排队。
+# 原因是被取消的运行在 badge 与提交页上显示为"未通过"——main 上连着推几个提交时，
+# 前一个提交永远拿不到结论，外人看到的是红灯，实际什么也没坏。
+# PR 上取消是划算的：那次运行的结果本来就会因为新提交而过时。
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
