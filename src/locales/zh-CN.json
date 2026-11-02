@@ -140,7 +140,6 @@
     "uriStatus": "状态",
     "seeders": "已连接种子",
     "connections": "已连接 Peer",
-    "selfSeeding": "正在做种",
     "healthNoSeeder": "未连上任何种子（做种者），速度可能很慢或停滞",
     "healthSeeders": "{count} 个种子在线",
     "healthSeeding": "本机正在做种"
@@ -262,7 +261,6 @@
     "userAgentPreset": "常用 UA",
     "customHeaders": "自定义请求头",
     "customHeadersPlaceholder": "每行一条，如 Cookie: k=v",
-    "requestHeadersTip": "请求头随任务下发，仅本次生效；请勿填入来源不明的凭据",
     "startDownload": "开始下载",
     "reset": "重置",
     "invalidUrl": "请输入有效的下载链接",

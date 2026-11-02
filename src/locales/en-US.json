@@ -140,7 +140,6 @@
     "uriStatus": "Status",
     "seeders": "Seeders Connected",
     "connections": "Peers Connected",
-    "selfSeeding": "Seeding",
     "healthNoSeeder": "No seeders connected — speed may be slow or stalled",
     "healthSeeders": "{count} seeders online",
     "healthSeeding": "Seeding from this device"
@@ -262,7 +261,6 @@
     "userAgentPreset": "Presets",
     "customHeaders": "Custom Headers",
     "customHeadersPlaceholder": "One per line, e.g. Cookie: k=v",
-    "requestHeadersTip": "Headers apply to this task only — never paste credentials from untrusted sources",
     "startDownload": "Start Download",
     "reset": "Reset",
     "invalidUrl": "Please enter a valid download URL",
