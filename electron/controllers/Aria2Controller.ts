@@ -23,6 +23,12 @@ const MAX_PORT = 65535
 
 export class Aria2Controller {
   private aria2Manager: Aria2ProcessManager | null = null
+  /**
+   * 「引擎启动成功」回调（由 main.ts 注入，目前用于速度调度：新进程的全局选项
+   * 都是配置文件默认值，需要把当前规则的限速重新下发）。
+   * 管理器是懒创建的，所以这里要暂存，创建时再挂上。
+   */
+  private engineStartedListener: (() => void) | null = null
   private windowController: WindowController
   /**
    * 供 ipcSecurity 工厂使用的窗口取值器（口径与原 validateSender 一致，
@@ -77,6 +83,7 @@ export class Aria2Controller {
       }
 
       this.aria2Manager = getAria2ProcessManager(aria2Config)
+      this.aria2Manager.setEngineStartedListener(this.engineStartedListener)
 
       /**
        * 密钥权威来源是 aria2.conf 中的 rpc-secret —— 它才决定 aria2 是否要求 token。
@@ -437,6 +444,15 @@ export class Aria2Controller {
       return stopped
     }
     return true
+  }
+
+  /**
+   * 订阅「引擎启动成功」事件（每次 spawn 成功后触发，含崩溃后的自动重启）。
+   * 回调里只做运行期状态的重新下发，不要在里面等待引擎就绪 —— 此时已经就绪。
+   */
+  public setEngineStartedListener(listener: (() => void) | null): void {
+    this.engineStartedListener = listener
+    this.aria2Manager?.setEngineStartedListener(listener)
   }
 
   /**

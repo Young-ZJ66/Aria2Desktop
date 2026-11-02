@@ -169,6 +169,9 @@ const aria2Controller = new Aria2Controller(windowController)
 const ipcController = new IpcController(windowController, trayController, aria2Controller, store)
 const trackerSubscriptionService = new TrackerSubscriptionService(store, aria2Controller, windowController)
 const speedScheduler = new SpeedScheduler()
+// 引擎每次（重新）启动后，aria2 的全局选项都回到配置文件里的值：
+// 让调度器把当前规则的限速重新下发一次，否则崩溃自动重启后限速会静默消失
+aria2Controller.setEngineStartedListener(() => speedScheduler.reapply())
 
 /**
  * 浏览器扩展本地接口：扩展把链接交给 App 解析（分类/重名/选项统一由 App 决策）。

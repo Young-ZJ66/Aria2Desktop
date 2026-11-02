@@ -72,6 +72,14 @@ export class Aria2ProcessManager {
    * （于是 isRunning() 报 false 而 aria2 实际在跑，killIfRunning() 也再找不到该杀的句柄）。
    */
   private spawnToken = 0
+  /**
+   * 「引擎启动成功」回调。
+   *
+   * 为什么需要：aria2 的全局选项只存在于进程内存，重启后回到 aria2.conf 的值。
+   * 速度调度这类"运行期下发"的状态必须在每次新进程起来后重新落地，
+   * 否则自动重启（崩溃恢复）之后限速会静默消失，直到下一条规则切换。
+   */
+  private engineStartedListener: (() => void) | null = null
   private resourceManager: ResourceManager
   private configManager: Aria2ConfigManager
   /** 配置文件最后读取时的 mtime（供 getConfig 增量重载，避免每次 IPC 轮询全量读盘） */
@@ -191,6 +199,12 @@ export class Aria2ProcessManager {
       logger.info('Aria2 进程启动成功, PID:', this.process?.pid)
       this.retryCount = 0
       this.stderrBuffer = [] // 清空历史错误，避免后续查询读到旧失败信息
+      // 新进程的全局选项都是配置文件里的默认值，通知订阅者把它们重新下发
+      try {
+        this.engineStartedListener?.()
+      } catch (error) {
+        logger.error('[Aria2ProcessManager] 引擎启动回调执行失败:', error)
+      }
       return true
 
     } catch (error) {
@@ -401,6 +415,11 @@ export class Aria2ProcessManager {
   /** 注入优雅关闭钩子（RPC shutdown，触发 aria2 save-session） */
   public setGracefulShutdown(hook: () => Promise<void>): void {
     this.gracefulShutdownHook = hook
+  }
+
+  /** 订阅「引擎启动成功」事件（每次 spawn 成功后触发一次，含崩溃后的自动重启） */
+  public setEngineStartedListener(listener: (() => void) | null): void {
+    this.engineStartedListener = listener
   }
 
   /**

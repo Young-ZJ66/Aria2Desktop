@@ -36,6 +36,20 @@ export class SpeedScheduler {
     this.timer = setInterval(() => this.check(), CHECK_INTERVAL_MS)
   }
 
+  /**
+   * 引擎（重新）启动后重新下发当前规则的限速。
+   *
+   * aria2 的全局选项只活在进程内存里：引擎重启后 `max-overall-download-limit`
+   * 回到 aria2.conf 里的值（通常是不限速）。而本调度器为了省 RPC，按"规则名没变
+   * 就不重复下发"工作 —— 于是重启之后整个规则窗口都不会再限速，用户以为调度还在。
+   * 这里清掉记忆再检查一次，让限速落到新进程上。
+   */
+  reapply(): void {
+    this.lastAppliedRuleName = null
+    this.appliedUploadLimit = 0
+    this.check()
+  }
+
   /** 停止调度器 */
   stop(): void {
     if (this.timer) {
