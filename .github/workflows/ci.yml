@@ -44,24 +44,35 @@ jobs:
 
       # `vite build` 只剥类型不做检查，渲染层（含 .vue 模板）的类型错误只有 vue-tsc 能发现
       - name: 类型检查（主进程 + 测试代码 + 渲染层）
-        run: npm run typecheck
+        run: node scripts/run-with-log.mjs 类型检查 npm run typecheck
 
       # 不加 --fix：CI 要用"当前代码是否合规"做判定，而不是顺手改掉工作区再报绿
       - name: 代码规范检查
-        run: npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --ignore-pattern .gitignore
+        run: node scripts/run-with-log.mjs 代码规范检查 npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --ignore-pattern .gitignore
 
       - name: 单元测试
-        run: npm run test:run
+        run: node scripts/run-with-log.mjs 单元测试 npm run test:run
 
       # 语言包结构 / manifest 引用 / i18n 键一致性 / 接口端口一致性，这类问题只在浏览器里暴露
       - name: 扩展静态校验
-        run: npm run check:extension
+        run: node scripts/run-with-log.mjs 扩展静态校验 npm run check:extension
 
       # 用真实 aria2 引擎跑扩展接口的全部用例（同时覆盖主进程编译产物）
       - name: 扩展接口端到端验证
         run: |
           npm run build:electron
-          npm run verify:extension-api
+          node scripts/run-with-log.mjs 扩展接口验证 npm run verify:extension-api
+
+      # 失败时把每个步骤的完整输出带出：GitHub 的作业日志要登录才能看，
+      # 注解只带关键几行，完整现场靠这份产物（scripts/run-with-log.mjs 落盘）。
+      - name: 保存检查日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-logs
+          path: test-results/ci/
+          retention-days: 7
+          if-no-files-found: ignore
 
   # 真实启动应用跑一遍。与 release.yml 调用的是同一份定义（见 e2e.yml）
   e2e:
