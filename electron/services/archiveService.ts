@@ -81,12 +81,24 @@ function resolveTarCommand(): string {
 /**
  * 解压参数：`-x` 解压、`-f` 指定归档。
  *
- * 归档只用**文件名**（配合 spawn 的 `cwd = 目标目录`），不传绝对路径——这样既不依赖
- * tar 实现能否正确处理盘符，也不需要 `-C`。实测 bsdtar 与 GNU tar 都接受这种写法，
- * 而带盘符的绝对路径只有 bsdtar 接受。
+ * 归档用**相对目标目录的路径**（配合 spawn 的 `cwd = 目标目录`），不传带盘符的绝对路径
+ * ——这样既不依赖 tar 实现能否正确处理盘符，也不需要 `-C`。实测 bsdtar 与 GNU tar
+ * 都接受这种写法，而带盘符的绝对路径只有 bsdtar 接受。
  */
 export function buildExtractArgs(fileName: string): string[] {
   return ['-x', '-f', fileName]
+}
+
+/**
+ * 计算 `-f` 用的归档路径。
+ *
+ * 目标是让 tar 拿到一个不带盘符的相对路径。跨盘符（Windows 上归档在 D:、目标在 C:）时
+ * `path.relative` 会退回绝对路径，此时只能交给 bsdtar 处理——这也是 `pickTarCommand`
+ * 优先钉住系统 bsdtar 的原因之一。
+ */
+export function resolveArchiveArg(filePath: string, targetDir: string): string {
+  const relative = path.relative(targetDir, filePath)
+  return relative && !path.isAbsolute(relative) ? relative : filePath
 }
 
 /**
@@ -96,8 +108,21 @@ export function buildExtractArgs(fileName: string): string[] {
  * "存在且是文件"检查，避免把不存在的路径传给子进程。
  */
 export async function extractArchive(filePath: string): Promise<ExtractResult> {
+  return extractArchiveTo(filePath, path.dirname(filePath))
+}
+
+/**
+ * 解压到指定目录（供组件安装等内部流程复用，解压实现只有这一份）。
+ *
+ * 与用户可见的自动解压共用同一套 tar 选择与参数构造：Windows 上 PATH 里的 GNU tar
+ * 会把带盘符的绝对路径当成"远程主机:路径"，这条坑在两条链路上必须同时躲开。
+ */
+export async function extractArchiveTo(filePath: string, targetDir: string): Promise<ExtractResult> {
   if (!filePath || !path.isAbsolute(filePath)) {
     return { success: false, extracted: false, reason: 'invalid_path' }
+  }
+  if (!targetDir || !path.isAbsolute(targetDir)) {
+    return { success: false, extracted: false, reason: 'invalid_target' }
   }
 
   const fileName = path.basename(filePath)
@@ -115,11 +140,11 @@ export async function extractArchive(filePath: string): Promise<ExtractResult> {
     return { success: false, extracted: false, reason: 'not_a_file' }
   }
 
-  const targetDir = path.dirname(filePath)
-  // 归档只用文件名 + spawn 的 cwd，参数直接给数组，不经 shell，避免路径被二次解释
-  const args = buildExtractArgs(fileName)
+  // 归档用相对路径 + spawn 的 cwd，参数直接给数组，不经 shell，避免路径被二次解释
+  const args = buildExtractArgs(resolveArchiveArg(filePath, targetDir))
 
   try {
+    await fs.promises.mkdir(targetDir, { recursive: true })
     await runTar(resolveTarCommand(), args, targetDir)
     logger.info(`已解压 ${fileName} 到 ${targetDir}`)
     return { success: true, extracted: true, targetDir }

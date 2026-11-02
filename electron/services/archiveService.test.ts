@@ -10,7 +10,8 @@ vi.mock('electron-log/main', () => ({
   default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), transports: { file: {}, console: {} } }
 }))
 
-const { buildExtractArgs, extractArchive, isExtractableArchive, pickTarCommand } = await import('./archiveService')
+const { buildExtractArgs, extractArchive, extractArchiveTo, isExtractableArchive, pickTarCommand, resolveArchiveArg } =
+  await import('./archiveService')
 
 /**
  * 解压服务的回归测试。
@@ -74,6 +75,19 @@ describe('buildExtractArgs', () => {
   })
 })
 
+describe('resolveArchiveArg', () => {
+  it('同目录时退化成文件名', () => {
+    expect(resolveArchiveArg('/tmp/a/sample.zip', '/tmp/a')).toBe('sample.zip')
+  })
+
+  it('跨目录时给相对路径，仍然不带盘符', () => {
+    const arg = resolveArchiveArg('/tmp/a/sample.zip', '/tmp/a/extract')
+    expect(arg).toBe(path.join('..', 'sample.zip'))
+    expect(arg).not.toMatch(/^[A-Za-z]:/)
+    expect(path.isAbsolute(arg)).toBe(false)
+  })
+})
+
 describe('extractArchive', () => {
   let workDir: string
 
@@ -116,5 +130,41 @@ describe('extractArchive', () => {
       reason: 'not_found'
     })
     expect(await extractArchive('relative.zip')).toMatchObject({ success: false, reason: 'invalid_path' })
+  })
+})
+
+describe('extractArchiveTo', () => {
+  let workDir: string
+
+  beforeEach(() => {
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aria2-archive-to-'))
+  })
+
+  afterEach(() => {
+    fs.rmSync(workDir, { recursive: true, force: true })
+  })
+
+  it('按组件安装的用法解压到另一个目录（归档本身留在原地）', async () => {
+    const downloadDir = path.join(workDir, 'download')
+    const extractDir = path.join(workDir, 'extract')
+    fs.mkdirSync(downloadDir, { recursive: true })
+    fs.writeFileSync(path.join(downloadDir, 'ffmpeg.txt'), 'binary-placeholder')
+
+    const built = spawnSync('tar', ['-c', '-f', 'ffmpeg.zip.tar', 'ffmpeg.txt'], { cwd: downloadDir })
+    if (built.status !== 0) throw new Error(`建归档失败: ${built.stderr?.toString()}`)
+    fs.rmSync(path.join(downloadDir, 'ffmpeg.txt'))
+
+    const archivePath = path.join(downloadDir, 'ffmpeg.zip.tar')
+    const result = await extractArchiveTo(archivePath, extractDir)
+
+    expect(result).toMatchObject({ success: true, extracted: true, targetDir: extractDir })
+    expect(fs.readFileSync(path.join(extractDir, 'ffmpeg.txt'), 'utf-8')).toBe('binary-placeholder')
+    expect(fs.existsSync(archivePath)).toBe(true)
+  })
+
+  it('目标目录不是绝对路径时拒绝执行', async () => {
+    const file = path.join(workDir, 'x.zip')
+    fs.writeFileSync(file, 'x')
+    expect(await extractArchiveTo(file, 'relative-dir')).toMatchObject({ success: false, reason: 'invalid_target' })
   })
 })

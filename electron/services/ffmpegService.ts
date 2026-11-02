@@ -8,7 +8,7 @@
  * macOS 没有官方自动构建，保留 PATH / Homebrew 安装方式（界面给出指引）。
  */
 
-import { spawn, spawnSync } from 'child_process'
+import { spawn } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 import { app } from 'electron'
@@ -17,15 +17,13 @@ import { findSha256ForFile } from '../utils/sha256Sums'
 import { downloadToFile, fetchText, type DownloadProgress } from '../utils/downloader'
 import { ffmpegBuildDate, formatDateStamp, isoToDateStamp } from '../utils/componentUpdate'
 import { computeFileSha256 } from '../utils/fileHash'
+import { extractArchiveTo } from './archiveService'
 import { createLogger } from '../utils/logger'
 
 const logger = createLogger('FfmpegService')
 
 /** FFmpeg-Builds 官方 Release（`latest` 指向当前滚动构建） */
 const RELEASE_BASE = 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest'
-
-/** 解压超时：150 MB 级归档在机械盘上也要留足时间 */
-const EXTRACT_TIMEOUT_MS = 5 * 60 * 1000
 
 export interface FfmpegCheckResult {
   available: boolean
@@ -227,7 +225,7 @@ async function performInstall(
       }
     }
 
-    await extractWithSystemTar(archivePath, extractDir, asset.archive)
+    await extractFfmpegArchive(archivePath, extractDir)
 
     // 归档内是 `<build>/bin/ffmpeg(.exe)`（共享库构建还带 DLL），整个 bin 目录一起搬
     const ffmpegPath = findFfmpegBinary(extractDir)
@@ -298,40 +296,18 @@ function runFfmpegVersion(command: string): Promise<string> {
 }
 
 /**
- * 用系统 tar 解压（与自动解压功能同一套取舍：Windows 10 1803+ 自带 bsdtar，
- * Linux/macOS 自带 tar，无需引入额外解压库）。
- * 目标目录由调用方固定，归档来自官方 Release，不存在路径穿越风险面。
+ * 用系统 tar 解压到指定目录。
+ *
+ * 实现放在 archiveService：那条链路上已经踩过"PATH 里的 GNU tar 把带盘符路径当成
+ * 远程主机"的坑（Git for Windows / MSYS2 会提供 tar.exe），两处必须共用同一份取舍，
+ * 否则自动解压修好了、组件安装照样挂。
  */
-function extractWithSystemTar(archivePath: string, destDir: string, archive: 'zip' | 'tar.xz'): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const command = process.platform === 'win32' ? 'tar.exe' : 'tar'
-    // zip 用 -xf；tar.xz 显式 -J，避免个别 tar 实现不自动探测压缩格式
-    const args = archive === 'tar.xz'
-      ? ['-xJf', archivePath, '-C', destDir]
-      : ['-xf', archivePath, '-C', destDir]
-    const proc = spawn(command, args, { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] })
-
-    const timer = setTimeout(() => {
-      spawnSync(process.platform === 'win32' ? 'taskkill' : 'kill', process.platform === 'win32'
-        ? ['/PID', String(proc.pid), '/T', '/F']
-        : ['-9', String(proc.pid)], { stdio: 'ignore' })
-      reject(new Error('ffmpeg 解压超时'))
-    }, EXTRACT_TIMEOUT_MS)
-
-    let stderr = ''
-    proc.stderr?.on('data', (chunk) => {
-      stderr = (stderr + chunk.toString()).slice(-2000)
-    })
-    proc.on('error', (error) => {
-      clearTimeout(timer)
-      reject(new Error(error.message.includes('ENOENT') ? '系统未提供 tar，无法解压 ffmpeg 归档' : error.message))
-    })
-    proc.on('exit', (code) => {
-      clearTimeout(timer)
-      if (code === 0) resolve()
-      else reject(new Error(stderr.trim() || `tar exited with code ${code}`))
-    })
-  })
+async function extractFfmpegArchive(archivePath: string, destDir: string): Promise<void> {
+  const result = await extractArchiveTo(archivePath, destDir)
+  if (result.success) return
+  if (result.reason === 'tar_not_available') throw new Error('系统未提供 tar，无法解压 ffmpeg 归档')
+  if (result.reason === 'extract_timeout') throw new Error('ffmpeg 解压超时')
+  throw new Error(`解压 ffmpeg 归档失败：${result.reason ?? '未知原因'}`)
 }
 
 /** 深度优先查找 ffmpeg 可执行文件（归档内的目录层级来自官方构建，保持宽松） */
