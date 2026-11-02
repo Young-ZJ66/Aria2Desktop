@@ -90,32 +90,17 @@ class CompletedTaskDeleteService {
   }
 
   /**
-   * 规范化路径，处理 aria2 在 Windows 下偶发的首层目录重复问题
-   * （如 C:\dir\dir\file -> C:\dir\file）
+   * 规范化路径：只统一分隔符。
+   *
+   * 以前这里还会按"首层目录重复"的猜测改写路径（D:\a\a\f → D:\a\f），但那是猜测：
+   * 用户就可能把文件放在与上层同名的子目录里，改写后会把另一个同名文件删掉。
+   * aria2 上报的路径才是事实，重复目录的兜底交给主进程——仅当原路径不存在时才修复
+   * （见 electron/utils/pathRepair.ts）。
    */
   private normalizePath(path: string): string {
-    // 将所有斜杠统一为反斜杠（Windows）或正斜杠（Unix）
     const isWindows = path.includes('\\') || /^[a-zA-Z]:/.test(path)
     const separator = isWindows ? '\\' : '/'
-    const normalizedPath = path.replace(/[\\/]+/g, separator)
-
-    // 检查是否有重复的目录路径（仅处理"盘符根后第一层目录紧接着重复"的已知 aria2 缺陷形态）
-    if (isWindows) {
-      const match = normalizedPath.match(/^([a-zA-Z]:[\\/])([^\\/]+)[\\/]\2(?:[\\/](.*))?$/i)
-      if (match) {
-        // 正则捕获组在匹配成功时必存在，用非空断言规避 noUncheckedIndexedAccess
-        const drivePart = match[1]!
-        const duplicatedPart = match[2]!
-        const remainingPart = match[3]
-        const correctedPath = remainingPart !== undefined
-          ? drivePart + duplicatedPart + separator + remainingPart
-          : drivePart + duplicatedPart
-        console.warn(`Detected duplicate path: "${normalizedPath}" -> "${correctedPath}"`)
-        return correctedPath
-      }
-    }
-
-    return normalizedPath
+    return path.replace(/[\\/]+/g, separator)
   }
 
   /**

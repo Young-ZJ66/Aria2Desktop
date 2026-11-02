@@ -11,6 +11,8 @@ import { registerSecureHandler, registerSecureListener } from '../utils/ipcSecur
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import { isAllowedExternalUrl } from '../utils/externalUrlCore'
+import { undoDuplicatedSegment } from '../utils/pathRepair'
+import { isPathInside } from '../utils/pathContainment'
 import { checkYtdlpAvailable, getVideoInfo, getFormatUrl, installYtdlp, checkYtdlpUpdate } from '../services/ytdlpService'
 import { checkFfmpegAvailable, installFfmpeg, checkFfmpegUpdate } from '../services/ffmpegService'
 import { startStreamDownload, cancelStreamDownload, type StreamDownloadRequest } from '../services/streamDownloadService'
@@ -82,7 +84,7 @@ async function isInsideDownloadRoot(targetPath: string, rootDir: string): Promis
 
   const root = normalizeCase(await realPathIfExists(path.resolve(rootDir)))
   const target = normalizeCase(await realPathIfExists(path.resolve(targetPath)))
-  return target === root || target.startsWith(root + path.sep)
+  return isPathInside(target, root, false)
 }
 
 export class IpcController {
@@ -559,11 +561,9 @@ export class IpcController {
       }
       const normalizedRoots = (await Promise.all(allowedRoots.map(realPathIfExists)))
         .map(real => (isWindows ? real.toLowerCase() : real))
-      // 判定路径是否落在任一允许根目录下
+      // 判定路径是否落在任一允许根目录下（下载目录就是盘符根时也不会误判）
       const isAllowed = (norm: string): boolean =>
-        normalizedRoots.some(root =>
-          norm === root || norm.startsWith(root + path.sep)
-        )
+        normalizedRoots.some(root => isPathInside(norm, root, false))
 
       // taskDir 由渲染进程传入，必须落在已配置下载目录的子树内，防止删除任意目录文件
       if (taskDir && taskDir.trim()) {
@@ -602,6 +602,25 @@ export class IpcController {
             results.push({ path: p, success: true })
           } catch (statErr) {
             if ((statErr as NodeJS.ErrnoException).code === 'ENOENT') {
+              // aria2 偶尔上报"首层目录重复"的路径（如 D:\Downloads\Downloads\x）。
+              // 只在原路径确实不存在时才用修正结果兜底：无条件改写会把用户真的放在
+              // 同名子目录里的文件，删成上层目录里的另一个同名文件（见 utils/pathRepair.ts）。
+              const repaired = undoDuplicatedSegment(target)
+              const repairedReal = repaired ? await realPathIfExists(repaired) : null
+              const repairedNorm = repairedReal
+                ? (isWindows ? repairedReal.toLowerCase() : repairedReal)
+                : null
+              if (repairedReal && repairedNorm && isAllowed(repairedNorm)) {
+                try {
+                  await fs.promises.stat(repairedReal)
+                  await shell.trashItem(repairedReal)
+                  logger.info(`[IpcController] 原路径不存在，已按修正后的路径删除: ${repairedReal}`)
+                  results.push({ path: p, success: true, repairedPath: repairedReal })
+                  continue
+                } catch (repairErr) {
+                  if ((repairErr as NodeJS.ErrnoException).code !== 'ENOENT') throw repairErr
+                }
+              }
               results.push({ path: p, success: false, error: 'Not found' })
             } else {
               throw statErr
