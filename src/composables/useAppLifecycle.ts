@@ -55,6 +55,7 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   let unsubscribeEngineStarted: (() => void) | null = null
   // "已放弃自动重启"是个持续状态，不该像普通提示那样自己消失；
   // 但只要引擎后来连上了（用户手动重启成功），这条红色提示就该退场
+  let engineCrashedMessage: { destroy: () => void } | null = null
   let engineGaveUpMessage: { destroy: () => void } | null = null
 
   // Windows 任务栏进度条：活动任务数 > 0 时显示整体进度
@@ -307,7 +308,11 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     // 这里给一句说明，免得用户以为是自己网络或者软件坏了
     if (window.electronAPI?.onEngineCrashed) {
       unsubscribeEngineCrashed = window.electronAPI.onEngineCrashed(({ retryCount }) => {
-        message.warning(t('notification.engineCrashed', { count: retryCount }), { duration: 8000 })
+        // 崩溃循环时不要叠成一列：先收掉上一条，只保留最新的次数
+        engineCrashedMessage?.destroy()
+        engineCrashedMessage =
+          message.warning(t('notification.engineCrashed', { count: retryCount }), { duration: 8000 }) ??
+          null
       })
     }
 
@@ -316,6 +321,9 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     if (window.electronAPI?.onEngineGaveUp) {
       // 引擎后来真的起来了（手动重启成功）：那条红色提示就没意义了，收掉
       unsubscribeEngineStarted = window.electronAPI.onEngineStarted(() => {
+        // 引擎真的回来了：崩溃提示与放弃提示都失去意义
+        engineCrashedMessage?.destroy()
+        engineCrashedMessage = null
         engineGaveUpMessage?.destroy()
         engineGaveUpMessage = null
       })
@@ -390,6 +398,8 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     unsubscribeEngineCrashed?.()
     unsubscribeEngineGaveUp?.()
     unsubscribeEngineStarted?.()
+    engineCrashedMessage?.destroy()
+    engineCrashedMessage = null
     engineGaveUpMessage?.destroy()
     engineGaveUpMessage = null
     themeManager.disposeSystemThemeListener()

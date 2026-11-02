@@ -195,7 +195,10 @@ async function openLogsDir(): Promise<void> {
     }
     message.error(result?.error || t('settings.advanced.openLogsFailed'))
   } catch (error) {
-    message.error(String(error))
+    // 原样把 Error 丢给用户没有意义（String(error) 就是 "Error: ..."），
+    // 具体原因留给控制台与应用日志
+    console.error('[AdvancedSettings] 打开日志目录失败:', error)
+    message.error(t('settings.advanced.openLogsFailed'))
   }
 }
 
