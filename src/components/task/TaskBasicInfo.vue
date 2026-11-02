@@ -85,8 +85,11 @@
           </div>
         </n-descriptions-item>
 
-        <n-descriptions-item v-if="task.errorCode && task.errorCode !== '0'" :label="t('taskDetail.errorMessage')" :span="2">
-          <n-text type="error">{{ task.errorMessage || task.errorCode }}</n-text>
+        <n-descriptions-item v-if="hasError" :label="t('taskDetail.errorMessage')" :span="2">
+          <!-- 先说人话（按 aria2 退出码分类），引擎原话作为次要信息保留：
+               用户既知道该改什么，也留着排查用的原始信息 -->
+          <n-text type="error">{{ errorSummary }}</n-text>
+          <div v-if="rawErrorMessage" class="error-raw">{{ rawErrorMessage }}</div>
         </n-descriptions-item>
       </n-descriptions>
 
@@ -154,6 +157,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { classifyAria2Error } from '@/shared/aria2Error'
 import { CopyOutline, FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import { useUiStore } from '@/stores/uiStore'
@@ -183,6 +187,24 @@ function retryWithOptions() {
   uiStore.closeTaskDetail()
   uiStore.openNewTaskWithUrl(firstUri.value)
 }
+
+const hasError = computed(() => !!props.task.errorCode && props.task.errorCode !== '0')
+
+/** aria2 退出码 → 分类；分类由 shared/aria2Error 决定，文案走语言包 */
+const aria2ErrorKind = computed(() => classifyAria2Error(props.task.errorCode))
+
+const errorSummary = computed(() => {
+  const kind = aria2ErrorKind.value
+  if (kind === 'unknown') return props.task.errorMessage || String(props.task.errorCode ?? '')
+  return t(`taskDetail.aria2Error.${kind}`)
+})
+
+/** 已经翻译成人话时，把引擎原话降级成小字；没有原话或翻译不出来就不重复显示 */
+const rawErrorMessage = computed(() => {
+  const message = props.task.errorMessage
+  if (!message || aria2ErrorKind.value === 'unknown') return ''
+  return message
+})
 
 const progressPercent = computed(() => getProgress(props.task))
 
@@ -485,5 +507,13 @@ async function openFileInFolder(filePath: string) {
 
 .bt-health-alert {
   margin-bottom: 12px;
+}
+
+/* 引擎原话：保留给排查用，但不跟"人话"抢注意力 */
+.error-raw {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  word-break: break-all;
 }
 </style>

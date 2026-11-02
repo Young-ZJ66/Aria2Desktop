@@ -110,4 +110,19 @@ describe('语言包', () => {
     )
     expect(missing).toEqual([])
   })
+
+  it('aria2 错误分类的每个文案键都存在', () => {
+    // src/shared/aria2Error.ts 用 `t(`taskDetail.aria2Error.${kind}`)` 拼接，静态扫描看不见
+    const source = fs.readFileSync(path.join(ROOT, 'src/shared/aria2Error.ts'), 'utf8')
+    const start = source.indexOf('export const ARIA2_ERROR_MESSAGE_KEYS')
+    expect(start, 'src/shared/aria2Error.ts 里找不到 ARIA2_ERROR_MESSAGE_KEYS').toBeGreaterThan(-1)
+    const block = source.slice(start, source.indexOf('}', start))
+    const keys = [...block.matchAll(/:\s*'(\w+)'/g)].map((m) => m[1])
+    expect(keys.length, '映射表看起来是空的').toBeGreaterThan(10)
+
+    const missing = keys.flatMap((key) =>
+      LOCALES.filter((name) => !localeOf(name).taskDetail?.aria2Error?.[key]).map((name) => `${name}: taskDetail.aria2Error.${key}`)
+    )
+    expect(missing).toEqual([])
+  })
 })
