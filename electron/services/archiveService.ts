@@ -45,9 +45,48 @@ export function isExtractableArchive(fileName: string): boolean {
   return SUPPORTED_SUFFIXES.some(suffix => lower.endsWith(suffix))
 }
 
-/** 解析系统 tar 可执行文件名（POSIX 上就是 tar，Windows 为 System32\tar.exe） */
-function getTarCommand(): string {
-  return process.platform === 'win32' ? 'tar.exe' : 'tar'
+/**
+ * 选择解压用的 tar 可执行文件。
+ *
+ * Windows 上**不能只靠 PATH**：Git for Windows / MSYS2 / Cygwin 同样会提供 `tar.exe`
+ * （GNU tar），只要它排在 PATH 前面就会抢先命中，带来两处静默退化：
+ * 1. GNU tar 把带盘符的绝对路径当成"远程主机:路径"语法，直接报
+ *    `tar: Cannot connect to D: resolve failed`——自动解压在这种机器上全挂，
+ *    而报错文案与解压本身毫无关系，用户根本看不懂；
+ * 2. 格式支持面不同：bsdtar 覆盖 zip / 7z / tar 系列，GNU tar 只处理 tar 系列。
+ * 因此优先用 `%SystemRoot%\System32\tar.exe`（Win10 1803+ 自带的 bsdtar），
+ * 该文件不存在时才回退到 PATH 里的 `tar.exe`。
+ *
+ * 抽成"平台 + 是否存在"的纯函数是为了能直接单测两个分支。
+ */
+export function pickTarCommand(
+  platform: string,
+  systemRoot: string | undefined,
+  fileExists: (candidate: string) => boolean
+): string {
+  if (platform !== 'win32') return 'tar'
+  if (systemRoot) {
+    const systemTar = path.join(systemRoot, 'System32', 'tar.exe')
+    if (fileExists(systemTar)) return systemTar
+  }
+  return 'tar.exe'
+}
+
+/** 运行时解析 tar 命令（极少数精简系统可能没有 SystemRoot，此时回退 PATH） */
+function resolveTarCommand(): string {
+  const systemRoot = process.env.SystemRoot || process.env.windir
+  return pickTarCommand(process.platform, systemRoot, candidate => fs.existsSync(candidate))
+}
+
+/**
+ * 解压参数：`-x` 解压、`-f` 指定归档。
+ *
+ * 归档只用**文件名**（配合 spawn 的 `cwd = 目标目录`），不传绝对路径——这样既不依赖
+ * tar 实现能否正确处理盘符，也不需要 `-C`。实测 bsdtar 与 GNU tar 都接受这种写法，
+ * 而带盘符的绝对路径只有 bsdtar 接受。
+ */
+export function buildExtractArgs(fileName: string): string[] {
+  return ['-x', '-f', fileName]
 }
 
 /**
@@ -77,11 +116,11 @@ export async function extractArchive(filePath: string): Promise<ExtractResult> {
   }
 
   const targetDir = path.dirname(filePath)
-  // -x 解压、-f 指定文件、-C 指定目标目录；参数直接给数组，不经 shell，避免路径被二次解释
-  const args = ['-x', '-f', filePath, '-C', targetDir]
+  // 归档只用文件名 + spawn 的 cwd，参数直接给数组，不经 shell，避免路径被二次解释
+  const args = buildExtractArgs(fileName)
 
   try {
-    await runTar(getTarCommand(), args)
+    await runTar(resolveTarCommand(), args, targetDir)
     logger.info(`已解压 ${fileName} 到 ${targetDir}`)
     return { success: true, extracted: true, targetDir }
   } catch (error) {
@@ -92,9 +131,13 @@ export async function extractArchive(filePath: string): Promise<ExtractResult> {
 }
 
 /** 执行 tar 并等待结束（含超时与 ENOENT 归类） */
-function runTar(command: string, args: string[]): Promise<void> {
+function runTar(command: string, args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] })
+    const proc = spawn(command, args, {
+      cwd,
+      windowsHide: true,
+      stdio: ['ignore', 'ignore', 'pipe']
+    })
 
     const timer = setTimeout(() => {
       proc.kill('SIGKILL')
