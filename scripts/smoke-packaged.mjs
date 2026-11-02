@@ -10,6 +10,11 @@
  * 用法：
  *   node scripts/smoke-packaged.mjs                     # 默认 release/win-unpacked/Aria2Desktop.exe
  *   node scripts/smoke-packaged.mjs --exe <路径> --timeout 120000 --keep
+ *   node scripts/smoke-packaged.mjs --retries 0         # CI 里想一次定生死时用
+ *
+ * 默认失败后重试一次：Windows 上首次启动 200 MB 级的未签名 exe 会被 Defender 拦一下、
+ * 磁盘缓存也还是冷的，历史上真出现过"同代码第二次就过"的抖动（dc5620a）。
+ * 重试成功会打 GitHub 的 warning 注释，不会被悄悄吞掉。
  */
 import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -55,6 +60,7 @@ const exePath = argValue('exe')
   : resolveDefaultExe()
 const timeoutMs = Number(argValue('timeout', '90000'))
 const keepData = args.includes('--keep')
+const retries = Number(argValue('retries', '1'))
 
 /** 启动成功的判据：引擎起来了，扩展本地接口也起来了（两条都在主进程日志里） */
 const EXPECTED_MARKERS = [
@@ -159,13 +165,13 @@ function stopProcess(child) {
   }
 }
 
-async function main() {
+async function runAttempt(attempt, attemptCount) {
   const rpcPort = await findFreePort()
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'aria2-smoke-'))
   seedUserData(userData, rpcPort)
   const logFile = path.join(userData, 'logs', 'main.log')
 
-  console.log('=== 打包产物冒烟')
+  console.log(`\n=== 打包产物冒烟${attemptCount > 1 ? `（第 ${attempt}/${attemptCount} 次尝试）` : ''}`)
   console.log(`可执行文件: ${exePath}`)
   console.log(`隔离数据: ${userData}（RPC ${rpcPort}）`)
 
@@ -189,23 +195,24 @@ async function main() {
   })
 
   const results = []
-  let log = ''
   try {
     for (const marker of EXPECTED_MARKERS) {
       const hit = await waitFor(() => {
-        log = readLog(logFile)
-        const line = log.split('\n').find((text) => marker.pattern.test(text))
+        const line = readLog(logFile).split('\n').find((text) => marker.pattern.test(text))
         return line ? line.trim() : null
       }, { timeout: timeoutMs })
 
       if (hit) {
         results.push({ name: marker.name, ok: true, detail: hit })
       } else {
-        results.push({
-          name: marker.name,
-          ok: false,
-          detail: exited ? `应用在等待期间退出（exitCode=${child.exitCode}）` : `超时 ${timeoutMs}ms 未出现`
-        })
+        // 三种失败要分开说：启动即退（exitCode 有值）、起来了但没就绪、连日志都没写
+        const hasLog = readLog(logFile).length > 0
+        const detail = exited
+          ? `应用在等待期间退出（exitCode=${child.exitCode}）`
+          : hasLog
+            ? `超时 ${timeoutMs}ms 未出现`
+            : `超时 ${timeoutMs}ms，应用没有写出日志（可能启动即退出）`
+        results.push({ name: marker.name, ok: false, detail })
         break
       }
     }
@@ -218,54 +225,97 @@ async function main() {
   }
 
   const failed = results.filter((result) => !result.ok)
-  if (failed.length > 0) {
-    const fullLog = readLog(logFile)
-    const tail = fullLog.split('\n').slice(-120).join('\n')
-    console.error('\n--- 主进程日志尾部（最多 120 行）---')
-    console.error(tail || '(日志文件为空)')
-    if (stdout.trim()) {
-      console.error('\n--- 标准输出 ---')
-      console.error(stdout.trim())
-    }
-    if (stderr.trim()) {
-      console.error('\n--- 标准错误 ---')
-      console.error(stderr.trim())
-    }
-    // CI 的作业日志不便下载，这里把同样的信息落到工作区，方便作为 artifact 上传
-    try {
-      const reportDir = path.join(root, 'test-results')
-      fs.mkdirSync(reportDir, { recursive: true })
-      fs.writeFileSync(path.join(reportDir, 'smoke-packaged.json'), JSON.stringify({
-        exePath,
-        userData,
-        rpcPort,
-        exitCode: child.exitCode,
-        results,
-        stdout,
-        stderr
-      }, null, 2))
-      if (fullLog) fs.writeFileSync(path.join(reportDir, 'smoke-packaged-main.log'), fullLog)
-      console.error(`\n诊断已写入 test-results/smoke-packaged.json（隔离数据：${userData}）`)
-    } catch (error) {
-      console.error(`诊断写入失败：${error.message}`)
-    }
-    if (child.exitCode === 2147483651) {
-      // 0x80000003：启动即崩，且日志文件都没生成。常见于受限沙箱/ACL 拒绝执行工作区内的文件，
-      // 与产品无关；把免安装目录复制到工作区外再跑一次即可区分。
-      console.error('\n提示：0x80000003 多为沙箱/ACL 拒绝执行，先把 release/win-unpacked 复制到工作区外再试：')
-      console.error('  node scripts/smoke-packaged.mjs --exe <工作区外的 Aria2Desktop.exe>')
-    }
-  } else if (!keepData) {
-    fs.rmSync(userData, { recursive: true, force: true })
+  return { ok: failed.length === 0, results, failed, userData, logFile, exitCode: child.exitCode, stdout, stderr }
+}
+
+/** 失败现场：打印日志尾部与子进程输出，并落一份到 test-results/ 供 CI 作为 artifact 上传 */
+function reportFailure(outcome, attempt, attemptCount) {
+  const fullLog = readLog(outcome.logFile)
+  const tail = fullLog.split('\n').slice(-120).join('\n')
+  console.error(`\n--- 主进程日志尾部（第 ${attempt}/${attemptCount} 次尝试，最多 120 行）---`)
+  console.error(tail || '(日志文件为空)')
+  if (outcome.stdout.trim()) {
+    console.error('\n--- 标准输出 ---')
+    console.error(outcome.stdout.trim())
+  }
+  if (outcome.stderr.trim()) {
+    console.error('\n--- 标准错误 ---')
+    console.error(outcome.stderr.trim())
   }
 
-  console.log(`\n结果：${results.length - failed.length} 项通过，${failed.length} 项失败`)
-  return failed.length === 0 ? 0 : 1
+  try {
+    const reportDir = path.join(root, 'test-results')
+    fs.mkdirSync(reportDir, { recursive: true })
+    fs.writeFileSync(path.join(reportDir, 'smoke-packaged.json'), JSON.stringify({
+      exePath,
+      userData: outcome.userData,
+      attempt,
+      attemptCount,
+      exitCode: outcome.exitCode,
+      results: outcome.results,
+      stdout: outcome.stdout,
+      stderr: outcome.stderr
+    }, null, 2))
+    if (fullLog) fs.writeFileSync(path.join(reportDir, 'smoke-packaged-main.log'), fullLog)
+    console.error(`\n诊断已写入 test-results/smoke-packaged.json（隔离数据：${outcome.userData}）`)
+  } catch (error) {
+    console.error(`诊断写入失败：${error.message}`)
+  }
+
+  if (outcome.exitCode === 2147483651) {
+    // 0x80000003：启动即崩，且日志文件都没生成。常见于受限沙箱/ACL 拒绝执行工作区内的文件，
+    // 与产品无关；把免安装目录复制到工作区外再跑一次即可区分。
+    console.error('\n提示：0x80000003 多为沙箱/ACL 拒绝执行，先把 release/win-unpacked 复制到工作区外再试：')
+    console.error('  node scripts/smoke-packaged.mjs --exe <工作区外的 Aria2Desktop.exe>')
+  }
+}
+
+function cleanup(userData) {
+  if (keepData) {
+    console.log(`\n按 --keep 保留隔离数据：${userData}`)
+    return
+  }
+  try {
+    fs.rmSync(userData, { recursive: true, force: true })
+  } catch {
+    // 应用退出后句柄释放存在延迟，清不掉也不影响结论
+  }
+}
+
+async function main() {
+  const attemptCount = retries + 1
+  let lastOutcome = null
+
+  for (let attempt = 1; attempt <= attemptCount; attempt++) {
+    if (attempt > 1) await sleep(5000)
+
+    const outcome = await runAttempt(attempt, attemptCount)
+    lastOutcome = outcome
+
+    if (outcome.ok) {
+      if (attempt > 1) {
+        // 抖动不该悄悄过去：第二次才通过说明这次运行的启动存在不确定性
+        console.log(`::warning::打包产物冒烟第 ${attempt} 次才通过（首次失败，多为环境抖动）`)
+      }
+      console.log(`\n结果：${outcome.results.length} 项通过，0 项失败`)
+      cleanup(outcome.userData)
+      return 0
+    }
+
+    reportFailure(outcome, attempt, attemptCount)
+    if (attempt < attemptCount) console.log(`\n第 ${attempt} 次失败，重试以排除环境抖动`)
+    cleanup(outcome.userData)
+  }
+
+  const passed = lastOutcome ? lastOutcome.results.length - lastOutcome.failed.length : 0
+  const failedCount = lastOutcome ? lastOutcome.failed.length : 1
+  console.log(`\n结果：${passed} 项通过，${failedCount} 项失败`)
+  return 1
 }
 
 // 等待退出，避免任务在子进程还活着时先结束
 process.on('exit', () => {
-  // 兜底：正常路径已在 finally 里停过
+  // 兜底：正常路径已在 runAttempt 的 finally 里停过
 })
 
 process.exitCode = await main()
