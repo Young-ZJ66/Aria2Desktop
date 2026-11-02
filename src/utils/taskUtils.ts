@@ -80,9 +80,10 @@ export function getTaskProgress(task: Aria2Task): number {
   const total = parseInt(task.totalLength, 10)
   const completed = parseInt(task.completedLength, 10)
 
-  if (total === 0) return 0
-  // 封顶 100，避免 completed > total（RPC 异常数据）时出现 >100 的进度
-  return Math.min(100, Math.round((completed / total) * 100))
+  // RPC 字段缺失或损坏时 parseInt 会得到 NaN，以前会一路传到进度条，界面上就是 NaN%
+  if (!Number.isFinite(total) || !Number.isFinite(completed) || total <= 0) return 0
+  // 封顶 100、兜底 0，避免 completed > total 或负数（RPC 异常数据）时出现越界进度
+  return Math.min(100, Math.max(0, Math.round((completed / total) * 100)))
 }
 
 // 获取下载速度（字节/秒）

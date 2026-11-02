@@ -85,7 +85,10 @@ export function getTaskDisplayName(task: Aria2Task): string {
  * 从路径中提取文件名
  */
 export function getFileName(path: string): string {
-  return path.split('/').pop() || path.split('\\').pop() || path
+  // 同时按两种分隔符切分：旧写法 `path.split('/').pop() || path.split('\\').pop()` 对纯反斜杠
+  // 路径会短路——split('/') 只有一段，pop() 直接返回整条路径，详情里就把绝对路径当文件名显示
+  const segments = path.split(/[\\/]/).filter(Boolean)
+  return segments.length > 0 ? (segments[segments.length - 1] ?? path) : path
 }
 
 /**
