@@ -1,0 +1,61 @@
+name: 应用端到端测试
+
+# 可复用工作流（workflow_call）：被 ci.yml（推 main / PR）与 release.yml（推 tag 发版前）
+# 分别调用。为什么要抽出来——两处必须跑同一套步骤，复制成两份的那天起就会开始跑偏，
+# 而 E2E 跑偏的表现是"CI 绿了但功能坏了"，比不跑更糟。
+#
+# 为什么只跑 Windows：应用的主力平台是 Windows，E2E 断言的自动解压、引擎启停、
+# 托盘与窗口行为都是 Windows 上的真实行为。macOS / Linux 由 release.yml 的构建作业
+# 覆盖（编译 + 引擎可执行性冒烟），不在这里假装能测。
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: 应用端到端
+    runs-on: windows-latest
+    # 本地满速跑一次约 3 分钟；CI 上含 npm ci 与 Electron 首次启动，给足余量。
+    # 设上限是为了让"卡死的 E2E"在 40 分钟内失败，而不是占满默认的 6 小时
+    timeout-minutes: 40
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      # 引擎缺失时在这里就明确报错并给出编译指引（见 resources/aria2/README.md），
+      # 而不是让 E2E 卡在"引擎没起来"的一堆连锁断言里
+      - name: 校验 aria2 引擎
+        run: node scripts/verify-engine.mjs win32 x64
+
+      # 真实启动 Electron（隔离 userData，不碰机器上的真实数据），通过 CDP 驱动渲染层走完
+      # 新建任务 → 引擎下载 → 完成 → 解压 → 插件加载 → 设置页。
+      #
+      # 这一层是单测覆盖不到的地方：v1.2.0 的自动解压被 PATH 里的 GNU tar 顶掉
+      # （tar: Cannot connect to D: resolve failed），类型检查、单测、扩展校验全绿，
+      # 只有真跑一遍"下载后解压"才暴露。
+      #
+      # 运行器上没有 Chrome for Testing 时，扩展与配对两组检查会自动跳过（日志里明确写 SKIP），
+      # 不影响应用侧断言。
+      - name: 应用端到端测试
+        run: npm run test:e2e
+
+      # 失败时把截图与主进程日志带出来。CI 上看不见窗口，没有这些现场只能靠猜
+      - name: 上传失败现场（截图与日志）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure
+          path: test-results/e2e/
+          retention-days: 7
+          if-no-files-found: ignore

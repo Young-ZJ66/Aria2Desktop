@@ -1,0 +1,66 @@
+name: 质量检查
+
+# 每次推送到 main、以及发起 PR 时自动执行。
+# 本流程只做"检查"：不打包、不创建 Release、不碰 tag —— 出包与发布由 release.yml 负责。
+#
+# 为什么这些检查不能只留在 release.yml 里：那个流程只在推 tag 时触发，等于"等决定发版了
+# 才第一次验证"。v1.0.9 → v1.2.0 之间 123 个文件、上万行改动，中间没有任何一次自动化验证，
+# 全靠发版前的第一次跑——真出问题时就只能在"撤回不了"的 Release 和"推迟发版"之间选。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 同一分支连续推送时只保留最新一次运行，旧的一律取消——比排队跑完再发现已经过时更省时间
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: 静态检查与单元测试
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          # 与 release.yml 保持一致：electron 43 / vue-i18n 11 等依赖要求 Node >= 22.12.0
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      # `vite build` 只剥类型不做检查，渲染层（含 .vue 模板）的类型错误只有 vue-tsc 能发现
+      - name: 类型检查（主进程 + 测试代码 + 渲染层）
+        run: npm run typecheck
+
+      # 不加 --fix：CI 要用"当前代码是否合规"做判定，而不是顺手改掉工作区再报绿
+      - name: 代码规范检查
+        run: npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --ignore-pattern .gitignore
+
+      - name: 单元测试
+        run: npm run test:run
+
+      # 语言包结构 / manifest 引用 / i18n 键一致性 / 接口端口一致性，这类问题只在浏览器里暴露
+      - name: 扩展静态校验
+        run: npm run check:extension
+
+      # 用真实 aria2 引擎跑扩展接口的全部用例（同时覆盖主进程编译产物）
+      - name: 扩展接口端到端验证
+        run: |
+          npm run build:electron
+          npm run verify:extension-api
+
+  # 真实启动应用跑一遍。与 release.yml 调用的是同一份定义（见 e2e.yml）
+  e2e:
+    name: 应用端到端（真跑一遍应用）
+    uses: ./.github/workflows/e2e.yml

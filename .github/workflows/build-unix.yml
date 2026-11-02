@@ -1,8 +1,11 @@
 name: 构建 macOS / Linux 安装包
 
-# 手动触发：用于在对应系统上产出安装包并人工验证。
-# 刻意与 release.yml 分开——发版流程目前只覆盖 Windows，
-# 等 macOS/Linux 引擎二进制入库、安装包验证通过后，再把两者合并进发版流程。
+# 手动触发：在不发版的前提下产出 macOS / Linux 安装包，供人工验证与试装。
+#
+# 与 release.yml 的分工：
+# - release.yml 打 tag 时会在真实 macos-latest / ubuntu-latest 上构建，并把产物挂到 Release；
+# - 本流程只上传 Actions 产物（workflow artifact），**不创建 Release、不碰 tag**，
+#   用于改完跨平台相关代码后先"裸装一次"确认没问题，再决定要不要发版。
 on:
   workflow_dispatch:
     inputs:

@@ -1,6 +1,7 @@
 name: 构建并发布
 
-# 推送版本 tag（v1.0.0、v1.0.1 等）时自动构建并发布 Release
+# 推送版本 tag（v1.0.0、v1.0.1 等）时自动构建并发布 Release。
+# 发布前依次通过：扩展打包 → 应用端到端测试（真跑一遍应用）→ Windows / macOS / Linux 构建与产物断言。
 on:
   push:
     tags:
@@ -32,8 +33,17 @@ jobs:
           path: Aria2Desktop-Extension-*.zip
           if-no-files-found: error
 
+  # 发布前的端到端闸门：真实启动应用跑一遍"下载 → 解压 → 插件 → 设置"。
+  #
+  # 为什么发版也要跑一次（ci.yml 已经跑过）：tag 不保证指向 main 上测过的那个提交——
+  # 本仓真实发生过 v1.0.3 与 v1.0.6 指向同一个提交，才有的版本守卫。Release 发布后
+  # 无法撤回，多等几分钟远好过发出去一个坏版本。步骤定义见 e2e.yml（与 ci.yml 同一份）。
+  e2e:
+    name: 应用端到端（发布前闸门）
+    uses: ./.github/workflows/e2e.yml
+
   build:
-    needs: [package-extension]
+    needs: [package-extension, e2e]
     name: 构建 Windows (${{ matrix.suffix }})
     runs-on: windows-latest
     strategy:

@@ -61,9 +61,14 @@ function run(command, args, options = {}) {
 }
 
 function start(command, args, name, env = {}) {
+  // 剔除 ELECTRON_RUN_AS_NODE：某些终端/工具链派生的 shell 会带上它（本仓开发机上就出现过），
+  // 一旦带了，electron.exe 会以 Node 身份启动，崩在 appEnv.js 的 app.isPackaged 上并打印
+  // "Node.js vXX" 版本号——看起来像应用自身的 bug，实际只是启动方式不对。
+  const childEnv = { ...process.env, ...env }
+  delete childEnv.ELECTRON_RUN_AS_NODE
   const child = spawn(command, args, {
     cwd: root,
-    env: { ...process.env, ...env },
+    env: childEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
     // 仅 .cmd/.bat 包装器需要 shell；electron.exe 直接执行，避免 shell 解析路径
     shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(command),
