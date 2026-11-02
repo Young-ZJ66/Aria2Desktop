@@ -75,9 +75,14 @@ describe('加载与合并', () => {
   })
 
   it('未知的遗留字段不会顶掉默认值', async () => {
-    const { service, defaults } = await loadService({ stored: { ui: { showToolbar: false }, legacyFlag: 1 } })
+    // ui 组已从 AppSettings 移除（无消费方的死字段），旧配置文件里残留的 ui 仍要原样带过：
+    // 删字段不能让老用户的设置文件读一遍就报错或被"清洗"
+    const { service, defaults } = await loadService({
+      stored: { theme: 'dark', legacyFlag: 1, ui: { showToolbar: false } }
+    })
 
     const settings = service.getSettings() as Record<string, unknown>
+    expect(settings.theme).toBe('dark')
     expect(settings.legacyFlag).toBe(1) // 旧版本字段原样带过，不做破坏
     expect(settings.ui).toMatchObject({ showToolbar: false })
     expect(settings.refreshInterval).toBe(defaults.refreshInterval)

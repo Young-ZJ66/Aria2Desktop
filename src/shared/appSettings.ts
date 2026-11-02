@@ -46,8 +46,6 @@ export interface AppSettings {
   refreshInterval?: number
   autoConnect?: boolean
   minimizeToTray?: boolean
-  closeToTray?: boolean
-  startMinimized?: boolean
   keepWindowState?: boolean
   autoLaunch?: boolean
   /** 下载全部完成后执行的操作：none=不操作，shutdown=关机，hibernate=休眠，close=关闭应用 */
@@ -73,14 +71,6 @@ export interface AppSettings {
   // 多连接配置预设
   connectionProfiles?: ConnectionProfile[]
   activeProfileId?: string
-
-  // 界面设置
-  ui?: {
-    showStatusBar?: boolean
-    showToolbar?: boolean
-    taskListColumns?: string[]
-    defaultView?: 'downloading' | 'waiting' | 'stopped'
-  }
 
   // 下载设置
   download?: {

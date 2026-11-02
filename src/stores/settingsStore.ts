@@ -11,7 +11,6 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // 计算属性（共享类型字段可选；运行时始终与 defaultSettings 合并，这里回退默认值保证非空）
   const aria2Config = computed(() => settings.value.aria2 ?? defaultSettings.aria2)
-  const uiConfig = computed(() => settings.value.ui ?? defaultSettings.ui)
   const downloadConfig = computed(() => settings.value.download ?? defaultSettings.download)
   /**
    * 新建任务的基础下载目录（分类子目录都挂在它下面）。
@@ -93,13 +92,6 @@ export const useSettingsStore = defineStore('settings', () => {
   async function updateAria2Config(aria2Config: Partial<AppSettings['aria2']>) {
     await updateSettings({
       aria2: { ...settings.value.aria2, ...aria2Config }
-    })
-  }
-
-  // UI 设置
-  async function updateUIConfig(uiConfig: Partial<AppSettings['ui']>) {
-    await updateSettings({
-      ui: { ...settings.value.ui, ...uiConfig }
     })
   }
 
@@ -220,7 +212,6 @@ export const useSettingsStore = defineStore('settings', () => {
 
     // 计算属性
     aria2Config,
-    uiConfig,
     downloadConfig,
     categoryConfig,
     taskBaseDir,
@@ -233,7 +224,6 @@ export const useSettingsStore = defineStore('settings', () => {
     updateSetting,
     updateGeneralSettings,
     updateAria2Config,
-    updateUIConfig,
     updateDownloadConfig,
     updateCategoryConfig,
     resetSettings,

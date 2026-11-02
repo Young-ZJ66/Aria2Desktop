@@ -38,13 +38,6 @@ export const defaultSettings: AppSettings = {
   ],
   activeProfileId: 'default',
 
-  ui: {
-    showStatusBar: true,
-    showToolbar: true,
-    taskListColumns: ['name', 'size', 'progress', 'status', 'speed'],
-    defaultView: 'downloading'
-  },
-
   download: {
     defaultDir: '',
     maxConcurrentDownloads: 5,
@@ -95,14 +88,13 @@ class SettingsService {
     this.notifyListeners()
   }
 
-  // 深合并嵌套对象（aria2/ui/download/category），避免保存缺省字段时覆盖默认值；数组不深合
+  // 深合并嵌套对象（aria2/download/category），避免保存缺省字段时覆盖默认值；数组不深合
   // saved 允许为 Partial：electron-store 读取到空对象/缺省字段（如 {}）时也能正常合并
   private mergeWithDefaults(saved: Partial<AppSettings>): AppSettings {
     return {
       ...defaultSettings,
       ...saved,
       aria2: { ...defaultSettings.aria2, ...(saved.aria2 || {}) },
-      ui: { ...defaultSettings.ui, ...(saved.ui || {}) },
       download: { ...defaultSettings.download, ...(saved.download || {}) },
       category: {
         autoClassify: saved.category?.autoClassify ?? defaultSettings.category!.autoClassify,
@@ -126,9 +118,6 @@ class SettingsService {
 
     if (patch.aria2) {
       merged.aria2 = { ...base.aria2, ...patch.aria2 }
-    }
-    if (patch.ui) {
-      merged.ui = { ...base.ui, ...patch.ui }
     }
     if (patch.download) {
       merged.download = { ...base.download, ...patch.download }
