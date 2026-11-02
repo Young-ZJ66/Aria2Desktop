@@ -137,6 +137,7 @@ describe('formatCompleteTime', () => {
     const now = new Date()
     const formatted = formatCompleteTime(now.getTime())
     expect(formatted).not.toBe('--')
-    expect(formatted.length).toBeLessThanOrEqual(8)
+    // 12/24 小时制与日期分隔符都随 locale 变（en-US 会带 "PM"，长度 11），所以只断言形状
+    expect(formatted).toMatch(/^\d{1,2}:\d{2}:\d{2}(\s?[AP]M)?$/i)
   })
 })
