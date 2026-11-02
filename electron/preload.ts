@@ -133,6 +133,24 @@ const electronAPI = {
     }
   },
 
+  // 引擎（重新）启动成功：界面据此收掉"已放弃自动重启"这类过期提示
+  onEngineStarted: (callback: () => void) => {
+    const listener = () => callback()
+    ipcRenderer.on('aria2-engine-started', listener)
+    return () => {
+      ipcRenderer.removeListener('aria2-engine-started', listener)
+    }
+  },
+
+  // 引擎连续重启失败、已经放弃自动重启：让界面明确告诉用户"不会再自己恢复了"
+  onEngineGaveUp: (callback: (info: { attempts: number }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, info: { attempts: number }) => callback(info)
+    ipcRenderer.on('aria2-engine-gave-up', listener)
+    return () => {
+      ipcRenderer.removeListener('aria2-engine-gave-up', listener)
+    }
+  },
+
   // 插件管理
   pluginsList: () => ipcRenderer.invoke('plugins-list'),
   pluginsEnable: (id: string) => ipcRenderer.invoke('plugins-enable', id),

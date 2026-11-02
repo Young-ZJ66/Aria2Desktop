@@ -307,7 +307,8 @@
     "downloadComplete": "Download Complete",
     "downloadFailed": "Download Failed",
     "archiveExtracted": "Archive Extracted",
-    "engineCrashed": "The aria2 engine exited unexpectedly. Restarting automatically (attempt {count})."
+    "engineCrashed": "The aria2 engine exited unexpectedly. Restarting automatically (attempt {count}).",
+    "engineGaveUp": "The aria2 engine failed to restart {count} times, so automatic restarts have stopped. Restart it manually in Settings → Local engine, or open the app log for details."
   },
   "notificationCenter": {
     "title": "Notifications",

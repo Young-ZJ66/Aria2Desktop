@@ -31,6 +31,7 @@ export class Aria2Controller {
   private engineStartedListener: (() => void) | null = null
   /** 「引擎意外退出」回调（由 main.ts 注入，用于告诉渲染层"刚才卡的那几秒发生了什么"） */
   private engineCrashListener: ((retryCount: number) => void) | null = null
+  private engineGaveUpListener: ((attempts: number) => void) | null = null
   private windowController: WindowController
   /**
    * 供 ipcSecurity 工厂使用的窗口取值器（口径与原 validateSender 一致，
@@ -87,6 +88,7 @@ export class Aria2Controller {
       this.aria2Manager = getAria2ProcessManager(aria2Config)
       this.aria2Manager.setEngineStartedListener(this.engineStartedListener)
       this.aria2Manager.setEngineCrashListener(this.engineCrashListener)
+      this.aria2Manager.setEngineGaveUpListener(this.engineGaveUpListener)
 
       /**
        * 密钥权威来源是 aria2.conf 中的 rpc-secret —— 它才决定 aria2 是否要求 token。
@@ -465,6 +467,15 @@ export class Aria2Controller {
   public setEngineCrashListener(listener: ((retryCount: number) => void) | null): void {
     this.engineCrashListener = listener
     this.aria2Manager?.setEngineCrashListener(listener)
+  }
+
+  /**
+   * 订阅「引擎放弃自动重启」事件（连续重启失败达到上限后触发一次）。
+   * 与崩溃事件一样，管理器懒创建，先暂存、创建时再挂上。
+   */
+  public setEngineGaveUpListener(listener: ((attempts: number) => void) | null): void {
+    this.engineGaveUpListener = listener
+    this.aria2Manager?.setEngineGaveUpListener(listener)
   }
 
   /**

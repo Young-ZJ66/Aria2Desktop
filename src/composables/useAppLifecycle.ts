@@ -50,6 +50,11 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   let unsubscribeClipboardUrl: (() => void) | null = null
   let unsubscribeTrayAction: (() => void) | null = null
   let unsubscribeEngineCrashed: (() => void) | null = null
+  let unsubscribeEngineGaveUp: (() => void) | null = null
+  let unsubscribeEngineStarted: (() => void) | null = null
+  // "已放弃自动重启"是个持续状态，不该像普通提示那样自己消失；
+  // 但只要引擎后来连上了（用户手动重启成功），这条红色提示就该退场
+  let engineGaveUpMessage: { destroy: () => void } | null = null
 
   // Windows 任务栏进度条：活动任务数 > 0 时显示整体进度
   function updateTaskbarProgress() {
@@ -298,6 +303,21 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       })
     }
 
+    // 连续重启失败、已经放弃自动重启：这条不能再自动消失了，
+    // 否则用户会一直等一个永远不会恢复的连接
+    if (window.electronAPI?.onEngineGaveUp) {
+      // 引擎后来真的起来了（手动重启成功）：那条红色提示就没意义了，收掉
+      unsubscribeEngineStarted = window.electronAPI.onEngineStarted(() => {
+        engineGaveUpMessage?.destroy()
+        engineGaveUpMessage = null
+      })
+      unsubscribeEngineGaveUp = window.electronAPI.onEngineGaveUp(({ attempts }) => {
+        engineGaveUpMessage?.destroy()
+        engineGaveUpMessage =
+          message.error(t('notification.engineGaveUp', { count: attempts }), { duration: 0 }) ?? null
+      })
+    }
+
     // 启动时后台检查更新：放在自动连接之前执行，确保真实启动（含退出后重开）时
     // 立即触发、不被后续可能耗时的连接流程阻塞（有意不 await，后台静默执行）
     runStartupUpdateCheck()
@@ -360,6 +380,10 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     unsubscribePendingUrl?.()
     unsubscribeTrayAction?.()
     unsubscribeEngineCrashed?.()
+    unsubscribeEngineGaveUp?.()
+    unsubscribeEngineStarted?.()
+    engineGaveUpMessage?.destroy()
+    engineGaveUpMessage = null
     themeManager.disposeSystemThemeListener()
     connectionStore.disconnect()
   })

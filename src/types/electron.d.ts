@@ -234,6 +234,8 @@ export interface ElectronAPI {
 
   /** 引擎意外退出（崩溃后会被自动重启）：retryCount 是第几次尝试重启 */
   onEngineCrashed: (callback: (info: { retryCount: number }) => void) => () => void
+  onEngineStarted: (callback: () => void) => () => void
+  onEngineGaveUp: (callback: (info: { attempts: number }) => void) => () => void
 
   // 插件管理
   pluginsList: () => Promise<Array<{ manifest: { id: string; name: string; version: string; description?: string; author?: string; permissions?: string[] }; enabled: boolean; path: string; error?: string }>>

@@ -171,13 +171,27 @@ const trackerSubscriptionService = new TrackerSubscriptionService(store, aria2Co
 const speedScheduler = new SpeedScheduler()
 // 引擎每次（重新）启动后，aria2 的全局选项都回到配置文件里的值：
 // 让调度器把当前规则的限速重新下发一次，否则崩溃自动重启后限速会静默消失
-aria2Controller.setEngineStartedListener(() => speedScheduler.reapply())
+aria2Controller.setEngineStartedListener(() => {
+  speedScheduler.reapply()
+  // 引擎每次真的起来了都告诉界面一声：既用于收掉"已放弃自动重启"那条红色提示，
+  // 也让界面对"手动重启成功了"有回应
+  const win = windowController.getMainWindow()
+  if (win && !win.isDestroyed()) win.webContents.send('aria2-engine-started')
+})
 // 崩溃自动重启是个"静默事件"：界面只会看到连接状态闪一下，
 // 用户不知道为什么下载卡了几秒。把这件事推给渲染层，让它给一句说明。
 aria2Controller.setEngineCrashListener((retryCount) => {
   const win = windowController.getMainWindow()
   if (win && !win.isDestroyed()) {
     win.webContents.send('aria2-engine-crashed', { retryCount })
+  }
+})
+// 连续重启失败达到上限后不再自动重启，界面必须知道"它已经不会再起来了"，
+// 否则用户会一直等一个永远不会恢复的连接。
+aria2Controller.setEngineGaveUpListener((attempts) => {
+  const win = windowController.getMainWindow()
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('aria2-engine-gave-up', { attempts })
   }
 })
 
