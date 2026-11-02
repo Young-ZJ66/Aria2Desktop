@@ -1,11 +1,16 @@
 import { spawn, spawnSync, ChildProcess } from 'child_process'
 import * as net from 'net'
-import { existsSync, statSync } from 'fs'
+import { chmodSync, existsSync, statSync } from 'fs'
 import { app } from 'electron'
 import { ResourceManager } from '../utils/resourceManager'
 import { Aria2ConfigManager } from '../utils/aria2ConfigManager'
 import { callAria2Rpc, Aria2RpcError } from '../utils/aria2Rpc'
 import { createLogger } from '../utils/logger'
+import {
+  describeMissingExecutableBit,
+  executableModeFor,
+  needsExecutableBit
+} from '../utils/executablePermissionCore'
 
 const logger = createLogger('Aria2ProcessManager')
 
@@ -156,6 +161,9 @@ export class Aria2ProcessManager {
         throw new Error(`Aria2 可执行文件不存在: ${this.config.executablePath}`)
       }
 
+      // POSIX 上引擎必须带执行位，否则 spawn 抛 EACCES（macOS zip 被解压工具剥掉权限时就是这样）
+      this.ensureEngineExecutable(this.config.executablePath)
+
       // 确保下载目录存在并更新配置
       this.ensureDownloadDirectory()
 
@@ -214,6 +222,29 @@ export class Aria2ProcessManager {
       return false
     } finally {
       this.isStarting = false
+    }
+  }
+
+  /**
+   * 确保内置引擎在 POSIX 上带执行位。
+   *
+   * 随包分发的 aria2c 本来是 0755，但 macOS 的 zip 包、以及部分不保留权限位的解压/复制方式
+   * 会让它变成 0644，此时 spawn 抛 EACCES，用户只看到"启动失败"，日志里也只有一句"权限不足"。
+   * 这里先补所有者执行位（不动其余位），补不上再留下能照着做的说明——真正启动失败仍由
+   * start() 的 catch 统一处理，避免两处报错。
+   */
+  private ensureEngineExecutable(filePath: string): void {
+    if (process.platform === 'win32') return
+
+    try {
+      const mode = statSync(filePath).mode
+      if (!needsExecutableBit(process.platform, mode)) return
+
+      chmodSync(filePath, executableModeFor(mode))
+      logger.warn('内置 aria2 引擎缺少执行权限，已自动补上:', filePath)
+    } catch (error) {
+      // 改不动（只读挂载、目录属主不是当前用户等）就只留说明，让后续 spawn 的 EACCES 报出来
+      logger.error(describeMissingExecutableBit(filePath), error)
     }
   }
 
