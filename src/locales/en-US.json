@@ -300,13 +300,14 @@
     "uploadSpeed": "Upload Speed",
     "speedLimitOn": "Speed Limit On",
     "speedLimitOff": "Speed Limit Off",
-      "speedLimitNoEngine": "Not connected to the aria2 engine yet, so the speed limit cannot be toggled",
-      "speedLimitToggleFailed": "Failed to toggle the speed limit. Check the engine connection."
+    "speedLimitNoEngine": "Not connected to the aria2 engine yet, so the speed limit cannot be toggled",
+    "speedLimitToggleFailed": "Failed to toggle the speed limit. Check the engine connection."
   },
   "notification": {
     "downloadComplete": "Download Complete",
     "downloadFailed": "Download Failed",
-    "archiveExtracted": "Archive Extracted"
+    "archiveExtracted": "Archive Extracted",
+    "engineCrashed": "The aria2 engine exited unexpectedly. Restarting automatically (attempt {count})."
   },
   "notificationCenter": {
     "title": "Notifications",

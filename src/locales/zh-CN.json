@@ -300,13 +300,14 @@
     "uploadSpeed": "上传速度",
     "speedLimitOn": "限速已开启",
     "speedLimitOff": "限速已关闭",
-      "speedLimitNoEngine": "还没有连上 aria2 引擎，限速开关暂不可用",
-      "speedLimitToggleFailed": "切换限速失败，请检查引擎连接"
+    "speedLimitNoEngine": "还没有连上 aria2 引擎，限速开关暂不可用",
+    "speedLimitToggleFailed": "切换限速失败，请检查引擎连接"
   },
   "notification": {
     "downloadComplete": "下载完成",
     "downloadFailed": "下载失败",
-    "archiveExtracted": "已自动解压"
+    "archiveExtracted": "已自动解压",
+    "engineCrashed": "aria2 引擎意外退出，正在自动重启（第 {count} 次）"
   },
   "notificationCenter": {
     "title": "通知",

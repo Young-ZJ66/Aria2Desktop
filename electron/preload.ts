@@ -123,6 +123,16 @@ const electronAPI = {
     }
   },
 
+  // 引擎意外退出（崩溃后会被自动重启）：让界面能给用户一句说明，
+  // 否则用户只看到下载卡了几秒，不知道发生过什么
+  onEngineCrashed: (callback: (info: { retryCount: number }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, info: { retryCount: number }) => callback(info)
+    ipcRenderer.on('aria2-engine-crashed', listener)
+    return () => {
+      ipcRenderer.removeListener('aria2-engine-crashed', listener)
+    }
+  },
+
   // 插件管理
   pluginsList: () => ipcRenderer.invoke('plugins-list'),
   pluginsEnable: (id: string) => ipcRenderer.invoke('plugins-enable', id),

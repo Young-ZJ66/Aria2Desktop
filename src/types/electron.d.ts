@@ -232,6 +232,9 @@ export interface ElectronAPI {
   // 托盘菜单快捷动作（new-task / settings / pause-all / resume-all）
   onTrayAction: (callback: (action: string) => void) => () => void
 
+  /** 引擎意外退出（崩溃后会被自动重启）：retryCount 是第几次尝试重启 */
+  onEngineCrashed: (callback: (info: { retryCount: number }) => void) => () => void
+
   // 插件管理
   pluginsList: () => Promise<Array<{ manifest: { id: string; name: string; version: string; description?: string; author?: string; permissions?: string[] }; enabled: boolean; path: string; error?: string }>>
   pluginsEnable: (id: string) => Promise<{ success: boolean }>

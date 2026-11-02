@@ -49,6 +49,7 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   let unsubscribePendingUrl: (() => void) | null = null
   let unsubscribeClipboardUrl: (() => void) | null = null
   let unsubscribeTrayAction: (() => void) | null = null
+  let unsubscribeEngineCrashed: (() => void) | null = null
 
   // Windows 任务栏进度条：活动任务数 > 0 时显示整体进度
   function updateTaskbarProgress() {
@@ -289,6 +290,14 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       })
     }
 
+    // 引擎崩溃后主进程会自动重启它，但对用户来说只是"下载卡了几秒"——
+    // 这里给一句说明，免得用户以为是自己网络或者软件坏了
+    if (window.electronAPI?.onEngineCrashed) {
+      unsubscribeEngineCrashed = window.electronAPI.onEngineCrashed(({ retryCount }) => {
+        message.warning(t('notification.engineCrashed', { count: retryCount }), { duration: 8000 })
+      })
+    }
+
     // 启动时后台检查更新：放在自动连接之前执行，确保真实启动（含退出后重开）时
     // 立即触发、不被后续可能耗时的连接流程阻塞（有意不 await，后台静默执行）
     runStartupUpdateCheck()
@@ -350,6 +359,7 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     unsubscribeClipboardUrl?.()
     unsubscribePendingUrl?.()
     unsubscribeTrayAction?.()
+    unsubscribeEngineCrashed?.()
     themeManager.disposeSystemThemeListener()
     connectionStore.disconnect()
   })

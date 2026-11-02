@@ -80,6 +80,13 @@ export class Aria2ProcessManager {
    * 否则自动重启（崩溃恢复）之后限速会静默消失，直到下一条规则切换。
    */
   private engineStartedListener: (() => void) | null = null
+  /**
+   * 「引擎意外退出」回调（崩溃后被安排自动重启时触发）。
+   *
+   * 为什么需要：崩溃恢复只写主进程日志，界面那边只是连接状态闪一下红再变绿，
+   * 用户看到的是"下载卡了几秒又动了"，完全不知道发生过什么。
+   */
+  private engineCrashListener: ((retryCount: number) => void) | null = null
   private resourceManager: ResourceManager
   private configManager: Aria2ConfigManager
   /** 配置文件最后读取时的 mtime（供 getConfig 增量重载，避免每次 IPC 轮询全量读盘） */
@@ -402,6 +409,12 @@ export class Aria2ProcessManager {
       this.retryCount++
       logger.info(`Aria2 进程异常退出，3秒后尝试第${this.retryCount}次重启`)
 
+      try {
+        this.engineCrashListener?.(this.retryCount)
+      } catch (error) {
+        logger.error('[Aria2ProcessManager] 引擎崩溃回调执行失败:', error)
+      }
+
       this.restartTimer = setTimeout(() => {
         this.start().catch(error => {
           logger.error(`第${this.retryCount}次重启失败:`, error)
@@ -420,6 +433,11 @@ export class Aria2ProcessManager {
   /** 订阅「引擎启动成功」事件（每次 spawn 成功后触发一次，含崩溃后的自动重启） */
   public setEngineStartedListener(listener: (() => void) | null): void {
     this.engineStartedListener = listener
+  }
+
+  /** 订阅「引擎意外退出」事件（仅在会触发自动重启的崩溃路径上触发） */
+  public setEngineCrashListener(listener: ((retryCount: number) => void) | null): void {
+    this.engineCrashListener = listener
   }
 
   /**
