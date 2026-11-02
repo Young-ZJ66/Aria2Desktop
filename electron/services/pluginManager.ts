@@ -445,6 +445,10 @@ export class PluginManager {
     try {
       fs.rmSync(resolvedPath, { recursive: true, force: true })
       this.plugins.delete(pluginId)
+      // disable() 刚把 id 写进了停用列表；卸载意味着"不再是已安装插件"，这条记录必须一起清掉。
+      // 否则用户重装同 id 的插件时会得到"已安装但停用"的状态——而界面上刚点完的是"安装"。
+      const disabledList = this.getDisabledList()
+      if (disabledList.delete(pluginId)) this.saveDisabledList(disabledList)
       return true
     } catch (error) {
       logger.error(`[PluginManager] Failed to uninstall plugin "${pluginId}":`, error)
