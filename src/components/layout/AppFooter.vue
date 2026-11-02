@@ -44,16 +44,24 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useStatsStore } from '@/stores/statsStore'
+import { useConnectionStore } from '@/stores/connectionStore'
 import { formatSpeed } from '@/utils/taskFormatters'
 import { DownloadOutline, CloudUploadOutline, SpeedometerOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 
 const statsStore = useStatsStore()
+const connectionStore = useConnectionStore()
 const { t } = useI18n()
 
 const globalStat = computed(() => statsStore.globalStat)
 
 async function handleToggleSpeedLimit() {
+  // 未连接时 toggleSpeedLimit 会静默返回，若不拦住就会给用户一个"已关闭限速"的假成功
+  if (!connectionStore.service) {
+    message.warning(t('footer.speedLimitNoEngine'))
+    return
+  }
+
   try {
     await statsStore.toggleSpeedLimit()
     const text = statsStore.isSpeedLimited
@@ -61,7 +69,8 @@ async function handleToggleSpeedLimit() {
       : t('footer.speedLimitOff')
     message.success(text)
   } catch {
-    // 忽略切换失败
+    // 以前这里什么都不提示：点了没反应，用户只会以为按钮坏了
+    message.error(t('footer.speedLimitToggleFailed'))
   }
 }
 </script>
