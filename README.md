@@ -259,6 +259,11 @@ npm run check:extension     # 扩展静态校验（语言包结构/manifest 引�
 npm run pack:extension      # 打包已签名 .crx（需本机装有 Chrome 或 Edge）
 npm run pack:extension-zip  # 打包商店用 zip（无需系统 zip 工具）
 npm run verify:extension-api # 本地接口端到端验证（先 build:electron；桩化 settings + 真实 aria2 引擎）
+
+# 启动一次打包产物，断言引擎与本地接口都起来了（Windows/macOS/Linux 通用）
+node scripts/smoke-packaged.mjs            # 默认按平台挑 release/ 下的免安装产物
+node scripts/smoke-packaged.mjs --exe <路径> --timeout 120000 --keep
+xvfb-run -a node scripts/smoke-packaged.mjs --spawn-args=--no-sandbox   # 无显示的 Linux
 ```
 
 > **开发注意**：Electron 主进程入口是编译产物 `dist/electron/electron/main.js`，不是 TS 源码。

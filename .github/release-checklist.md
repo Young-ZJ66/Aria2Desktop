@@ -30,8 +30,10 @@ npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解�
 - [ ] Windows x64：`npm run dist:win64` 后 `npm run verify:dist -- win x64`
 - [ ] Windows x86：`npm run dist:win32` 后 `npm run verify:dist -- win ia32`
 - [ ] macOS / Linux：手动触发 `.github/workflows/build-unix.yml`，两个 job 均绿
-      （工作流内置 `verify-dist` 产物断言）
-- [ ] 安装包冒烟：Windows 安装后能启动并连上引擎；macOS/Linux 若本机可用需人工安装一次
+      （工作流内置 `verify-dist` 产物断言，并在上传产物后**真的启动一次**打包产物）
+- [ ] 安装包冒烟：Windows 安装后能启动并连上引擎；macOS/Linux 由 `build-unix` 的
+      “冒烟打包产物”步骤覆盖（若该步骤失败，先在本机用
+      `node scripts/smoke-packaged.mjs --exe <产物>` 复现，不要直接发版）
 - [ ] 差量块表为 CDC 格式（`format: 2`、`chunking: "cdc"`），并抽查与上一版安装包的实际复用率
       （`node scripts/generate-delta-blocks.mjs` + `planDelta` 可离线计算；低于 50% 需调查分块参数）
 - [ ] 注意：从旧版（固定分块缓存）首次升级仍会走全量，确认日志中的回落原因符合预期
