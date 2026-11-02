@@ -16,7 +16,8 @@
   "include": [
     "electron/**/*.test.ts",
     "src/**/*.test.ts",
-    "vitest.config.mts"
+    "vitest.config.mts",
+    "src/types/vite-env.d.ts"
   ],
   "exclude": [
     "node_modules",
