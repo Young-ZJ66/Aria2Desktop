@@ -64,3 +64,31 @@ jobs:
   e2e:
     name: 应用端到端（真跑一遍应用）
     uses: ./.github/workflows/e2e.yml
+
+  # 启动一次真正的打包产物。开发态 e2e 跑的是源码与 dist/，asar 里漏文件、
+  # 内置引擎没被带进包、资源路径按 process.resourcesPath 解析——这些问题只在装完之后暴露。
+  packaged:
+    name: 打包产物冒烟
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      # --dir 只出免安装目录（release/win-unpacked），不出安装包：冒烟要的是能直接运行的文件
+      - name: 构建免安装目录
+        run: |
+          npm run build
+          npx electron-builder --win --x64 --dir
+
+      - name: 冒烟打包产物
+        run: node scripts/smoke-packaged.mjs --timeout 120000

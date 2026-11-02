@@ -123,6 +123,12 @@ jobs:
       - name: 校验安装包与块表产物
         run: node scripts/verify-dist.mjs win ${{ matrix.res_arch }} --require-blocks
 
+      # 上面那步只查"文件在不在、体积合不合理"，而"装完之后能不能启动"只有真启动一次才知道：
+      # asar 漏文件、内置引擎没被带进包，都表现为产物齐全但一开就死。
+      # 打 NSIS 时 electron-builder 已经产出 release/win-unpacked，这里直接拿它冒烟，不额外构建。
+      - name: 冒烟打包产物
+        run: node scripts/smoke-packaged.mjs --timeout 120000
+
       # 使用仓库中预写的更新日志（.github/release-notes.md，需在推送 tag 前更新并提交）
       #
       # 版本一致性断言：本仓**真实发生过** tag 与日志错配——v1.0.3 与 v1.0.6 两个 tag 指向了同一个提交，
