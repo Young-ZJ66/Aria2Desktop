@@ -339,6 +339,35 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
   reporter.check('搜索跳转后目标项高亮', !!searchJump && searchJump.hasHit === true, JSON.stringify(searchJump))
 
+  // —— 常规设置页：窗口位置记忆开关（用户可以关掉"记住窗口位置和大小"） ——
+  const clickedGeneralTab = await evalIn(
+    session,
+    `(() => {
+      const tab = [...document.querySelectorAll('.settings-dialog-body .n-tabs-tab')]
+        .find((e) => /常规设置|General/i.test(e.textContent || ''))
+      if (!tab) return 'no-tab'
+      tab.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('切换到「常规设置」页', clickedGeneralTab === 'clicked', String(clickedGeneralTab))
+  await sleep(900)
+  const keepWindowStateRow = await evalIn(
+    session,
+    `(() => {
+      const item = [...document.querySelectorAll('.settings-dialog-body .n-form-item')]
+        .find((el) => /记住窗口位置和大小|Remember window position/i.test(el.innerText || ''))
+      if (!item) return null
+      const sw = item.querySelector('.app-switch')
+      return { hasSwitch: !!sw, checked: sw ? sw.getAttribute('aria-checked') : null }
+    })()`
+  )
+  reporter.check(
+    '常规设置提供窗口位置记忆开关',
+    !!keepWindowStateRow && keepWindowStateRow.hasSwitch === true,
+    JSON.stringify(keepWindowStateRow)
+  )
+
   // —— 工具与扩展页：浏览器扩展卡片要显示连接状态（扩展版本可见） ——
   const clickedExtensionTab = await evalIn(
     session,

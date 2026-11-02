@@ -68,6 +68,16 @@
 
         <n-form-item>
           <template #label>
+            <TipLabel :label="t('generalSettings.keepWindowState')" :tip="t('generalSettings.keepWindowStateTip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.keepWindowState"
+            @update:value="handleKeepWindowStateChange"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
             <TipLabel :label="t('generalSettings.autoLaunch')" :tip="t('generalSettings.autoLaunchTip')" />
           </template>
           <AppSwitch
@@ -242,6 +252,7 @@ const form = reactive({
   refreshInterval: 1000,
   autoConnect: true,
   minimizeToTray: true,
+  keepWindowState: true,
   autoLaunch: false,
   autoExtract: false,
   downloadCompleteAction: 'none' as 'none' | 'shutdown' | 'hibernate' | 'close'
@@ -324,6 +335,7 @@ watch(
     settingsStore.settings.refreshInterval,
     settingsStore.settings.autoConnect,
     settingsStore.settings.minimizeToTray,
+    settingsStore.settings.keepWindowState,
     settingsStore.settings.autoLaunch,
     settingsStore.settings.downloadCompleteAction,
     settingsStore.settings.download?.autoExtract
@@ -342,6 +354,8 @@ function loadFormData() {
     refreshInterval: settingsStore.settings.refreshInterval,
     autoConnect: settingsStore.settings.autoConnect,
     minimizeToTray: settingsStore.settings.minimizeToTray,
+    // 缺省视为开启：与主进程 WindowController 的 `!== false` 判定保持一致
+    keepWindowState: settingsStore.settings.keepWindowState !== false,
     autoLaunch: settingsStore.settings.autoLaunch,
     autoExtract: settingsStore.settings.download?.autoExtract === true,
     downloadCompleteAction: settingsStore.settings.downloadCompleteAction || 'none'
@@ -607,6 +621,22 @@ async function handleTraySettingChange() {
   } catch (error) {
     console.error('Tray setting change error:', error)
     message.error(t('generalSettings.trayFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
+  }
+}
+
+async function handleKeepWindowStateChange() {
+  try {
+    // 主进程在下次启动时读取该值：关闭后不再保存/恢复窗口位置与大小
+    await settingsStore.updateSetting('keepWindowState', form.keepWindowState)
+    message.success(
+      form.keepWindowState
+        ? t('generalSettings.keepWindowStateOn')
+        : t('generalSettings.keepWindowStateOff')
+    )
+  } catch (error) {
+    console.error('Window state setting change error:', error)
+    form.keepWindowState = settingsStore.settings.keepWindowState !== false
+    message.error(t('generalSettings.keepWindowStateFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
   }
 }
 

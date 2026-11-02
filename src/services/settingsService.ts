@@ -13,6 +13,7 @@ export const defaultSettings: AppSettings = {
   refreshInterval: 1000,
   autoConnect: true,
   minimizeToTray: true,
+  keepWindowState: true,
   autoLaunch: false,
 
   aria2: {

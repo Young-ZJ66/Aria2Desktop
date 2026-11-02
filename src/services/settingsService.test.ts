@@ -88,6 +88,12 @@ describe('加载与合并', () => {
     expect(settings.refreshInterval).toBe(defaults.refreshInterval)
   })
 
+  it('窗口状态记忆默认开启（设置页开关与主进程判定都依赖这个默认值）', async () => {
+    const { service, defaults } = await loadService({ stored: {} })
+    expect(defaults.keepWindowState).toBe(true)
+    expect(service.getSettings().keepWindowState).toBe(true)
+  })
+
   it('读取失败时回落到默认设置并清掉损坏的本地副本', async () => {
     const removeItem = vi.fn()
     vi.stubGlobal('localStorage', {
