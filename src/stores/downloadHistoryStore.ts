@@ -6,7 +6,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, onScopeDispose, ref } from 'vue'
 
 interface DownloadHistory {
   totalBytes: number
@@ -16,6 +16,8 @@ interface DownloadHistory {
 const STORAGE_KEY = 'aria2-desktop-download-history'
 /** 只保留最近 90 天的按日记录，避免 localStorage 无限增长 */
 const KEEP_DAYS = 90
+/** 跨零点检查间隔：托盘常驻用户可能几天不关应用 */
+const DAY_ROLLOVER_CHECK_MS = 60 * 1000
 
 function localDateKey(date = new Date()): string {
   const year = date.getFullYear()
@@ -53,11 +55,23 @@ export function addDownloadToHistory(history: DownloadHistory, bytes: number, da
 export const useDownloadHistoryStore = defineStore('downloadHistory', () => {
   const history = ref<DownloadHistory>(loadHistory())
 
-  const todayBytes = computed(() => history.value.daily[localDateKey()] ?? 0)
+  // 「今日」的口径必须自己知道"今天变了"：localDateKey() 读的是 Date，不是响应式数据。
+  // 直接把它写进 computed 的话，跨零点后页面会一直显示昨天的数字，直到下一次下载完成
+  // 才顺带刷新一次 —— 而托盘常驻用户恰恰可能整天没有下载。
+  const todayKey = ref(localDateKey())
+  const rolloverTimer = setInterval(() => {
+    const current = localDateKey()
+    if (current !== todayKey.value) todayKey.value = current
+  }, DAY_ROLLOVER_CHECK_MS)
+  onScopeDispose(() => clearInterval(rolloverTimer))
+
+  const todayBytes = computed(() => history.value.daily[todayKey.value] ?? 0)
   const totalBytes = computed(() => history.value.totalBytes)
 
   function record(bytes: number) {
-    const next = addDownloadToHistory(history.value, bytes, localDateKey())
+    // 跨零点后的第一次下载同样要落到新日期上
+    todayKey.value = localDateKey()
+    const next = addDownloadToHistory(history.value, bytes, todayKey.value)
     if (next === history.value) return
     history.value = next
     try {
