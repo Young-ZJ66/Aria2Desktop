@@ -151,18 +151,26 @@
         </n-button>
         <span v-if="!storeUrlReady" class="pending-hint">{{ t('settings.rpc.storePending') }}</span>
       </n-space>
+      <!-- 连接状态：扩展每次调用都带版本头，据此判断"商店里是不是已经出了新版" -->
+      <p class="extension-status" :class="`is-${extensionStatusTone}`">
+        <span class="extension-status-text">{{ extensionStatusText }}</span>
+        <n-button text size="tiny" :loading="extensionStatusLoading" @click="refreshExtensionStatus">
+          {{ t('settings.rpc.extensionStatusRefresh') }}
+        </n-button>
+      </p>
     </n-card>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ExtensionPuzzleOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import { useComponentStore, type ComponentStatus } from '@/stores/componentStore'
 import { EXTENSION_STORE_URL, isExtensionStoreAvailable } from '@/shared/extensionStore'
+import { isExtensionOutdated, type ExtensionConnection } from '@/shared/extensionVersion'
 
 const { t } = useI18n()
 const componentStore = useComponentStore()
@@ -175,7 +183,48 @@ onMounted(() => {
   // 首次进入才真正执行检测；之后复用 store 里已检测的结果
   void componentStore.checkYtdlp()
   void componentStore.checkFfmpeg()
+  void refreshExtensionStatus()
 })
+
+/** 扩展最近一次连接：主进程在每次已鉴权的扩展调用后更新，这里只是取快照 */
+const extensionStatus = ref<{ appVersion: string; connection: ExtensionConnection } | null>(null)
+const extensionStatusLoading = ref(false)
+
+const extensionStatusText = computed(() => {
+  const snapshot = extensionStatus.value
+  // lastSeenAt 为 null = 装好应用后还没被扩展调用过；不是错误，只是没配对或没打开过
+  if (!snapshot || snapshot.connection.lastSeenAt === null) {
+    return t('settings.rpc.extensionStatusNever')
+  }
+  const { version } = snapshot.connection
+  // 旧版扩展不带 X-Extension-Version：只能确认连上了，判断不了新旧
+  if (!version) return t('settings.rpc.extensionStatusUnknown')
+  if (isExtensionOutdated(version, snapshot.appVersion)) {
+    return t('settings.rpc.extensionStatusOutdated', { extension: version, app: snapshot.appVersion })
+  }
+  return t('settings.rpc.extensionStatusSeen', { version })
+})
+
+/** 只有"确认落后"才用警告色；未知/未连接保持中性，避免设置页到处是橙色 */
+const extensionStatusTone = computed(() => {
+  const snapshot = extensionStatus.value
+  if (!snapshot?.connection.version) return 'idle'
+  return isExtensionOutdated(snapshot.connection.version, snapshot.appVersion) ? 'warn' : 'ok'
+})
+
+async function refreshExtensionStatus() {
+  const api = window.electronAPI
+  // 防御：旧版 preload 没有该方法（升级后未重启时会走到这里）
+  if (typeof api?.getExtensionStatus !== 'function') return
+  extensionStatusLoading.value = true
+  try {
+    extensionStatus.value = await api.getExtensionStatus()
+  } catch {
+    // 取不到就保留上一次显示：这只是辅助信息，不值得弹错误打断用户
+  } finally {
+    extensionStatusLoading.value = false
+  }
+}
 
 function statusText(status: ComponentStatus): string {
   if (!status.checked) return t('settings.components.checking')
@@ -344,5 +393,29 @@ async function openExtensionStore() {
 .pending-hint {
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+/* 扩展连接状态：中性信息在左，重新检测在右，整行不抢按钮视觉重量 */
+.extension-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.extension-status-text {
+  min-width: 0;
+  word-break: break-word;
+}
+
+.extension-status.is-warn {
+  color: var(--color-warning);
+}
+
+.extension-status.is-ok .extension-status-text {
+  color: var(--color-success);
 }
 </style>

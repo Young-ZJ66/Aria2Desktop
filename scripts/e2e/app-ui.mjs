@@ -339,6 +339,34 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
   reporter.check('搜索跳转后目标项高亮', !!searchJump && searchJump.hasHit === true, JSON.stringify(searchJump))
 
+  // —— 工具与扩展页：浏览器扩展卡片要显示连接状态（扩展版本可见） ——
+  const clickedExtensionTab = await evalIn(
+    session,
+    `(() => {
+      const tab = [...document.querySelectorAll('.settings-dialog-body .n-tabs-tab')]
+        .find((e) => /工具与扩展|Tools|Extensions/i.test(e.textContent || ''))
+      if (!tab) return 'no-tab'
+      tab.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('切换到「工具与扩展」页', clickedExtensionTab === 'clicked', String(clickedExtensionTab))
+  await sleep(1200)
+  const extensionCardText = await evalIn(
+    session,
+    `(() => {
+      const card = [...document.querySelectorAll('.settings-dialog-body .n-card')]
+        .find((c) => /浏览器扩展|Browser Extension/i.test(c.innerText || ''))
+      return card ? card.innerText : '(no card)'
+    })()`
+  )
+  // 状态行有三种合法文案（未连接 / 已连接 / 旧版不上报版本），任一出现即说明 IPC 接线成功
+  reporter.check(
+    '扩展卡片显示连接状态',
+    /扩展已连接|还没有记录到扩展的连接|Extension connected|No connection from the extension/i.test(String(extensionCardText)),
+    String(extensionCardText).replace(/\n/g, '|').slice(0, 140)
+  )
+
   // —— 插件页：列表加载、启停 ——
   const clickedPluginTab = await evalIn(
     session,

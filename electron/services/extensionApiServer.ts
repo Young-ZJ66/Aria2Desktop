@@ -29,6 +29,11 @@ import {
   resolveCategory,
   resolveTargetDir
 } from '../../src/shared/fileCategories'
+import {
+  EMPTY_EXTENSION_CONNECTION,
+  normalizeExtensionVersion,
+  type ExtensionConnection
+} from '../../src/shared/extensionVersion'
 
 /**
  * 浏览器扩展本地接口（打通方案 A 第 1 期）。
@@ -90,8 +95,41 @@ interface ResolvedTarget {
 export class ExtensionApiServer {
   private server: http.Server | null = null
   private readonly logger = createLogger('ExtensionApi')
+  /**
+   * 最近一次成功鉴权的扩展调用。只存在内存里：应用重启后重新采集即可——
+   * 扩展每次调用都带版本头，用户一操作就能补上，没必要落盘。
+   */
+  private extensionConnection: ExtensionConnection = { ...EMPTY_EXTENSION_CONNECTION }
+  /** 上一次记过日志的版本，避免扩展频繁调用时同一行日志刷屏 */
+  private loggedExtensionVersion: string | null = null
 
   constructor(private readonly deps: ExtensionApiDeps) {}
+
+  /** 最近一次扩展连接（设置页据此提示"该更新扩展了"；返回副本，调用方改不动内部状态） */
+  getExtensionConnection(): ExtensionConnection {
+    return { ...this.extensionConnection }
+  }
+
+  /**
+   * 记录扩展版本。
+   *
+   * 放在鉴权之后、任何已授权调用都能记：用户可能只点一次下载、从不打开扩展弹窗，
+   * 若只在 /api/status 上记录，这类用户永远显示"未检测到扩展"。
+   * 版本号来自扩展（外部输入），先过 normalizeExtensionVersion；
+   * 旧版扩展不带该头，此时保留上次已知版本，只刷新时间。
+   */
+  private recordExtensionConnection(req: http.IncomingMessage): void {
+    const header = req.headers['x-extension-version']
+    const version = normalizeExtensionVersion(Array.isArray(header) ? header[0] : header)
+    this.extensionConnection = {
+      version: version ?? this.extensionConnection.version,
+      lastSeenAt: Date.now()
+    }
+    if (version && version !== this.loggedExtensionVersion) {
+      this.loggedExtensionVersion = version
+      this.logger.info(`扩展已连接（扩展 v${version}，App v${this.deps.getAppVersion()}）`)
+    }
+  }
 
   /** 启动接口；重复调用无副作用 */
   start(port: number = EXTENSION_API_PORT): void {
@@ -177,6 +215,9 @@ export class ExtensionApiServer {
       return
     }
 
+    // 鉴权通过才记版本：未经授权的请求不该影响"扩展已连接"的显示
+    this.recordExtensionConnection(req)
+
     if (req.method !== 'GET' && req.method !== 'POST') {
       this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
       return
@@ -187,7 +228,7 @@ export class ExtensionApiServer {
         this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
         return
       }
-      this.send(res, 200, await this.buildStatus(req))
+      this.send(res, 200, await this.buildStatus())
       return
     }
 
@@ -472,17 +513,12 @@ export class ExtensionApiServer {
   }
 
   /** GET /api/status：应用版本、引擎进程状态与版本、当前下载目录 */
-  private async buildStatus(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+  private async buildStatus(): Promise<Record<string, unknown>> {
     const settings = getSettingsFresh()
     const info = this.deps.getEngineProcessInfo()
 
-    // 扩展版本由调用方通过 X-Extension-Version 头带上（仅记录日志，用于两端版本协同排查）
-    const extVersion = typeof req.headers['x-extension-version'] === 'string'
-      ? req.headers['x-extension-version']
-      : ''
-    if (extVersion) {
-      this.logger.info(`扩展状态查询（扩展 v${extVersion.slice(0, 32)}，App v${this.deps.getAppVersion()}）`)
-    }
+    // 扩展版本已在鉴权后由 recordExtensionConnection 记录（见 handleRequest），
+    // 这里不再重复读头，避免两处各记一份、日志翻倍
 
     let engineVersion = ''
     if (info.isRunning) {

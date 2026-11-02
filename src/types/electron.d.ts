@@ -1,3 +1,5 @@
+import type { ExtensionConnection } from '../shared/extensionVersion'
+
 // 自动更新状态推送类型
 export interface UpdateStatus {
   state: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
@@ -47,6 +49,9 @@ export type StreamDownloadEvent =
 export interface ElectronAPI {
   // 应用信息
   getAppVersion: () => Promise<string>
+
+  // 浏览器扩展最近一次连接（connection.version 为 null 表示还没连过或旧版扩展不带版本头）
+  getExtensionStatus: () => Promise<{ appVersion: string; connection: ExtensionConnection }>
 
   // 应用默认下载目录（Windows 系统"下载"文件夹）
   getDefaultDownloadDir: () => Promise<{ success: boolean; path?: string; error?: string }>

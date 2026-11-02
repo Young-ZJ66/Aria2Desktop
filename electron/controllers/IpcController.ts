@@ -20,6 +20,7 @@ import { PluginManager } from '../services/pluginManager'
 import { createLogger } from '../utils/logger'
 // 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import { resolveBaseDownloadDir } from '../../src/shared/fileCategories'
+import type { ExtensionConnection } from '../../src/shared/extensionVersion'
 import type { StoreData, AppSettings } from '../types/store'
 
 // 本文件日志文案自带 [IpcController] 前缀（历史风格），故 scope 传空避免前缀重复
@@ -91,6 +92,8 @@ export class IpcController {
   private updateController: UpdateController
   private store: Store<StoreData>
   private pluginManager: PluginManager
+  /** 浏览器扩展最近连接取值器：由 main 在构造扩展接口服务后注入（见 attachExtensionStatusProvider） */
+  private extensionConnectionProvider: (() => ExtensionConnection) | null = null
 
   constructor(
     windowController: WindowController,
@@ -104,6 +107,16 @@ export class IpcController {
     this.updateController = new UpdateController(() => windowController.getMainWindow())
     this.store = store
     this.pluginManager = new PluginManager(store)
+  }
+
+  /**
+   * 注入"扩展最近连接"的取值器。
+   *
+   * 为什么不在构造参数里给：扩展接口服务（ExtensionApiServer）需要本控制器已建好的
+   * 引擎信息等依赖，构造顺序只能是先控制器、后服务；用注入避免把两者拧成循环依赖。
+   */
+  public attachExtensionStatusProvider(provider: () => ExtensionConnection): void {
+    this.extensionConnectionProvider = provider
   }
 
   /** 关闭插件管理器与应用退出时的收尾（应用退出时调用） */
@@ -142,6 +155,13 @@ export class IpcController {
    */
   private registerAppHandlers() {
     registerSecureHandler('get-app-version', () => app.getVersion(), { getMainWindow: this.windowRef })
+
+    // 浏览器扩展最近一次连接（版本 + 时间）：用于设置页提示"扩展是不是旧版"。
+    // 扩展接口服务在本控制器之后构造，因此用 attach 注入取值器，而不是构造参数
+    registerSecureHandler('get-extension-status', () => ({
+      appVersion: app.getVersion(),
+      connection: this.extensionConnectionProvider?.() ?? { version: null, lastSeenAt: null }
+    }), { getMainWindow: this.windowRef })
 
     // 应用默认下载目录（Windows 系统"下载"文件夹）
     registerSecureHandler('get-default-download-dir', () => ({

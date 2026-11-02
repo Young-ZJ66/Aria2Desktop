@@ -6,6 +6,8 @@ import type { UpdateStatus } from '../src/types/electron'
 const electronAPI = {
   // 应用信息
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  // 浏览器扩展最近一次连接（设置页提示"扩展是旧版吗"用）
+  getExtensionStatus: () => ipcRenderer.invoke('get-extension-status'),
   // 应用默认下载目录（Windows 系统"下载"文件夹）
   getDefaultDownloadDir: () => ipcRenderer.invoke('get-default-download-dir'),
 

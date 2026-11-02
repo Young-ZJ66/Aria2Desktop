@@ -202,6 +202,10 @@ const extensionApiServer = new ExtensionApiServer({
   }
 })
 
+// 设置页要显示"扩展是旧版吗"：把最近一次扩展连接注入 IPC。
+// 服务在本控制器之后才构造，所以用注入而不是构造参数（见 attachExtensionStatusProvider）
+ipcController.attachExtensionStatusProvider(() => extensionApiServer.getExtensionConnection())
+
 // 创建 AppLifecycle 协调器
 const appLifecycle = new AppLifecycle(
   store,
