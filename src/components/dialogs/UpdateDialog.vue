@@ -53,6 +53,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUiStore } from '@/stores/uiStore'
 import { confirm } from '@/utils/feedback'
+import { classifyUpdateError, UPDATE_ERROR_MESSAGE_KEYS } from '@/shared/updateError'
 import type { UpdateStatus } from '@/types/electron'
 
 /** GitHub Releases 页面地址（下载失败时引导用户手动下载） */
@@ -73,6 +74,20 @@ const visible = computed({
     else uiStore.closeUpdateDialog()
   }
 })
+
+/**
+ * 把主进程的英文/技术错误翻译成人话。
+ * 之前这里直接把 result.error 塞进「下载更新失败：{error}」，用户看到的是
+ * getaddrinfo ENOTFOUND github.com 或者 manual_download_required。
+ * 认不出来的类型仍然保留原串——宁可难看，也别把排障信息丢掉。
+ */
+function describeUpdateError(raw?: string): string {
+  const key = UPDATE_ERROR_MESSAGE_KEYS[classifyUpdateError(raw) as keyof typeof UPDATE_ERROR_MESSAGE_KEYS]
+  if (!key) {
+    return t('generalSettings.updateDownloadFailed', { error: raw || t('settings.unknownError') })
+  }
+  return t(`generalSettings.${key}`)
+}
 
 const starting = ref(false)
 const restarting = ref(false)
@@ -189,7 +204,7 @@ async function startUpdateDownload() {
     confirm({
       type: 'error',
       title: t('generalSettings.updateFailedTitle'),
-      content: t('generalSettings.updateDownloadFailed', { error: result.error || t('settings.unknownError') }),
+      content: describeUpdateError(result.error),
       // 确认（蓝色）：前往 GitHub 下载；取消（灰底）：重试，右上角可关闭
       positiveText: t('generalSettings.goToReleasePage'),
       negativeText: t('common.retry'),

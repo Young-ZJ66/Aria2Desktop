@@ -95,4 +95,19 @@ describe('语言包', () => {
       expect(flatten(localeOf(name)).length).toBeGreaterThan(500)
     }
   })
+
+  it('分类映射表里的每个文案键都存在', () => {
+    // src/shared/updateError.ts 用 `t(`generalSettings.${key}`)` 拼接，静态扫描看不见
+    const source = fs.readFileSync(path.join(ROOT, 'src/shared/updateError.ts'), 'utf8')
+    const start = source.indexOf('UPDATE_ERROR_MESSAGE_KEYS')
+    expect(start, 'src/shared/updateError.ts 里找不到 UPDATE_ERROR_MESSAGE_KEYS').toBeGreaterThan(-1)
+    const block = source.slice(start, source.indexOf('}', start))
+    const keys = [...block.matchAll(/:\s*'(\w+)'/g)].map((m) => m[1])
+    expect(keys.length, '映射表看起来是空的').toBeGreaterThan(5)
+
+    const missing = keys.flatMap((key) =>
+      LOCALES.filter((name) => !localeOf(name).generalSettings?.[key]).map((name) => `${name}: generalSettings.${key}`)
+    )
+    expect(missing).toEqual([])
+  })
 })
