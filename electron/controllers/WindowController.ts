@@ -8,6 +8,7 @@ import { registerSecureListener } from '../utils/ipcSecurity'
 import { DEV_ALLOWED_ORIGINS, normalizeFileUrl } from '../utils/ipcSecurityCore'
 import { resolveAppIconPath, resolveRendererIndexPath } from '../utils/resolvePaths'
 import { createLogger } from '../utils/logger'
+import { isPlausibleBounds, pickStoredBounds } from '../utils/windowBoundsCore'
 import type { StoreData, WindowState } from '../types/store'
 
 // 本文件日志文案自带 [WindowController] 前缀（历史风格），故 scope 传空避免前缀重复
@@ -357,13 +358,40 @@ export class WindowController {
     if (!keepWindowState) return
 
     let saveTimeout: NodeJS.Timeout | null = null
+    // 最近一次在"正常态"下观测到的边界。最大化时 getBounds() 给的是最大化后的
+    // 矩形（Windows 实测 {x:-7,y:-7,width:1552,height:832}），直接存下来会让
+    // 用户点「向下还原」后再也回不到原来的尺寸。
+    let lastNormalBounds: Electron.Rectangle | null = null
+
+    const readNormalBounds = (): Electron.Rectangle | null => {
+      try {
+        return this.mainWindow?.getNormalBounds() ?? null
+      } catch {
+        // 平台不支持时个别版本会抛，拿不到就算了，交给缓存兜底
+        return null
+      }
+    }
+
+    const rememberNormalBounds = () => {
+      if (!this.mainWindow || this.mainWindow.isDestroyed()) return
+      if (this.mainWindow.isMaximized() || this.mainWindow.isFullScreen()) return
+      const bounds = this.mainWindow.getBounds()
+      if (isPlausibleBounds(bounds)) lastNormalBounds = bounds
+    }
 
     const saveWindowState = () => {
       if (!this.mainWindow) return
 
-      const bounds = this.mainWindow.getBounds()
+      const current = this.mainWindow.getBounds()
       const isMaximized = this.mainWindow.isMaximized()
       const isFullScreen = this.mainWindow.isFullScreen()
+      const bounds = pickStoredBounds({
+        current,
+        lastNormal: lastNormalBounds,
+        normalFromElectron: readNormalBounds(),
+        isMaximized,
+        isFullScreen
+      })
 
       this.store.set('windowState', {
         bounds,
@@ -379,12 +407,23 @@ export class WindowController {
       saveTimeout = setTimeout(saveWindowState, 500)
     }
 
-    this.mainWindow.on('resize', debouncedSave)
-    this.mainWindow.on('move', debouncedSave)
-    this.mainWindow.on('maximize', saveWindowState)
-    this.mainWindow.on('unmaximize', saveWindowState)
-    this.mainWindow.on('enter-full-screen', saveWindowState)
-    this.mainWindow.on('leave-full-screen', saveWindowState)
+    const rememberAndSave = () => {
+      rememberNormalBounds()
+      saveWindowState()
+    }
+
+    this.mainWindow.on('resize', () => {
+      rememberNormalBounds()
+      debouncedSave()
+    })
+    this.mainWindow.on('move', () => {
+      rememberNormalBounds()
+      debouncedSave()
+    })
+    this.mainWindow.on('maximize', rememberAndSave)
+    this.mainWindow.on('unmaximize', rememberAndSave)
+    this.mainWindow.on('enter-full-screen', rememberAndSave)
+    this.mainWindow.on('leave-full-screen', rememberAndSave)
     // 窗口销毁时清理未触发的防抖保存，避免向已销毁窗口写入状态
     this.mainWindow.on('closed', () => {
       if (saveTimeout) clearTimeout(saveTimeout)
