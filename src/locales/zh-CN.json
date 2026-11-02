@@ -27,6 +27,7 @@
     "stopped": "下载完成",
     "activeAndWaiting": "下载任务",
     "newDownload": "新建下载",
+    "dropToDownload": "松开鼠标即可下载",
     "searchPlaceholder": "搜索任务...",
     "allCategories": "全部分类",
     "allTypes": "全部类型",
@@ -843,9 +844,7 @@
       "rpcPrivateKeyTip": "启用 RPC over HTTPS 时使用的私钥",
       "rpcCertificateDialog": "选择 RPC 证书文件",
       "rpcPrivateKeyDialog": "选择 RPC 私钥文件",
-      "rpc": {
-        "reservedSecretPrefix": "密钥不能以 v1: 开头（系统保留前缀）"
-      }
+      "reservedSecretPrefix": "密钥不能以 v1: 开头（系统保留前缀）"
     },
     "advanced": {
       "description": "配置事件轮询、日志与底层下载行为",

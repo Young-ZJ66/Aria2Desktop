@@ -27,6 +27,7 @@
     "stopped": "Completed",
     "activeAndWaiting": "Downloads",
     "newDownload": "New Download",
+    "dropToDownload": "Drop the file to download",
     "searchPlaceholder": "Search tasks...",
     "allCategories": "All categories",
     "allTypes": "All types",
@@ -843,9 +844,7 @@
       "rpcPrivateKeyTip": "Private key used when enabling RPC over HTTPS",
       "rpcCertificateDialog": "Select RPC Certificate File",
       "rpcPrivateKeyDialog": "Select RPC Private Key File",
-      "rpc": {
-        "reservedSecretPrefix": "Secret cannot start with v1: (reserved prefix)"
-      }
+      "reservedSecretPrefix": "Secret cannot start with v1: (reserved prefix)"
     },
     "advanced": {
       "description": "Configure event polling, logging and low-level download behavior",
