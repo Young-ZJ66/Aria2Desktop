@@ -84,6 +84,16 @@ jobs:
       - name: 冒烟打包产物（启动一次）
         run: node scripts/smoke-packaged.mjs --timeout 120000 --spawn-args=--disable-gpu
 
+      # 冒烟脚本失败时会把主进程日志与结构化诊断写到 test-results/，这是排查"为什么起不来"的唯一现场
+      - name: 冒烟失败时保存现场
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-failure-mac
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
   build-linux:
     if: inputs.platform != 'mac'
     name: 构建 Linux
@@ -140,3 +150,12 @@ jobs:
 
       - name: 冒烟打包产物（启动一次）
         run: xvfb-run -a node scripts/smoke-packaged.mjs --timeout 120000 --spawn-args="--no-sandbox --disable-gpu --disable-dev-shm-usage"
+
+      - name: 冒烟失败时保存现场
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-failure-linux
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
