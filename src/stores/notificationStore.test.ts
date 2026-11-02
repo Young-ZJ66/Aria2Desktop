@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { useNotificationStore, type AppNotification } from './notificationStore'
+import { type AppNotification } from './notificationStore'
 
 const STORAGE_KEY = 'aria2-desktop-notifications'
 

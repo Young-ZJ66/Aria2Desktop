@@ -1309,6 +1309,116 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   const size = completed ? fs.statSync(downloadedPath).size : 0
   reporter.check('任务实际下载完成', completed && size === downloadBytes, `${downloadedPath}（${size} bytes）`)
 
+  // —— 失败任务：详情要说人话，而不是把 errorCode 甩给用户 ——
+  // 用一个一定解析不了的主机名，让引擎自己报 errorCode 19（DNS 失败）。
+  const failUrl = 'http://nonexistent-host-aria2-e2e.invalid/probe-fail.zip'
+  await evalIn(session, `(() => { const btn = document.querySelector('.app-action-btn'); if (btn) btn.click(); return !!btn })()`)
+  await sleep(1300)
+  const failFilled = await evalIn(
+    session,
+    `(() => {
+      const modal = [...document.querySelectorAll('.n-modal')].find((el) => el.offsetParent !== null)
+      if (!modal) return 'no-modal'
+      const ta = modal.querySelector('textarea')
+      if (!ta) return 'no-textarea'
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set
+      setter.call(ta, ${JSON.stringify(failUrl)})
+      ta.dispatchEvent(new Event('input', { bubbles: true }))
+      const item = [...modal.querySelectorAll('.n-form-item')].find((e) => /保存目录|Download directory|Save to/i.test(e.innerText || ''))
+      const input = item && item.querySelector('input')
+      if (input) {
+        const inputSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+        inputSetter.call(input, ${JSON.stringify(tempDownloadDir)})
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      return 'filled'
+    })()`
+  )
+  reporter.check('填写会失败的任务链接', failFilled === 'filled', String(failFilled))
+  const failSubmitted = await evalIn(
+    session,
+    `(() => {
+      const btn = [...document.querySelectorAll('.n-modal .n-button')].find((e) => /开始下载|Start download/i.test(e.innerText || ''))
+      if (!btn) return 'no-btn'
+      btn.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('提交会失败的任务', failSubmitted === 'clicked', String(failSubmitted))
+  await sleep(1500)
+  // 表格开了 virtual-scroll，DOM 里只渲染可见行：先用任务搜索框把这条过滤出来，
+  // 既能保证它被渲染，也能顺带验证"搜索能找到失败任务"。
+  const failSearched = await evalIn(
+    session,
+    `(() => {
+      const input = [...document.querySelectorAll('.action-right input')].find((el) => /搜索|Search/i.test(el.placeholder || ''))
+      if (!input) return 'no-input'
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+      setter.call(input, 'probe-fail')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      return 'filled'
+    })()`
+  )
+  reporter.check('任务搜索框可用', failSearched === 'filled', String(failSearched))
+  const failRowFound = await (async () => {
+    for (let i = 0; i < 30; i++) {
+      const text = await evalIn(session, 'document.body.innerText')
+      if (typeof text === 'string' && text.includes('probe-fail.zip')) return true
+      await sleep(500)
+    }
+    return false
+  })()
+  reporter.check('失败任务出现在列表里', failRowFound === true)
+  const failOpened = await evalIn(
+    session,
+    `(() => {
+      const row = [...document.querySelectorAll('tr')].find((tr) => /probe-fail/.test(tr.innerText || ''))
+      if (!row) return 'no-row'
+      const btn = [...row.querySelectorAll('button')].find((b) => /查看详情|View detail|Details/i.test(b.getAttribute('aria-label') || ''))
+      if (!btn) return 'no-btn'
+      btn.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('打开失败任务的详情', failOpened === 'clicked', String(failOpened))
+  const failDetail = await (async () => {
+    for (let i = 0; i < 60; i++) {
+      const text = await evalIn(
+        session,
+        `(() => { const d = [...document.querySelectorAll('.n-drawer')].find((el) => el.offsetParent !== null); return d ? d.innerText : '' })()`
+      )
+      if (typeof text === 'string' && /域名解析失败|Name resolution|Domain name/i.test(text)) return text
+      await sleep(500)
+    }
+    return ''
+  })()
+  reporter.check(
+    '失败详情给出可读原因',
+    /域名解析失败/.test(String(failDetail)),
+    String(failDetail).slice(0, 120)
+  )
+  reporter.check(
+    '失败详情仍保留引擎原话',
+    /Name resolution|Domain name|CUID/i.test(String(failDetail)),
+    String(failDetail).slice(0, 160)
+  )
+  await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+  await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+  await sleep(700)
+  await evalIn(
+    session,
+    `(() => {
+      const input = [...document.querySelectorAll('.action-right input')].find((el) => /搜索|Search/i.test(el.placeholder || ''))
+      if (!input) return false
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+      setter.call(input, '')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      return true
+    })()`
+  )
+  await sleep(500)
+
+
   // —— 任务详情抽屉（切到"下载完成"列表）——
   const nav = await evalIn(
     session,

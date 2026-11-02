@@ -1,4 +1,4 @@
-import type { Aria2Task } from '@/types/aria2'
+import type { Aria2File, Aria2Task } from '@/types/aria2'
 
 export interface FilterOptions {
   searchText: string
@@ -8,7 +8,52 @@ export interface FilterOptions {
   sortOrder: 'asc' | 'desc'
 }
 
-// 获取任务名称（BT 任务优先显示种子名，否则取第一个文件的文件名）
+/**
+ * 从 URI 推断可读的任务名。
+ *
+ * 为什么需要：任务在拿到文件名之前就失败时（域名解析不了、连不上、404），aria2 的
+ * `files[0].path` 是空串——它还没决定保存路径，但 URI 里一直带着名字。旧实现遇到这种
+ * 情况直接回落 GID，列表里显示 `3d0323d2fcf3c6d2` 这种十六进制串，用户既看不出下的
+ * 是什么，也没法按名字搜到它。
+ */
+function nameFromUri(uri: string): string {
+  if (!uri) return ''
+  if (uri.startsWith('magnet:')) {
+    const query = uri.slice(uri.indexOf('?') + 1)
+    const dn = new URLSearchParams(query).get('dn')
+    if (!dn) return ''
+    try {
+      return decodeURIComponent(dn).trim()
+    } catch {
+      return dn.trim()
+    }
+  }
+  try {
+    const segments = new URL(uri).pathname.split('/').filter(Boolean)
+    const base = segments.pop() || ''
+    if (!base) return ''
+    try {
+      return decodeURIComponent(base).trim()
+    } catch {
+      return base.trim()
+    }
+  } catch {
+    // 不是合法 URL（带空格、未编码的中文等），交给调用方继续往下找
+    return ''
+  }
+}
+
+function nameFromUris(files: Aria2File[]): string {
+  for (const file of files) {
+    for (const item of file.uris || []) {
+      const name = nameFromUri(item.uri)
+      if (name) return name
+    }
+  }
+  return ''
+}
+
+// 获取任务名称（BT 任务优先显示种子名，其次文件路径，再次 URI 里的文件名，最后才回落 GID）
 export function getTaskName(task: Aria2Task): string {
   if (task.bittorrent?.info?.name) return task.bittorrent.info.name
   if (task.files && task.files.length > 0) {
@@ -19,6 +64,9 @@ export function getTaskName(task: Aria2Task): string {
       return trimmed.split(/[\\/]/).pop() || task.gid
     }
   }
+  // 还没有保存路径（多为失败任务）：退回 URI 推断，别把 GID 甩给用户
+  const fromUri = nameFromUris(task.files || [])
+  if (fromUri) return fromUri
   return task.gid
 }
 
