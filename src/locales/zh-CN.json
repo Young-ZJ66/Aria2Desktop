@@ -832,7 +832,7 @@
       "extensionStatusNever": "还没有记录到扩展的连接。装好扩展后，在浏览器里点一次扩展图标即可检测。",
       "extensionStatusSeen": "扩展已连接：v{version}",
       "extensionStatusUnknown": "扩展已连接，但它没有上报版本号（旧版扩展）。建议到商店更新到最新版。",
-      "extensionStatusOutdated": "扩展版本 v{extension} 比应用 v{app} 旧，建议到商店更新。",
+      "extensionStatusOutdated": "扩展版本 v{extension} 低于本应用要求的 v{required}，建议到商店更新。",
       "extensionStatusRefresh": "重新检测",
       "groupTls": "TLS 加密",
       "rpcCertificate": "RPC 证书",

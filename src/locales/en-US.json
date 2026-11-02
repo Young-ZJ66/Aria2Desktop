@@ -832,7 +832,7 @@
       "extensionStatusNever": "No connection from the extension yet. After installing it, click the extension icon once in your browser.",
       "extensionStatusSeen": "Extension connected: v{version}",
       "extensionStatusUnknown": "The extension is connected but does not report its version (older build). Consider updating it from the store.",
-      "extensionStatusOutdated": "Extension v{extension} is older than the app v{app}. Consider updating it from the store.",
+      "extensionStatusOutdated": "Extension v{extension} is below the required v{required}. Consider updating it from the store.",
       "extensionStatusRefresh": "Check again",
       "groupTls": "TLS Encryption",
       "rpcCertificate": "RPC Certificate",

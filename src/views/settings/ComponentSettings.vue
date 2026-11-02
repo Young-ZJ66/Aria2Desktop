@@ -170,7 +170,11 @@ import { message } from '@/utils/feedback'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import { useComponentStore, type ComponentStatus } from '@/stores/componentStore'
 import { EXTENSION_STORE_URL, isExtensionStoreAvailable } from '@/shared/extensionStore'
-import { isExtensionOutdated, type ExtensionConnection } from '@/shared/extensionVersion'
+import {
+  MIN_SUPPORTED_EXTENSION_VERSION,
+  isExtensionOutdated,
+  type ExtensionConnection
+} from '@/shared/extensionVersion'
 
 const { t } = useI18n()
 const componentStore = useComponentStore()
@@ -199,8 +203,11 @@ const extensionStatusText = computed(() => {
   const { version } = snapshot.connection
   // 旧版扩展不带 X-Extension-Version：只能确认连上了，判断不了新旧
   if (!version) return t('settings.rpc.extensionStatusUnknown')
-  if (isExtensionOutdated(version, snapshot.appVersion)) {
-    return t('settings.rpc.extensionStatusOutdated', { extension: version, app: snapshot.appVersion })
+  if (isExtensionOutdated(version)) {
+    return t('settings.rpc.extensionStatusOutdated', {
+      extension: version,
+      required: MIN_SUPPORTED_EXTENSION_VERSION
+    })
   }
   return t('settings.rpc.extensionStatusSeen', { version })
 })
@@ -209,7 +216,7 @@ const extensionStatusText = computed(() => {
 const extensionStatusTone = computed(() => {
   const snapshot = extensionStatus.value
   if (!snapshot?.connection.version) return 'idle'
-  return isExtensionOutdated(snapshot.connection.version, snapshot.appVersion) ? 'warn' : 'ok'
+  return isExtensionOutdated(snapshot.connection.version) ? 'warn' : 'ok'
 })
 
 async function refreshExtensionStatus() {

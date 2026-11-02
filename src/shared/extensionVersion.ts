@@ -51,15 +51,26 @@ export function compareExtensionVersions(a: string, b: string): number {
 }
 
 /**
- * 扩展是否比应用旧。
+ * 本应用要求的最低扩展版本。
+ *
+ * 为什么不用"应用版本"当基准：扩展与应用各自独立发版，应用发一个补丁版
+ * （1.2.1、1.2.2……）几乎从不改扩展。拿应用版本比，会让每一次应用小版本更新后
+ * 所有用户的设置页都亮一条"扩展过旧"，而商店里其实没有新版本可升——这种恒亮的
+ * 提示等于没有提示。真正有意义的判断是"扩展是否低于本应用需要的接口版本"，
+ * 所以这里显式维护一个下限：扩展只有在接口出现不兼容变更时才需要抬这个值。
+ */
+export const MIN_SUPPORTED_EXTENSION_VERSION = '1.2.0'
+
+/**
+ * 扩展是否低于要求的最低版本。
  *
  * 版本未知（旧版扩展不带头部）不算"旧"：那种情况界面另有文案提示"版本未知，建议更新"，
- * 不必再挤一条"过旧"的错误样式。
+ * 不必再挤一条"过旧"的错误样式。下限本身写错（非版本号形状）时同样不判断，避免误报。
  */
 export function isExtensionOutdated(
   extensionVersion: string | null,
-  appVersion: string
+  minimumVersion: string = MIN_SUPPORTED_EXTENSION_VERSION
 ): boolean {
-  if (!extensionVersion || !VERSION_PATTERN.test(appVersion)) return false
-  return compareExtensionVersions(extensionVersion, appVersion) < 0
+  if (!extensionVersion || !VERSION_PATTERN.test(minimumVersion)) return false
+  return compareExtensionVersions(extensionVersion, minimumVersion) < 0
 }

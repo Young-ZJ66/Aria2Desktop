@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   EMPTY_EXTENSION_CONNECTION,
+  MIN_SUPPORTED_EXTENSION_VERSION,
   compareExtensionVersions,
   isExtensionOutdated,
   normalizeExtensionVersion
@@ -51,17 +52,23 @@ describe('compareExtensionVersions', () => {
 })
 
 describe('isExtensionOutdated', () => {
-  it('扩展比应用旧才算过旧', () => {
-    expect(isExtensionOutdated('1.0.9', '1.2.0')).toBe(true)
-    expect(isExtensionOutdated('1.10.0', '1.9.0')).toBe(false)
+  it('低于给定的最低版本才算过旧', () => {
+    expect(isExtensionOutdated('1.1.9', '1.2.0')).toBe(true)
     expect(isExtensionOutdated('1.2.0', '1.2.0')).toBe(false)
+    expect(isExtensionOutdated('1.10.0', '1.9.0')).toBe(false)
+  })
+
+  it('默认下限是 MIN_SUPPORTED_EXTENSION_VERSION，与应用版本解耦', () => {
+    expect(MIN_SUPPORTED_EXTENSION_VERSION).toBe('1.2.0')
+    // 回归：应用发补丁版时商店里没有对应扩展可升，不能对用户报"过旧"（恒亮的提示等于没有提示）
+    expect(isExtensionOutdated('1.2.0')).toBe(false)
   })
 
   it('版本未知时不判定为过旧（旧版扩展不带头部，界面另有文案）', () => {
-    expect(isExtensionOutdated(null, '1.2.0')).toBe(false)
+    expect(isExtensionOutdated(null)).toBe(false)
   })
 
-  it('应用版本号异常时不做判断，避免误报', () => {
+  it('下限本身不是合法版本号时不做判断，避免误报', () => {
     expect(isExtensionOutdated('1.0.9', 'v1.2.0')).toBe(false)
     expect(isExtensionOutdated('1.0.9', '')).toBe(false)
   })
