@@ -93,8 +93,10 @@ export class TrackerSubscriptionService {
   /** 启动：若启用自动更新，加载时若上次更新超期则立即补拉，并安排每日定时器 */
   initialize(): void {
     const state = this.getState()
-    this.scheduleNext()
+    // 关闭自动更新时连定时器都不该挂：以前先 scheduleNext() 再判断，导致"关闭"状态在
+    // 重启后失效——每天照旧拉取并改写用户的 tracker 列表，设置页却显示"已关闭"
     if (!state.autoUpdate) return
+    this.scheduleNext()
     const intervalMs = (state.syncIntervalHours || 24) * 60 * 60 * 1000
     const stale = !state.lastUpdate || Date.now() - new Date(state.lastUpdate).getTime() > intervalMs
     if (stale) {
@@ -131,9 +133,15 @@ export class TrackerSubscriptionService {
   /** 安排下一次自动更新（每次触发后重新安排，保持周期） */
   private scheduleNext(): void {
     if (this.timer) clearTimeout(this.timer)
-    const state = this.getState()
-    const intervalMs = state.syncIntervalHours * 60 * 60 * 1000
+    const intervalMs = this.getState().syncIntervalHours * 60 * 60 * 1000
     this.timer = setTimeout(() => {
+      // 到点时重新读状态，不沿用挂定时器那一刻的快照：
+      // 用户可能中途关掉自动更新或改了订阅源/间隔
+      const state = this.getState()
+      if (!state.autoUpdate) {
+        this.timer = null
+        return
+      }
       void this.update(false, state.customSources).catch(() => {})
       this.scheduleNext()
     }, intervalMs)
@@ -147,8 +155,12 @@ export class TrackerSubscriptionService {
 
     const sources = customSources ?? this.getState().customSources
     // 仅接受 https:// 订阅源：http:// 源会被本服务按 TLS 请求导致困惑失败，且明文拉取的
-    // tracker 列表可被中间人篡改（tracker 会被写入 aria2 配置并影响 BT 网络行为）
-    const validSources = sources.filter(s => s.trim() && /^https:\/\//i.test(s.trim()))
+    // tracker 列表可被中间人篡改（tracker 会被写入 aria2 配置并影响 BT 网络行为）。
+    // 先 trim 再校验并**用 trim 后的值**去请求：从聊天/文档里粘来的地址常带首尾空格，
+    // 以前校验用 trim 后的、请求用原值，于是这类源一律静默失败（只报"所有订阅源均不可用"）
+    const validSources = sources
+      .map(source => (typeof source === 'string' ? source.trim() : ''))
+      .filter(source => /^https:\/\//i.test(source))
 
     if (validSources.length === 0) {
       this.updating = false
