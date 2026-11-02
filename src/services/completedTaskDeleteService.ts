@@ -7,6 +7,9 @@ import type { Aria2Task } from '@/types/aria2'
 import { getTaskName } from '@/utils/taskUtils'
 import { taskPersistenceService } from './taskPersistenceService'
 import { taskTimeService } from './taskTimeService'
+import { removeFromEngine, type TaskRemovalService } from './taskRemovalCore'
+
+export type { TaskRemovalService }
 
 /** 文件删除单项结果 */
 interface FileDeleteItemResult {
@@ -32,11 +35,7 @@ export interface BatchDeleteResult {
   errors: string[]
 }
 
-/** 由调用方（taskStore / 组件）注入的 Aria2 删除能力，避免 service 层反向依赖 store */
-export interface TaskRemovalService {
-  removeDownloadResult(gid: string): Promise<string>
-  remove(gid: string): Promise<string>
-}
+/** 由调用方（taskStore / 组件）注入的 Aria2 删除能力，见 taskRemovalCore 的判定说明 */
 
 class CompletedTaskDeleteService {
 
@@ -129,6 +128,18 @@ class CompletedTaskDeleteService {
     }
 
     try {
+      // 先让引擎忘掉这个任务。引擎没答应（RPC 失败、而不是"任务不存在"）时
+      // 后面什么都不做：否则界面会说"已删除"，下一次刷新又从引擎把这一行拉回来。
+      if (service) {
+        const removal = await removeFromEngine(service, task.gid)
+        if (!removal.ok) {
+          const errorMsg = `删除任务记录失败: ${removal.error instanceof Error ? removal.error.message : String(removal.error)}`
+          result.errors.push(errorMsg)
+          console.error(errorMsg, removal.error)
+          return result
+        }
+      }
+
       // 如果需要删除文件
       if (deleteFiles && window.electronAPI?.deleteFiles) {
         const filePaths = this.getTaskFilePaths(task)
@@ -161,22 +172,7 @@ class CompletedTaskDeleteService {
 
       // 删除任务记录
       try {
-        // 1. 尝试从 Aria2 中删除任务（如果任务仍在 Aria2 中）
-        if (service) {
-          // 先尝试从下载结果中删除（适用于已完成的任务）
-          try {
-            await service.removeDownloadResult(task.gid)
-          } catch {
-            // 如果从下载结果删除失败，尝试常规删除（任务可能仍处于活动状态）
-            try {
-              await service.remove(task.gid)
-            } catch {
-              // 任务可能已不在 Aria2 中，忽略
-            }
-          }
-        }
-
-        // 2. 从持久化存储中删除
+        // 1. 从持久化存储中删除
         taskPersistenceService.removePersistedTask(task.gid)
 
         // 3. 从时间记录中删除
