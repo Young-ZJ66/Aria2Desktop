@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { formatClockTime, matchesSpeedRule } from './speedRule'
+import {
+  formatClockTime,
+  matchesSpeedRule,
+  buildSpeedLimitOptions,
+  buildSpeedRestoreOptions
+} from './speedRule'
 
 /**
  * 限速规则的时间匹配是"按星期/时段自动切换限速"的核心判定，
@@ -50,5 +55,70 @@ describe('formatClockTime', () => {
     expect(formatClockTime(new Date(2026, 0, 1, 9, 5))).toBe('09:05')
     expect(formatClockTime(new Date(2026, 0, 1, 0, 0))).toBe('00:00')
     expect(formatClockTime(new Date(2026, 0, 1, 23, 59))).toBe('23:59')
+  })
+})
+
+/**
+ * 限速指令的下发内容。
+ *
+ * 这里锁定的是一条用户可感知的边界：时段表的规则只填下载限速，
+ * 上传限速在别的页面单独配置；调度器若在"规则没设上传限速"时也照写 '0'，
+ * 用户配置的最大上传速度会在规则生效瞬间被静默清零。
+ */
+describe('buildSpeedLimitOptions', () => {
+  it('规则只有下载限速时，不下发上传限速', () => {
+    expect(buildSpeedLimitOptions({ downloadLimit: 512 * 1024, uploadLimit: 0 })).toEqual({
+      'max-overall-download-limit': String(512 * 1024)
+    })
+  })
+
+  it('缺少 uploadLimit 字段（旧数据）时同样不下发上传限速', () => {
+    expect(buildSpeedLimitOptions({ downloadLimit: 1024 })).toEqual({
+      'max-overall-download-limit': '1024'
+    })
+  })
+
+  it('规则显式指定上传限速时两者都下发', () => {
+    expect(buildSpeedLimitOptions({ downloadLimit: 2048, uploadLimit: 512 })).toEqual({
+      'max-overall-download-limit': '2048',
+      'max-overall-upload-limit': '512'
+    })
+  })
+
+  it('下载限速为 0 表示不限速，依然显式下发 0', () => {
+    expect(buildSpeedLimitOptions({ downloadLimit: 0 })).toEqual({
+      'max-overall-download-limit': '0'
+    })
+  })
+
+  it('负数、小数、NaN 都收敛为非负整数', () => {
+    expect(buildSpeedLimitOptions({ downloadLimit: -5 })).toEqual({
+      'max-overall-download-limit': '0'
+    })
+    expect(buildSpeedLimitOptions({ downloadLimit: 1536.9, uploadLimit: 99.9 })).toEqual({
+      'max-overall-download-limit': '1536',
+      'max-overall-upload-limit': '99'
+    })
+    expect(buildSpeedLimitOptions({ downloadLimit: Number.NaN })).toEqual({
+      'max-overall-download-limit': '0'
+    })
+  })
+})
+
+describe('buildSpeedRestoreOptions', () => {
+  it('从没下发过上传限速时，只回滚下载限速', () => {
+    expect(buildSpeedRestoreOptions(0)).toEqual({ 'max-overall-download-limit': '0' })
+  })
+
+  it('之前下发过上传限速时，把上传限速一起恢复为不限速', () => {
+    expect(buildSpeedRestoreOptions(512)).toEqual({
+      'max-overall-download-limit': '0',
+      'max-overall-upload-limit': '0'
+    })
+  })
+
+  it('负数等异常记录按"没下发过"处理', () => {
+    expect(buildSpeedRestoreOptions(-1)).toEqual({ 'max-overall-download-limit': '0' })
+    expect(buildSpeedRestoreOptions(Number.NaN)).toEqual({ 'max-overall-download-limit': '0' })
   })
 })

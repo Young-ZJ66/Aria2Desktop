@@ -5,7 +5,7 @@
  */
 
 import { callAria2Rpc } from '../utils/aria2Rpc'
-import { matchesSpeedRule, formatClockTime } from '../utils/speedRule'
+import { matchesSpeedRule, formatClockTime, buildSpeedLimitOptions, buildSpeedRestoreOptions } from '../utils/speedRule'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { createLogger } from '../utils/logger'
 import type { SpeedScheduleRule } from '../types/store'
@@ -19,6 +19,12 @@ const CHECK_INTERVAL_MS = 60 * 1000
 export class SpeedScheduler {
   private timer: NodeJS.Timeout | null = null
   private lastAppliedRuleName: string | null = null
+  /**
+   * 当前生效规则下发过的上传限速（0 表示没下发）。
+   * 记它是为了"只回滚自己改过的项"：上传限速不在本功能的 UI 里，
+   * 回滚时若一律写 0，会把用户单独配置的最大上传速度一起抹掉。
+   */
+  private appliedUploadLimit = 0
 
   /** 注：本类不再持有 store —— settings 读取统一走 utils/settingsAccessor */
   constructor() {}
@@ -37,6 +43,7 @@ export class SpeedScheduler {
       this.timer = null
     }
     this.lastAppliedRuleName = null
+    this.appliedUploadLimit = 0
   }
 
   /** 立即检查并应用匹配的规则 */
@@ -73,34 +80,28 @@ export class SpeedScheduler {
 
   /** 通过 RPC 应用限速 */
   private applyLimit(rule: SpeedScheduleRule, port: number, secret: string): void {
-    const options: Record<string, string> = {}
-
-    if (rule.downloadLimit > 0) {
-      options['max-overall-download-limit'] = String(rule.downloadLimit)
-    } else {
-      options['max-overall-download-limit'] = '0'
-    }
-
-    if (rule.uploadLimit > 0) {
-      options['max-overall-upload-limit'] = String(rule.uploadLimit)
-    } else {
-      options['max-overall-upload-limit'] = '0'
-    }
+    const options = buildSpeedLimitOptions(rule)
+    const uploadLimit = Number(options['max-overall-upload-limit'] ?? 0)
 
     logger.info(`[SpeedScheduler] Applying rule "${rule.name}":`, options)
-    callAria2Rpc({ port, secret, method: 'aria2.changeGlobalOption', params: [options] }).catch(err => {
-      logger.warn('[SpeedScheduler] Failed to apply speed limit:', err)
-    })
+    callAria2Rpc({ port, secret, method: 'aria2.changeGlobalOption', params: [options] })
+      .then(() => {
+        // 只有真的下发成功才记下来，清除时会按这个值决定要不要把上传限速一并回滚
+        this.appliedUploadLimit = uploadLimit
+      })
+      .catch(err => {
+        logger.warn('[SpeedScheduler] Failed to apply speed limit:', err)
+        this.appliedUploadLimit = 0
+      })
   }
 
-  /** 清除限速（恢复为无限制） */
+  /** 清除限速（只把本调度器改过的项恢复为无限制） */
   private clearLimit(port: number, secret: string): void {
-    logger.info('[SpeedScheduler] Clearing speed limit (no rule matched)')
-    callAria2Rpc({ port, secret, method: 'aria2.changeGlobalOption', params: [{
-      'max-overall-download-limit': '0',
-      'max-overall-upload-limit': '0'
-    }] }).catch(err => {
+    const options = buildSpeedRestoreOptions(this.appliedUploadLimit)
+    logger.info('[SpeedScheduler] Clearing speed limit (no rule matched)', options)
+    callAria2Rpc({ port, secret, method: 'aria2.changeGlobalOption', params: [options] }).catch(err => {
       logger.warn('[SpeedScheduler] Failed to clear speed limit:', err)
     })
+    this.appliedUploadLimit = 0
   }
 }

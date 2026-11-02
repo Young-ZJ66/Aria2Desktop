@@ -46,3 +46,58 @@ export function matchesSpeedRule(
 export function formatClockTime(date: Date): string {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
+
+/** aria2 全局选项里表示"不限速"的取值 */
+export const LIMIT_UNLIMITED = '0'
+
+/** 生成限速指令所需的规则字段（只取数值，便于单测构造） */
+export interface SpeedRuleLimits {
+  downloadLimit: number
+  /** 可缺省：时段表里没有上传限速输入框，历史数据也没有这项 */
+  uploadLimit?: number
+}
+
+/** 把任意数值规整为「非负整数」，NaN / 负数 / 小数都收敛到安全值 */
+function normalizeLimit(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 0
+  return Math.max(0, Math.trunc(value))
+}
+
+/**
+ * 生成「应用限速」的 aria2 全局选项。
+ *
+ * 上传限速只在规则显式指定（> 0）时才下发——这是刻意的：
+ * 本调度器的规则来自「下载设置 → 速度调度」的时段表，那里只填下载限速；
+ * 若照旧无条件写 `max-overall-upload-limit: '0'`，用户在别处单独配置的
+ * 最大上传速度会在规则生效的瞬间被静默清零，且窗口结束后也不会恢复。
+ */
+export function buildSpeedLimitOptions(rule: SpeedRuleLimits): Record<string, string> {
+  const options: Record<string, string> = {
+    'max-overall-download-limit': String(normalizeLimit(rule.downloadLimit))
+  }
+
+  const uploadLimit = normalizeLimit(rule.uploadLimit)
+  if (uploadLimit > 0) {
+    options['max-overall-upload-limit'] = String(uploadLimit)
+  }
+
+  return options
+}
+
+/**
+ * 生成「清除限速」的 aria2 全局选项（恢复为无限制）。
+ *
+ * 同样只回滚本调度器真正改过的项：`appliedUploadLimit` 为 0 说明从没下发过上传限速，
+ * 此时去写上传限制等于把用户的独立配置也算作"调度器施加的限速"。
+ */
+export function buildSpeedRestoreOptions(appliedUploadLimit: number): Record<string, string> {
+  const options: Record<string, string> = {
+    'max-overall-download-limit': LIMIT_UNLIMITED
+  }
+
+  if (normalizeLimit(appliedUploadLimit) > 0) {
+    options['max-overall-upload-limit'] = LIMIT_UNLIMITED
+  }
+
+  return options
+}
