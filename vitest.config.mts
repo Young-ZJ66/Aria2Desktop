@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url'
  *   将来若要测需要 DOM 的代码，在该测试文件头加 `// @vitest-environment happy-dom` 单独切换。
  * - 测试文件与源码同目录（`*.test.ts`），并被 `tsconfig.electron.json` 排除，
  *   避免被编译进主进程产物 `dist/electron`。
+ * - `scripts/**\/*.test.mjs` 一并纳入：打包产物冒烟的产物定位逻辑是纯函数，
+ *   三个平台的目录命名差异最容易悄悄写错，值得单测（.mjs 无需经 TS 编译）。
  */
 export default defineConfig({
   resolve: {
@@ -21,7 +23,7 @@ export default defineConfig({
     }
   },
   test: {
-    include: ['electron/**/*.test.ts', 'src/**/*.test.ts'],
+    include: ['electron/**/*.test.ts', 'src/**/*.test.ts', 'scripts/**/*.test.mjs'],
     environment: 'node'
   }
 })

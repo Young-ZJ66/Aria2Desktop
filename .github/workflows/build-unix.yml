@@ -2,6 +2,10 @@ name: 构建 macOS / Linux 安装包
 
 # 手动触发：在不发版的前提下产出 macOS / Linux 安装包，供人工验证与试装。
 #
+# 产物除了静态校验（文件齐、体积对）之外，还会**真的启动一次**：macOS 直接跑
+# .app 里的可执行文件，Linux 用 xvfb 造虚拟屏再跑。能不能起来、引擎有没有拉起来、
+# 本地接口有没有监听——这些静态校验看不出来。
+#
 # 与 release.yml 的分工：
 # - release.yml 打 tag 时会在真实 macos-latest / ubuntu-latest 上构建，并把产物挂到 Release；
 # - 本流程只上传 Actions 产物（workflow artifact），**不创建 Release、不碰 tag**，
@@ -65,6 +69,9 @@ jobs:
       - name: 校验安装包产物
         run: node scripts/verify-dist.mjs mac
 
+      # 静态校验只能证明"文件在、体积对"，证明不了"装完能起来"。
+      # 这里真的启动一次 .app：引擎起没起来、本地接口有没有监听，只有跑过才知道。
+      # 顺序放在上传之后：冒烟失败不该连产物都拿不到——手动跑一次就是为了拿到包 + 结论。
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
@@ -73,6 +80,9 @@ jobs:
             release/*.dmg
             release/*.zip
           if-no-files-found: error
+
+      - name: 冒烟打包产物（启动一次）
+        run: node scripts/smoke-packaged.mjs --timeout 120000 --spawn-args=--disable-gpu
 
   build-linux:
     if: inputs.platform != 'mac'
@@ -114,6 +124,8 @@ jobs:
       - name: 校验安装包产物
         run: node scripts/verify-dist.mjs linux
 
+      # Linux 上是无显示环境：用 xvfb 造一块虚拟屏，再启动一次打包产物。
+      # --no-sandbox 只为容器里没有 user namespace 的情况（只关渲染进程沙箱，启动路径不变）。
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
@@ -122,3 +134,9 @@ jobs:
             release/*.AppImage
             release/*.deb
           if-no-files-found: error
+
+      - name: 准备虚拟显示
+        run: command -v xvfb-run >/dev/null || (sudo apt-get update && sudo apt-get install -y xvfb)
+
+      - name: 冒烟打包产物（启动一次）
+        run: xvfb-run -a node scripts/smoke-packaged.mjs --timeout 120000 --spawn-args="--no-sandbox --disable-gpu --disable-dev-shm-usage"

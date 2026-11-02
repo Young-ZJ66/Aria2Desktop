@@ -7,10 +7,16 @@
  * 只有"装完之后再启动一次"才会暴露——v1.2.0 的自动解压事故就是同一个教训：
  * 类型检查、单测、扩展校验全绿，坏在没人把成品跑一遍。
  *
+ * 三个平台都支持：Windows 读 `release/win-unpacked`，macOS 读 `release/mac-arm64`
+ * （或 mac / mac-universal）下的 `Aria2Desktop.app/Contents/MacOS/Aria2Desktop`，
+ * Linux 读 `release/linux-unpacked` 里那个主可执行文件。macOS/Linux 的产物一直在发，
+ * 却从来没被真正启动过——本脚本就是给它们补上这最后一步。
+ *
  * 用法：
- *   node scripts/smoke-packaged.mjs                     # 默认 release/win-unpacked/Aria2Desktop.exe
+ *   node scripts/smoke-packaged.mjs                     # 按平台挑默认的免安装产物
  *   node scripts/smoke-packaged.mjs --exe <路径> --timeout 120000 --keep
  *   node scripts/smoke-packaged.mjs --retries 0         # CI 里想一次定生死时用
+ *   xvfb-run -a node scripts/smoke-packaged.mjs --spawn-args=--no-sandbox   # 无显示的 Linux
  *
  * 默认失败后重试一次：Windows 上首次启动 200 MB 级的未签名 exe 会被 Defender 拦一下、
  * 磁盘缓存也还是冷的，历史上真出现过"同代码第二次就过"的抖动（dc5620a）。
@@ -25,28 +31,33 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-const args = process.argv.slice(2)
-const argValue = (name, fallback) => {
-  const index = args.indexOf(`--${name}`)
-  return index >= 0 && args[index + 1] ? args[index + 1] : fallback
+/**
+ * electron-builder 的免安装目录按平台与架构分家：
+ * - Windows：`win-unpacked` / `win-ia32-unpacked`，可执行文件固定叫 Aria2Desktop.exe；
+ * - macOS：`mac` / `mac-arm64` / `mac-universal`，可执行文件藏在 .app/Contents/MacOS 里；
+ * - Linux：`linux-unpacked`，可执行文件名由 executableName 推导，不写死、直接按"可执行的
+ *   大文件"认领（chrome-sandbox、crashpad 这些同名候选都小于 10 MB）。
+ * 发版矩阵里每个平台各有自己的目录，写死一个就会在其中一侧找不到文件。
+ */
+const WIN_UNPACKED_DIR_RE = /^win(-[a-z0-9]+)?-unpacked$/
+const MAC_UNPACKED_DIR_RE = /^mac(-[a-z0-9]+)?$/
+
+function listDirectories(parent) {
+  try {
+    return fs
+      .readdirSync(parent, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(parent, entry.name))
+  } catch {
+    return []
+  }
 }
 
-/**
- * electron-builder 的免安装目录按架构分家：x64 是 `win-unpacked`，32 位是
- * `win-ia32-unpacked`（arm64 同理）。发版矩阵里两个架构各跑一次冒烟，
- * 写死一个目录就会在其中一侧找不到文件——所以默认按已有目录推断。
- */
-const UNPACKED_DIR_RE = /^win(-[a-z0-9]+)?-unpacked$/
-
-function resolveDefaultExe() {
-  const releaseDir = path.join(root, 'release')
-  const candidates = fs.existsSync(releaseDir)
-    ? fs
-        .readdirSync(releaseDir, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory() && UNPACKED_DIR_RE.test(entry.name))
-        .map((entry) => path.join(releaseDir, entry.name, 'Aria2Desktop.exe'))
-        .filter((file) => fs.existsSync(file))
-    : []
+function resolveWindowsExecutable(releaseDir) {
+  const candidates = listDirectories(releaseDir)
+    .filter((dir) => WIN_UNPACKED_DIR_RE.test(path.basename(dir)))
+    .map((dir) => path.join(dir, 'Aria2Desktop.exe'))
+    .filter((file) => fs.existsSync(file))
   if (candidates.length === 1) return candidates[0]
   if (candidates.length > 1) {
     // 同时存在多个架构时优先 x64（正是默认构建产物），其余靠 --exe 指定
@@ -55,12 +66,55 @@ function resolveDefaultExe() {
   return path.join(releaseDir, 'win-unpacked', 'Aria2Desktop.exe')
 }
 
-const exePath = argValue('exe')
-  ? path.resolve(root, argValue('exe'))
-  : resolveDefaultExe()
-const timeoutMs = Number(argValue('timeout', '90000'))
-const keepData = args.includes('--keep')
-const retries = Number(argValue('retries', '1'))
+function resolveMacExecutable(releaseDir) {
+  const candidates = listDirectories(releaseDir)
+    .filter((dir) => MAC_UNPACKED_DIR_RE.test(path.basename(dir)))
+    .map((dir) => path.join(dir, 'Aria2Desktop.app', 'Contents', 'MacOS', 'Aria2Desktop'))
+    .filter((file) => fs.existsSync(file))
+  if (candidates.length) {
+    return candidates.find((file) => /mac-arm64/.test(file)) ?? candidates[0]
+  }
+  return path.join(releaseDir, 'mac-arm64', 'Aria2Desktop.app', 'Contents', 'MacOS', 'Aria2Desktop')
+}
+
+const LINUX_MAIN_BINARY_MIN_BYTES = 10 * 1024 * 1024
+
+/**
+ * 执行位判定单独抽出来：Windows 上 chmod 不映射成 POSIX 执行位，
+ * 这层可替换才能在 Windows 开发机上把 Linux 分支的用例也跑起来。
+ */
+function hasExecutableBit(mode) {
+  return (mode & 0o111) !== 0
+}
+
+function resolveLinuxExecutable(releaseDir, isExecutable = hasExecutableBit) {
+  const unpacked = path.join(releaseDir, 'linux-unpacked')
+  for (const entry of fs.existsSync(unpacked) ? fs.readdirSync(unpacked, { withFileTypes: true }) : []) {
+    if (!entry.isFile()) continue
+    const file = path.join(unpacked, entry.name)
+    try {
+      const stat = fs.statSync(file)
+      // 主可执行文件几十 MB；chrome-sandbox(≈15KB)、chrome_crashpad_handler(≈1MB) 都远小于此
+      if (stat.size >= LINUX_MAIN_BINARY_MIN_BYTES && isExecutable(stat.mode)) return file
+    } catch {
+      // 读不到的条目直接跳过，交给下面的兜底
+    }
+  }
+  return path.join(unpacked, 'aria2-desktop')
+}
+
+function resolveDefaultExe(releaseDir = path.join(root, 'release')) {
+  if (process.platform === 'darwin') return resolveMacExecutable(releaseDir)
+  if (process.platform === 'linux') return resolveLinuxExecutable(releaseDir)
+  return resolveWindowsExecutable(releaseDir)
+}
+
+const BUILD_HINT =
+  process.platform === 'darwin'
+    ? 'npx electron-builder --mac --publish never'
+    : process.platform === 'linux'
+      ? 'npx electron-builder --linux --x64 --publish never'
+      : 'npm run dist:win64:nsis（或 npx electron-builder --win --x64 --dir）'
 
 /** 启动成功的判据：引擎起来了，扩展本地接口也起来了（两条都在主进程日志里） */
 const EXPECTED_MARKERS = [
@@ -68,11 +122,45 @@ const EXPECTED_MARKERS = [
   { name: '扩展本地接口已在监听', pattern: /浏览器扩展本地接口已启动/ }
 ]
 
-if (!fs.existsSync(exePath)) {
-  console.error(`找不到打包产物：${exePath}`)
-  console.error('先跑一次 `npm run dist:win64:nsis`（或 `npx electron-builder --win --x64 --dir`）再执行冒烟。')
-  process.exit(2)
+/**
+ * 解析命令行选项并校验产物存在。
+ * 单独成函数是为了让本文件可以被测试 import：顶层不再有副作用，
+ * 产物路径推断（尤其 macOS/Linux 那两支）才能被单元测试覆盖。
+ */
+function readOptions(argv = process.argv.slice(2)) {
+  const value = (name, fallback) => {
+    // 同时支持 `--timeout 120000` 与 `--spawn-args=--no-sandbox` 两种写法
+    const inline = argv.find((argument) => argument.startsWith(`--${name}=`))
+    if (inline) return inline.slice(name.length + 3)
+    const index = argv.indexOf(`--${name}`)
+    return index >= 0 && argv[index + 1] ? argv[index + 1] : fallback
+  }
+  const exePath = value('exe') ? path.resolve(root, value('exe')) : resolveDefaultExe()
+  const options = {
+    exePath,
+    timeoutMs: Number(value('timeout', '90000')),
+    keepData: argv.includes('--keep'),
+    retries: Number(value('retries', '1')),
+    /** 额外的启动参数：Linux 容器里无 user namespace 时需要 --no-sandbox */
+    spawnArgs: value('spawn-args', '')
+      .split(/\s+/)
+      .filter(Boolean)
+  }
+
+  if (!fs.existsSync(exePath)) {
+    console.error(`找不到打包产物：${exePath}`)
+    console.error(`先跑一次 ${BUILD_HINT} 再执行冒烟。`)
+    process.exit(2)
+  }
+  if (process.platform !== 'win32' && (fs.statSync(exePath).mode & 0o111) === 0) {
+    console.error(`打包产物没有执行权限：${exePath}`)
+    console.error('解压/拷贝过程可能丢了 +x，先 chmod +x 再执行冒烟。')
+    process.exit(2)
+  }
+  return options
 }
+
+export { resolveWindowsExecutable, resolveMacExecutable, resolveLinuxExecutable, resolveDefaultExe, readOptions }
 
 /** 借系统拿一个空闲端口，避免和本机正在运行的正式版抢 6800 */
 function findFreePort() {
@@ -160,26 +248,49 @@ function stopProcess(child) {
   if (process.platform === 'win32') {
     // 应用会派生 aria2 子进程，只杀父进程会留下孤儿引擎
     spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
-  } else {
-    child.kill('SIGTERM')
+    return
   }
+  // POSIX 上 detached 让子进程自成进程组，按 -pid 一次性收掉它和它拉起的 aria2
+  try {
+    process.kill(-child.pid, 'SIGTERM')
+  } catch {
+    try {
+      child.kill('SIGTERM')
+    } catch {
+      // 已经退出
+    }
+  }
+  setTimeout(() => {
+    try {
+      process.kill(-child.pid, 'SIGKILL')
+    } catch {
+      // 正常退出后进程组已不存在
+    }
+  }, 1500).unref()
 }
 
-async function runAttempt(attempt, attemptCount) {
+async function runAttempt(options, attempt, attemptCount) {
   const rpcPort = await findFreePort()
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'aria2-smoke-'))
   seedUserData(userData, rpcPort)
   const logFile = path.join(userData, 'logs', 'main.log')
 
   console.log(`\n=== 打包产物冒烟${attemptCount > 1 ? `（第 ${attempt}/${attemptCount} 次尝试）` : ''}`)
-  console.log(`可执行文件: ${exePath}`)
+  console.log(`可执行文件: ${options.exePath}`)
   console.log(`隔离数据: ${userData}（RPC ${rpcPort}）`)
 
   const env = { ...process.env, ARIA2_E2E_USER_DATA: userData }
   // 在 DSH 这类环境里该变量会让 electron 以 Node 身份启动（app 未定义，直接崩）
   delete env.ELECTRON_RUN_AS_NODE
 
-  const child = spawn(exePath, [], { env, stdio: ['ignore', 'pipe', 'pipe'] })
+  if (options.spawnArgs.length) console.log(`启动参数: ${options.spawnArgs.join(' ')}`)
+
+  const child = spawn(options.exePath, options.spawnArgs, {
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    // POSIX 上自成进程组，停止时能连引擎子进程一起收掉
+    detached: process.platform !== 'win32'
+  })
   let stderr = ''
   let stdout = ''
   child.stderr?.on('data', (chunk) => {
@@ -200,7 +311,7 @@ async function runAttempt(attempt, attemptCount) {
       const hit = await waitFor(() => {
         const line = readLog(logFile).split('\n').find((text) => marker.pattern.test(text))
         return line ? line.trim() : null
-      }, { timeout: timeoutMs })
+      }, { timeout: options.timeoutMs })
 
       if (hit) {
         results.push({ name: marker.name, ok: true, detail: hit })
@@ -210,8 +321,8 @@ async function runAttempt(attempt, attemptCount) {
         const detail = exited
           ? `应用在等待期间退出（exitCode=${child.exitCode}）`
           : hasLog
-            ? `超时 ${timeoutMs}ms 未出现`
-            : `超时 ${timeoutMs}ms，应用没有写出日志（可能启动即退出）`
+            ? `超时 ${options.timeoutMs}ms 未出现`
+            : `超时 ${options.timeoutMs}ms，应用没有写出日志（可能启动即退出）`
         results.push({ name: marker.name, ok: false, detail })
         break
       }
@@ -229,7 +340,7 @@ async function runAttempt(attempt, attemptCount) {
 }
 
 /** 失败现场：打印日志尾部与子进程输出，并落一份到 test-results/ 供 CI 作为 artifact 上传 */
-function reportFailure(outcome, attempt, attemptCount) {
+function reportFailure(options, outcome, attempt, attemptCount) {
   const fullLog = readLog(outcome.logFile)
   const tail = fullLog.split('\n').slice(-120).join('\n')
   console.error(`\n--- 主进程日志尾部（第 ${attempt}/${attemptCount} 次尝试，最多 120 行）---`)
@@ -262,7 +373,7 @@ function reportFailure(outcome, attempt, attemptCount) {
     console.error(`诊断写入失败：${error.message}`)
   }
 
-  if (outcome.exitCode === 2147483651) {
+  if (process.platform === 'win32' && outcome.exitCode === 2147483651) {
     // 0x80000003：启动即崩，且日志文件都没生成。常见于受限沙箱/ACL 拒绝执行工作区内的文件，
     // 与产品无关；把免安装目录复制到工作区外再跑一次即可区分。
     console.error('\n提示：0x80000003 多为沙箱/ACL 拒绝执行，先把 release/win-unpacked 复制到工作区外再试：')
@@ -270,8 +381,8 @@ function reportFailure(outcome, attempt, attemptCount) {
   }
 }
 
-function cleanup(userData) {
-  if (keepData) {
+function cleanup(options, userData) {
+  if (options.keepData) {
     console.log(`\n按 --keep 保留隔离数据：${userData}`)
     return
   }
@@ -283,13 +394,14 @@ function cleanup(userData) {
 }
 
 async function main() {
-  const attemptCount = retries + 1
+  const options = readOptions()
+  const attemptCount = options.retries + 1
   let lastOutcome = null
 
   for (let attempt = 1; attempt <= attemptCount; attempt++) {
     if (attempt > 1) await sleep(5000)
 
-    const outcome = await runAttempt(attempt, attemptCount)
+    const outcome = await runAttempt(options, attempt, attemptCount)
     lastOutcome = outcome
 
     if (outcome.ok) {
@@ -298,13 +410,13 @@ async function main() {
         console.log(`::warning::打包产物冒烟第 ${attempt} 次才通过（首次失败，多为环境抖动）`)
       }
       console.log(`\n结果：${outcome.results.length} 项通过，0 项失败`)
-      cleanup(outcome.userData)
+      cleanup(options, outcome.userData)
       return 0
     }
 
-    reportFailure(outcome, attempt, attemptCount)
+    reportFailure(options, outcome, attempt, attemptCount)
     if (attempt < attemptCount) console.log(`\n第 ${attempt} 次失败，重试以排除环境抖动`)
-    cleanup(outcome.userData)
+    cleanup(options, outcome.userData)
   }
 
   const passed = lastOutcome ? lastOutcome.results.length - lastOutcome.failed.length : 0
@@ -313,9 +425,13 @@ async function main() {
   return 1
 }
 
-// 等待退出，避免任务在子进程还活着时先结束
-process.on('exit', () => {
-  // 兜底：正常路径已在 runAttempt 的 finally 里停过
-})
+// 只有被直接执行时才跑冒烟；被测试 import 时只取上面的纯函数
+const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+if (invokedDirectly) {
+  // 等待退出，避免任务在子进程还活着时先结束
+  process.on('exit', () => {
+    // 兜底：正常路径已在 runAttempt 的 finally 里停过
+  })
 
-process.exitCode = await main()
+  process.exitCode = await main()
+}
