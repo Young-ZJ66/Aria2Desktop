@@ -10,6 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  checkFreshDefaults,
   readOptions,
   resolveDefaultExe,
   resolveLinuxExecutable,
@@ -145,5 +146,28 @@ describe('readOptions', () => {
     expect(options.retries).toBe(1)
     expect(options.keepData).toBe(false)
     expect(options.spawnArgs).toEqual([])
+  })
+})
+
+describe('checkFreshDefaults', () => {
+  it('空白目录里没有配置时两条都失败', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smoke-fresh-'))
+    const results = checkFreshDefaults(dir)
+    expect(results.map((r) => r.ok)).toEqual([false, false])
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('应用自己生出设置文件与 aria2.conf 时通过', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smoke-fresh-'))
+    fs.mkdirSync(path.join(dir, 'config'), { recursive: true })
+    fs.mkdirSync(path.join(dir, 'aria2'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'config', 'aria2-desktop-settings.json'), '{}')
+    fs.writeFileSync(
+      path.join(dir, 'aria2', 'aria2.conf'),
+      'dir=D:/Downloads\nsave-session=D:/x/aria2.session\ninput-file=D:/x/aria2.session\n'
+    )
+    const results = checkFreshDefaults(dir)
+    expect(results.map((r) => r.ok)).toEqual([true, true])
+    fs.rmSync(dir, { recursive: true, force: true })
   })
 })

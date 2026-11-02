@@ -107,6 +107,11 @@ jobs:
       - name: 冒烟打包产物
         run: node scripts/smoke-packaged.mjs --timeout 120000
 
+      # 新用户只会走这一条路径：数据目录是空的，配置得应用自己长出来。
+      # 老用户的目录里早就有配置，所以平时永远测不到它。
+      - name: 冒烟首次启动（空白数据目录）
+        run: node scripts/smoke-packaged.mjs --fresh --timeout 120000
+
       # 作业日志在网页上不好翻，失败时把冒烟自己写的诊断（退出码、stdout/stderr、主进程日志）带出来
       - name: 失败时保留诊断
         if: failure()

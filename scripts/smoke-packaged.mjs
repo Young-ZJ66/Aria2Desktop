@@ -16,7 +16,13 @@
  *   node scripts/smoke-packaged.mjs                     # 按平台挑默认的免安装产物
  *   node scripts/smoke-packaged.mjs --exe <路径> --timeout 120000 --keep
  *   node scripts/smoke-packaged.mjs --retries 0         # CI 里想一次定生死时用
+ *   node scripts/smoke-packaged.mjs --fresh             # 空白数据目录，模拟全新安装
  *   xvfb-run -a node scripts/smoke-packaged.mjs --spawn-args=--no-sandbox   # 无显示的 Linux
+ *
+ * `--fresh` 走的是新用户唯一会走的那条路：不预置设置文件，让应用自己生成默认配置。
+ * 老用户的数据目录里早就有配置，所以这条路径平时永远测不到——少写一个默认 conf，
+ * 结果就是所有人第一次打开都起不来引擎。该模式用的是产品默认 RPC 端口（通常是 6800
+ * 与本机正在运行的正式版冲突时请先退出它），CI 上没有这个顾虑。
  *
  * 默认失败后重试一次：Windows 上首次启动 200 MB 级的未签名 exe 会被 Defender 拦一下、
  * 磁盘缓存也还是冷的，历史上真出现过"同代码第二次就过"的抖动（dc5620a）。
@@ -140,6 +146,8 @@ function readOptions(argv = process.argv.slice(2)) {
     exePath,
     timeoutMs: Number(value('timeout', '90000')),
     keepData: argv.includes('--keep'),
+    /** 不预置设置与 aria2.conf：模拟全新安装，让应用自己长默认配置 */
+    fresh: argv.includes('--fresh'),
     retries: Number(value('retries', '1')),
     /** 额外的启动参数：Linux 容器里无 user namespace 时需要 --no-sandbox */
     spawnArgs: value('spawn-args', '')
@@ -269,10 +277,36 @@ function stopProcess(child) {
   }, 1500).unref()
 }
 
+/**
+ * 首次启动该自己长出来的东西：老用户的数据目录里早就有配置，这条路径平时测不到。
+ */
+export function checkFreshDefaults(userData) {
+  const settingsPath = path.join(userData, 'config', 'aria2-desktop-settings.json')
+  const confPath = path.join(userData, 'aria2', 'aria2.conf')
+  const results = [{ name: '首次启动写出了默认设置文件', ok: fs.existsSync(settingsPath), detail: settingsPath }]
+
+  let confText = ''
+  try {
+    confText = fs.readFileSync(confPath, 'utf-8')
+  } catch {
+    // 缺失会在下面断言里体现
+  }
+  results.push({
+    name: '首次启动生成了 aria2.conf（含会话文件配置）',
+    ok: /^save-session=/m.test(confText) && /^input-file=/m.test(confText),
+    detail: confText ? `${confText.split('\n').length} 行` : '(缺失)'
+  })
+  return results
+}
+
 async function runAttempt(options, attempt, attemptCount) {
   const rpcPort = await findFreePort()
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'aria2-smoke-'))
-  seedUserData(userData, rpcPort)
+  if (options.fresh) {
+    console.log('\n（--fresh：数据目录保持空白，模拟全新安装）')
+  } else {
+    seedUserData(userData, rpcPort)
+  }
   const logFile = path.join(userData, 'logs', 'main.log')
 
   console.log(`\n=== 打包产物冒烟${attemptCount > 1 ? `（第 ${attempt}/${attemptCount} 次尝试）` : ''}`)
@@ -326,6 +360,11 @@ async function runAttempt(options, attempt, attemptCount) {
         results.push({ name: marker.name, ok: false, detail })
         break
       }
+    }
+
+    // 引擎起来了才谈"它自己长出的配置对不对"；前面失败的话这里没必要再报一遍
+    if (options.fresh && results.every((result) => result.ok)) {
+      results.push(...checkFreshDefaults(userData))
     }
   } finally {
     stopProcess(child)
