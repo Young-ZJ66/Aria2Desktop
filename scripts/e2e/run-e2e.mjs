@@ -262,7 +262,13 @@ async function main() {
   if (skipExtension) {
     console.log('SKIP 扩展 E2E：按参数跳过')
   } else if (!resolveChromePath()) {
-    console.log('SKIP 扩展 E2E：未找到 Chrome for Testing（设置 E2E_CHROME_PATH 后启用）')
+    // CI 上设了 E2E_REQUIRE_CHROME=1：静默跳过会让人以为扩展有覆盖，其实一项没跑，
+    // 所以这里明确判失败，而不是打印一行容易被忽略的 SKIP。
+    if (process.env.E2E_REQUIRE_CHROME === '1') {
+      reporter.check('扩展 E2E 可执行（CI 要求，但没找到 Chrome for Testing）', false)
+    } else {
+      console.log('SKIP 扩展 E2E：未找到 Chrome for Testing（设置 E2E_CHROME_PATH 后启用）')
+    }
   } else {
     console.log('==> 扩展 E2E（Chrome for Testing）')
     await runExtensionCheck({ extensionDir: path.join(root, 'extension'), outDir, reporter })

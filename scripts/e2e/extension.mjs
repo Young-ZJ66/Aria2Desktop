@@ -19,7 +19,8 @@ import { capture, collectErrors, connect, evalIn, httpJson, killTree, sleep, wai
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 const DEFAULT_CHROME_CANDIDATES = [
-  // 项目内缓存（`npm run e2e:chrome` 下载到此处，随 node_modules 一起被忽略）
+  // 项目内缓存（把官方 Chrome for Testing 包解压到此处，随 node_modules 一起被忽略；
+  // CI 由 .github/workflows/e2e.yml 的"准备 Chrome for Testing"步骤下载后经 E2E_CHROME_PATH 传入）
   path.join(root, 'node_modules', '.cache', 'chrome-for-testing', 'chrome-win64', 'chrome.exe'),
   path.join(root, 'node_modules', '.cache', 'chrome-for-testing', 'chrome-mac-arm64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'),
   path.join(root, 'node_modules', '.cache', 'chrome-for-testing', 'chrome-linux64', 'chrome'),

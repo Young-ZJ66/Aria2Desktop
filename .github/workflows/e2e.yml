@@ -45,9 +45,33 @@ jobs:
       # （tar: Cannot connect to D: resolve failed），类型检查、单测、扩展校验全绿，
       # 只有真跑一遍"下载后解压"才暴露。
       #
-      # 运行器上没有 Chrome for Testing 时，扩展与配对两组检查会自动跳过（日志里明确写 SKIP），
-      # 不影响应用侧断言。
+      # 扩展与配对两组检查需要 Chrome for Testing：正式版 Chrome 从 137 起不再支持
+      # --load-extension（实测把运行器预装的 Chrome 指过去，扩展根本没加载出来，
+      # 测试会直接报 "扩展未在浏览器中加载"），所以这里从官方清单取当前 Stable 的 win64 包。
+      #
+      # 取不到时只发 warning、不让"准备"这一步自己红；但下一行的 E2E 带
+      # E2E_REQUIRE_CHROME=1，会明确判失败——扩展覆盖静默消失比红一次更糟。
+      - name: 准备 Chrome for Testing（扩展 E2E 依赖）
+        shell: pwsh
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          try {
+            $stable = (Invoke-RestMethod 'https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json').channels.Stable
+            $url = ($stable.downloads.chrome | Where-Object platform -eq 'win64').url
+            $zip = Join-Path $env:RUNNER_TEMP 'chrome-for-testing.zip'
+            Invoke-WebRequest $url -OutFile $zip
+            Expand-Archive $zip -DestinationPath (Join-Path $env:RUNNER_TEMP 'cft') -Force
+            $exe = Join-Path $env:RUNNER_TEMP 'cft\chrome-win64\chrome.exe'
+            "E2E_CHROME_PATH=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            Write-Output "Chrome for Testing $($stable.version) → $exe"
+          } catch {
+            Write-Output "::warning::未能准备 Chrome for Testing（$($_.Exception.Message)），扩展与配对检查将跳过"
+          }
+
       - name: 应用端到端测试
+        env:
+          # 缺 Chrome for Testing 时判失败而不是跳过：CI 上必须真的跑到扩展与配对两组
+          E2E_REQUIRE_CHROME: '1'
         run: npm run test:e2e
 
       # 失败时把截图与主进程日志带出来。CI 上看不见窗口，没有这些现场只能靠猜
