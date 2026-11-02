@@ -6,9 +6,11 @@
 export type { AppSettings } from '@/shared/appSettings'
 import type { AppSettings } from '@/shared/appSettings'
 import { mergeCategoryRules } from '@/shared/fileCategories'
+import { pickLocale, systemLocale } from '@/shared/locale'
 
 export const defaultSettings: AppSettings = {
-  language: 'zh-CN',
+  // 首次启动没有用户选择，按系统语言定；否则英文用户会先看到一屏中文
+  language: pickLocale(null, systemLocale()),
   theme: 'light',
   refreshInterval: 1000,
   autoConnect: true,

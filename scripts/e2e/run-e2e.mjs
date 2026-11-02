@@ -108,6 +108,8 @@ function prepareIsolatedUserData({ rpcPort, downloadDir }) {
     JSON.stringify(
       {
         settings: {
+          // 断言依赖中文文案，不能让它跟着运行器系统语言走
+          language: 'zh-CN',
           aria2: { ...localConfig },
           connectionProfiles: [{ id: 'default', name: '', config: { ...localConfig } }],
           activeProfileId: 'default'
