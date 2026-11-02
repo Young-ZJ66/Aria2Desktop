@@ -131,6 +131,10 @@ const electronAPI = {
   pluginsDir: () => ipcRenderer.invoke('plugins-dir'),
   pluginsOpenDir: () => ipcRenderer.invoke('plugins-open-dir'),
 
+  // 应用自身日志：报障时用户需要附上这个文件，界面提供路径与「打开目录」
+  getLogsPath: () => ipcRenderer.invoke('get-logs-path'),
+  openLogsDir: () => ipcRenderer.invoke('open-logs-dir'),
+
   // 下载事件转发给主进程插件系统（aria2 通知由渲染层的 WebSocket 接收，插件运行在主进程）
   notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart', gid: string, name: string) =>
     ipcRenderer.send('download-event', kind, gid, name),

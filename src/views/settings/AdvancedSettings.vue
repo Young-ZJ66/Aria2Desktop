@@ -131,13 +131,33 @@
             :disabled="!connectionStore.isConnected"
           />
         </n-form-item>
+
+        <!-- 应用自身日志与上面这些 aria2 选项无关：报障时用户要附上的就是这里这个文件 -->
+        <n-form-item>
+          <template #label>
+            <TipLabel :label="t('settings.advanced.appLog')" :tip="t('settings.advanced.appLogTip')" />
+          </template>
+          <n-input-group>
+            <n-input
+              :value="logsDir"
+              readonly
+              :placeholder="t('settings.advanced.appLogLoading')"
+            />
+            <n-button @click="openLogsDir">
+              <template #icon>
+                <n-icon><FolderOpenOutline /></n-icon>
+              </template>
+              {{ t('settings.advanced.openLogsDir') }}
+            </n-button>
+          </n-input-group>
+        </n-form-item>
       </n-card>
     </n-form>
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
@@ -153,6 +173,33 @@ import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
 const formRef = ref<FormInst | null>(null)
+
+// 应用自身日志路径：由主进程从 electron-log 解析，渲染层只展示与打开
+const logsDir = ref('')
+
+async function loadLogsPath(): Promise<void> {
+  try {
+    const result = await window.electronAPI?.getLogsPath?.()
+    logsDir.value = result?.dir || ''
+  } catch {
+    // 旧版 preload 没有这个方法时保持为空，不影响其它设置项
+  }
+}
+
+async function openLogsDir(): Promise<void> {
+  try {
+    const result = await window.electronAPI?.openLogsDir?.()
+    if (result?.success) {
+      if (result.dir) logsDir.value = result.dir
+      return
+    }
+    message.error(result?.error || t('settings.advanced.openLogsFailed'))
+  } catch (error) {
+    message.error(String(error))
+  }
+}
+
+onMounted(loadLogsPath)
 
 const eventPollOptions = [
   { label: 'epoll', value: 'epoll' },

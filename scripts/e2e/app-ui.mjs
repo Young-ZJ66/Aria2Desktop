@@ -367,6 +367,38 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     String(extensionCardText).replace(/\n/g, '|').slice(0, 140)
   )
 
+  // —— 高级设置页：应用日志目录（报障时用户得能一键找到 main.log） ——
+  const clickedAdvancedTab = await evalIn(
+    session,
+    `(() => {
+      const tab = [...document.querySelectorAll('.settings-dialog-body .n-tabs-tab')]
+        .find((e) => /高级设置|Advanced/i.test(e.textContent || ''))
+      if (!tab) return 'no-tab'
+      tab.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('切换到「高级设置」页', clickedAdvancedTab === 'clicked', String(clickedAdvancedTab))
+  await sleep(1200)
+  const logsRow = await evalIn(
+    session,
+    `(() => {
+      const body = document.querySelector('.settings-dialog-body')
+      if (!body) return { label: false, path: '' }
+      const labels = [...body.querySelectorAll('.n-form-item-label')].map((e) => (e.textContent || '').trim())
+      const inputs = [...body.querySelectorAll('input')].map((i) => i.value || '')
+      return {
+        label: labels.some((l) => /应用日志目录|Application Log Directory/i.test(l)),
+        path: inputs.find((v) => /logs[\\\\/]?$/i.test(v)) || ''
+      }
+    })()`
+  )
+  reporter.check(
+    '高级设置显示应用日志目录',
+    logsRow?.label === true && !!logsRow?.path,
+    JSON.stringify(logsRow).slice(0, 160)
+  )
+
   // —— 插件页：列表加载、启停 ——
   const clickedPluginTab = await evalIn(
     session,

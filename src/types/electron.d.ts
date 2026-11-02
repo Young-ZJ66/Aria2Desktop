@@ -242,6 +242,11 @@ export interface ElectronAPI {
   /** 打开插件目录（主进程用真实路径打开，不存在时自动创建） */
   pluginsOpenDir: () => Promise<{ success: boolean; error?: string }>
 
+  /** 应用自身日志文件与所在目录（由 electron-log 解析，报障时用户附上该文件） */
+  getLogsPath: () => Promise<{ success: boolean; file?: string; dir?: string }>
+  /** 打开应用日志目录（不存在时自动创建） */
+  openLogsDir: () => Promise<{ success: boolean; dir?: string; error?: string }>
+
   /** 把 aria2 下载事件转发给主进程插件系统（fire-and-forget，无返回值） */
   notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart', gid: string, name: string) => void
 

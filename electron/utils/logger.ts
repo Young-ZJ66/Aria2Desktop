@@ -1,4 +1,5 @@
 import log from 'electron-log/main'
+import path from 'path'
 import { isDevMode } from './appEnv'
 
 /**
@@ -48,6 +49,17 @@ export function setupLogging(): void {
   log.transports.console.level = isDev ? 'debug' : 'warn'
 
   log.info(`[Logger] 日志已初始化（控制台级别=${isDev ? 'debug' : 'warn'}，文件级别=info）`)
+}
+
+/**
+ * 应用自身日志文件的绝对路径与所在目录。
+ *
+ * 用户报障时最需要的就是这个文件，但它藏在 userData 深层目录里，手动找起来很费劲；
+ * 设置页的「打开日志目录」直接用它，不自己拼路径——electron-log 换存储位置时这里自动跟随。
+ */
+export function getLogFilePaths(): { file: string; dir: string } {
+  const file = log.transports.file.getFile().path
+  return { file, dir: path.dirname(file) }
 }
 
 /**

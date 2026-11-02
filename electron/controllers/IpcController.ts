@@ -19,7 +19,7 @@ import { startStreamDownload, cancelStreamDownload, type StreamDownloadRequest }
 import { extractArchive } from '../services/archiveService'
 import { getAutoLaunchEnabled, setAutoLaunchEnabled } from '../services/autoLaunch'
 import { PluginManager } from '../services/pluginManager'
-import { createLogger } from '../utils/logger'
+import { createLogger, getLogFilePaths } from '../utils/logger'
 // 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import { resolveBaseDownloadDir } from '../../src/shared/fileCategories'
 import type { ExtensionConnection } from '../../src/shared/extensionVersion'
@@ -795,6 +795,25 @@ export class IpcController {
         await fs.promises.mkdir(dir, { recursive: true })
         const error = await shell.openPath(dir)
         return error ? { success: false, error } : { success: true }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    }, { getMainWindow: this.windowRef })
+
+    // 应用自身日志（<userData>/logs/main.log）：报障时用户得把这个文件附上，
+    // 但它藏在深层目录里。路径由主进程从 electron-log 解析，渲染层只负责展示与打开
+    registerSecureHandler('get-logs-path', () => {
+      const { file, dir } = getLogFilePaths()
+      return { success: true, file, dir }
+    }, { getMainWindow: this.windowRef })
+
+    registerSecureHandler('open-logs-dir', async () => {
+      const { dir } = getLogFilePaths()
+      try {
+        // 首次启动、尚未产生任何日志时目录可能还不存在
+        await fs.promises.mkdir(dir, { recursive: true })
+        const error = await shell.openPath(dir)
+        return error ? { success: false, error } : { success: true, dir }
       } catch (e) {
         return { success: false, error: String(e) }
       }
