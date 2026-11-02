@@ -26,10 +26,33 @@ const argValue = (name, fallback) => {
   return index >= 0 && args[index + 1] ? args[index + 1] : fallback
 }
 
-const exePath = path.resolve(
-  root,
-  argValue('exe', path.join('release', 'win-unpacked', 'Aria2Desktop.exe'))
-)
+/**
+ * electron-builder 的免安装目录按架构分家：x64 是 `win-unpacked`，32 位是
+ * `win-ia32-unpacked`（arm64 同理）。发版矩阵里两个架构各跑一次冒烟，
+ * 写死一个目录就会在其中一侧找不到文件——所以默认按已有目录推断。
+ */
+const UNPACKED_DIR_RE = /^win(-[a-z0-9]+)?-unpacked$/
+
+function resolveDefaultExe() {
+  const releaseDir = path.join(root, 'release')
+  const candidates = fs.existsSync(releaseDir)
+    ? fs
+        .readdirSync(releaseDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && UNPACKED_DIR_RE.test(entry.name))
+        .map((entry) => path.join(releaseDir, entry.name, 'Aria2Desktop.exe'))
+        .filter((file) => fs.existsSync(file))
+    : []
+  if (candidates.length === 1) return candidates[0]
+  if (candidates.length > 1) {
+    // 同时存在多个架构时优先 x64（正是默认构建产物），其余靠 --exe 指定
+    return candidates.find((file) => /win-unpacked/.test(file)) ?? candidates[0]
+  }
+  return path.join(releaseDir, 'win-unpacked', 'Aria2Desktop.exe')
+}
+
+const exePath = argValue('exe')
+  ? path.resolve(root, argValue('exe'))
+  : resolveDefaultExe()
 const timeoutMs = Number(argValue('timeout', '90000'))
 const keepData = args.includes('--keep')
 
