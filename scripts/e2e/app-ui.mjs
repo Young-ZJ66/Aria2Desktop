@@ -594,6 +594,12 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
   reporter.check('点击新建任务按钮', newTaskOpen === 'clicked', String(newTaskOpen))
   await sleep(1400)
+  // 新建任务弹窗的几何断言一律在固定视口下做：内容区用的是 `100vh - 170px`，
+  // CI runner 只有 720p、本地多为 1080p+，同一份布局在不同高度下 vh 取值不同，
+  // 结论会相反（GitHub Actions run 20261102150813 就是因为这个红的：517 > 511）。
+  // 1200×800 取的是应用默认窗口尺寸（electron/controllers/WindowController.ts:177-178）。
+  await session.send('Emulation.setDeviceMetricsOverride', { width: 1200, height: 800, deviceScaleFactor: 1, mobile: false })
+  await sleep(300)
   const newTaskText = await evalIn(
     session,
     `(() => { const m = [...document.querySelectorAll('.n-modal')].find((el) => el.offsetParent !== null && el.querySelector('textarea')); return m ? m.innerText : '(no modal)' })()`
@@ -874,6 +880,40 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     })()`
   )
   reporter.check('展开高级设置后操作按钮仍可见', footerVisible === true, String(footerVisible))
+
+  // 小屏兜底：内容允许出现少量滚动，但主操作按钮不能被挤出视口——
+  // 顺带守住 `100vh - 170px` 这个经验值预算，头部/底部改高了会在这里露出来。
+  // 720 = 常见 720p；681 = GitHub Actions runner 的真实高度（720 再被标题栏吃掉 39px），
+  // 就是 run 20261102150813 失败时那块画布，固定下来就不再依赖"碰巧被发现"。
+  for (const height of [720, 681]) {
+    await session.send('Emulation.setDeviceMetricsOverride', { width: 1280, height, deviceScaleFactor: 1, mobile: false })
+    await sleep(300)
+    const smallScreen = await evalIn(
+      session,
+      `(() => {
+        const modal = [...document.querySelectorAll('.n-modal')].find((el) => el.offsetParent !== null)
+        const btn = modal && [...modal.querySelectorAll('.n-button')].find((el) => /开始下载|Start download/i.test(el.innerText || ''))
+        if (!modal || !btn) return { ok: false, reason: 'missing' }
+        const br = btn.getBoundingClientRect()
+        return {
+          ok: br.top >= 0 && br.bottom <= window.innerHeight,
+          viewport: window.innerHeight,
+          btnBottom: Math.round(br.bottom),
+          modalBottom: Math.round(modal.getBoundingClientRect().bottom)
+        }
+      })()`
+    )
+    // 同时断言视口真的被改成了目标高度：emulate 失效时会停在真实窗口高度（如 800），一眼能看出来。
+    // 允许 ±1：Chromium 报回的 innerHeight 与请求值可能差 1px（681 实测 682），这不是失败。
+    const viewportApplied = Math.abs(Number(smallScreen?.viewport) - height) <= 1
+    reporter.check(
+      `${height}px 高视口下主操作按钮仍在视口内`,
+      smallScreen?.ok === true && viewportApplied,
+      JSON.stringify(smallScreen)
+    )
+  }
+  await session.send('Emulation.clearDeviceMetricsOverride')
+  await sleep(200)
 
   // —— 流媒体页：验证 yt-dlp 入口（已安装显示表单 / 未安装显示按需下载）——
   const streamTab = await evalIn(
