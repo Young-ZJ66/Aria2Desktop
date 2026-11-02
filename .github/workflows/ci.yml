@@ -92,3 +92,13 @@ jobs:
 
       - name: 冒烟打包产物
         run: node scripts/smoke-packaged.mjs --timeout 120000
+
+      # 作业日志在网页上不好翻，失败时把冒烟自己写的诊断（退出码、stdout/stderr、主进程日志）带出来
+      - name: 失败时保留诊断
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: packaged-smoke-failure
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore

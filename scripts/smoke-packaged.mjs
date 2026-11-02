@@ -152,8 +152,13 @@ async function main() {
 
   const child = spawn(exePath, [], { env, stdio: ['ignore', 'pipe', 'pipe'] })
   let stderr = ''
+  let stdout = ''
   child.stderr?.on('data', (chunk) => {
-    stderr = (stderr + chunk.toString()).slice(-4000)
+    stderr = (stderr + chunk.toString()).slice(-8000)
+  })
+  // 打包后的 Electron 在 Windows 上没有控制台，但仍可能往 stdout 写；CI 里这是唯一的旁证
+  child.stdout?.on('data', (chunk) => {
+    stdout = (stdout + chunk.toString()).slice(-8000)
   })
   let exited = false
   child.on('exit', () => {
@@ -191,12 +196,35 @@ async function main() {
 
   const failed = results.filter((result) => !result.ok)
   if (failed.length > 0) {
-    const tail = readLog(logFile).split('\n').slice(-25).join('\n')
-    console.error('\n--- 主进程日志尾部 ---')
+    const fullLog = readLog(logFile)
+    const tail = fullLog.split('\n').slice(-120).join('\n')
+    console.error('\n--- 主进程日志尾部（最多 120 行）---')
     console.error(tail || '(日志文件为空)')
+    if (stdout.trim()) {
+      console.error('\n--- 标准输出 ---')
+      console.error(stdout.trim())
+    }
     if (stderr.trim()) {
       console.error('\n--- 标准错误 ---')
       console.error(stderr.trim())
+    }
+    // CI 的作业日志不便下载，这里把同样的信息落到工作区，方便作为 artifact 上传
+    try {
+      const reportDir = path.join(root, 'test-results')
+      fs.mkdirSync(reportDir, { recursive: true })
+      fs.writeFileSync(path.join(reportDir, 'smoke-packaged.json'), JSON.stringify({
+        exePath,
+        userData,
+        rpcPort,
+        exitCode: child.exitCode,
+        results,
+        stdout,
+        stderr
+      }, null, 2))
+      if (fullLog) fs.writeFileSync(path.join(reportDir, 'smoke-packaged-main.log'), fullLog)
+      console.error(`\n诊断已写入 test-results/smoke-packaged.json（隔离数据：${userData}）`)
+    } catch (error) {
+      console.error(`诊断写入失败：${error.message}`)
     }
     if (child.exitCode === 2147483651) {
       // 0x80000003：启动即崩，且日志文件都没生成。常见于受限沙箱/ACL 拒绝执行工作区内的文件，
