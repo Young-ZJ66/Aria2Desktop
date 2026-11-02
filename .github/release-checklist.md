@@ -14,12 +14,16 @@
 ```bash
 npm run typecheck
 npm run test:run
-npm run lint
+npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --ignore-pattern .gitignore
 npm run build                # 含 verify-resources
 npm run check:extension
 npm run verify:extension-api
 npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解压
 ```
+
+- [ ] 代码规范用**不带 `--fix`** 的命令判定（`npm run lint` 会顺手改文件，改完并不代表原本就是干净的）
+- [ ] 推 tag 之前，`ci.yml` 在 `main` 上必须是绿的——它跑的就是上面这套检查，
+      外加应用 E2E、打包产物冒烟与「全新安装」冒烟（空白数据目录也能自己长配置起来）
 
 - [ ] 扩展 E2E 需要 Chrome for Testing：`E2E_CHROME_PATH=<chrome路径> npm run test:e2e`
       （未提供时该项 SKIP，不算通过；发版前必须至少在本机跑过一次）
@@ -34,6 +38,9 @@ npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解�
 - [ ] 安装包冒烟：Windows 安装后能启动并连上引擎；macOS/Linux 由 `build-unix` 的
       “冒烟打包产物”步骤覆盖（若该步骤失败，先在本机用
       `node scripts/smoke-packaged.mjs --exe <产物>` 复现，不要直接发版）
+- [ ] 首次启动冒烟（全新用户走的就是这条路）：`node scripts/smoke-packaged.mjs --fresh`
+      ——它要求数据目录全空，并断言应用自己写出了设置文件与含 `save-session`/`input-file` 的 `aria2.conf`
+      （用的是默认 RPC 端口 6800，本机已有实例在跑时先退出）
 - [ ] 差量块表为 CDC 格式（`format: 2`、`chunking: "cdc"`），并抽查与上一版安装包的实际复用率
       （`node scripts/generate-delta-blocks.mjs` + `planDelta` 可离线计算；低于 50% 需调查分块参数）
 - [ ] 注意：从旧版（固定分块缓存）首次升级仍会走全量，确认日志中的回落原因符合预期
@@ -51,6 +58,8 @@ npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解�
 ## 4. 发布
 
 - [ ] 推送 tag：`git tag vX.Y.Z && git push origin vX.Y.Z`
+- [ ] tag 一旦推上去就别再移动或删除：已发布安装包的 `.sha256` 与更新检查都挂在它上面
+      （仓库已给 `v*` 配了 ruleset，删除/强推会被拒绝，需要时先改规则而不是绕过它）
 - [ ] `release.yml` 全绿（Windows x64/x86、macOS、Linux 四个构建 job + 扩展；各含产物断言）
 - [ ] Release 资产齐全：
       - Windows x64/x86：`Setup.exe`、`portable.zip`、`Setup.exe.blocks.json`、`.sha256`
