@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyUpdateError, UPDATE_ERROR_MESSAGE_KEYS } from './updateError'
+import { classifyUpdateError, COMPONENT_ERROR_MESSAGE_KEYS, UPDATE_ERROR_MESSAGE_KEYS } from './updateError'
 
 describe('classifyUpdateError', () => {
   it('DNS/连接类错误归为网络问题', () => {
@@ -50,5 +50,17 @@ describe('classifyUpdateError', () => {
       expect(classifyUpdateError('unknown thing')).not.toBe(kind)
     }
     expect(Object.keys(UPDATE_ERROR_MESSAGE_KEYS).length).toBe(9)
+  })
+
+  it('组件下载失败只挑用户能处理的几类，其余保留原串', () => {
+    expect(Object.keys(COMPONENT_ERROR_MESSAGE_KEYS).sort()).toEqual(
+      ['assetMissing', 'checksum', 'network', 'rateLimited', 'redirect']
+    )
+    // 这几类对"下载 yt-dlp / ffmpeg 失败"没有意义，不能把用户引到错误的建议上
+    expect(COMPONENT_ERROR_MESSAGE_KEYS.devMode).toBeUndefined()
+    expect(COMPONENT_ERROR_MESSAGE_KEYS.noUpdate).toBeUndefined()
+    expect(COMPONENT_ERROR_MESSAGE_KEYS.unknown).toBeUndefined()
+    expect(classifyUpdateError('getaddrinfo ENOTFOUND github.com')).toBe('network')
+    expect(classifyUpdateError('Download failed: 404')).toBe('assetMissing')
   })
 })

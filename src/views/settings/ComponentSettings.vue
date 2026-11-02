@@ -175,9 +175,23 @@ import {
   isExtensionOutdated,
   type ExtensionConnection
 } from '@/shared/extensionVersion'
+import { classifyUpdateError, COMPONENT_ERROR_MESSAGE_KEYS } from '@/shared/updateError'
 
 const { t } = useI18n()
 const componentStore = useComponentStore()
+
+/**
+ * 组件下载失败的提示：先认清是不是"连不上 GitHub / 被限流 / 这个标签没有该平台的包"，
+ * 认识就把技术串换成人话（原串仍附在后面，方便排查），认不出才原样给出去。
+ * 之前这里直接把 `getaddrinfo ENOTFOUND github.com` 甩给用户。
+ */
+function describeComponentFailure(fallbackKey: string, raw?: string): string {
+  const key = COMPONENT_ERROR_MESSAGE_KEYS[classifyUpdateError(raw)]
+  // 认不出就原样给出去：组件名已经由 fallbackKey 的句子带着，这里只替换原因部分
+  if (!key) return t(fallbackKey, { error: raw || '' })
+  const reason = t(`settings.components.${key}`)
+  return t(fallbackKey, { error: raw ? `${reason}（${raw}）` : reason })
+}
 
 // 商店入口是否可用（扩展已于 2026-10-14 上架，即为 true；若商店下架，把它改回 false
 // 按钮就会回到「置灰 + 提示」，见 shared/extensionStore）
@@ -261,7 +275,7 @@ async function checkUpdate(kind: 'ytdlp' | 'ffmpeg') {
       : await api.ffmpegCheckUpdate()
     if (!result?.success) {
       state.available = false
-      message.error(result?.error || t('settings.components.updateCheckFailed', { error: '' }))
+      message.error(describeComponentFailure('settings.components.updateCheckFailed', result?.error))
       return
     }
     if (!result.updateAvailable) {
@@ -284,7 +298,7 @@ async function installYtdlp() {
     updateState.ytdlp.available = false
     message.success(t('newTask.streamYtdlpInstallSuccess', { version: result.version || '—' }))
   } else {
-    message.error(t('newTask.streamYtdlpInstallFailed', { error: result.error || '' }))
+    message.error(describeComponentFailure('newTask.streamYtdlpInstallFailed', result.error))
   }
 }
 
@@ -294,7 +308,7 @@ async function installFfmpeg() {
     updateState.ffmpeg.available = false
     message.success(t('newTask.streamFfmpegInstallSuccess', { version: result.version || '—' }))
   } else {
-    message.error(t('newTask.streamFfmpegInstallFailed', { error: result.error || '' }))
+    message.error(describeComponentFailure('newTask.streamFfmpegInstallFailed', result.error))
   }
 }
 

@@ -37,6 +37,7 @@
 
 - 卸载插件后重装同一个插件，它会显示为停用状态。已修
 - 设置 →「工具与扩展」的浏览器扩展卡片，现在会显示扩展最近一次连上来的版本，以及是否需要更新
+- 下载 yt-dlp / ffmpeg 失败时，提示从 `net::ERR_PROXY_CONNECTION_FAILED`、`getaddrinfo ENOTFOUND github.com` 这类技术串改成了原因（网络或代理连不上、GitHub 限流、这一版没有对应平台的包、校验不通过），原串保留在括号里方便排查
 
 ## 🌍 其他
 

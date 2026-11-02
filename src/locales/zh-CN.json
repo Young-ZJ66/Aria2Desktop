@@ -805,6 +805,11 @@
     },
     "components": {
       "description": "管理流媒体下载所需的外部组件与浏览器扩展",
+      "componentErrorNetwork": "连不上 GitHub（网络或代理问题），请检查网络后重试",
+      "componentErrorRateLimited": "GitHub 暂时限制了请求频率，请稍后再试",
+      "componentErrorAssetMissing": "这个版本的发布里没有对应平台的包，请稍后再试或手动安装",
+      "componentErrorChecksum": "文件校验不通过，已停止使用",
+      "componentErrorRedirect": "GitHub 返回了异常的跳转，请稍后再试",
       "groupTools": "媒体工具",
       "ytdlpName": "yt-dlp",
       "ytdlpDesc": "解析网页视频并以最佳画质下载（流媒体页使用）",

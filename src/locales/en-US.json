@@ -805,6 +805,11 @@
     },
     "components": {
       "description": "Manage the external tools used for streaming downloads and the browser extension",
+      "componentErrorNetwork": "cannot reach GitHub (network or proxy issue), check your connection and retry",
+      "componentErrorRateLimited": "GitHub is rate limiting requests right now, try again later",
+      "componentErrorAssetMissing": "this release has no package for your platform, try again later or install it manually",
+      "componentErrorChecksum": "checksum mismatch, the downloaded file was discarded",
+      "componentErrorRedirect": "GitHub returned an unexpected redirect, try again later",
       "groupTools": "Media Tools",
       "ytdlpName": "yt-dlp",
       "ytdlpDesc": "Parses web videos and downloads the best available quality (used by the Streaming tab)",

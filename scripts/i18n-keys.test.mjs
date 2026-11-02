@@ -125,4 +125,19 @@ describe('语言包', () => {
     )
     expect(missing).toEqual([])
   })
+
+  it('组件下载失败的每句话都在语言包里', () => {
+    const source = fs.readFileSync(path.join(ROOT, 'src/shared/updateError.ts'), 'utf8')
+    const start = source.indexOf('export const COMPONENT_ERROR_MESSAGE_KEYS')
+    expect(start, 'src/shared/updateError.ts 里找不到 COMPONENT_ERROR_MESSAGE_KEYS').toBeGreaterThan(-1)
+    const block = source.slice(start, source.indexOf('}', start))
+    const keys = [...block.matchAll(/:\s*'(\w+)'/g)].map((m) => m[1])
+    expect(keys.length, '映射表看起来是空的').toBeGreaterThan(3)
+
+    // 组件页用 `settings.components.${key}` 拼接，静态扫描看不见
+    const missing = keys.flatMap((key) =>
+      LOCALES.filter((name) => !localeOf(name).settings?.components?.[key]).map((name) => `${name}: settings.components.${key}`)
+    )
+    expect(missing).toEqual([])
+  })
 })
