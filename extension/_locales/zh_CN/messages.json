@@ -35,21 +35,6 @@
   "interceptAll": {
     "message": "拦截所有下载"
   },
-  "allowProbe": {
-    "message": "探测下载链接的真实文件名"
-  },
-  "allowProbeHint": {
-    "message": "链接里没有文件名时（如网盘直链），向文件服务器获取真实文件名用于分类与命名，避免中文乱码。应用在运行时由应用侧完成，无需开启；仅在应用未运行、扩展直连引擎时才需要（此时需授予站点访问权限）"
-  },
-  "probeEnabled": {
-    "message": "已开启文件名探测"
-  },
-  "probeDisabled": {
-    "message": "已关闭文件名探测"
-  },
-  "probePermissionDenied": {
-    "message": "未授予站点访问权限，无法开启文件名探测"
-  },
   "sectionConnection": {
     "message": "连接设置"
   },
@@ -271,9 +256,6 @@
   "interceptAllDesc": {
     "message": "浏览器下载自动交给 App，原下载取消"
   },
-  "allowProbeDesc": {
-    "message": "网盘直链缺少文件名时自动补全"
-  },
   "allowCookies": {
     "message": "随任务携带页面 Cookie"
   },
@@ -345,5 +327,38 @@
   },
   "pairingDoneDesc": {
     "message": "扩展已连接到 Aria2 Desktop，可以发送下载了"
+  },
+  "tabGrab": {
+    "message": "抓取链接"
+  },
+  "grabBtn": {
+    "message": "抓取本页链接"
+  },
+  "grabbing": {
+    "message": "抓取中…"
+  },
+  "grabEmpty": {
+    "message": "未找到可下载的链接"
+  },
+  "grabFilterPlaceholder": {
+    "message": "筛选链接…"
+  },
+  "grabFailed": {
+    "message": "抓取失败：页面受限或需要权限"
+  },
+  "sendSelected": {
+    "message": "发送选中"
+  },
+  "sendSelectedCount": {
+    "message": "发送选中的 $COUNT$ 个链接"
+  },
+  "grabSentCount": {
+    "message": "已发送 $COUNT$ 个下载任务"
+  },
+  "grabPartial": {
+    "message": "已发送 $1$ 个，$2$ 个失败"
+  },
+  "grabSelectFirst": {
+    "message": "请先勾选要下载的链接"
   }
 }

@@ -116,6 +116,29 @@
     .tab:hover:not(.active) { color: var(--text); background: var(--secondary); }
     .tab.active { background: var(--primary); color: #fff; }
     .pane { display: none; }
+.pane.active { display: block; }
+.grab-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.grab-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.grab-item:hover { background: var(--secondary); }
+.grab-item + .grab-item { border-top: 1px solid var(--border); }
+.grab-item input { flex: none; margin-top: 2px; }
+.grab-item .g-text { flex: 1; min-width: 0; word-break: break-all; color: var(--text); }
+.grab-item .g-url { display: block; font-size: 11px; color: var(--text-dim); }
+.grab-filter input { width: 100%; }
     .pane.active { display: block; }
 
     /* 未配对引导横幅：出现在发送页顶部，把"下一步做什么"直接告诉用户 */
@@ -376,6 +399,7 @@
 
   <div class="tabs" role="tablist">
     <button class="tab active" id="tabSend" type="button" role="tab" aria-selected="true" aria-controls="paneSend"></button>
+    <button class="tab" id="tabGrab" type="button" role="tab" aria-selected="false" aria-controls="paneGrab"></button>
     <button class="tab" id="tabConnect" type="button" role="tab" aria-selected="false" aria-controls="paneConnect"></button>
   </div>
 
@@ -405,7 +429,21 @@
     <div class="footer" id="footerHint"></div>
   </div>
 
-  <!-- 模式二：配对与设置 -->
+  <!-- 模式二：批量抓取页面链接 -->
+  <div class="pane" id="paneGrab" role="tabpanel">
+    <div class="section">
+      <button class="btn btn-primary" id="grabBtn" type="button"></button>
+      <div id="grabFilterWrap" class="input-wrap grab-filter" hidden>
+        <input type="text" id="grabFilter" spellcheck="false">
+      </div>
+    </div>
+    <div id="grabListWrap" class="section grab-list" hidden>
+      <div id="grabList"></div>
+    </div>
+    <button class="btn btn-primary" id="sendSelectedBtn" type="button" hidden></button>
+  </div>
+
+  <!-- 模式三：配对与设置 -->
   <div class="pane" id="paneConnect" role="tabpanel">
     <div class="section">
       <div class="section-title" id="pairingTitle"></div>
@@ -431,16 +469,6 @@
         </div>
         <label class="toggle">
           <input type="checkbox" id="interceptAll">
-          <span class="slider"></span>
-        </label>
-      </div>
-      <div class="toggle-group">
-        <div>
-          <div class="t-label" id="allowProbeLabel"></div>
-          <div class="t-desc" id="allowProbeDesc"></div>
-        </div>
-        <label class="toggle">
-          <input type="checkbox" id="allowProbe">
           <span class="slider"></span>
         </label>
       </div>

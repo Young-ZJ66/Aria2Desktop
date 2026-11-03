@@ -35,21 +35,6 @@
   "interceptAll": {
     "message": "Intercept all downloads"
   },
-  "allowProbe": {
-    "message": "Probe real file names of download links"
-  },
-  "allowProbeHint": {
-    "message": "When a link has no file name (e.g. cloud-drive direct links), fetch the real name from the file server for naming and sorting. Not needed while the app is running — the app does this itself; only used when the app is not running and the extension talks to the engine directly (that requires site access permission)"
-  },
-  "probeEnabled": {
-    "message": "File name probing enabled"
-  },
-  "probeDisabled": {
-    "message": "File name probing disabled"
-  },
-  "probePermissionDenied": {
-    "message": "Site access permission was not granted, so file name probing cannot be enabled"
-  },
   "sectionConnection": {
     "message": "Connection"
   },
@@ -271,9 +256,6 @@
   "interceptAllDesc": {
     "message": "Browser downloads go to the app automatically (original cancelled)"
   },
-  "allowProbeDesc": {
-    "message": "Completes missing file names for direct links"
-  },
   "allowCookies": {
     "message": "Send page cookies with downloads"
   },
@@ -345,5 +327,38 @@
   },
   "pairingDoneDesc": {
     "message": "Extension connected to Aria2 Desktop — you can send downloads now"
+  },
+  "tabGrab": {
+    "message": "Grab links"
+  },
+  "grabBtn": {
+    "message": "Grab links from this page"
+  },
+  "grabbing": {
+    "message": "Grabbing…"
+  },
+  "grabEmpty": {
+    "message": "No downloadable links found"
+  },
+  "grabFilterPlaceholder": {
+    "message": "Filter links…"
+  },
+  "grabFailed": {
+    "message": "Grab failed: page restricted or permission needed"
+  },
+  "sendSelected": {
+    "message": "Send selected"
+  },
+  "sendSelectedCount": {
+    "message": "Send $COUNT$ selected links"
+  },
+  "grabSentCount": {
+    "message": "Sent $COUNT$ download tasks"
+  },
+  "grabPartial": {
+    "message": "$1$ sent, $2$ failed"
+  },
+  "grabSelectFirst": {
+    "message": "Select links to download first"
   }
 }

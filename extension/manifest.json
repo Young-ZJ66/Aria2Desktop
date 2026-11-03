@@ -14,11 +14,11 @@
     "contextMenus",
     "storage",
     "activeTab",
-    "notifications"
+    "notifications",
+    "scripting"
   ],
   "optional_permissions": [
-    "cookies",
-    "scripting"
+    "cookies"
   ],
   "host_permissions": [
     "http://localhost/*",

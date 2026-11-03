@@ -106,6 +106,7 @@ export default withVueTs(
         AbortSignal: 'readonly',
         DOMException: 'readonly',
         TextDecoder: 'readonly',
+        location: 'readonly',
         TextEncoder: 'readonly',
         Uint8Array: 'readonly',
         URL: 'readonly',

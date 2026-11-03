@@ -15,8 +15,6 @@ const DEFAULT_CONFIG = {
   path: '/jsonrpc',
   enabled: true,
   interceptAll: false,
-  /** 允许向文件服务器探测真实文件名（需已授予全站访问权限，见弹窗开关） */
-  allowProbe: false,
   /** 允许把当前页面的 Cookie 随任务下发（需已授予全站访问权限，见弹窗开关） */
   allowCookies: false
 }
@@ -82,69 +80,6 @@ function sanitizeFileName(name) {
   cleaned = cleaned.trim()
   if (!cleaned || cleaned === '.' || cleaned === '..') return ''
   return cleaned
-}
-
-/**
- * latin1 误读修复：服务器直接发原始 UTF-8 字节、被按 latin1 误读成乱码时，无损还原。
- * MV3 Service Worker 没有 Node 的 Buffer 全局——用 Uint8Array + TextDecoder 等价实现：
- * latin1 每字节就是一个 Unicode 码位，逐字节取出再按 UTF-8 解码即可。
- */
-function latin1ToUtf8(value) {
-  const bytes = Uint8Array.from([...value].map(ch => ch.charCodeAt(0) & 0xff))
-  return new TextDecoder('utf-8', { fatal: false }).decode(bytes)
-}
-
-/**
- * 解析 Content-Disposition 头里的 filename。
- * 兼容 RFC 5987（filename*=UTF-8''...）、带引号、无引号、百分号编码，
- * 以及「服务器直接发原始 UTF-8 字节、被按 latin1 误读成乱码」的情况（无损修复）。
- */
-function parseContentDisposition(header) {
-  if (!header) return ''
-  const star = /filename\*\s*=\s*([^']*)'[^']*'([^;\s]+)/i.exec(header)
-  if (star && star[2]) {
-    try {
-      return sanitizeFileName(decodeURIComponent(star[2]))
-    } catch { /* 解码失败继续尝试普通形态 */ }
-  }
-  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(header)
-  if (plain && plain[1]) {
-    let value = plain[1].trim()
-    if (value.includes('%')) {
-      try {
-        value = decodeURIComponent(value)
-      } catch { /* 保持原样 */ }
-    }
-    const repaired = latin1ToUtf8(value)
-    if (!repaired.includes('\uFFFD')) value = repaired
-    return sanitizeFileName(value)
-  }
-  return ''
-}
-
-/**
- * 向文件服务器探测真实文件名：GET + Range: bytes=0-0，响应头一到手立刻断开（不下载正文）。
- * 任何失败（超时/非 2xx/无文件名头）都返回空串，调用方降级处理，绝不阻塞任务创建。
- */
-async function probeDownloadFileName(url, timeoutMs = 6000) {
-  if (!/^https?:\/\//i.test(url)) return ''
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { Range: 'bytes=0-0', 'User-Agent': 'aria2/1.37.0' },
-      redirect: 'follow',
-      signal: controller.signal
-    })
-    response.body?.cancel().catch(() => {})
-    if (!response.ok) return ''
-    return parseContentDisposition(response.headers.get('content-disposition') ?? '')
-  } catch {
-    return ''
-  } finally {
-    clearTimeout(timer)
-  }
 }
 
 /** 引擎的全局下载目录（aria2 的 dir）。service worker 生命周期内缓存，引擎未启动时缓存空串以免反复等超时 */
@@ -294,26 +229,12 @@ async function addViaApp(url, config, fileNameHint = '', headers = []) {
   }
 }
 
-/** 回落路径：内置默认规则（与 App 的内置默认一致）+ 本地探测（需用户开启探测开关） */
-async function resolveWithBuiltinRules(url, config, fileNameHint = '') {
-  let resolved = await resolveCategoryDir(url, config, fileNameHint)
-  let out = ''
-  if (!resolved.dir && config.allowProbe && /^https?:\/\//i.test(url)) {
-    const probedName = await probeDownloadFileName(url)
-    if (probedName) {
-      resolved = await resolveCategoryDir(url, config, probedName)
-      out = probedName
-    }
-  }
-  return { dir: resolved.dir || '', subdir: resolved.subdir || null, out, conflict: false }
-}
-
-/**
- * 解析目标目录与文件名。**仅用于回落路径**：App 接口不可用时的内置默认规则 + 本地探测。
- * @returns {{dir: string, subdir: string|null, out: string, conflict: boolean, source: string}}
+/** 回落路径：内置默认规则（与 App 的内置默认一致）。真实文件名探测由 App 侧完成。
+ * @returns {{dir: string, subdir: string|null, source: string}}
  */
 async function resolveTarget(url, config, fileNameHint = '') {
-  return { ...(await resolveWithBuiltinRules(url, config, fileNameHint)), source: 'builtin' }
+  const resolved = await resolveCategoryDir(url, config, fileNameHint)
+  return { dir: resolved.dir || '', subdir: resolved.subdir || null, source: 'builtin' }
 }
 
 /**
@@ -503,15 +424,13 @@ async function sendToAria2(url, options = {}, fileNameHint = '', pageUrl = '') {
       if (viaApp) return viaApp
     }
 
-    // 2) 回落：扩展直连 aria2（内置默认规则 + 本地探测），保证 App 未运行/未授权时仍可用
+    // 2) 回落：扩展直连 aria2（内置默认分类规则），保证 App 未运行/未授权时仍可用
     const target = callerSpecifiedDir
-      ? { dir: '', subdir: null, out: '', conflict: false, source: 'caller' }
+      ? { dir: '', subdir: null, source: 'caller' }
       : await resolveTarget(url, config, plainHint)
 
     const finalOptions = { ...cleanOptions }
     if (target.dir) finalOptions.dir = target.dir
-    // out 优先级：调用方给定（如浏览器解析出的文件名）> 本地探测结果
-    if (!cleanOptions.out && target.out) finalOptions.out = target.out
     applyHeadersToOptions(finalOptions, headers)
 
     const gid = await rpcCall('aria2.addUri', [[url], finalOptions], config)
@@ -519,8 +438,6 @@ async function sendToAria2(url, options = {}, fileNameHint = '', pageUrl = '') {
       success: true,
       gid,
       subdir: target.subdir,
-      conflict: target.conflict,
-      renamed: target.out || '',
       resolvedBy: target.source,
       engineDirKnown: cachedEngineDir !== null && cachedEngineDir !== ''
     }
@@ -660,7 +577,7 @@ function detectPageMedia() {
 async function detectActiveTabMedia() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-    if (!tab?.id || !/^https?:\/\//i.test(tab.url || '')) {
+    if (!tab?.id || !/^https?:/i.test(tab.url || '')) {
       return { success: false, error: i18n('mediaUnsupportedPage') }
     }
     const results = await chrome.scripting.executeScript({
@@ -673,6 +590,81 @@ async function detectActiveTabMedia() {
     // 未授予该站点权限 / 页面是受限页（chrome://、商店页）时都会走到这里
     return { success: false, error: i18n('mediaPermissionDenied'), detail: String(error instanceof Error ? error.message : error) }
   }
+}
+
+/**
+ * 抓取当前标签页的全部可下载链接（批量发送功能的数据源）。
+ * 收集范围：页面内所有 http(s) 锚点（按 URL 去重）+ video/audio/source 的 src。
+ * 执行在目标页面上下文里（chrome.scripting），本函数必须自包含——
+ * 不能引用 background.js 的任何闭包变量。
+ */
+/**
+ * 注入目标页面执行的链接采集器（必须自包含：不能引用 background.js 的闭包）。
+ * 收集所有 http(s) 锚点（按 URL 去重）+ video/audio/source 的 src。
+ */
+function collectPageLinks() {
+  const seen = new Set()
+  const out = []
+  for (const anchor of document.querySelectorAll('a[href]')) {
+    let url
+    try {
+      url = new URL(anchor.getAttribute('href'), location.href).href
+    } catch {
+      continue
+    }
+    if (!/^https?:/i.test(url) || seen.has(url)) continue
+    seen.add(url)
+    const text = (anchor.textContent || '').trim().replace(/s+/g, ' ').slice(0, 80)
+    out.push({ url, text })
+  }
+  for (const el of document.querySelectorAll('video[src], audio[src], source[src]')) {
+    let url
+    try {
+      url = new URL(el.getAttribute('src'), location.href).href
+    } catch {
+      continue
+    }
+    if (!/^https?:/i.test(url) || seen.has(url)) continue
+    seen.add(url)
+    out.push({ url, text: el.tagName.toLowerCase() + ' media' })
+  }
+  return out.slice(0, 200)
+}
+
+async function grabActiveTabLinks() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!tab?.id || !/^https?:/i.test(tab.url || '')) {
+      return { success: false, error: i18n('mediaUnsupportedPage') }
+    }
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: collectPageLinks
+    })
+    const links = Array.isArray(results) && results[0] ? results[0].result || [] : []
+    return { success: true, links, pageUrl: tab.url || '' }
+  } catch (error) {
+    return { success: false, error: i18n('mediaPermissionDenied'), detail: String(error instanceof Error ? error.message : error) }
+  }
+}
+
+/** 批量发送抓取到的链接：逐条走 sendToAria2（分类/重名/选项与单条发送一致）。
+    返回 { sent, failed, errors } 供弹窗展示结果 */
+async function sendGrabbedLinks(links) {
+  let sent = 0
+  const errors = []
+  for (const item of links) {
+    const url = typeof item === 'string' ? item : item?.url
+    if (!url) continue
+    try {
+      const result = await sendToAria2(url)
+      if (result.success) sent++
+      else errors.push(result.error || url)
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error))
+    }
+  }
+  return { sent, failed: links.length - sent, errors }
 }
 
 // Context menu: Download link with Aria2
@@ -828,6 +820,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === 'detectPageMedia') {
     detectActiveTabMedia().then(sendResponse)
+    return true
+  }
+
+  if (message.action === 'grabPageLinks') {
+    grabActiveTabLinks().then(sendResponse)
+    return true
+  }
+
+  if (message.action === 'sendGrabbedLinks') {
+    sendGrabbedLinks(message.links || []).then(sendResponse)
     return true
   }
 

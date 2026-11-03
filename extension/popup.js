@@ -5,7 +5,7 @@
  * - 常用动作（发送下载）放最上面，打开弹窗就能用；未配对时直接给出下一步引导；
  * - 每个动作都有"进行中 / 成功 / 失败"三种可见反馈，不留"点了没反应"的状态；
  * - 失败信息说人话，并告诉用户下一步怎么做；错误不自动消失（避免没看清就没了）；
- * - 开关类设置切换即保存（与 allowProbe 的既有行为一致），不留"忘了点保存"的坑；
+ * - 开关类设置切换即保存（与拦截开关的既有行为一致），不留"忘了点保存"的坑；
  * - 弹窗不直接访问网络：状态查询与配对都由 Service Worker 代执行，
  *   弹窗可关闭/最小化而不中断任何流程（配对流程的关键保障）。
  */
@@ -19,7 +19,6 @@ const elPort = document.getElementById('port')
 const elSecret = document.getElementById('secret')
 const elEnabled = document.getElementById('enabled')
 const elInterceptAll = document.getElementById('interceptAll')
-const elAllowProbe = document.getElementById('allowProbe')
 
 /** 本机地址默认已授权（见 manifest host_permissions），无需在运行时申请 */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
@@ -50,8 +49,6 @@ function initI18n() {
   $('enableLabel').textContent = i18n('enableExt')
   $('interceptLabel').textContent = i18n('interceptAll')
   $('interceptDesc').textContent = i18n('interceptAllDesc')
-  $('allowProbeLabel').textContent = i18n('allowProbe')
-  $('allowProbeDesc').textContent = i18n('allowProbeDesc')
   $('allowCookiesLabel').textContent = i18n('allowCookies')
   $('allowCookiesDesc').textContent = i18n('allowCookiesDesc')
 
@@ -67,6 +64,9 @@ function initI18n() {
   $('saveBtn').textContent = i18n('saveSettings')
   $('testBtn').textContent = i18n('testConnection')
   $('footerHint').textContent = i18n('rightClickHint')
+  $('grabBtn').textContent = i18n('grabBtn')
+  $('grabFilter').placeholder = i18n('grabFilterPlaceholder')
+  $('sendSelectedBtn').textContent = i18n('sendSelected')
   $('tabSend').textContent = i18n('tabSend')
   $('tabConnect').textContent = i18n('tabConnect')
   $('pairBannerText').textContent = i18n('sendNeedPairing')
@@ -129,13 +129,13 @@ function applyPairingUi(paired) {
  * 混在一页会让日常操作被配置项淹没。首次未配对时自动停在 connect，配好即跳回 send。
  */
 function switchTab(name) {
-  const isSend = name !== 'connect'
-  $('paneSend').classList.toggle('active', isSend)
-  $('paneConnect').classList.toggle('active', !isSend)
-  $('tabSend').classList.toggle('active', isSend)
-  $('tabConnect').classList.toggle('active', !isSend)
-  $('tabSend').setAttribute('aria-selected', String(isSend))
-  $('tabConnect').setAttribute('aria-selected', String(!isSend))
+  for (const tab of ['send', 'grab', 'connect']) {
+    const active = tab === name
+    const cap = tab.charAt(0).toUpperCase() + tab.slice(1)
+    $('pane' + cap).classList.toggle('active', active)
+    $('tab' + cap).classList.toggle('active', active)
+    $('tab' + cap).setAttribute('aria-selected', String(active))
+  }
 }
 
 /** 当前标签页地址：既用于预填，也作为发送时的 Referer（仅同源时） */
@@ -176,7 +176,6 @@ async function loadConfig() {
     $('secret').value = response.secret || ''
     $('enabled').checked = response.enabled !== false
     $('interceptAll').checked = response.interceptAll === true
-    $('allowProbe').checked = response.allowProbe === true
     $('allowCookies').checked = response.allowCookies === true
   }
   applyPairingUi(!!response?.secret)
@@ -385,7 +384,6 @@ async function saveConfig() {
         secret: $('secret').value.trim(),
         enabled: $('enabled').checked,
         interceptAll: $('interceptAll').checked,
-        allowProbe: $('allowProbe').checked,
         allowCookies: $('allowCookies').checked
       }
     })
@@ -408,6 +406,102 @@ async function saveConfig() {
  * 走"读-合并-写"而不是用表单值：表单里可能有用户尚未保存的其它输入，
  * 顺手存进去会让"切换一个开关"变成"提交整页设置"。
  */
+// ── 批量抓取当前页面链接 ──
+let grabbedLinks = []
+
+async function grabPageLinks() {
+  const btn = $('grabBtn')
+  btn.disabled = true
+  btn.textContent = i18n('grabbing')
+  $('grabListWrap').hidden = true
+  $('grabFilterWrap').hidden = true
+  $('sendSelectedBtn').hidden = true
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'grabPageLinks' })
+    if (!response?.success) {
+      showFeedback(response?.error || i18n('grabFailed'), true)
+      return
+    }
+    grabbedLinks = response.links || []
+    renderGrabList('')
+    if (grabbedLinks.length === 0) showFeedback(i18n('grabEmpty'), true)
+  } catch {
+    showFeedback(i18n('grabFailed'), true)
+  } finally {
+    btn.disabled = false
+    btn.textContent = i18n('grabBtn')
+  }
+}
+
+function renderGrabList(filter) {
+  const list = $('grabList')
+  list.textContent = ''
+  const query = filter.trim().toLowerCase()
+  let shown = 0
+  for (const item of grabbedLinks) {
+    const hit = !query || item.url.toLowerCase().includes(query) || item.text.toLowerCase().includes(query)
+    if (!hit) continue
+    shown++
+    const row = document.createElement('label')
+    row.className = 'grab-item'
+    const cb = document.createElement('input')
+    cb.type = 'checkbox'
+    cb.checked = true
+    cb.dataset.url = item.url
+    cb.addEventListener('change', updateSendSelected)
+    const text = document.createElement('span')
+    text.className = 'g-text'
+    text.textContent = item.text || item.url
+    const urlLine = document.createElement('span')
+    urlLine.className = 'g-url'
+    urlLine.textContent = item.url
+    text.appendChild(urlLine)
+    row.appendChild(cb)
+    row.appendChild(text)
+    list.appendChild(row)
+  }
+  if (shown === 0) {
+    const none = document.createElement('div')
+    none.className = 'grab-item'
+    none.textContent = i18n('grabEmpty')
+    list.appendChild(none)
+  }
+  updateSendSelected()
+}
+
+function updateSendSelected() {
+  const btn = $('sendSelectedBtn')
+  const count = $('grabList').querySelectorAll('input:checked').length
+  btn.hidden = count === 0
+  btn.textContent = i18n('sendSelectedCount', [String(count)])
+}
+
+async function sendGrabbed() {
+  const btn = $('sendSelectedBtn')
+  const checked = [...$('grabList').querySelectorAll('input:checked')].map(cb => cb.dataset.url)
+  if (checked.length === 0) return
+  btn.disabled = true
+  btn.textContent = i18n('sending')
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'sendGrabbedLinks', links: checked })
+    if (response && response.sent > 0) {
+      showFeedback(i18n('grabSentCount', [String(response.sent)]))
+      if (response.failed > 0) showFeedback(i18n('grabPartial', [String(response.sent), String(response.failed)]), true)
+      grabbedLinks = []
+      $('grabListWrap').hidden = true
+      $('grabFilterWrap').hidden = true
+      btn.hidden = true
+    } else {
+      showFeedback(i18n('errUnknown'), true)
+    }
+  } catch {
+    showFeedback(i18n('errUnknown'), true)
+  } finally {
+    btn.disabled = false
+    btn.textContent = i18n('sendSelected')
+  }
+}
+
 async function patchConfig(patch) {
   const current = await getConfigSafe()
   const config = {
@@ -416,7 +510,6 @@ async function patchConfig(patch) {
     secret: current?.secret || '',
     enabled: current?.enabled !== false,
     interceptAll: current?.interceptAll === true,
-    allowProbe: current?.allowProbe === true,
     allowCookies: current?.allowCookies === true,
     ...patch
   }
@@ -432,20 +525,8 @@ async function testConnection() {
 }
 
 /**
- * 「探测真实文件名」开关。
- * 开启需要授予全站访问权限——权限申请必须由扩展界面上的这次点击直接发起，
- * 不能后台代办；关闭时收回授权，避免留下不再需要的权限。
- */
-$('allowProbe').addEventListener('change', async (event) => {
-  const enabled = event.target.checked
-  if (!(await requestSiteAccess(enabled, event, 'probePermissionDenied'))) return
-  const saved = await patchConfig({ allowProbe: enabled })
-  if (saved?.success) showFeedback(i18n(enabled ? 'probeEnabled' : 'probeDisabled'))
-})
-
-/**
  * 「携带页面 Cookie」开关。
- * 与探测共用同一组站点权限：读 cookie 必须对该站点有宿主权限，
+ * 读 cookie 必须对该站点有宿主权限，
  * 而扩展只在点击图标时通过 activeTab 临时获得——要让拦截下载/右键菜单也带 Cookie，
  * 就必须由用户显式授予全站访问权限。
  */
@@ -478,9 +559,6 @@ async function ensurePermissions(permissions) {
 
 /**
  * 申请/收回全站访问权限 + 可选 API 权限。返回 false 表示用户拒绝，调用方需把开关状态回滚。
- *
- * 关闭时的收权是"按需"的：全站 origins 被"探测文件名"与"携带 Cookie"两个开关共用，
- * 只有两个都关掉时才收回，否则关一个会把另一个也弄坏（权限被撤，功能静默失效）。
  */
 async function requestSiteAccess(enabled, event, deniedKey, permissions = []) {
   try {
@@ -497,17 +575,11 @@ async function requestSiteAccess(enabled, event, deniedKey, permissions = []) {
       return true
     }
 
-    // 关闭：只收回本开关独有的权限；站点权限留给仍开着的那一方
-    const config = await getConfigSafe()
-    const otherUsesSites = permissions.includes('cookies')
-      ? config?.allowProbe === true            // 关 Cookie：探测仍可能要站点权限
-      : config?.allowCookies === true          // 关探测：Cookie 仍可能要站点权限
+    // 关闭：收回本开关申请的权限
     const removeSpec = {}
     if (permissions.length) removeSpec.permissions = permissions
-    if (!otherUsesSites) removeSpec.origins = ['http://*/*', 'https://*/*']
-    if (Object.keys(removeSpec).length) {
-      await chrome.permissions.remove(removeSpec).catch(() => { /* 收权失败不影响开关本身 */ })
-    }
+    removeSpec.origins = ['http://*/*', 'https://*/*']
+    await chrome.permissions.remove(removeSpec).catch(() => { /* 收权失败不影响开关本身 */ })
     return true
   } catch {
     event.target.checked = false
@@ -652,6 +724,10 @@ $('quickUrl').addEventListener('keydown', (event) => {
 })
 $('pasteBtn').addEventListener('click', pasteFromClipboard)
 $('tabSend').addEventListener('click', () => switchTab('send'))
+$('tabGrab').addEventListener('click', () => switchTab('grab'))
+$('grabBtn').addEventListener('click', grabPageLinks)
+$('grabFilter').addEventListener('input', (event) => renderGrabList(event.target.value))
+$('sendSelectedBtn').addEventListener('click', sendGrabbed)
 $('tabConnect').addEventListener('click', () => switchTab('connect'))
 $('bannerPairBtn').addEventListener('click', () => {
   switchTab('connect')
@@ -662,7 +738,7 @@ $('saveBtn').addEventListener('click', saveConfig)
 $('testBtn').addEventListener('click', testConnection)
 $('pageVideoBtn').addEventListener('click', downloadPageVideo)
 
-// 开关即时保存（allowProbe / allowCookies 涉及权限申请，见上）
+// 开关即时保存（allowCookies 涉及权限申请，见上）
 $('enabled').addEventListener('change', async (event) => {
   await patchConfig({ enabled: event.target.checked })
   if (!event.target.checked) showFeedback(i18n('errDisabled'), true)
@@ -681,7 +757,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
     elSecret.value = next.secret || ''
     elEnabled.checked = next.enabled !== false
     elInterceptAll.checked = next.interceptAll === true
-    elAllowProbe.checked = next.allowProbe === true
     applyPairingUi(!!next.secret)
   }
   if (changes.lastPairing?.newValue) {
