@@ -325,7 +325,8 @@
     "downloadFailed": "下载失败",
     "archiveExtracted": "已自动解压",
     "engineCrashed": "aria2 引擎意外退出，正在自动重启（第 {count} 次）",
-    "engineGaveUp": "aria2 引擎连续 {count} 次重启失败，已停止自动重启。可在「设置 → 本地引擎」里手动重启，或打开应用日志查看原因"
+    "engineGaveUp": "aria2 引擎连续 {count} 次重启失败，已停止自动重启。可在「设置 → 本地引擎」里手动重启，或打开应用日志查看原因",
+    "shutdownCancelled": "检测到新的下载任务，已取消自动关机"
   },
   "notificationCenter": {
     "title": "通知",

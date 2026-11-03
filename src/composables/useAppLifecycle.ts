@@ -8,6 +8,7 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { classifyAria2Error } from '@/shared/aria2Error'
+import { evaluateDownloadCompletion, shouldCancelPendingShutdown } from '@/shared/downloadCompletion'
 import { useDownloadHistoryStore } from '@/stores/downloadHistoryStore'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
 import { message } from '@/utils/feedback'
@@ -141,15 +142,34 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     void autoExtractIfEnabled(gid)
   }
 
-  // 下载全部完成后执行配置的操作（关机/休眠/关闭应用）
+  // 下载全部完成后执行配置的动作（关机/休眠/关闭应用）。
+  // 判定规则在 src/shared/downloadCompletion.ts（含单测）：
+  // 必须同时满足"没有活动任务、没有等待任务（含排队与暂停）、连接还在"。
+  // 历史教训：旧实现只看 activeTasks 长度——用户暂停最后一个任务（任务从
+  // tellActive 挪进 tellWaiting）、或断线清空列表，都会被误判成"下载完了"，
+  // 3 秒后真的关机/退出。
   let hadActiveTasks = false
   let downloadCompleteActionPending = false
-  watch(() => taskStore.activeTasks.length, (count) => {
-    if (count > 0) {
-      hadActiveTasks = true
-      downloadCompleteActionPending = false
-    } else if (hadActiveTasks && count === 0) {
-      // 曾经有活动任务，现在全部完成
+  // Windows 关机带 /t 60 的系统级 60 秒宽限；期间用户若又加了新任务，替他撤销
+  let shutdownArmedAt = 0
+  watch(
+    () =>
+      [taskStore.activeTasks.length, taskStore.waitingTasks.length, connectionStore.isConnected] as const,
+    ([activeCount, waitingCount, isConnected]) => {
+      const taskCount = activeCount + waitingCount
+      if (taskCount > 0) {
+        hadActiveTasks = true
+        downloadCompleteActionPending = false
+        if (shouldCancelPendingShutdown(shutdownArmedAt, Date.now(), taskCount)) {
+          shutdownArmedAt = 0
+          void window.electronAPI?.systemCancelShutdown?.().then((result) => {
+            if (result?.success) message.info(t('notification.shutdownCancelled'))
+          })
+        }
+        return
+      }
+      const decision = evaluateDownloadCompletion({ hadActiveTasks, activeCount, waitingCount, isConnected })
+      if (decision !== 'fire') return
       hadActiveTasks = false
       const action = settingsStore.getSetting('downloadCompleteAction') || 'none'
       if (action === 'none') return
@@ -158,6 +178,8 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       setTimeout(async () => {
         if (!downloadCompleteActionPending) return
         downloadCompleteActionPending = false
+        // 触发时若已经断线（列表是被清空的），不要把"断线"当"下载完成"
+        if (!connectionStore.isConnected) return
 
         // 关机/休眠必须检查返回值：命令失败时（如系统禁用了休眠、有策略限制）主进程会如实
         // 返回 {success:false}，此前这里把结果丢掉，用户什么也看不到，只会以为"没生效"。
@@ -170,13 +192,15 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
               action === 'shutdown' ? 'generalSettings.shutdownFailed' : 'generalSettings.hibernateFailed',
               { error: result.error ?? t('settings.unknownError') }
             ))
+          } else if (action === 'shutdown' && result?.success) {
+            shutdownArmedAt = Date.now()
           }
         } else if (action === 'close') {
           window.electronAPI?.close?.()
         }
       }, 3000)
     }
-  })
+  )
 
   // 连接状态统一管理自动刷新：连接成功即启动刷新；仅在首次连接时关闭残留对话框，
   // 自动重连成功（已连过一次）不触碰对话框，避免打断用户编辑另一个配置
