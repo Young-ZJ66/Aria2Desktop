@@ -1059,6 +1059,7 @@
     "requirePort": "Please enter port number",
     "portRange": "Port must be between 1-65535",
     "connectionFailed": "Connection failed",
+    "proxyHint": "A system proxy can block addresses like 127.0.0.1 — try changing the host to localhost",
     "defaultProfileName": "Default",
     "profileList": "Connection Profiles",
     "editProfile": "Edit Profile",

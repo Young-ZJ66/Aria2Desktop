@@ -1059,6 +1059,7 @@
     "requirePort": "请输入端口号",
     "portRange": "端口号必须在1-65535之间",
     "connectionFailed": "连接失败",
+    "proxyHint": "电脑开着系统代理时，可能拦住 127.0.0.1 这类地址——试试把主机改成 localhost",
     "defaultProfileName": "默认",
     "profileList": "连接配置",
     "editProfile": "编辑配置",

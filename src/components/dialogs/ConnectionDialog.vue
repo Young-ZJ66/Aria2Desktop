@@ -195,6 +195,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message, confirm } from '@/utils/feedback'
 import { getUserFriendlyError } from '@/utils/errorMessages'
+import { buildConnectionFailureMessage } from '@/shared/connectionDiagnostics'
 import type { FormInst, FormRules, SelectOption } from 'naive-ui'
 import { ArrowBackOutline, AddOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
 import { useConnectionStore } from '@/stores/connectionStore'
@@ -363,7 +364,15 @@ async function handleConnect() {
     visible.value = false
   } catch (error) {
     console.error('Connection failed:', error)
-    message.error(getUserFriendlyError(error, t('connection.connectionFailed')))
+    // 主机是环回 IP 字面量且是网络层失败时，追加"试试 localhost"（系统代理会拦 IP 字面量，实测见 src/shared/connectionDiagnostics.ts）
+    message.error(
+      buildConnectionFailureMessage({
+        host: form.host,
+        error,
+        baseMessage: getUserFriendlyError(error, t('connection.connectionFailed')),
+        proxyHint: t('connection.proxyHint')
+      })
+    )
   } finally {
     connecting.value = false
   }
