@@ -36,6 +36,9 @@ const electronAPI = {
   resolveDownloadConflict: (dir: string, fileName: string) =>
     ipcRenderer.invoke('resolve-download-conflict', dir, fileName),
 
+  // 磁盘剩余空间查询（新建任务提交前预检；查询失败返回 free=-1，渲染层跳过预检）
+  getDiskFreeSpace: (dir: string) => ipcRenderer.invoke('get-disk-free-space', dir),
+
   // 下载完成后自动解压（仅在设置开启时由渲染层调用；主进程校验路径必须位于下载目录内）
   extractArchive: (filePath: string) => ipcRenderer.invoke('archive-extract', filePath),
 

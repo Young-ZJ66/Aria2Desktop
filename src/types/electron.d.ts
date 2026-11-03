@@ -85,6 +85,9 @@ export interface ElectronAPI {
   // 无冲突/上次中断可续传时原样返回
   resolveDownloadConflict: (dir: string, fileName: string) => Promise<{ fileName: string; conflict: boolean }>
 
+  // 磁盘剩余空间查询（新建任务提交前预检）；查询失败返回 free=-1（未知），渲染层跳过预检
+  getDiskFreeSpace: (dir: string) => Promise<{ free: number; total: number }>
+
   // 下载完成后自动解压（仅支持 zip/7z/tar 系；主进程校验路径必须位于下载目录内）
   extractArchive: (filePath: string) => Promise<{
     success: boolean

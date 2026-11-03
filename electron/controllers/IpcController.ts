@@ -506,6 +506,29 @@ export class IpcController {
       { getMainWindow: this.windowRef, failureValue: { fileName: '', conflict: false } }
     )
 
+    // 磁盘剩余空间查询（渲染层新建任务提交前预检，见 utils/diskSpace.ts 的判定）。
+    // 只读 statfs，只返回聚合数值（free/total 字节数），不泄露目录内容；
+    // 非绝对路径 / 超长路径直接返回未知哨兵，statfs 失败（目录尚未创建等）同样回落——
+    // 预检是尽力而为，不能因此阻塞正常任务。
+    registerSecureHandler<[string], Promise<{ free: number; total: number }>>(
+      'get-disk-free-space',
+      async (_event, dir) => {
+        if (typeof dir !== 'string' || !path.isAbsolute(dir) || dir.length > 4096) {
+          return { free: -1, total: -1 }
+        }
+        try {
+          const stats = await fs.promises.statfs(path.normalize(dir))
+          return {
+            free: Number(stats.bavail) * Number(stats.bsize),
+            total: Number(stats.blocks) * Number(stats.bsize)
+          }
+        } catch {
+          return { free: -1, total: -1 }
+        }
+      },
+      { getMainWindow: this.windowRef, failureValue: { free: -1, total: -1 } }
+    )
+
     /**
      * 下载完成后自动解压（渲染层在任务完成时调用，仅在设置开启时触发）。
      *

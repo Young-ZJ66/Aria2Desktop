@@ -78,6 +78,8 @@ import { useNewTaskSubmit } from '@/composables/useNewTaskSubmit'
 import { CATEGORY_AUTO, resolveCategory } from '@/shared/fileCategories'
 import { formatSize } from '@/utils/taskFormatters'
 import { parseTorrentFiles, type TorrentFileEntry } from '@/utils/torrentFileList'
+import { confirm } from '@/utils/feedback'
+import { isDiskSpaceSufficient } from '@/utils/diskSpace'
 import type { Aria2Option } from '@/types/aria2'
 import type { CategoryOption, ComputeTargetDir, RequestPickFile } from './types'
 
@@ -235,6 +237,20 @@ async function handleSubmit() {
       const downloadConfig = settingsStore.downloadConfig
       const targetDir = props.computeTargetDir(settingsStore.taskBaseDir, form.category, file.name)
       if (targetDir) options.dir = targetDir
+
+      // 磁盘空间预检：种子内文件大小精确已知，提交前查一次目标盘剩余空间，
+      // 不足时让用户确认（文件系统压缩/去重等场景仍可选择继续；查询失败静默跳过）
+      if (
+        selectedFileBytes.value > 0 &&
+        targetDir &&
+        window.electronAPI?.getDiskFreeSpace
+      ) {
+        const space = await window.electronAPI.getDiskFreeSpace(targetDir)
+        if (!isDiskSpaceSufficient(space.free, selectedFileBytes.value)) {
+          const proceed = await askInsufficientSpace(targetDir, space.free)
+          if (!proceed) return ''
+        }
+      }
       // 注意：是否暂停由「下载设置」的 autoStart 决定（URI 页则是表单上的开关）
       if (downloadConfig && !downloadConfig.autoStart) options.pause = 'true'
       // 只下载勾选的文件；未解析成功时不传，保持“全部文件”的旧行为
@@ -248,6 +264,31 @@ async function handleSubmit() {
 
     fallbackError: t('newTask.addTorrentFailed'),
     logLabel: 'TorrentPane'
+  })
+}
+
+/**
+ * 空间不足确认：与 URI 页重名确认同样的 Promise 包装（feedback.confirm 无返回值），
+ * onClose / onEsc 必须同样 resolve(false)——X 与 ESC 等同于取消，否则提交流程挂起。
+ * 返回 true=仍然添加；false=取消本次提交。
+ */
+function askInsufficientSpace(targetDir: string, freeBytes: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    confirm({
+      title: t('newTask.diskSpaceTitle'),
+      content: t('newTask.diskSpaceContent', {
+        required: formatSize(selectedFileBytes.value),
+        free: formatSize(freeBytes),
+        dir: targetDir
+      }),
+      type: 'warning',
+      positiveText: t('newTask.diskSpaceContinue'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: () => resolve(true),
+      onNegativeClick: () => resolve(false),
+      onClose: () => resolve(false),
+      onEsc: () => resolve(false)
+    })
   })
 }
 
