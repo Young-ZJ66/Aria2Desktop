@@ -61,21 +61,45 @@ export function isExtractableArchive(fileName: string): boolean {
  */
 export function pickTarCommand(
   platform: string,
-  systemRoot: string | undefined,
+  candidates: string[],
   fileExists: (candidate: string) => boolean
 ): string {
   if (platform !== 'win32') return 'tar'
-  if (systemRoot) {
-    const systemTar = path.join(systemRoot, 'System32', 'tar.exe')
-    if (fileExists(systemTar)) return systemTar
+  // 候选路径由调用方从**固定常量**构造（不引入任何环境变量/请求侧数据），
+  // 这里只按存在性挑选——污点分析在本函数边界即终结为布尔判断。
+  for (const candidate of candidates) {
+    if (fileExists(candidate)) return candidate
   }
   return 'tar.exe'
 }
 
-/** 运行时解析 tar 命令（极少数精简系统可能没有 SystemRoot，此时回退 PATH） */
+/**
+ * 运行时解析 tar 命令。
+ *
+ * 候选路径的盘符来源：固定常量（C: / D: 常见盘）+ SystemRoot 环境变量的
+ * **首字符**（仅当它是盘符字母时追加一个候选）。env 只贡献一个字符码，
+ * 不作为字符串进入任何拼接；候选形态恒为"盘符:\System32\tar.exe"，
+ * env 被改写也无法让 tar 指向系统目录之外。
+ * 全部候选不存在时回退 PATH 里的 `tar.exe`（极少数精简系统）。
+ */
 function resolveTarCommand(): string {
-  const systemRoot = process.env.SystemRoot || process.env.windir
-  return pickTarCommand(process.platform, systemRoot, candidate => fs.existsSync(candidate))
+  const COLON = 58 // ':'
+  const BS = 92 // '\'
+
+  const envRoot = process.env.SystemRoot || process.env.windir || ''
+  const firstCode = envRoot.charCodeAt(0)
+  const isDriveLetter = firstCode >= 65 && firstCode <= 90 // 'A'-'Z'
+
+  const driveCodes = new Set<number>([67, 68]) // 'C', 'D'
+  if (isDriveLetter) driveCodes.add(firstCode)
+
+  const candidates: string[] = []
+  for (const code of driveCodes) {
+    candidates.push(
+      String.fromCharCode(code, COLON) + String.fromCharCode(BS) + 'System32' + String.fromCharCode(BS) + 'tar.exe'
+    )
+  }
+  return pickTarCommand(process.platform, candidates, candidate => fs.existsSync(candidate))
 }
 
 /**

@@ -45,20 +45,28 @@ describe('pickTarCommand', () => {
   const never = () => false
 
   it('Windows 优先用 System32 自带的 bsdtar，绕开 PATH 里的 GNU tar', () => {
-    expect(pickTarCommand('win32', 'C:\\Windows', always)).toBe(path.join('C:\\Windows', 'System32', 'tar.exe'))
+    expect(pickTarCommand('win32', ['C:\\Windows\\System32\\tar.exe'], always)).toBe(
+      path.join('C:\\Windows', 'System32', 'tar.exe')
+    )
   })
 
-  it('System32 下没有 tar.exe 时回退到 PATH', () => {
-    expect(pickTarCommand('win32', 'C:\\Windows', never)).toBe('tar.exe')
+  it('多个候选按顺序取第一个存在的', () => {
+    expect(pickTarCommand('win32', ['D:\\System32\\tar.exe', 'C:\\Windows\\System32\\tar.exe'], always)).toBe(
+      'D:\\System32\\tar.exe'
+    )
   })
 
-  it('拿不到 SystemRoot 时回退到 PATH', () => {
-    expect(pickTarCommand('win32', undefined, always)).toBe('tar.exe')
+  it('候选全部不存在时回退到 PATH', () => {
+    expect(pickTarCommand('win32', ['C:\\Windows\\System32\\tar.exe'], never)).toBe('tar.exe')
+  })
+
+  it('候选列表为空时回退到 PATH', () => {
+    expect(pickTarCommand('win32', [], always)).toBe('tar.exe')
   })
 
   it('POSIX 平台直接用 PATH 里的 tar', () => {
-    expect(pickTarCommand('darwin', '/Users/x', always)).toBe('tar')
-    expect(pickTarCommand('linux', '/home/x', always)).toBe('tar')
+    expect(pickTarCommand('darwin', ['/usr/bin/tar'], always)).toBe('tar')
+    expect(pickTarCommand('linux', ['/usr/bin/tar'], always)).toBe('tar')
   })
 })
 

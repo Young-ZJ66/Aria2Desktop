@@ -46,6 +46,19 @@ describe('getUserFriendlyError', () => {
     expect(getUserFriendlyError(new Error(raw))).toBe(`<${expected}>`)
   })
 
+  it('TLS/代理/证书类错误命中专门提示（v1.2.1 实测发现 SSL handshake 只落到兜底）', () => {
+    // 实测原文："SSL/TLS handshake failure: Error: 远程主机强迫关闭了一个现有的连接。 (2746)"
+    expect(getUserFriendlyError(new Error('SSL/TLS handshake failure: Error: 远程主机强迫关闭了一个现有的连接。 (2746)'))).toBe('<errors.tlsHandshake>')
+    expect(getUserFriendlyError(new Error('TLS handshake timeout'))).toBe('<errors.tlsHandshake>')
+    expect(getUserFriendlyError(new Error('net::ERR_PROXY_CONNECTION_FAILED'))).toBe('<errors.proxy>')
+    expect(getUserFriendlyError(new Error('self signed certificate in certificate chain'))).toBe('<errors.certificate>')
+  })
+
+  it('TLS 模式优先于 ECONNRESET 的泛化文案（握手失败常伴随连接被远端关闭）', () => {
+    const raw = 'SSL/TLS handshake failure: Error: 远程主机强迫关闭了一个现有的连接。 (2746), cause: read ECONNRESET'
+    expect(getUserFriendlyError(new Error(raw))).toBe('<errors.tlsHandshake>')
+  })
+
   it('Download failed 映射到下载失败（放最后，避免抢先命中更具体的词）', () => {
     expect(getUserFriendlyError('Download failed: EACCES')).toBe('<errors.eacces>')
   })

@@ -1099,7 +1099,10 @@
     "noUris": "No usable download link found",
     "tooManyRedirects": "Too many redirects; the download address may be invalid",
     "downloadFailed": "Download failed",
-    "unknown": "Operation failed. Please try again later"
+    "unknown": "Operation failed. Please try again later",
+    "tlsHandshake": "Secure connection to this site failed — the network may block it. Try a proxy or a different source",
+    "proxy": "Proxy connection failed. Check your system or app proxy settings",
+    "certificate": "Certificate validation failed: the site certificate is invalid or expired"
   },
   "localService": {
     "invalidPort": "Invalid port, please use a port between 1024 and 65535",

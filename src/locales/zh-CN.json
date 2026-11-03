@@ -1099,7 +1099,10 @@
     "noUris": "没有找到可用的下载链接",
     "tooManyRedirects": "重定向次数过多，下载地址可能无效",
     "downloadFailed": "下载失败",
-    "unknown": "操作失败，请稍后重试"
+    "unknown": "操作失败，请稍后重试",
+    "tlsHandshake": "与该站点的安全连接建立失败——常见于网络环境拦截或站点被墙，可尝试代理或更换下载源",
+    "proxy": "代理连接失败，请检查系统或应用代理设置",
+    "certificate": "证书校验失败：站点证书无效或过期"
   },
   "localService": {
     "invalidPort": "端口无效，请填写 1024-65535 之间的端口号",

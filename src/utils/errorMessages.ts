@@ -12,6 +12,13 @@ import i18n from '@/i18n'
 
 /** 技术错误关键词到 i18n key 的映射（顺序即优先级） */
 const ERROR_PATTERNS: Array<{ pattern: RegExp; key: string }> = [
+  // TLS/代理相关放最前：握手失败常伴随 ECONNRESET/timeout 字样（远端强制关闭连接），
+  // 具体原因必须优先于泛化文案命中。实测原文："SSL/TLS handshake failure: Error:
+  // 远程主机强迫关闭了一个现有的连接。 (2746)"
+  { pattern: /SSL?[/ ]?TLS handshake|handshake failure|TLS handshake/i, key: 'errors.tlsHandshake' },
+  { pattern: /ERR_PROXY|proxy/i, key: 'errors.proxy' },
+  { pattern: /certificate|CERT_|self.signed/i, key: 'errors.certificate' },
+
   // 连接相关
   { pattern: /ECONNREFUSED/i, key: 'errors.econnrefused' },
   { pattern: /ECONNRESET/i, key: 'errors.econnreset' },
