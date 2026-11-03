@@ -1,7 +1,8 @@
 name: 构建并发布
 
 # 推送版本 tag（v1.0.0、v1.0.1 等）时自动构建并发布 Release。
-# 发布前依次通过：扩展打包 → 应用端到端测试（真跑一遍应用）→ Windows / macOS / Linux 构建与产物断言。
+# 发布前依次通过：扩展打包 → 应用端到端测试（真跑一遍应用）→ 创建 Release，
+# 然后 Windows / macOS / Linux 三平台并行构建并上传产物。
 on:
   push:
     tags:
@@ -220,10 +221,53 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # 先把 Release 建出来，三个平台的构建才能并行上传：
+  # gh release upload 要求 Release 已存在。此前创建动作放在 Windows job 里，
+  # mac/linux 只能 needs: [build] 串行等待，白白多等一整个 Windows 构建。
+  # 版本守卫（日志首行必须含 tag 版本）与 build 作业里的一致，谁先跑谁拦。
+  release-init:
+    needs: [e2e]
+    name: 创建 Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 校验更新日志版本
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          expected=$(printf '%s' "$tag" | sed -n 's/^v\?\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p')
+          if [ -z "$expected" ]; then
+            echo "无法从 tag「$tag」解析出版本号，请检查 tag 命名（形如 v1.2.1）" >&2
+            exit 1
+          fi
+          first=$(head -n1 .github/release-notes.md | tr -d '\r')
+          case "$first" in
+            *"$expected"*) ;;
+            *)
+              echo "更新日志与本次 tag 不匹配，已终止发布。" >&2
+              echo "tag=$tag；期望版本=$expected；日志首行=$first" >&2
+              echo "请把 .github/release-notes.md 首行改为「# v$expected 更新日志」并提交后重新打 tag。" >&2
+              exit 1
+              ;;
+          esac
+          echo "更新日志版本校验通过：$first"
+
+      - name: 创建或更新 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file .github/release-notes.md
+          else
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "Aria2 Desktop $tag" --notes-file .github/release-notes.md
+          fi
+
   # macOS 安装包：在真实的 macOS 运行器上构建（Windows 无法交叉产出 dmg）。
-  # 依赖 Windows job 先创建 Release，再往同一个 tag 上传资产。
+  # Release 已由 release-init 建好，与 Windows 构建并行上传资产。
   build-mac:
-    needs: [build]
+    needs: [release-init]
     name: 构建 macOS
     runs-on: macos-latest
     steps:
@@ -274,7 +318,7 @@ jobs:
 
   # Linux 安装包：AppImage + deb（x64）
   build-linux:
-    needs: [build]
+    needs: [release-init]
     name: 构建 Linux
     runs-on: ubuntu-latest
     steps:
