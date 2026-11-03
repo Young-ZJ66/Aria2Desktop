@@ -224,7 +224,10 @@ async function fetchTextOnce(url: string, maxBytes: number): Promise<string> {
         fail(new Error(`获取校验文件失败：HTTP ${status}`))
         return
       }
-      let body = ''
+      // 按 Buffer 收集、结束时一次性解码：多字节 UTF-8 字符（emoji、中文）
+      // 跨网络 chunk 边界时，逐 chunk 解码会把跨界序列撕成 U+FFFD 乱码，
+      // 导致 GitHub Release 元信息 JSON 偶发解析失败
+      const chunks: Buffer[] = []
       let bytes = 0
       response.on('data', (chunk: Buffer) => {
         idle?.reset()
@@ -233,13 +236,13 @@ async function fetchTextOnce(url: string, maxBytes: number): Promise<string> {
           fail(new Error('响应体过大'))
           return
         }
-        body += chunk.toString()
+        chunks.push(chunk)
       })
       response.on('end', () => {
         if (settled) return
         settled = true
         idle?.clear()
-        resolve(body)
+        resolve(Buffer.concat(chunks).toString('utf8'))
       })
       response.on('error', (error) => fail(error instanceof Error ? error : new Error(String(error))))
     })
