@@ -109,4 +109,69 @@ describe('streamTaskStore', () => {
     emit?.({ type: 'cancelled', id: 'sd-test-1' })
     expect(store.tasks).toHaveLength(0)
   })
+
+  it('removeTask 对进行中的任务先取消再移除（顺序不能反）', async () => {
+    const store = useStreamTaskStore()
+    await store.startTask({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads',
+      title: '测试视频'
+    })
+    const calls: string[] = []
+    ;(window.electronAPI!.streamDownloadCancel as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      calls.push('cancel')
+      return true
+    })
+
+    await store.removeTask('sd-test-1')
+
+    expect(calls).toEqual(['cancel'])
+    expect(store.tasks).toHaveLength(0)
+  })
+
+  it('removeTask 对已完成的任务不再触发取消', async () => {
+    const store = useStreamTaskStore()
+    await store.startTask({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads',
+      title: '测试视频'
+    })
+    emit?.({ type: 'completed', id: 'sd-test-1', filePath: 'D:/Downloads/测试视频.mp4' })
+
+    await store.removeTask('sd-test-1')
+
+    expect(window.electronAPI!.streamDownloadCancel).not.toHaveBeenCalled()
+    expect(store.tasks).toHaveLength(0)
+  })
+
+  it('retryTask 沿用原 URL/格式/目录重新发起，成功后移除旧记录；失败则保留', async () => {
+    const store = useStreamTaskStore()
+    await store.startTask({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads',
+      title: '测试视频'
+    })
+    emit?.({ type: 'failed', id: 'sd-test-1', error: 'boom' })
+    ;(window.electronAPI!.streamDownloadStart as ReturnType<typeof vi.fn>).mockResolvedValue({ success: false, error: 'offline' })
+    expect((await store.retryTask('sd-test-1')).success).toBe(false)
+    expect(store.findByGid('sd-test-1')).toBeDefined()
+
+    ;(window.electronAPI!.streamDownloadStart as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, id: 'sd-retry-1' })
+    const result = await store.retryTask('sd-test-1')
+    expect(result.success).toBe(true)
+    expect(window.electronAPI!.streamDownloadStart).toHaveBeenLastCalledWith({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads'
+    })
+    expect(store.findByGid('sd-test-1')).toBeUndefined()
+    expect(store.findByGid('sd-retry-1')).toBeDefined()
+  })
 })
