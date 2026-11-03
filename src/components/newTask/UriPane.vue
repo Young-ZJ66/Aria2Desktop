@@ -279,6 +279,19 @@ async function handleSubmit() {
     },
 
     perform: async (uris) => {
+      // 提交前查重：同一链接已有进行中任务（active/waiting/paused）时先确认。
+      // aria2 对相同 URI 不去重（会再下一份副本），文件重名确认只在提交后兜底——
+      // 这里在探测文件名等任何开销之前拦一次，取消时不发任何请求。
+      const duplicates = taskStore.findDuplicateTasks(uris)
+      if (duplicates.length > 0) {
+        const shown = duplicates.slice(0, 3).map(d => d.name).join('、')
+        const names = duplicates.length > 3
+          ? t('newTask.duplicateMore', { names: shown, count: duplicates.length })
+          : shown
+        const proceed = await askDuplicateConfirm(duplicates.length, names)
+        if (!proceed) return ''
+      }
+
       const options: Aria2Option = {}
       const baseDir = form.dir || settingsStore.taskBaseDir
       // precheck 已保证 uris 非空，`?? ''` 只是满足 noUncheckedIndexedAccess
@@ -369,6 +382,27 @@ function askConflictChoice(baseName: string, suggestedName: string): Promise<str
       onNegativeClick: () => resolve(null),
       onClose: () => resolve(null),
       onEsc: () => resolve(null)
+    })
+  })
+}
+
+/**
+ * 重复链接确认：与重名确认同样的 Promise 包装（feedback.confirm 无返回值），
+ * onClose / onEsc 同样必须 resolve(false)——X 与 ESC 等同于取消，否则提交流程挂起。
+ * 返回 true=仍然添加；false=取消本次提交。
+ */
+function askDuplicateConfirm(count: number, names: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    confirm({
+      title: t('newTask.duplicateTitle'),
+      content: t('newTask.duplicateContent', { count, names }),
+      type: 'warning',
+      positiveText: t('newTask.duplicateContinue'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: () => resolve(true),
+      onNegativeClick: () => resolve(false),
+      onClose: () => resolve(false),
+      onEsc: () => resolve(false)
     })
   })
 }

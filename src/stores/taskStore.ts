@@ -7,6 +7,7 @@ import { sessionManager } from '@/services/sessionManager'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
 import { getTaskName } from '@/utils/taskUtils'
 import { computeTaskListFingerprint } from '@/utils/fingerprint'
+import { findDuplicateUris, type DuplicateMatch } from '@/utils/duplicateUrl'
 import type { Aria2Task, Aria2Option } from '@/types/aria2'
 import type { Aria2ClientEvent } from '@/services/aria2Client'
 
@@ -258,6 +259,15 @@ export const useTaskStore = defineStore('task', () => {
     } catch (error) {
       console.warn('Failed to save session immediately:', error)
     }
+  }
+
+  /**
+   * 查找与输入 URI 重复的进行中任务（active/waiting/paused）。
+   * 新建任务页提交前调用，提前拦住"同一链接再下一份副本"的误操作；
+   * 完成与出错任务不参与比对（重下/重试是有意行为）。纯比对，不发请求。
+   */
+  function findDuplicateTasks(uris: string[]): DuplicateMatch[] {
+    return findDuplicateUris(uris, [...activeTasks.value, ...waitingTasks.value])
   }
 
   async function addUri(uris: string[], options?: Aria2Option) {
@@ -615,6 +625,7 @@ export const useTaskStore = defineStore('task', () => {
     isLoading,
     loadAllTasks,
     loadLightTasks,
+    findDuplicateTasks,
     addUri,
     addTorrent,
     addMetalink,
