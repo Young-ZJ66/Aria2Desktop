@@ -29,6 +29,8 @@ function makeExecutable(file, { size = LINUX_MIN_BYTES + 1 } = {}) {
   fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.writeFileSync(file, '')
   fs.truncateSync(file, size)
+  // readOptions 在非 Windows 上会检查执行位（0644 的新文件没有），必须补上
+  fs.chmodSync(file, 0o755)
   return file
 }
 
@@ -148,6 +150,23 @@ describe('readOptions', () => {
     expect(options.retries).toBe(1)
     expect(options.keepData).toBe(false)
     expect(options.spawnArgs).toEqual([])
+  })
+
+  it('产物不存在时抛错（由 main 转成退出码 2，而不是杀掉测试进程）', () => {
+    const missing = path.join(releaseDir, 'nope', 'missing.exe')
+    expect(() => readOptions(['--exe', missing])).toThrow('找不到打包产物')
+  })
+
+  it('非 Windows 上 0644 的产物抛执行权限错误（v1.2.1 build-linux 的回归）', () => {
+    if (process.platform === 'win32') {
+      // Windows 上 chmod 不跟踪执行位，无法构造 0644 场景；此分支只在 CI 的
+      // mac/linux 作业里真实执行（readOptions 对 win32 显式跳过）
+      return
+    }
+    const exe = path.join(releaseDir, 'noexec.bin')
+    fs.mkdirSync(path.dirname(exe), { recursive: true })
+    fs.writeFileSync(exe, Buffer.alloc(1024))
+    expect(() => readOptions(['--exe', exe])).toThrow('打包产物没有执行权限')
   })
 })
 

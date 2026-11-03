@@ -156,15 +156,14 @@ function readOptions(argv = process.argv.slice(2)) {
       .filter(Boolean)
   }
 
+  // 抛错而不是 process.exit：单测会直接调用本函数，vitest 工作进程里
+  // 调 process.exit 会杀掉整个测试进程（"process.exit unexpectedly called"，
+  // 曾让 v1.2.1 的 build-linux 失败）。main() 负责把这条消息转成退出码 2。
   if (!fs.existsSync(exePath)) {
-    console.error(`找不到打包产物：${exePath}`)
-    console.error(`先跑一次 ${BUILD_HINT} 再执行冒烟。`)
-    process.exit(2)
+    throw new Error(`找不到打包产物：${exePath}\n先跑一次 ${BUILD_HINT} 再执行冒烟。`)
   }
   if (process.platform !== 'win32' && (fs.statSync(exePath).mode & 0o111) === 0) {
-    console.error(`打包产物没有执行权限：${exePath}`)
-    console.error('解压/拷贝过程可能丢了 +x，先 chmod +x 再执行冒烟。')
-    process.exit(2)
+    throw new Error(`打包产物没有执行权限：${exePath}\n解压/拷贝过程可能丢了 +x，先 chmod +x 再执行冒烟。`)
   }
   return options
 }
@@ -501,7 +500,13 @@ function cleanup(options, userData) {
 }
 
 async function main() {
-  const options = readOptions()
+  let options
+  try {
+    options = readOptions()
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    return 2
+  }
   const attemptCount = options.retries + 1
   let lastOutcome = null
 
