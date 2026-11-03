@@ -241,6 +241,10 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
             case 'resume-all':
               void taskStore.unpauseAllTasks()
               break
+            case 'speed-limit-changed':
+              // 托盘侧改了限速：重载全局选项，AppFooter 的开关状态保持一致
+              void statsStore.loadGlobalOptions()
+              break
           }
         })
       }

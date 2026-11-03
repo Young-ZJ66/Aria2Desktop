@@ -3,6 +3,8 @@ import { WindowController } from './WindowController'
 import { appState } from '../utils/appState'
 import { resolveTrayIconPath } from '../utils/resolvePaths'
 import { createLogger } from '../utils/logger'
+import { formatLimitLabel } from '../utils/speedLimitCore'
+import { readSpeedLimit, toggleSpeedLimit } from '../services/traySpeedLimit'
 
 // 本文件日志文案自带 [TrayController] 前缀（历史风格），故 scope 传空避免前缀重复
 const logger = createLogger('')
@@ -10,6 +12,8 @@ const logger = createLogger('')
 export class TrayController {
   private tray: Tray | null = null
   private windowController: WindowController
+  /** 当前限速状态快照（null = 尚未读到/引擎不可达，菜单显示中性文案） */
+  private speedLimitState: { limited: boolean; limitBytes: number } | null = null
 
   constructor(windowController: WindowController) {
     this.windowController = windowController
@@ -28,6 +32,8 @@ export class TrayController {
       this.setupContextMenu()
       this.setupEventHandlers()
       this.tray.setToolTip('Aria2 Desktop')
+      // 异步取一次当前限速状态刷新菜单文案（引擎未运行时保持中性文案，静默即可）
+      void this.refreshSpeedLimitState()
     } catch (error) {
       logger.error('Failed to create tray:', error)
     }
@@ -64,6 +70,9 @@ export class TrayController {
       settings: isZh ? '设置' : 'Settings',
       pauseAll: isZh ? '暂停全部' : 'Pause All',
       resumeAll: isZh ? '恢复全部' : 'Resume All',
+      speedLimit: isZh ? '下载限速' : 'Speed Limit',
+      unlimited: isZh ? '不限速' : 'Unlimited',
+      unknown: isZh ? '状态未知（引擎未运行？）' : 'Unknown (engine not running?)',
       show: isZh ? '显示主窗口' : 'Show Main Window',
       hide: isZh ? '隐藏窗口' : 'Hide Window',
       quit: isZh ? '退出' : 'Quit'
@@ -87,6 +96,13 @@ export class TrayController {
         label: labels.resumeAll,
         click: () => this.sendAction('resume-all')
       },
+      {
+        // 快捷限速：文案即状态（限速中显示当前值，点击切换）
+        label: this.speedLimitMenuItemLabel(labels),
+        click: () => {
+          void this.toggleSpeedLimitFromTray()
+        }
+      },
       { type: 'separator' },
       {
         label: labels.show,
@@ -109,6 +125,34 @@ export class TrayController {
     ])
 
     this.tray.setContextMenu(contextMenu)
+  }
+
+  /** 限速菜单项文案：状态未知给中性提示，限速中显示当前值（文案即状态） */
+  private speedLimitMenuItemLabel(labels: { speedLimit: string; unlimited: string; unknown: string }): string {
+    if (!this.speedLimitState) return `${labels.speedLimit}（${labels.unknown}）`
+    if (!this.speedLimitState.limited) return `${labels.speedLimit}：${labels.unlimited}`
+    return `${labels.speedLimit}：${formatLimitLabel(this.speedLimitState.limitBytes)}`
+  }
+
+  /** 拉取当前限速状态并重建菜单（引擎不可达时保留当前菜单不变） */
+  private async refreshSpeedLimitState(): Promise<void> {
+    const snapshot = await readSpeedLimit()
+    if (!snapshot) return
+    this.speedLimitState = snapshot
+    this.setupContextMenu()
+  }
+
+  /** 托盘点按切换限速：切换成功后按新状态重建菜单（失败保持原样，日志已记录） */
+  private async toggleSpeedLimitFromTray(): Promise<void> {
+    const snapshot = await toggleSpeedLimit()
+    if (!snapshot) return
+    this.speedLimitState = snapshot
+    this.setupContextMenu()
+    // 通知渲染层重载全局选项（AppFooter 的限速开关状态据此保持一致；不弹窗）
+    const win = this.windowController.getMainWindow()
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('tray-action', 'speed-limit-changed')
+    }
   }
 
   /** 托盘的快捷动作统一交给渲染层执行（新建/设置/暂停/恢复都依赖前端状态） */
