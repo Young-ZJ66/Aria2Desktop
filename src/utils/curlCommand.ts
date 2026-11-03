@@ -16,6 +16,42 @@ export interface ParsedCurl {
 
 const URL_PATTERN = /^(https?|ftp|sftp):\/\//i
 
+/**
+ * 这些标志后面跟着一个值；其中数据体（--data* / -F）里常常出现
+ * `https://...`（表单跳转、JSON 接口），不吞掉的话会被当成下载 URL。
+ */
+const VALUE_FLAGS = new Set([
+  '-d',
+  '--data',
+  '--data-raw',
+  '--data-urlencode',
+  '--data-binary',
+  '--data-ascii',
+  '-F',
+  '--form',
+  '--form-string',
+  '-X',
+  '--request',
+  '-u',
+  '--user',
+  '-x',
+  '--proxy',
+  '--proxy-user',
+  '-m',
+  '--max-time',
+  '--connect-timeout',
+  '--retry',
+  '-r',
+  '--range',
+  '-T',
+  '--upload-file',
+  '-E',
+  '--cert',
+  '--key',
+  '--cacert',
+  '--json'
+])
+
 /** 类 shell 分词：支持单/双引号与反斜杠转义 */
 export function tokenizeCurlCommand(command: string): string[] {
   const normalized = command
@@ -31,7 +67,15 @@ export function tokenizeCurlCommand(command: string): string[] {
       if (char === quote) {
         quote = null
       } else if (quote === '"' && char === '\\' && i + 1 < normalized.length) {
-        current += normalized[++i]
+        // bash/cmd 在双引号内都只把 \" \\ \$ \` 当转义；`\U` 这类保持原样，
+        // 否则 Windows 路径会被吃掉反斜杠（`C:\Users` → `C:Users`）
+        const escaped = normalized[i + 1]!
+        if (escaped === '\\' || escaped === '"' || escaped === '$' || escaped === '`') {
+          current += escaped
+          i += 1
+        } else {
+          current += char
+        }
       } else {
         current += char
       }
@@ -80,6 +124,12 @@ export function parseCurlCommand(command: string): ParsedCurl | null {
     const next = (): string => {
       i += 1
       return tokens[i] ?? ''
+    }
+
+    if (VALUE_FLAGS.has(token)) {
+      // 已知带值但不用于下载的标志（数据体、认证、代理、超时…），连同值一起跳过
+      next()
+      continue
     }
 
     if (token === '-H' || token === '--header') {
