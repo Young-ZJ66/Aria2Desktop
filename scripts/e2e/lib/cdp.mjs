@@ -142,8 +142,25 @@ export function createReporter() {
     },
     summary() {
       const failed = this.failed
+      // CI 上的作业日志必须登录才能看，匿名只剩一句 "Process completed with exit code 1"。
+      // 把失败断言升格成 ::error:: 注解，运行页面上任何人不登录也能读到是哪一条、卡在什么地方。
+      if (process.env.GITHUB_ACTIONS === 'true') {
+        for (const item of failed.slice(0, 10)) {
+          const title = escapeWorkflowCommand(item.name)
+          const message = escapeWorkflowCommand(item.detail || '断言失败（无附加信息）')
+          console.log(`::error title=${title}::${message}`)
+        }
+        if (failed.length > 10) {
+          console.log(`::error title=E2E::还有 ${failed.length - 10} 条失败断言未列出，见作业日志`)
+        }
+      }
       console.log(`\n结果：${results.length - failed.length} 项通过，${failed.length} 项失败`)
       return failed.length
     }
   }
+}
+
+/** GitHub Actions 工作流命令里 %、换行需要转义，否则注解会被截断 */
+function escapeWorkflowCommand(text) {
+  return String(text).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')
 }
