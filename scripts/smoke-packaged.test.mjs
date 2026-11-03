@@ -11,6 +11,8 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   checkFreshDefaults,
+  checkRendererRendered,
+  isRendererHealthy,
   readOptions,
   resolveDefaultExe,
   resolveLinuxExecutable,
@@ -170,4 +172,54 @@ describe('checkFreshDefaults', () => {
     expect(results.map((r) => r.ok)).toEqual([true, true])
     fs.rmSync(dir, { recursive: true, force: true })
   })
+})
+
+describe('isRendererHealthy', () => {
+  it('正常渲染的页面算健康', () => {
+    expect(
+      isRendererHealthy({
+        title: 'Aria2 Desktop',
+        text: '正在下载  已停止  已完成\nAria2  下载任务 (0)',
+        url: 'file:///E:/app/dist/vue/index.html#/downloading'
+      })
+    ).toBe(true)
+  })
+
+  it('白屏（正文为空）判为不健康', () => {
+    expect(isRendererHealthy({ title: 'Aria2 Desktop', text: '   ', url: 'file:///x/index.html' })).toBe(false)
+  })
+
+  it('加载失败页（ERR_FILE_NOT_FOUND）判为不健康', () => {
+    expect(
+      isRendererHealthy({
+        title: 'Aria2 Desktop',
+        text: 'ERR_FILE_NOT_FOUND\nfile:///x/dist/vue/index.html',
+        url: 'file:///x/index.html'
+      })
+    ).toBe(false)
+  })
+
+  it('Chromium 错误页判为不健康', () => {
+    expect(
+      isRendererHealthy({
+        title: 'Aria2 Desktop',
+        text: '这里有一整段正常内容，长度超过二十个字符。',
+        url: 'chrome-error://chromewebdata/'
+      })
+    ).toBe(false)
+  })
+
+  it('没有标题或内容太短判为不健康', () => {
+    expect(isRendererHealthy({ title: '', text: '这里有一整段正常内容，长度超过二十个字符。' })).toBe(false)
+    expect(isRendererHealthy({ title: 'Aria2 Desktop', text: '加载中' })).toBe(false)
+  })
+})
+
+describe('checkRendererRendered', () => {
+  it('调试端口连不上时判为失败而不是崩掉', async () => {
+    // 端口 1 上不会有调试目标：脚本应当报"没有暴露调试目标"，而不是抛异常
+    const result = await checkRendererRendered(1, 600)
+    expect(result.ok).toBe(false)
+    expect(result.detail).toContain('没有暴露调试目标')
+  }, 15000)
 })

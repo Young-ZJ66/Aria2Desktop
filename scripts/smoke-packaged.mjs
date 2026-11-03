@@ -34,6 +34,7 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { connect, evalIn, httpJson } from './e2e/lib/cdp.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -299,8 +300,67 @@ export function checkFreshDefaults(userData) {
   return results
 }
 
+/**
+ * 渲染层健康判据（纯函数，可单测）。
+ *
+ * 主进程日志只能证明"进程活着、引擎起来了"，证明不了"用户看得见东西"：asar 里漏了
+ * dist/vue、preload 路径写错、渲染进程崩掉时，日志一切正常而窗口是白的。
+ * 所以额外读一次页面内容，判据是：不是 Chromium 错误页、标题非空、正文有实际内容。
+ */
+export function isRendererHealthy({ title, text, url } = {}) {
+  const pageTitle = String(title || '').trim()
+  const pageText = String(text || '').trim()
+  const pageUrl = String(url || '')
+  if (/^(chrome-error:|about:blank|data:)/.test(pageUrl)) return false
+  if (/ERR_FILE_NOT_FOUND|ERR_CONNECTION_FAILED|This site can.t be reached/.test(pageText)) return false
+  if (!pageTitle) return false
+  return pageText.length >= 20
+}
+
+/** 连一次调试端口，读页面标题与正文，判断窗口是不是白屏 */
+export async function checkRendererRendered(debugPort, timeoutMs = 20000) {
+  const name = '窗口渲染出了界面（不是白屏）'
+  const deadline = Date.now() + timeoutMs
+  let target = null
+  while (Date.now() < deadline) {
+    try {
+      const list = await httpJson(`http://127.0.0.1:${debugPort}/json/list`)
+      target = Array.isArray(list) ? list.find((item) => item.type === 'page') : null
+    } catch {
+      target = null
+    }
+    if (target?.webSocketDebuggerUrl) break
+    await sleep(500)
+  }
+  if (!target?.webSocketDebuggerUrl) {
+    return { name, ok: false, detail: `渲染进程没有暴露调试目标（端口 ${debugPort}）` }
+  }
+
+  let session = null
+  try {
+    session = await connect(target.webSocketDebuggerUrl)
+    const snapshot = await Promise.race([
+      evalIn(session, '({ title: document.title, text: document.body ? document.body.innerText : "", url: location.href })'),
+      // session.send 在连接断开时不会 reject，会一直挂着，所以自己兜个超时
+      sleep(8000).then(() => null)
+    ])
+    if (!snapshot) return { name, ok: false, detail: '读取页面内容超时' }
+    const detail = `${snapshot.title} · ${String(snapshot.text || '').replace(/\s+/g, ' ').trim().slice(0, 60)}`
+    return { name, ok: isRendererHealthy(snapshot), detail }
+  } catch (error) {
+    return { name, ok: false, detail: `读取页面失败：${error.message}` }
+  } finally {
+    try {
+      session?.close()
+    } catch {
+      // 关闭失败不影响结论
+    }
+  }
+}
+
 async function runAttempt(options, attempt, attemptCount) {
   const rpcPort = await findFreePort()
+  const debugPort = await findFreePort()
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'aria2-smoke-'))
   if (options.fresh) {
     console.log('\n（--fresh：数据目录保持空白，模拟全新安装）')
@@ -319,7 +379,9 @@ async function runAttempt(options, attempt, attemptCount) {
 
   if (options.spawnArgs.length) console.log(`启动参数: ${options.spawnArgs.join(' ')}`)
 
-  const child = spawn(options.exePath, options.spawnArgs, {
+  // 额外开一个调试端口：主进程日志证明不了窗口不是白屏，得进去看一眼
+  const spawnArgs = [...options.spawnArgs, `--remote-debugging-port=${debugPort}`]
+  const child = spawn(options.exePath, spawnArgs, {
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
     // POSIX 上自成进程组，停止时能连引擎子进程一起收掉
@@ -365,6 +427,12 @@ async function runAttempt(options, attempt, attemptCount) {
     // 引擎起来了才谈"它自己长出的配置对不对"；前面失败的话这里没必要再报一遍
     if (options.fresh && results.every((result) => result.ok)) {
       results.push(...checkFreshDefaults(userData))
+    }
+
+    // 日志正常不代表用户看得见东西：dist/vue 漏带、preload 路径写错时日志照样一片绿，
+    // 窗口却是白的。所以再连一次调试端口，确认页面真的渲染出了内容。
+    if (results.every((result) => result.ok)) {
+      results.push(await checkRendererRendered(debugPort, Math.min(options.timeoutMs, 20000)))
     }
   } finally {
     stopProcess(child)
