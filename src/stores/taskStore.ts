@@ -577,6 +577,11 @@ export const useTaskStore = defineStore('task', () => {
       service.on('downloadStart', handleDownloadStart)
       service.off('downloadError', handleDownloadEvent)
       service.on('downloadError', handleDownloadError)
+      // BT 任务在"下载完成（做种可继续）"时发的是 onBtDownloadComplete，
+      // onDownloadComplete 要等做种结束才发——不接线的话 BT 下载完成既无通知
+      // 也不进下载量统计（seed-ratio 达标可能要很久）
+      service.off('btDownloadComplete', handleDownloadComplete)
+      service.on('btDownloadComplete', handleDownloadComplete)
     }
   }, { immediate: true })
 

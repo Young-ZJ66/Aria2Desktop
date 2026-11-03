@@ -167,12 +167,39 @@ export async function extractArchiveTo(filePath: string, targetDir: string): Pro
   // 归档用相对路径 + spawn 的 cwd，参数直接给数组，不经 shell，避免路径被二次解释
   const args = buildExtractArgs(resolveArchiveArg(filePath, targetDir))
 
+  // 防覆盖：下载目录里可能已有同名文件（用户重新下载同一资源、上次失败残留等）。
+  // tar 默认无提示覆盖——这是数据丢失风险。压缩包内嵌套路径无法预知，
+  // 只能把"归档根级别"的同名冲突挡住（这是最常见的场景：zip/tar 里直接是文件）。
+  const archivePathInTarget = path.join(targetDir, fileName)
+  if (fs.existsSync(archivePathInTarget) && path.resolve(filePath) !== path.resolve(archivePathInTarget)) {
+    return { success: false, extracted: false, reason: 'target_conflict' }
+  }
+
+  // 失败/超时时 tar 会留下解出一半的文件——解压前先记下目标目录的现存文件集合，
+  // 失败时删除"新增的"条目（不能全删：目录里原有的用户文件不能动）。
+  let preExisting: Set<string>
+  try {
+    preExisting = new Set(fs.readdirSync(targetDir))
+  } catch {
+    preExisting = new Set()
+  }
+
   try {
     await fs.promises.mkdir(targetDir, { recursive: true })
     await runTar(resolveTarCommand(), args, targetDir)
     logger.info(`已解压 ${fileName} 到 ${targetDir}`)
     return { success: true, extracted: true, targetDir }
   } catch (error) {
+    // 清理半成品：只删本次解压新增的顶层条目（跳过归档自身与原有文件）
+    try {
+      for (const entry of fs.readdirSync(targetDir)) {
+        if (entry === fileName || preExisting.has(entry)) continue
+        const entryPath = path.join(targetDir, entry)
+        fs.rmSync(entryPath, { recursive: true, force: true })
+      }
+    } catch (cleanupError) {
+      logger.warn(`解压失败后清理半成品失败: ${cleanupError instanceof Error ? cleanupError.message : cleanupError}`)
+    }
     const message = error instanceof Error ? error.message : String(error)
     logger.warn(`解压失败 ${fileName}: ${message}`)
     return { success: false, extracted: false, reason: message.slice(0, 300) }

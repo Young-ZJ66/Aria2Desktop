@@ -237,6 +237,16 @@ function rebuildSearchIndex() {
     const tabName = names[paneIndex]
     if (!tabName) return
     const tabLabel = tabLabelOf(tabName)
+    // 页签名本身参与匹配（S1）：搜"工具与扩展"这类页签名此前会零结果，
+    // 因为索引只收表单项 label 与卡片标题，不含页签名
+    entries.push({
+      id: `${tabName}-tab`,
+      label: tabLabel,
+      tabName,
+      tabLabel,
+      searchText: tabLabel.toLowerCase()
+    })
+    searchElementRefs.set(`${tabName}-tab`, pane)
 
     pane.querySelectorAll<HTMLElement>('.n-form-item').forEach((item, itemIndex) => {
       // 隐藏页签（v-show=false）用 textContent 取文本：innerText 在未渲染元素上不可靠
@@ -255,12 +265,39 @@ function rebuildSearchIndex() {
       searchElementRefs.set(id, item)
     })
 
-    pane.querySelectorAll<HTMLElement>('.n-card-header__main').forEach((title, titleIndex) => {
-      const label = (title.textContent || '').replace(/\s+/g, ' ').trim()
+    // 卡片标题 + 卡片整体文本（S2）：工具/插件页是卡片+列表布局，没有 n-form-item，
+    // 不收卡片文本的话 "yt-dlp" "ffmpeg" 这些关键词完全搜不到
+    pane.querySelectorAll<HTMLElement>('.n-card').forEach((card, cardIndex) => {
+      const cardTitle = (card.querySelector<HTMLElement>('.n-card-header__main')?.textContent || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+      if (!cardTitle) return
+      const id = `${tabName}-c${cardIndex}`
+      entries.push({
+        id,
+        label: cardTitle,
+        tabName,
+        tabLabel,
+        searchText: `${cardTitle}\n${card.textContent || ''}`.toLowerCase()
+      })
+      searchElementRefs.set(id, card)
+    })
+
+    // 列表型页面的插件/组件条目（n-card 之外的独立条目）：按 class 特征兜底收录
+    pane.querySelectorAll<HTMLElement>('.plugin-item, .component-item').forEach((item, itemIndex) => {
+      const label = (item.querySelector('.plugin-name, .component-name')?.textContent || '')
+        .replace(/\s+/g, ' ')
+        .trim()
       if (!label) return
-      const id = `${tabName}-c${titleIndex}`
-      entries.push({ id, label, tabName, tabLabel, searchText: label.toLowerCase() })
-      searchElementRefs.set(id, title.closest<HTMLElement>('.n-card') ?? title)
+      const id = `${tabName}-i${itemIndex}`
+      entries.push({
+        id,
+        label,
+        tabName,
+        tabLabel,
+        searchText: `${label}\n${item.textContent || ''}`.toLowerCase()
+      })
+      searchElementRefs.set(id, item)
     })
   })
 

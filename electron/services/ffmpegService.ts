@@ -236,21 +236,44 @@ async function performInstall(
     const staging = path.join(tempRoot, 'bin')
     fs.cpSync(binDir, staging, { recursive: true })
 
-    fs.rmSync(ffmpegDir(), { recursive: true, force: true })
-    fs.mkdirSync(path.dirname(ffmpegDir()), { recursive: true })
-    fs.renameSync(staging, ffmpegDir())
-    installed = true
-    if (process.platform !== 'win32') {
-      fs.chmodSync(path.join(ffmpegDir(), executableName()), 0o755)
-      // ffprobe 也常被 yt-dlp 调用，缺失时一并修正权限
-      const probe = path.join(ffmpegDir(), 'ffprobe')
-      if (fs.existsSync(probe)) fs.chmodSync(probe, 0o755)
+    // 先把当前可用的旧安装挪到备份位（而非直接删除）：rename 到新位置失败
+    // （%TEMP% 与 userData 跨盘的 EXDEV、文件被占用等）或新装自检失败时，
+    // 把备份挪回来——旧版继续可用，不会出现"旧的删了、新的没装上"的两头空。
+    const target = ffmpegDir()
+    const backup = target + '.backup'
+    let hadBackup = false
+    if (fs.existsSync(target)) {
+      fs.rmSync(backup, { recursive: true, force: true })
+      fs.renameSync(target, backup)
+      hadBackup = true
     }
+    try {
+      fs.mkdirSync(path.dirname(target), { recursive: true })
+      fs.renameSync(staging, target)
+      installed = true
+      if (process.platform !== 'win32') {
+        fs.chmodSync(path.join(target, executableName()), 0o755)
+        // ffprobe 也常被 yt-dlp 调用，缺失时一并修正权限
+        const probe = path.join(target, 'ffprobe')
+        if (fs.existsSync(probe)) fs.chmodSync(probe, 0o755)
+      }
 
-    // 真正执行一次，确认不是"解压成功但跑不起来"
-    const version = await runFfmpegVersion(path.join(ffmpegDir(), executableName()))
-    logger.info(`ffmpeg 安装完成: ${version}`)
-    return { success: true, version }
+      // 真正执行一次，确认不是"解压成功但跑不起来"
+      const version = await runFfmpegVersion(path.join(target, executableName()))
+      logger.info(`ffmpeg 安装完成: ${version}`)
+      // 安装成功后备份才允许删除
+      if (hadBackup) fs.rmSync(backup, { recursive: true, force: true })
+      return { success: true, version }
+    } catch (installError) {
+      // 回滚：新装有问题时恢复旧版（若此前没有旧版则清理半成品）
+      try {
+        if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true })
+        if (hadBackup) fs.renameSync(backup, target)
+      } catch (rollbackError) {
+        logger.warn('ffmpeg 回滚失败:', rollbackError)
+      }
+      throw installError
+    }
   } catch (error) {
     if (installed) fs.rmSync(ffmpegDir(), { recursive: true, force: true })
     logger.warn('ffmpeg 安装失败:', error)

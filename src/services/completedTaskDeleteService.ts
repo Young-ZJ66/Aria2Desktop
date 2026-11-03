@@ -41,12 +41,19 @@ class CompletedTaskDeleteService {
 
   /**
    * 获取任务的所有文件路径
+   *
+   * BT 任务做了部分选文件（select-file）时，未选中的文件 aria2 不会创建，
+   * 删除时对它们报 Not found 会让"删除并删文件"整体失败（taskStore 的策略是
+   * 任一失败即保留任务）。这里按 selected 字段过滤：字段缺失（HTTP/旧记录）
+   * 视为全部选中，显式为 'false' 才排除。
    */
   getTaskFilePaths(task: Aria2Task): string[] {
     const filePaths: string[] = []
 
     if (task.files && task.files.length > 0) {
       task.files.forEach((file) => {
+        // BT 部分选文件：未选中的文件不存在于磁盘，跳过（避免 Not found 炸掉整个删除）
+        if (file.selected === 'false') return
         if (file.path && file.path.trim()) {
           let fullPath = file.path.trim()
           const isAbsolute = this.isAbsolutePath(fullPath)

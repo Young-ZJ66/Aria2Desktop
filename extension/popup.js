@@ -13,6 +13,14 @@
 const $ = (id) => document.getElementById(id)
 const i18n = (key, substitutions) => chrome.i18n.getMessage(key, substitutions) || key
 
+// 常驻元素引用（storage.onChanged 回填表单时使用）
+const elHost = document.getElementById('host')
+const elPort = document.getElementById('port')
+const elSecret = document.getElementById('secret')
+const elEnabled = document.getElementById('enabled')
+const elInterceptAll = document.getElementById('interceptAll')
+const elAllowProbe = document.getElementById('allowProbe')
+
 /** 本机地址默认已授权（见 manifest host_permissions），无需在运行时申请 */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
 
@@ -665,7 +673,16 @@ $('interceptAll').addEventListener('change', (event) => patchConfig({ interceptA
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return
   if (changes.config) {
-    applyPairingUi(!!changes.config.newValue?.secret)
+    const next = changes.config.newValue ?? {}
+    // 回填表单（B1 修复）：配对成功由 SW 写入 storage，弹窗开着时若不同步回填，
+    // 后续点保存设置会用空的 secret 输入框覆盖刚拿到的密钥
+    elHost.value = next.host || 'localhost'
+    elPort.value = next.port || 6800
+    elSecret.value = next.secret || ''
+    elEnabled.checked = next.enabled !== false
+    elInterceptAll.checked = next.interceptAll === true
+    elAllowProbe.checked = next.allowProbe === true
+    applyPairingUi(!!next.secret)
   }
   if (changes.lastPairing?.newValue) {
     onPairingResult(changes.lastPairing.newValue)

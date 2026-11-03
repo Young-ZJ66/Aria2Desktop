@@ -85,6 +85,16 @@ function sanitizeFileName(name) {
 }
 
 /**
+ * latin1 误读修复：服务器直接发原始 UTF-8 字节、被按 latin1 误读成乱码时，无损还原。
+ * MV3 Service Worker 没有 Node 的 Buffer 全局——用 Uint8Array + TextDecoder 等价实现：
+ * latin1 每字节就是一个 Unicode 码位，逐字节取出再按 UTF-8 解码即可。
+ */
+function latin1ToUtf8(value) {
+  const bytes = Uint8Array.from([...value].map(ch => ch.charCodeAt(0) & 0xff))
+  return new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+}
+
+/**
  * 解析 Content-Disposition 头里的 filename。
  * 兼容 RFC 5987（filename*=UTF-8''...）、带引号、无引号、百分号编码，
  * 以及「服务器直接发原始 UTF-8 字节、被按 latin1 误读成乱码」的情况（无损修复）。
@@ -105,7 +115,7 @@ function parseContentDisposition(header) {
         value = decodeURIComponent(value)
       } catch { /* 保持原样 */ }
     }
-    const repaired = Buffer.from(value, 'latin1').toString('utf8')
+    const repaired = latin1ToUtf8(value)
     if (!repaired.includes('\uFFFD')) value = repaired
     return sanitizeFileName(value)
   }
@@ -332,13 +342,23 @@ async function resolveCategoryDir(url, config, fileNameHint = '') {
 }
 
 // Load config from storage
+/** 配置的同步缓存：onDeterminingFilename 这类必须同步决策的监听器使用。
+  SW 冷启动时先以默认值占位，storage 读取/变更到达后即刷新 */
+let cachedConfig = { ...DEFAULT_CONFIG }
+
 async function getConfig() {
   const result = await chrome.storage.local.get('config')
-  return { ...DEFAULT_CONFIG, ...result.config }
+  cachedConfig = { ...DEFAULT_CONFIG, ...result.config }
+  return cachedConfig
+}
+
+function getCachedConfig() {
+  return cachedConfig
 }
 
 // Save config to storage
 async function saveConfig(config) {
+  cachedConfig = { ...DEFAULT_CONFIG, ...config }
   await chrome.storage.local.set({ config })
 }
 
@@ -568,7 +588,7 @@ async function streamPageVideo(pageUrl, title) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...buildAppApiHeaders(config.secret) },
       body: JSON.stringify({ url: pageUrl, title: title || '' }),
-      signal: AbortSignal.timeout(15000)
+      signal: AbortSignal.timeout(35000)
     })
     const data = await response.json().catch(() => null)
     if (response.ok && data?.ok) return { success: true }
@@ -656,6 +676,15 @@ async function detectActiveTabMedia() {
 }
 
 // Context menu: Download link with Aria2
+// SW 冷启动即预热配置缓存：onDeterminingFilename 可能早于任何 getConfig 调用触发，
+// 没有缓存时拦截决策会跳过（漏拦）。storage 变更监听保持缓存实时。
+void getConfig()
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.config) {
+    cachedConfig = { ...DEFAULT_CONFIG, ...changes.config.newValue }
+  }
+})
+
 chrome.runtime.onInstalled.addListener(async () => {
   // 更新版本时旧菜单仍然存在，直接用同名 id 创建会报 "Cannot create item with duplicate id"，
   // 因此先清空再建。
@@ -689,40 +718,84 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
 })
 
 // Intercept downloads when enabled
-chrome.downloads.onDeterminingFilename.addListener(async (downloadItem) => {
-  const config = await getConfig()
-  if (!config.enabled || !config.interceptAll) return
-  if (SKIPPED_SCHEMES.some(scheme => downloadItem.url.startsWith(scheme))) return
+// 拦截失败的兜底重下护栏：记录刚兜底重下的 URL 与时间。
+// 没有它，"取消→重下→再拦截→再取消"会无限循环（onDeterminingFilename 对
+// chrome.downloads.download() 发起的下载同样触发）。
+const recentRedownloads = new Map()
 
-  // 先取消浏览器下载，再交给 Aria2
-  await chrome.downloads.cancel(downloadItem.id)
-
-  // 此事件的职责就是决定文件名：downloadItem.filename 此时已由浏览器确定（含真实扩展名）。
-  // 传 out 保留原始文件名；同时把它作为分类依据——跳转链接的 URL 往往没有扩展名，
-  // 浏览器解析出的文件名比 URL 可靠得多。
-  // 注意 downloadItem.filename 是**绝对本地路径**（Chrome 语义），必须收敛成纯文件名：
-  // aria2 的 out 是相对 dir 的，传绝对路径会直接 errorCode=18（sendToAria2 入口也会再兜一次）。
-  const suggested = sanitizeFileName(downloadItem.filename)
-  const options = suggested ? { out: suggested } : {}
-  // referrer 由浏览器给出（发起这次下载的页面），是登录站点下载成功的关键
-  const result = await sendToAria2(downloadItem.url, options, suggested, downloadItem.referrer || '')
-
-  if (result.success) {
-    showNotification('intercepted', buildSentMessage(result, {
-      plain: 'interceptedDesc',
-      subdir: 'interceptedToSubdir',
-      renamed: 'interceptedRenamed'
-    }))
-    // 抹掉浏览器下载列表里那条"已取消"记录，避免用户看到一条吓人的失败项
-    chrome.downloads.erase({ id: downloadItem.id }, () => { void chrome.runtime.lastError })
-  } else {
-    showNotification('interceptFailed', result.error, true)
-    // 兜底：下载已被 cancel，resume 是恢复不了的，只能重新发起，
-    // 否则用户会以为"下载凭空消失了"。
-    try {
-      await chrome.downloads.download({ url: downloadItem.url })
-    } catch { /* 重新发起也失败时保持静默，用户仍可从浏览器下载记录重试 */ }
+function isRecentRedownload(url) {
+  const at = recentRedownloads.get(url)
+  if (at === undefined) return false
+  if (Date.now() - at > 30000) {
+    recentRedownloads.delete(url)
+    return false
   }
+  return true
+}
+
+function markRedownloaded(url) {
+  recentRedownloads.set(url, Date.now())
+  // 防止 Map 无限增长
+  if (recentRedownloads.size > 50) {
+    const oldest = [...recentRedownloads.entries()].sort((a, b) => a[1] - b[1])[0]
+    if (oldest) recentRedownloads.delete(oldest[0])
+  }
+}
+
+chrome.downloads.onDeterminingFilename.addListener((downloadItem) => {
+  // 竞态防御（A2）：本监听器必须**同步**返回 true（表示"异步给决策"），
+  // Chrome 才会等我们；此前是 async 函数——第一个 await 期间 Chrome 已按默认
+  // 文件名继续下载，小文件在 cancel 落地前就完成了，cancel 对已完成的下载
+  // 会失败且不在任何 try/catch 内，炸掉整个处理器（sendToAria2 与兜底全部
+  // 走不到，且留下 unhandled rejection）。
+  //
+  // 拦截决策基于模块级配置缓存（同步可读，见 getCachedConfig）；
+  // 实际的 cancel/sendToAria2 异步进行，返回 true 后 Chrome 会等待。
+  const config = getCachedConfig()
+  if (!config || !config.enabled || !config.interceptAll) return
+  if (SKIPPED_SCHEMES.some(scheme => downloadItem.url.startsWith(scheme))) return
+  // A3 护栏：刚由本兜底重下的下载不再拦截，否则"取消→重下→再拦截"死循环
+  if (isRecentRedownload(downloadItem.url)) return
+
+  const processing = (async () => {
+    // 先取消浏览器下载（快文件可能已完成——cancel 对已完成的下载会失败，
+    // 此时保留浏览器下载结果，仅提示拦截失败的原因）
+    try {
+      await chrome.downloads.cancel(downloadItem.id)
+    } catch {
+      showNotification('interceptFailed', i18n('errCannotConnect', [downloadItem.url]), true)
+      return
+    }
+
+    // downloadItem.filename 是**绝对本地路径**（Chrome 语义），必须收敛成纯文件名：
+    // aria2 的 out 是相对 dir 的，传绝对路径会直接 errorCode=18（sendToAria2 入口也会再兜一次）。
+    const suggested = sanitizeFileName(downloadItem.filename)
+    const options = suggested ? { out: suggested } : {}
+    // referrer 由浏览器给出（发起这次下载的页面），是登录站点下载成功的关键
+    const result = await sendToAria2(downloadItem.url, options, suggested, downloadItem.referrer || '')
+
+    if (result.success) {
+      showNotification('intercepted', buildSentMessage(result, {
+        plain: 'interceptedDesc',
+        subdir: 'interceptedToSubdir',
+        renamed: 'interceptedRenamed'
+      }))
+      // 抹掉浏览器下载列表里那条"已取消"记录，避免用户看到一条吓人的失败项
+      chrome.downloads.erase({ id: downloadItem.id }, () => { void chrome.runtime.lastError })
+    } else {
+      showNotification('interceptFailed', result.error, true)
+      // 兜底重下（带 A3 护栏）：下载已被 cancel，resume 恢复不了，重新发起时
+      // onDeterminingFilename 会因护栏而放行，浏览器正常下载。
+      markRedownloaded(downloadItem.url)
+      chrome.downloads.download({ url: downloadItem.url }, () => { void chrome.runtime.lastError })
+    }
+  })()
+
+  // 吞掉异步链路的意外错误（已各自处理），避免 unhandled rejection
+  processing.catch(() => { /* 保留浏览器下载，静默 */ })
+
+  // 告知 Chrome：决策异步给出（取消成功后本次下载即终止，无需 suggest）
+  return true
 })
 
 // Handle messages from popup
