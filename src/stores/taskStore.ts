@@ -345,14 +345,21 @@ export const useTaskStore = defineStore('task', () => {
   async function removeTask(gid: string, deleteFiles = false) {
     if (!connectionStore.service) throw new Error('Not connected')
 
-    // 仅存在于本地持久化中的任务（Aria2 已不持有），统一走删除服务处理文件删除
+    // 已完成并持久化的任务（或已不在引擎里的历史任务）：统一走删除服务。
+    // 注意：即使 deleteFiles=false 也要清引擎记录——否则下一次 loadAllTasks
+    // 会把这条任务从引擎的 stopped 列表原样拉回来（「删了又回来」），
+    // 还会因时间记录已删而把完成时间重算成「约 24 小时前」。
     const isPersistedTask = taskPersistenceService.isTaskPersisted(gid)
     if (isPersistedTask) {
       const persisted = taskPersistenceService.getPersistedTask(gid)
-      if (persisted && deleteFiles) {
-        await completedTaskDeleteService.deleteCompletedTask(persisted, true, connectionStore.service)
+      if (persisted) {
+        const result = await completedTaskDeleteService.deleteCompletedTask(persisted, deleteFiles, connectionStore.service)
+        // 引擎没答应时不许清本地记录，用户可重试（错误信息透传给界面）
+        if (!result.success && result.errors.length > 0) {
+          throw new Error(result.errors[0])
+        }
       } else {
-        // 持久化任务不在三个列表中，仅清理本地记录（等价于 removeTaskLocal 的持久化/时间部分）
+        // 找不到持久化记录（竞态：刚被别处清理）：至少把本地痕迹清掉
         taskPersistenceService.removePersistedTask(gid)
         taskTimeService.removeTaskTime(gid)
       }
