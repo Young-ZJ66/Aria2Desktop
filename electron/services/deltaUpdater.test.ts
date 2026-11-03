@@ -69,7 +69,7 @@ describe('deltaUpdater（本地 HTTPS 服务端到端）', () => {
   const oldTable = makeTable('1.2.0-x64', oldBuf, BLOCK)
   const newTable = makeTable('1.2.1-x64', newBuf, BLOCK)
 
-  let server: https.Server
+  let server: https.Server | undefined
   let port = 0
   let blocksPayloadForNew: string = JSON.stringify(newTable)
   let rangeMode: 'honored' | 'ignored' = 'honored'
@@ -80,6 +80,11 @@ describe('deltaUpdater（本地 HTTPS 服务端到端）', () => {
   }
 
   beforeAll(async () => {
+    // 证书生成命令（一次性测试材料，重签时执行即可）：
+    // openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+    //   -keyout electron/services/__fixtures__/delta-test-key.pem \
+    //   -out electron/services/__fixtures__/delta-test-cert.pem \
+    //   -subj "//CN=127.0.0.1" -addext "subjectAltName=IP:127.0.0.1"
     const cert = fs.readFileSync(path.join(__dirname, '__fixtures__', 'delta-test-cert.pem'))
     const key = fs.readFileSync(path.join(__dirname, '__fixtures__', 'delta-test-key.pem'))
     server = https.createServer({ cert, key }, (req, res) => {
@@ -119,13 +124,14 @@ describe('deltaUpdater（本地 HTTPS 服务端到端）', () => {
       res.writeHead(404)
       res.end()
     })
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-    port = (server.address() as AddressInfo).port
+    await new Promise<void>((resolve) => server?.listen(0, '127.0.0.1', resolve))
+    port = (server?.address() as AddressInfo | undefined)?.port ?? 0
   })
 
   afterAll(async () => {
     vi.restoreAllMocks()
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    if (!server) return
+    await new Promise<void>((resolve) => server?.close(() => resolve()))
   })
 
   beforeEach(() => {
