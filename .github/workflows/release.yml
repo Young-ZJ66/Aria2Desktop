@@ -74,8 +74,11 @@ jobs:
 
   # 先把 Release 建出来，三个平台的构建才能并行上传：
 
+  # Windows 构建只等两样：release-init（传递性地保证了 e2e 与质量闸门已经
+  # 全绿，且 Release 已建好）+ package-extension（.crx 签名要用的扩展 zip）。
+  # 之后与 macOS / Linux 同级并行。
   build:
-    needs: [package-extension, e2e, quality]
+    needs: [package-extension, release-init]
     name: 构建 Windows (${{ matrix.suffix }})
     runs-on: windows-latest
     strategy:
