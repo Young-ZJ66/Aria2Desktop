@@ -51,7 +51,7 @@ export async function runPairingCheck({ extensionDir, outDir, reporter }) {
   const bgPath = path.join(extDir, 'background.js')
   const patched = fs
     .readFileSync(bgPath, 'utf8')
-    .replace('http://127.0.0.1:6801', `http://127.0.0.1:${stubPort}`)
+    .replace(/http:\/\/(localhost|127\.0\.0\.1):6801/, `http://127.0.0.1:${stubPort}`)
   fs.writeFileSync(bgPath, patched)
 
   const profile = path.join(os.tmpdir(), `aria2-ext-pair-profile-${Date.now()}`)

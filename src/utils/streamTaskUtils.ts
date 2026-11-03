@@ -32,8 +32,11 @@ export interface StreamTask {
 /** 转成与 aria2 任务同形状（列表按 totalLength/completedLength/downloadSpeed 展示） */
 export function streamTaskToAria2Task(task: StreamTask): Aria2Task {
   const total = task.totalBytes
+  // 防御性收敛：主进程侧已 clamp（streamDownloadService.ts），这里兜住 NaN/越界，
+  // 避免进度条出现 NaN%（与 aria2 任务的 getTaskProgress 修复同一类问题）
+  const safePercent = Number.isFinite(task.percent) ? Math.min(100, Math.max(0, task.percent)) : 0
   const completed = total > 0
-    ? Math.min(total, Math.round(total * task.percent / 100))
+    ? Math.min(total, Math.round(total * safePercent / 100))
     : task.downloadedBytes
   return {
     gid: task.gid,

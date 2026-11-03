@@ -169,7 +169,7 @@ if (fs.existsSync(corePath)) {
   if (!port) {
     fail('未能在 electron/utils/extensionApiCore.ts 中定位 EXTENSION_API_PORT')
   } else {
-    const found = /APP_API_BASE\s*=\s*'http:\/\/127\.0\.0\.1:(\d+)'/.exec(
+    const found = /APP_API_BASE\s*=\s*'http:\/\/localhost:(\d+)'/.exec(
       fs.readFileSync(path.join(extensionDir, 'background.js'), 'utf8')
     )
     if (!found) fail('background.js 中未找到 APP_API_BASE')

@@ -150,8 +150,11 @@ async function getEngineDownloadDir(config) {
   return cachedEngineDir
 }
 
-/** 本机 App 本地接口地址：端口与 electron/utils/extensionApiCore.ts 的 EXTENSION_API_PORT 一致 */
-const APP_API_BASE = 'http://127.0.0.1:6801'
+/** 本机 App 本地接口地址：端口与 electron/utils/extensionApiCore.ts 的 EXTENSION_API_PORT 一致。
+ * 用 localhost 而不是 127.0.0.1：实测系统代理开着时，Chromium 页面里对 127.0.0.1 这类
+ * IP 字面量的请求可能被代理拦截而失败，localhost 因隐式绕过规则仍直连
+ * （App 侧同理，见 src/shared/connectionDiagnostics.ts）。 */
+const APP_API_BASE = 'http://localhost:6801'
 /** 建任务请求超时：App 侧可能要做一次文件名探测（只取响应头）+ 一次本机 RPC，留足余量 */
 const APP_ADD_TIMEOUT_MS = 20000
 
