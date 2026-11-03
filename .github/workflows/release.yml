@@ -43,8 +43,39 @@ jobs:
     name: 应用端到端（发布前闸门）
     uses: ./.github/workflows/e2e.yml
 
+  # 质量闸门（类型/单测/扩展静态校验）：三个平台的产物都上传到同一个 Release，
+  # 必须先全部过关，任何一个平台才被允许开始构建——否则 Windows 质量失败时
+  # mac/linux 的产物照样传上去，用户会装到一个与 tag 不符的混合版本。
+  # 每个平台作业里不再重复跑这三步（它们是平台无关的）。
+  quality:
+    name: 质量闸门
+    runs-on: windows-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 类型检查（主进程 + 测试代码 + 渲染层）
+        run: npm run typecheck
+
+      - name: 单元测试
+        run: npm run test:run
+
+      - name: 扩展静态校验
+        run: npm run check:extension
+
+  # 先把 Release 建出来，三个平台的构建才能并行上传：
+
   build:
-    needs: [package-extension, e2e]
+    needs: [package-extension, e2e, quality]
     name: 构建 Windows (${{ matrix.suffix }})
     runs-on: windows-latest
     strategy:
@@ -71,24 +102,11 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
-      # 质量闸门：必须在打包前拦住类型与逻辑错误。
-      # 为什么这两步不能省——`vite build` 只剥类型不做检查，渲染层（含 .vue 模板）的
-      # 类型错误只有 vue-tsc 能发现；单元测试同理，不在 CI 跑就等于没有。
-      - name: 类型检查（主进程 + 测试代码 + 渲染层）
-        run: npm run typecheck
-
-      - name: 单元测试
-        run: npm run test:run
-
-      # aria2 已随仓库提交（resources/aria2/win32/<arch>/），这里只校验目标架构的引擎就位，
-      # 不联网下载——引擎版本必须与代码一起评审、一起发版
+      # 质量闸门（typecheck / 单测 / check:extension）已前移到 quality 作业，
+      # 这里只保留 Windows 打包链路。verify-engine 校验的是"本 matrix 腿的目标
+      # 架构引擎就位"（x64 与 ia32 各查各的），不属于可共享的质量步骤。
       - name: 校验目标架构的 aria2c
         run: node scripts/verify-engine.mjs win32 ${{ matrix.res_arch }}
-
-      # 扩展静态校验（语言包结构 / manifest 引用 / i18n 一致性 / 接口端口一致性），
-      # 这类问题只能在浏览器里暴露，必须在构建期拦住
-      - name: 扩展静态校验
-        run: npm run check:extension
 
       # 本地接口的端到端验证（桩化 settings + 真实 aria2 引擎，跑编译产物），
       # 需要先编译主进程；Windows 运行器自带浏览器与 aria2 资源
@@ -226,7 +244,7 @@ jobs:
   # mac/linux 只能 needs: [build] 串行等待，白白多等一整个 Windows 构建。
   # 版本守卫（日志首行必须含 tag 版本）与 build 作业里的一致，谁先跑谁拦。
   release-init:
-    needs: [e2e]
+    needs: [e2e, quality]
     name: 创建 Release
     runs-on: ubuntu-latest
     steps:
@@ -265,7 +283,8 @@ jobs:
           fi
 
   # macOS 安装包：在真实的 macOS 运行器上构建（Windows 无法交叉产出 dmg）。
-  # Release 已由 release-init 建好，与 Windows 构建并行上传资产。
+  # Release 已由 release-init 建好（其前置是 e2e + quality 闸门），
+  # 与 Windows 构建并行上传资产；类型/单测/扩展校验不再在此重复。
   build-mac:
     needs: [release-init]
     name: 构建 macOS
@@ -282,15 +301,6 @@ jobs:
 
       - name: 安装依赖
         run: npm ci
-
-      - name: 类型检查
-        run: npm run typecheck
-
-      - name: 单元测试
-        run: npm run test:run
-
-      - name: 扩展静态校验
-        run: npm run check:extension
 
       # 双架构（Intel / Apple Silicon）都要有引擎，且冒烟当前运行器架构
       - name: 校验 aria2 引擎（x64 / arm64）
@@ -333,15 +343,6 @@ jobs:
 
       - name: 安装依赖
         run: npm ci
-
-      - name: 类型检查
-        run: npm run typecheck
-
-      - name: 单元测试
-        run: npm run test:run
-
-      - name: 扩展静态校验
-        run: npm run check:extension
 
       - name: 校验 aria2 引擎
         run: |
