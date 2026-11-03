@@ -409,6 +409,24 @@ export const useTaskStore = defineStore('task', () => {
     await loadAllTasks()
   }
 
+  /**
+   * 等待队列排序：调整任务在队列中的位置（仅对 waiting 状态的任务有效）。
+   *
+   * aria2 语义（changePosition(gid, pos, how)）：
+   * - up:   POS_CUR, -1（当前位置向前挪一位）
+   * - down: POS_CUR, +1
+   * - top:  POS_SET, 0（置顶）
+   * 成功返回任务的新位置；失败（任务不在队列中/已开始下载）向上抛给调用方提示。
+   */
+  async function moveInQueue(gid: string, direction: 'up' | 'down' | 'top'): Promise<number> {
+    if (!connectionStore.service) throw new Error('Not connected')
+    const how = direction === 'top' ? 'POS_SET' : 'POS_CUR'
+    const pos = direction === 'up' ? -1 : direction === 'down' ? 1 : 0
+    const newPos = await connectionStore.service.changePosition(gid, pos, how)
+    await loadAllTasks()
+    return newPos
+  }
+
   async function unpauseTask(gid: string) {
     if (!connectionStore.service) throw new Error('Not connected')
     await connectionStore.service.unpause(gid)
@@ -606,6 +624,7 @@ export const useTaskStore = defineStore('task', () => {
     retryErrorTask,
     pauseAllTasks,
     unpauseAllTasks,
+    moveInQueue,
     clearTasks,
     onDownloadComplete,
     onDownloadError

@@ -100,7 +100,10 @@
     "openedLocation": "Opened file location",
     "openedDir": "Opened directory",
     "openDirFailed": "Failed to open directory: {error}",
-    "filesDeletedCount": "{count} files deleted"
+    "filesDeletedCount": "{count} files deleted",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "moveToTop": "Move to top"
   },
   "status": {
     "active": "Downloading",
@@ -160,7 +163,10 @@
     "connections": "Peers Connected",
     "healthNoSeeder": "No seeders connected — speed may be slow or stalled",
     "healthSeeders": "{count} seeders online",
-    "healthSeeding": "Seeding from this device"
+    "healthSeeding": "Seeding from this device",
+    "magnetUri": "Magnet URI",
+    "copyMagnet": "Copy magnet URI",
+    "speedChart": "Speed chart (last 3 min)"
   },
   "taskPeer": {
     "ip": "IP Address",

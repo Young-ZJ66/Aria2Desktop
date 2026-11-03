@@ -100,7 +100,10 @@
     "openedLocation": "已打开文件位置",
     "openedDir": "已打开目录",
     "openDirFailed": "打开目录失败: {error}",
-    "filesDeletedCount": "已删除 {count} 个文件"
+    "filesDeletedCount": "已删除 {count} 个文件",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "moveToTop": "置顶"
   },
   "status": {
     "active": "下载中",
@@ -160,7 +163,10 @@
     "connections": "已连接 Peer",
     "healthNoSeeder": "未连上任何种子（做种者），速度可能很慢或停滞",
     "healthSeeders": "{count} 个种子在线",
-    "healthSeeding": "本机正在做种"
+    "healthSeeding": "本机正在做种",
+    "magnetUri": "磁力链接",
+    "copyMagnet": "复制磁力链接",
+    "speedChart": "速度曲线（近 3 分钟）"
   },
   "taskPeer": {
     "ip": "IP 地址",

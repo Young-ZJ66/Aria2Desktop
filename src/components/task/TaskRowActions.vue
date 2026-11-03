@@ -39,6 +39,37 @@
       <n-icon v-else class="action-icon"><PauseOutline /></n-icon>
     </button>
 
+    <!-- 等待队列排序 - 仅等待中的任务（aria2 changePosition；对下载排队是高频需求） -->
+    <template v-if="status === 'waiting' && showQueueActions">
+      <button
+        :title="t('task.moveUp')"
+        :aria-label="t('task.moveUp')"
+        class="task-action-btn"
+        :disabled="operating"
+        @click.stop="$emit('move-up', gid)"
+      >
+        <n-icon class="action-icon"><ArrowUpOutline /></n-icon>
+      </button>
+      <button
+        :title="t('task.moveDown')"
+        :aria-label="t('task.moveDown')"
+        class="task-action-btn"
+        :disabled="operating"
+        @click.stop="$emit('move-down', gid)"
+      >
+        <n-icon class="action-icon"><ArrowDownOutline /></n-icon>
+      </button>
+      <button
+        :title="t('task.moveToTop')"
+        :aria-label="t('task.moveToTop')"
+        class="task-action-btn"
+        :disabled="operating"
+        @click.stop="$emit('move-top', gid)"
+      >
+        <n-icon class="action-icon"><ChevronUpCircleOutline /></n-icon>
+      </button>
+    </template>
+
     <!-- 打开位置按钮 - 仅已完成任务页面 -->
     <button
       v-if="showOpenLocation"
@@ -85,7 +116,10 @@ import {
   PauseOutline,
   FolderOpenOutline,
   TrashOutline,
-  EyeOutline
+  EyeOutline,
+  ArrowUpOutline,
+  ArrowDownOutline,
+  ChevronUpCircleOutline
 } from '@vicons/ionicons5'
 import type { Aria2Task } from '@/types/aria2'
 
@@ -96,6 +130,8 @@ interface Props {
   showOpenLocation: boolean
   /** 是否显示详情按钮（流媒体任务无 aria2 详情） */
   showDetail?: boolean
+  /** 是否显示等待队列排序按钮（下载任务页显示，完成页无此概念） */
+  showQueueActions?: boolean
   task: Aria2Task
 }
 
@@ -106,10 +142,13 @@ interface Emits {
   (e: 'open-location', task: Aria2Task): void
   (e: 'remove', gid: string): void
   (e: 'view-detail', gid: string): void
+  (e: 'move-up', gid: string): void
+  (e: 'move-down', gid: string): void
+  (e: 'move-top', gid: string): void
 }
 
 const { t } = useI18n()
-const props = withDefaults(defineProps<Props>(), { showDetail: true })
+const props = withDefaults(defineProps<Props>(), { showDetail: true, showQueueActions: false })
 defineEmits<Emits>()
 
 /** 正在做种（aria2 只对 BT 任务返回 seeder） */

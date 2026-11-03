@@ -571,13 +571,18 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         showOpenLocation: props.taskType === 'stopped',
         // 流媒体任务没有 aria2 详情（tellStatus 会失败），隐藏详情入口
         showDetail: !isStreamTask,
+        // 等待队列排序按钮仅在"下载任务"页显示（waiting 状态才有队列位置）
+        showQueueActions: props.taskType === 'active-and-waiting',
         task: row,
         onUnpause: unpauseTask,
         onRetry: isStreamTask ? retryStreamTask : retryTask,
         onPause: isStreamTask ? cancelStreamTask : pauseTask,
         'onOpen-location': (task: Aria2Task) => openTaskLocation(task),
         onRemove: isStreamTask ? removeStreamTask : removeTask,
-        'onView-detail': viewTaskDetail
+        'onView-detail': viewTaskDetail,
+        'onMove-up': (gid: string) => void taskStore.moveInQueue(gid, 'up'),
+        'onMove-down': (gid: string) => void taskStore.moveInQueue(gid, 'down'),
+        'onMove-top': (gid: string) => void taskStore.moveInQueue(gid, 'top')
       })
     }
   }

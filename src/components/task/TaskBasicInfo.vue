@@ -63,6 +63,24 @@
           </div>
         </n-descriptions-item>
 
+        <!-- 每任务速度曲线：抽屉打开期间随轮询采样（60 个点 ≈ 3 分钟窗口） -->
+        <n-descriptions-item v-if="speedSamples.length > 1" :label="t('taskDetail.speedChart')" :span="2">
+          <svg class="speed-sparkline" viewBox="0 0 240 48" preserveAspectRatio="none" role="img" :aria-label="t('taskDetail.speedChart')">
+            <polyline
+              class="speed-line"
+              :points="speedSparklinePoints"
+              fill="none"
+              stroke="var(--color-primary, #4f6ef2)"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+              stroke-linecap="round"
+            />
+            <text class="speed-peak" x="240" y="8" text-anchor="end">
+              {{ formatSpeed(String(speedPeak)) }}
+            </text>
+          </svg>
+        </n-descriptions-item>
+
         <n-descriptions-item v-if="task.files?.length" :label="t('taskDetail.filePath')" :span="2">
           <div class="path-with-action">
             <div class="mono-block">{{ firstFilePath }}</div>
@@ -149,13 +167,23 @@
           </div>
           <span v-else>{{ t('common.none') }}</span>
         </n-descriptions-item>
+        <n-descriptions-item v-if="magnetUri" :label="t('taskDetail.magnetUri')" :span="2">
+          <div class="field-with-action">
+            <span class="gid-text magnet-text">{{ magnetUri }}</span>
+            <n-button size="tiny" quaternary circle :title="t('taskDetail.copyMagnet')" :aria-label="t('taskDetail.copyMagnet')" @click="copyMagnet">
+              <template #icon>
+                <n-icon><CopyOutline /></n-icon>
+              </template>
+            </n-button>
+          </div>
+        </n-descriptions-item>
       </n-descriptions>
     </n-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { classifyAria2Error } from '@/shared/aria2Error'
 import { CopyOutline, FolderOpenOutline } from '@vicons/ionicons5'
@@ -282,6 +310,65 @@ function fallbackCopyText(text: string): boolean {
   }
 }
 
+/** 磁力链接：infoHash + 显示名 + tracker（有 tracker 才追加 tr 参数，方便其他客户端直连） */
+const magnetUri = computed(() => {
+  const infoHash = props.task.infoHash
+  if (!infoHash) return ''
+  const params = new URLSearchParams()
+  params.set('xt', 'urn:btih:' + infoHash)
+  const name = props.task.bittorrent?.info?.name
+  if (name) params.set('dn', name)
+  for (const announce of props.task.bittorrent?.announceList ?? []) {
+    const url = announce?.[0]
+    if (url && /^((https?|udp):\/\/)/.test(url)) params.append('tr', url)
+  }
+  return 'magnet:?' + params.toString()
+})
+
+async function copyMagnet() {
+  if (!magnetUri.value) return
+  const ok = await copyText(magnetUri.value)
+  if (ok) {
+    message.success(t('common.copied'))
+  } else {
+    message.error(t('common.copyFailed'))
+  }
+}
+
+// ── 每任务速度曲线：抽屉打开期间按轮询节奏采样（60 点 ≈ 3 分钟窗口）──
+const SPEED_SAMPLE_MAX = 60
+const speedSamples = ref<number[]>([])
+
+watch(
+  () => Number(props.task?.downloadSpeed ?? 0),
+  (speed) => {
+    // 只在任务活跃时采样；失败/完成后曲线冻结在最后形态
+    if (props.task?.status !== 'active') return
+    speedSamples.value = [...speedSamples.value.slice(-(SPEED_SAMPLE_MAX - 1)), speed]
+  },
+  { immediate: true }
+)
+
+const speedPeak = computed(() => Math.max(0, ...speedSamples.value))
+
+const speedSparklinePoints = computed(() => {
+  const samples = speedSamples.value
+  if (samples.length < 2) return ''
+  const width = 240
+  const height = 48
+  const peak = Math.max(speedPeak.value, 1)
+  const stepX = width / (SPEED_SAMPLE_MAX - 1)
+  // 曲线贴右侧生长：左侧留白直到样本填满窗口
+  const startX = width - (samples.length - 1) * stepX
+  return samples
+    .map((v, i) => {
+      const x = startX + i * stepX
+      const y = height - 6 - (v / peak) * (height - 14)
+      return x.toFixed(1) + ',' + y.toFixed(1)
+    })
+    .join(' ')
+})
+
 async function copyGid() {
   if (!props.task?.gid) return
   const ok = await copyText(props.task.gid)
@@ -398,6 +485,23 @@ async function openFileInFolder(filePath: string) {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.magnet-text {
+  word-break: break-all;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.speed-sparkline {
+  width: 100%;
+  height: 48px;
+  display: block;
+}
+
+.speed-peak {
+  font-size: 9px;
+  fill: var(--text-secondary);
 }
 
 .gid-text {
