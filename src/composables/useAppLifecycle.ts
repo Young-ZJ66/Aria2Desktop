@@ -154,8 +154,8 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   let shutdownArmedAt = 0
   watch(
     () =>
-      [taskStore.activeTasks.length, taskStore.waitingTasks.length, connectionStore.isConnected] as const,
-    ([activeCount, waitingCount, isConnected]) => {
+      [taskStore.activeTasks.length, taskStore.waitingTasks.length, connectionStore.isConnected, taskStore.completedTasks.length] as const,
+    ([activeCount, waitingCount, isConnected, completedCount]) => {
       const taskCount = activeCount + waitingCount
       if (taskCount > 0) {
         hadActiveTasks = true
@@ -168,7 +168,7 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
         }
         return
       }
-      const decision = evaluateDownloadCompletion({ hadActiveTasks, activeCount, waitingCount, isConnected })
+      const decision = evaluateDownloadCompletion({ hadActiveTasks, activeCount, waitingCount, isConnected, completedCount })
       if (decision !== 'fire') return
       hadActiveTasks = false
       const action = settingsStore.getSetting('downloadCompleteAction') || 'none'
@@ -180,6 +180,8 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
         downloadCompleteActionPending = false
         // 触发时若已经断线（列表是被清空的），不要把"断线"当"下载完成"
         if (!connectionStore.isConnected) return
+        // 3 秒宽限里用户可能把完成的任务也删光了——那不是"下载完成"，是清理现场
+        if (taskStore.completedTasks.length === 0) return
 
         // 关机/休眠必须检查返回值：命令失败时（如系统禁用了休眠、有策略限制）主进程会如实
         // 返回 {success:false}，此前这里把结果丢掉，用户什么也看不到，只会以为"没生效"。

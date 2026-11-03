@@ -7,28 +7,39 @@ import {
 
 describe('evaluateDownloadCompletion', () => {
   it('还有活动任务时只做标记，不触发动作', () => {
-    expect(evaluateDownloadCompletion({ hadActiveTasks: false, activeCount: 2, waitingCount: 0, isConnected: true }))
+    expect(evaluateDownloadCompletion({ hadActiveTasks: false, activeCount: 2, waitingCount: 0, isConnected: true, completedCount: 0 }))
       .toBe('mark-active')
   })
 
   it('暂停的任务在等待队列里（waitingCount > 0）也不能算"全部完成"', () => {
     // 回归用例：旧实现只看 activeTasks 长度，用户暂停最后一个任务就触发关机
-    expect(evaluateDownloadCompletion({ hadActiveTasks: true, activeCount: 0, waitingCount: 1, isConnected: true }))
+    expect(evaluateDownloadCompletion({ hadActiveTasks: true, activeCount: 0, waitingCount: 1, isConnected: true, completedCount: 0 }))
       .toBe('mark-active')
   })
 
-  it('活动与等待都为空且连着引擎时触发完成动作', () => {
-    expect(evaluateDownloadCompletion({ hadActiveTasks: true, activeCount: 0, waitingCount: 0, isConnected: true }))
+  it('活动与等待都为空、连着引擎且有已完成任务时触发完成动作', () => {
+    expect(evaluateDownloadCompletion({ hadActiveTasks: true, activeCount: 0, waitingCount: 0, isConnected: true, completedCount: 3 }))
+      .toBe('fire')
+  })
+
+  it('用户删掉最后一个活动任务后队列为空、也没有已完成任务，不能算"下载完成"', () => {
+    // 回归用例：空队列 ≠ 完成，此时触发关机就是第 38 轮修复之外的第 3 条误触发路径
+    expect(evaluateDownloadCompletion({ hadActiveTasks: true, activeCount: 0, waitingCount: 0, isConnected: true, completedCount: 0 }))
+      .toBe('ignore')
+  })
+
+  it('最后一个任务失败但仍有历史完成任务时，仍按完成处理', () => {
+    expect(evaluateDownloadCompletion({ hadActiveTasks: true, activeCount: 0, waitingCount: 0, isConnected: true, completedCount: 1 }))
       .toBe('fire')
   })
 
   it('连接断开时的空列表是 clearTasks 的结果，不算完成', () => {
-    expect(evaluateDownloadCompletion({ hadActiveTasks: true, activeCount: 0, waitingCount: 0, isConnected: false }))
+    expect(evaluateDownloadCompletion({ hadActiveTasks: true, activeCount: 0, waitingCount: 0, isConnected: false, completedCount: 2 }))
       .toBe('ignore')
   })
 
   it('从未有过活动任务时空列表不触发（应用刚启动）', () => {
-    expect(evaluateDownloadCompletion({ hadActiveTasks: false, activeCount: 0, waitingCount: 0, isConnected: true }))
+    expect(evaluateDownloadCompletion({ hadActiveTasks: false, activeCount: 0, waitingCount: 0, isConnected: true, completedCount: 0 }))
       .toBe('ignore')
   })
 })
