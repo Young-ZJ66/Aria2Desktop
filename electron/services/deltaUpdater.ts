@@ -135,26 +135,36 @@ function fetchRange(
         return
       }
       let written = 0
-      res.on('data', async (chunk: Buffer) => {
-        // 位置写：每一段都明确写 writeAt + 已写字节处，乱序到达也不串位。
-        // write 返回值忽略（长度小于 chunk 时会自旋重试，这里不背压——CDN 单段体积有限）
-        res.pause()
-        try {
+      // 位置写必须按序落盘：把每个 chunk 的写盘串进同一条 promise 链。
+      // 之前直接在 'data' 回调里 await + pause/resume：最后一个 chunk 的写盘
+      // 还挂在空中时 'end' 已经派发，written 少算最后一截 → 误报
+      // "Range segment incomplete"，差量下载几乎必然回落全量（本地复现：
+      // 每次都恰好少最后一个 chunk 的字节数，如 48922/49152）。
+      // 链式写盘牺牲背压（整段最多缓存在流内存里，段体积有限，可接受）。
+      let writeChain: Promise<void> = Promise.resolve()
+      let chainFailed = false
+      res.on('data', (chunk: Buffer) => {
+        writeChain = writeChain.then(async () => {
+          if (chainFailed) return
+          // 位置写：每一段都明确写 writeAt + 已写字节处，乱序到达也不串位
           await targetFd.write(chunk, 0, chunk.length, writeAt + written)
           written += chunk.length
           onBytes(chunk.length)
-          res.resume()
-        } catch (err) {
+        }).catch((err) => {
+          chainFailed = true
           res.destroy()
           reject(err)
-        }
+        })
       })
       res.on('end', () => {
-        if (written !== length) {
-          reject(new Error(`Range segment incomplete: ${written}/${length}`))
-          return
-        }
-        resolve()
+        writeChain.then(() => {
+          if (chainFailed) return
+          if (written !== length) {
+            reject(new Error(`Range segment incomplete: ${written}/${length}`))
+            return
+          }
+          resolve()
+        })
       })
       res.on('error', reject)
     })
