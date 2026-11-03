@@ -384,13 +384,6 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.bt.maxPieceLength')" :tip="t('settings.bt.maxPieceLengthTip')" />
-          </template>
-          <n-input-number v-model:value="settings.maxPieceLength" :min="0" :placeholder="t('settings.bt.maxPieceLengthPlaceholder')" />
-        </n-form-item>
-
-        <n-form-item>
-          <template #label>
             <TipLabel :label="t('settings.bt.btSeedUnverified')" :tip="t('settings.bt.btSeedUnverifiedTip')" />
           </template>
           <AppSwitch v-model:value="settings.btSeedUnverified" />
@@ -528,7 +521,6 @@ const settings = reactive({
   btPrioritizePiece: false,
   btHashCheckSeed: true,
   btDetachSeedOnly: false,
-  maxPieceLength: 0,
   btSeedUnverified: false,
   btSaveMetadata: false,
   btLoadSavedMetadata: false,
@@ -545,7 +537,8 @@ const settings = reactive({
 // 特殊字段覆盖默认转换：
 // - btPrioritizePiece：开启时写入固定的 head/tail 格式（head=32M,tail=32M），关闭时不写入
 // - pieceLength：0 表示未设置（用 aria2 默认），>0 才写入，避免把 0 值写进配置文件
-// - maxPieceLength：当前 aria2c 不识别该选项（启动报 Unknown option），一律不写入配置文件
+// 注：以前这里还有一个「BT 最大分片长度」（max-piece-length），但 aria2 1.37 根本没有这个
+// 选项（启动时会报 Unknown option），写了也不生效，已移除；真正管分片的是下面的 piece-length。
 const btSettingsSchema: SettingSchema = {
   fields: [
     { key: 'enableDht', aria2Key: 'enable-dht', type: 'boolean', default: true },
@@ -580,10 +573,6 @@ const btSettingsSchema: SettingSchema = {
     },
     { key: 'btHashCheckSeed', aria2Key: 'bt-hash-check-seed', type: 'boolean', default: true },
     { key: 'btDetachSeedOnly', aria2Key: 'bt-detach-seed-only', type: 'boolean', default: false },
-    {
-      key: 'maxPieceLength', aria2Key: 'max-piece-length', type: 'size', default: 0, unit: 'M',
-      valueToOption: () => undefined
-    },
     { key: 'btSeedUnverified', aria2Key: 'bt-seed-unverified', type: 'boolean', default: false },
     { key: 'btSaveMetadata', aria2Key: 'bt-save-metadata', type: 'boolean', default: false },
     { key: 'btLoadSavedMetadata', aria2Key: 'bt-load-saved-metadata', type: 'boolean', default: false },

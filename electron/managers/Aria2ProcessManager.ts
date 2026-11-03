@@ -139,9 +139,13 @@ export class Aria2ProcessManager {
     setSessionKeyIfNeeded('input-file')
     setSessionKeyIfNeeded('save-session')
 
-    // 清理曾被误写入、但当前 aria2c 不支持的选项残留，避免启动时 Unknown option 告警
-    if (this.configManager.removeConfigKey('max-piece-length')) {
-      logger.info('已从 aria2 配置文件移除不支持的 max-piece-length 选项')
+    // 清理曾被误写入、但当前 aria2c 不支持的选项残留，避免启动时 Unknown option 告警。
+    // 这两个键在旧版本里是设置页上的可见开关（BT 最大分片长度、Metalink 首选服务器），
+    // aria2 1.37 根本没有对应选项，写了只会被忽略——界面已移除，配置里也别留着。
+    for (const obsoleteKey of ['max-piece-length', 'metalink-servers']) {
+      if (this.configManager.removeConfigKey(obsoleteKey)) {
+        logger.info(`已从 aria2 配置文件移除不支持的 ${obsoleteKey} 选项`)
+      }
     }
 
     // 不再验证或修改下载目录，完全交给Aria2处理

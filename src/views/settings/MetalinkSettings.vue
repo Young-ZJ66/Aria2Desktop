@@ -45,18 +45,6 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.metalink.metalinkServers')" :tip="t('settings.metalink.metalinkServersTip')" />
-          </template>
-          <n-input
-            v-model:value="settings.metalinkServers"
-            type="textarea"
-            :autosize="{ minRows: 4, maxRows: 8 }"
-            :placeholder="t('settings.metalink.metalinkServersPlaceholder')"
-          />
-        </n-form-item>
-
-        <n-form-item>
-          <template #label>
             <TipLabel :label="t('settings.metalink.metalinkLanguage')" :tip="t('settings.metalink.metalinkLanguageTip')" />
           </template>
           <n-input v-model:value="settings.metalinkLanguage" :placeholder="t('settings.metalink.metalinkLanguagePlaceholder')" clearable />
@@ -122,7 +110,6 @@ const settings = reactive({
   followMetalink: 'true',
   metalinkPreferredProtocol: 'https,http,ftp',
   metalinkEnableUniqueProtocol: true,
-  metalinkServers: '',
   metalinkLanguage: 'zh-CN,en-US',
   metalinkLocation: 'CN,US',
   metalinkOs: 'linux,windows',
@@ -148,7 +135,6 @@ const metalinkSettingsSchema: SettingSchema = {
     { key: 'followMetalink', aria2Key: 'follow-metalink', type: 'select', default: 'true' },
     { key: 'metalinkPreferredProtocol', aria2Key: 'metalink-preferred-protocol', type: 'string', default: 'https,http,ftp' },
     { key: 'metalinkEnableUniqueProtocol', aria2Key: 'metalink-enable-unique-protocol', type: 'boolean', default: true },
-    { key: 'metalinkServers', aria2Key: 'metalink-servers', type: 'string', default: '' },
     { key: 'metalinkLanguage', aria2Key: 'metalink-language', type: 'string', default: 'zh-CN,en-US' },
     { key: 'metalinkLocation', aria2Key: 'metalink-location', type: 'string', default: 'CN,US' },
     { key: 'metalinkOs', aria2Key: 'metalink-os', type: 'string', default: 'linux,windows' },
