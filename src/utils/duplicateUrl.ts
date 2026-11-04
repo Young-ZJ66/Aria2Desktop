@@ -106,3 +106,39 @@ export function findDuplicateUris(
   }
   return matches
 }
+
+/**
+ * 磁力链接判重（会话级索引路径）。
+ *
+ * 实测（aria2 1.37）：magnet 发起的任务 files[].uris 为**空数组**——引擎不保存
+ * magnet URI，上面的 findDuplicateUris 对磁力任务天然不命中。补这条路径：
+ * store 在 addUri 时把 magnet → gid 记进会话级索引，这里拿索引反查任务。
+ *
+ * @param magnetIndex 规范化 magnet（normalizeUrlForCompare，即 magnet:infoHash）→ gid
+ */
+export function findMagnetDuplicates(
+  uris: string[],
+  magnetIndex: ReadonlyMap<string, string>,
+  tasks: Aria2Task[]
+): DuplicateMatch[] {
+  if (magnetIndex.size === 0) return []
+  const byGid = new Map(tasks.map(t => [t.gid, t]))
+  const seen = new Set<string>()
+  const matches: DuplicateMatch[] = []
+  for (const raw of uris) {
+    const normalized = normalizeUrlForCompare(raw)
+    if (!normalized.startsWith('magnet:') || seen.has(normalized)) continue
+    seen.add(normalized)
+    const gid = magnetIndex.get(normalized)
+    if (!gid) continue
+    const task = byGid.get(gid)
+    if (!task || !DUPLICATABLE_STATUSES.has(task.status)) continue
+    matches.push({
+      uri: raw,
+      gid,
+      status: task.status,
+      name: taskDisplayName(task)
+    })
+  }
+  return matches
+}

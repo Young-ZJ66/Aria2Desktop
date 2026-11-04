@@ -7,7 +7,7 @@ import { sessionManager } from '@/services/sessionManager'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
 import { getTaskName } from '@/utils/taskUtils'
 import { computeTaskListFingerprint } from '@/utils/fingerprint'
-import { findDuplicateUris, type DuplicateMatch } from '@/utils/duplicateUrl'
+import { findDuplicateUris, findMagnetDuplicates, normalizeUrlForCompare, type DuplicateMatch } from '@/utils/duplicateUrl'
 import type { Aria2Task, Aria2Option } from '@/types/aria2'
 import type { Aria2ClientEvent } from '@/services/aria2Client'
 
@@ -262,18 +262,36 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   /**
+   * 磁力链接 → gid 的会话级索引：aria2 不把 magnet URI 存进任务的 files[].uris
+   * （实测 1.37 返回空数组），URL 比对路径对磁力任务天然不命中。
+   * 添加任务时记录，应用重启后丢失（引擎侧同样查不到，行为一致地"查不到"）。
+   */
+  const magnetUriIndex = new Map<string, string>()
+
+  /**
    * 查找与输入 URI 重复的进行中任务（active/waiting/paused）。
    * 新建任务页提交前调用，提前拦住"同一链接再下一份副本"的误操作；
    * 完成与出错任务不参与比对（重下/重试是有意行为）。纯比对，不发请求。
    */
   function findDuplicateTasks(uris: string[]): DuplicateMatch[] {
-    return findDuplicateUris(uris, [...activeTasks.value, ...waitingTasks.value])
+    const inProgress = [...activeTasks.value, ...waitingTasks.value]
+    const matches = findDuplicateUris(uris, inProgress)
+    const matchedInputs = new Set(matches.map(m => normalizeUrlForCompare(m.uri)))
+    const remaining = uris.filter(u => !matchedInputs.has(normalizeUrlForCompare(u)))
+    matches.push(...findMagnetDuplicates(remaining, magnetUriIndex, inProgress))
+    return matches
   }
 
   async function addUri(uris: string[], options?: Aria2Option) {
     if (!connectionStore.service) throw new Error('Not connected')
 
     const gid = await connectionStore.service.addUri(uris, options)
+
+    // 磁力 URI 不入库（见 magnetUriIndex 注释）：添加时记下规范化 magnet → gid
+    for (const uri of uris) {
+      const normalized = normalizeUrlForCompare(uri)
+      if (normalized.startsWith('magnet:')) magnetUriIndex.set(normalized, gid)
+    }
 
     const fileName = uris[0]?.split('/').pop() || uris[0]?.split('\\').pop() || 'Unknown'
     await afterTaskAdded([gid], fileName)

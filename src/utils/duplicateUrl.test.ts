@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Aria2Task } from '@/types/aria2'
-import { findDuplicateUris, normalizeUrlForCompare } from './duplicateUrl'
+import { findDuplicateUris, findMagnetDuplicates, normalizeUrlForCompare } from './duplicateUrl'
 
 function makeTask(overrides: Partial<Aria2Task> = {}): Aria2Task {
   return {
@@ -88,7 +88,7 @@ describe('findDuplicateUris', () => {
     expect(matches.map(m => m.gid)).toEqual(['p', 'w'])
   })
 
-  it('magnet 撞 infoHash 判重：换 tracker / 改 dn 的同一种子仍命中', () => {
+  it('（防御性）任务记录若带 magnet URI 仍按 infoHash 判重——实测引擎磁力任务 uris 为空，此路径不可达但无害', () => {
     const tasks = [
       makeTask({
         gid: 'bt1',
@@ -103,14 +103,12 @@ describe('findDuplicateUris', () => {
     expect(matches[0]).toMatchObject({ gid: 'bt1', name: 'Ubuntu 24.04' })
   })
 
-  it('BT 任务无 file.uris 时不误报（信息不足不拦截）', () => {
+  it('真实引擎形状：磁力任务 files[].uris 为空数组 → findDuplicateUris 不命中（磁力走 findMagnetDuplicates）', () => {
     const tasks = [
       makeTask({
-        gid: 'bt2',
-        bittorrent: { mode: 'multi' },
-        files: [
-          { index: '1', path: '/dl/x.iso', length: '0', completedLength: '0', selected: 'true', uris: [] }
-        ]
+        gid: 'mag1',
+        status: 'paused',
+        files: [{ index: '1', path: '', length: '0', completedLength: '0', selected: 'true', uris: [] }]
       })
     ]
     expect(findDuplicateUris(['magnet:?xt=urn:btih:abc'], tasks)).toEqual([])
@@ -139,5 +137,48 @@ describe('findDuplicateUris', () => {
 
   it('空任务列表返回空数组', () => {
     expect(findDuplicateUris(['https://a.com/a.zip'], [])).toEqual([])
+  })
+})
+
+describe('findMagnetDuplicates', () => {
+  const magnetTask = makeTask({
+    gid: 'mag1',
+    status: 'paused',
+    bittorrent: { mode: 'multi', info: { name: 'Ubuntu 24.04' } },
+    files: [{ index: '1', path: '/dl/Ubuntu 24.04.iso', length: '0', completedLength: '0', selected: 'true', uris: [] }]
+  })
+
+  it('索引命中且任务进行中 → 判重（换 tracker / 改 dn 同 infoHash 仍命中）', () => {
+    const index = new Map([['magnet:urn:btih:abcdef', 'mag1']])
+    const matches = findMagnetDuplicates(
+      ['magnet:?xt=urn:BTIH:ABCDEF&dn=renamed&tr=udp%3A%2F%2Fother'],
+      index,
+      [magnetTask]
+    )
+    expect(matches).toHaveLength(1)
+    expect(matches[0]).toMatchObject({ gid: 'mag1', status: 'paused', name: 'Ubuntu 24.04' })
+  })
+
+  it('任务已完成 / 已不在列表 → 不拦', () => {
+    const index = new Map([['magnet:urn:btih:abcdef', 'mag1']])
+    const done = { ...magnetTask, status: 'complete' as const }
+    expect(findMagnetDuplicates(['magnet:?xt=urn:btih:abcdef'], index, [done])).toEqual([])
+    expect(findMagnetDuplicates(['magnet:?xt=urn:btih:abcdef'], index, [])).toEqual([])
+  })
+
+  it('非 magnet 输入跳过；输入重复只报一次', () => {
+    const index = new Map([['magnet:urn:btih:abcdef', 'mag1']])
+    expect(findMagnetDuplicates(['https://a.com/f.zip'], index, [magnetTask])).toEqual([])
+    expect(
+      findMagnetDuplicates(
+        ['magnet:?xt=urn:btih:abcdef', 'magnet:?xt=urn:btih:abcdef'],
+        index,
+        [magnetTask]
+      )
+    ).toHaveLength(1)
+  })
+
+  it('空索引直接返回空', () => {
+    expect(findMagnetDuplicates(['magnet:?xt=urn:btih:abc'], new Map(), [magnetTask])).toEqual([])
   })
 })
