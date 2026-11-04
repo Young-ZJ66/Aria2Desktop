@@ -692,6 +692,11 @@ const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSett
   defaults,
   validate,
   loadErrorKey: 'settings.download.loadFailed',
+  // 未保存离开确认：跟踪全部表单字段（原始值，JSON 序列化对比）
+  dirtyTracking: {
+    pageId: 'download',
+    fields: Object.keys(settings) as Array<keyof typeof settings & string>
+  },
   // 恢复默认后把下载目录填充为应用默认下载目录，避免输入框为空
   onAfterReset: async (form) => {
     if (!window.electronAPI?.getDefaultDownloadDir) return

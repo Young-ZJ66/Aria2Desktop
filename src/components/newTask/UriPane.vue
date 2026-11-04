@@ -14,6 +14,17 @@
     <n-form-item path="dir" :label="t('newTask.downloadDir')" label-placement="top">
       <n-input v-model:value="form.dir" :placeholder="t('newTask.dirPlaceholder')">
         <template #suffix>
+          <n-popselect
+            v-if="recentDirOptions.length > 0"
+            :value="form.dir"
+            :options="recentDirOptions"
+            trigger="click"
+            @update:value="applyRecentDir"
+          >
+            <n-button text :title="t('newTask.recentDirs')">
+              <template #icon><n-icon><TimeOutline /></n-icon></template>
+            </n-button>
+          </n-popselect>
           <n-button text :disabled="!isElectron" @click="selectDir">
             <template #icon><n-icon><FolderOutline /></n-icon></template>
           </n-button>
@@ -103,7 +114,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOutline } from '@vicons/ionicons5'
+import { FolderOutline, TimeOutline } from '@vicons/ionicons5'
 import type { FormInst, FormRules, SelectOption } from 'naive-ui'
 import { confirm, message } from '@/utils/feedback'
 import AppSwitch from '@/components/AppSwitch.vue'
@@ -112,6 +123,8 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { useNewTaskSubmit } from '@/composables/useNewTaskSubmit'
 import { useDiskFreeSpace } from '@/composables/useDiskFreeSpace'
 import { CATEGORY_AUTO, CATEGORY_GENERAL, getFileNameHintFromUri, resolveCategory } from '@/shared/fileCategories'
+import { pushRecentSaveDir } from '@/shared/recentSaveDirs'
+import { formatSize } from '@/utils/taskFormatters'
 import { parseCurlCommand } from '@/utils/curlCommand'
 import { USER_AGENT_PRESETS } from '@/shared/userAgents'
 import type { Aria2Option } from '@/types/aria2'
@@ -239,6 +252,23 @@ const targetDir = computed(() => {
 // 目标盘剩余空间（500ms 防抖查询；失败为 -1 时不显示）
 const freeBytes = useDiskFreeSpace(targetDir)
 
+// 最近保存目录：下拉快捷选择 + 提交成功后记录
+const recentDirOptions = computed(() =>
+  (settingsStore.settings.download?.recentSaveDirs ?? []).map(dir => ({ label: dir, value: dir }))
+)
+function applyRecentDir(dir: string) {
+  form.dir = dir
+}
+
+/** 提交成功后把实际目标目录记入最近列表（失败静默——历史记录不值得打扰用户） */
+async function recordRecentSaveDir(dir: string) {
+  if (!dir) return
+  try {
+    const recent = settingsStore.settings.download?.recentSaveDirs ?? []
+    await settingsStore.updateDownloadConfig({ recentSaveDirs: pushRecentSaveDir(recent, dir) })
+  } catch { /* 记录失败不影响提交结果 */ }
+}
+
 /**
  * 智能识别模式下无法从链接识别文件类型（网盘直链/跳转链接的 URL 往往没有文件名，
  * 如 https://d.pcs.baidu.com/file/<hash>?...，真实文件名只在服务器的响应头里）。
@@ -361,6 +391,7 @@ async function handleSubmit() {
       if (extraHeaders.length > 0) options.header = extraHeaders
 
       await taskStore.addUri(uris, options)
+      void recordRecentSaveDir(resolvedDir || baseDir)
       return t('newTask.addedCount', { count: uris.length })
     },
 

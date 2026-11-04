@@ -27,12 +27,23 @@
       </span>
     </div>
 
-    <!-- 限速快捷开关 -->
+    <!-- 限速快捷开关：左键开关，右键/下拉箭头选档位 -->
+    <n-dropdown
+      trigger="manual"
+      :show="limitMenuVisible"
+      :x="limitMenuX"
+      :y="limitMenuY"
+      placement="top-end"
+      :options="limitMenuOptions"
+      @select="handleLimitPreset"
+      @clickoutside="limitMenuVisible = false"
+    />
     <button
       class="speed-limit-btn"
       :class="{ active: statsStore.isSpeedLimited }"
       :title="statsStore.isSpeedLimited ? t('footer.speedLimitOn') + ': ' + statsStore.speedLimitDisplay : t('footer.speedLimitOff')"
       @click="handleToggleSpeedLimit"
+      @contextmenu.prevent="openLimitMenu"
     >
       <n-icon :size="14"><SpeedometerOutline /></n-icon>
       <span v-if="statsStore.isSpeedLimited" class="speed-limit-text">{{ statsStore.speedLimitDisplay }}</span>
@@ -41,8 +52,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { DropdownOption } from 'naive-ui'
 import { useStatsStore } from '@/stores/statsStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { formatSpeed } from '@/utils/taskFormatters'
@@ -70,6 +82,51 @@ async function handleToggleSpeedLimit() {
     message.success(text)
   } catch {
     // 以前这里什么都不提示：点了没反应，用户只会以为按钮坏了
+    message.error(t('footer.speedLimitToggleFailed'))
+  }
+}
+
+// ── 右键限速档位菜单 ──
+/** 档位值（字节/秒）——与 changeGlobalOption 的原始值语义一致 */
+const LIMIT_PRESETS: Array<{ key: string; bytes: number }> = [
+  { key: '512k', bytes: 512 * 1024 },
+  { key: '1m', bytes: 1024 * 1024 },
+  { key: '2m', bytes: 2 * 1024 * 1024 },
+  { key: '5m', bytes: 5 * 1024 * 1024 },
+  { key: '10m', bytes: 10 * 1024 * 1024 }
+]
+
+const limitMenuVisible = ref(false)
+const limitMenuX = ref(0)
+const limitMenuY = ref(0)
+
+const limitMenuOptions = computed<DropdownOption[]>(() => [
+  ...LIMIT_PRESETS.map(p => ({
+    key: p.key,
+    label: formatSpeed(p.bytes) + ' /s'
+  })),
+  { type: 'divider', key: 'd1' },
+  { key: 'off', label: t('footer.speedLimitOff') }
+])
+
+function openLimitMenu(e: MouseEvent) {
+  if (!connectionStore.service) {
+    message.warning(t('footer.speedLimitNoEngine'))
+    return
+  }
+  limitMenuX.value = e.clientX
+  limitMenuY.value = e.clientY
+  limitMenuVisible.value = true
+}
+
+async function handleLimitPreset(key: string | number) {
+  limitMenuVisible.value = false
+  const value = key === 'off' ? '0' : LIMIT_PRESETS.find(p => p.key === key)?.bytes
+  if (value === undefined) return
+  try {
+    await statsStore.changeGlobalOptions({ 'max-overall-download-limit': String(value) })
+    message.success(key === 'off' ? t('footer.speedLimitOff') : `${t('footer.speedLimitOn')}: ${formatSpeed(value)}/s`)
+  } catch {
     message.error(t('footer.speedLimitToggleFailed'))
   }
 }

@@ -95,6 +95,9 @@ import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, r
 import { SearchOutline } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 import { useUiStore } from '@/stores/uiStore'
+import { useConnectionStore } from '@/stores/connectionStore'
+import { confirm } from '@/utils/feedback'
+import { getDirtyPages, saveDirtyPage } from '@/composables/useGlobalSettingsForm'
 
 // 设置页面按需加载，保持与原有路由懒加载一致，避免全部打进首屏包。
 // 同时保留 loader：应用空闲时预取，首次打开设置页不必再等动态 import。
@@ -125,6 +128,7 @@ const RpcSecuritySettings = defineAsyncComponent(settingsLoaders.rpcSecurity)
 const AdvancedSettings = defineAsyncComponent(settingsLoaders.advanced)
 
 const uiStore = useUiStore()
+const connectionStore = useConnectionStore()
 const { t, locale } = useI18n()
 
 const activeTab = computed({
@@ -374,9 +378,51 @@ watch(locale, () => {
 const visible = computed({
   get: () => uiStore.showSettings,
   set: (value: boolean) => {
-    if (!value) uiStore.closeSettings()
+    if (!value) void requestClose()
   }
 })
+
+/**
+ * 关闭前检查未保存修改：各设置页经 useGlobalSettingsForm({ dirtyTracking }) 注册，
+ * 有脏页时询问「保存并关闭 / 放弃修改 / 继续编辑」。
+ * 无脏页（或引擎未连接、全部干净）时直接关闭，零打扰。
+ */
+const closing = ref(false)
+async function requestClose() {
+  if (closing.value) return
+  const dirty = getDirtyPages()
+  if (dirty.length === 0 || !connectionStore.isConnected) {
+    uiStore.closeSettings()
+    return
+  }
+  closing.value = true
+  try {
+    const action = await new Promise<'save' | 'discard' | 'cancel'>((resolve) => {
+      confirm({
+        title: t('settings.unsavedTitle'),
+        content: t('settings.unsavedContent'),
+        type: 'warning',
+        positiveText: t('settings.unsavedSaveClose'),
+        negativeText: t('settings.unsavedDiscard'),
+        onPositiveClick: () => resolve('save'),
+        onNegativeClick: () => resolve('discard'),
+        onClose: () => resolve('cancel'),
+        onEsc: () => resolve('cancel')
+      })
+    })
+    if (action === 'cancel') return
+    if (action === 'save') {
+      // 逐页保存：脏页通常只有当前浏览页；某页保存失败则不关闭，让用户处理
+      for (const pageId of dirty) {
+        const ok = await saveDirtyPage(pageId)
+        if (ok === false) return
+      }
+    }
+    uiStore.closeSettings()
+  } finally {
+    closing.value = false
+  }
+}
 
 /**
  * 弹窗关闭后 Naive UI 会卸载内容（display-directive 默认 if），

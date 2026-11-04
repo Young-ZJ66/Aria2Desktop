@@ -391,6 +391,11 @@ async function validate(): Promise<boolean> {
 }
 
 const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(form, {
+  // 未保存离开确认：跟踪全部表单字段（原始值，JSON 序列化对比）
+  dirtyTracking: {
+    pageId: 'protocol',
+    fields: Object.keys(form) as Array<keyof typeof form & string>
+  },
   applyOptions,
   toOptions,
   defaults,

@@ -4,13 +4,40 @@
  * - 加载配置时有缓存时不显示加载态，避免无意义的刷新闪烁
  * - 统一保存/重置对话框交互
  */
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message, confirm } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
 import { hasRestartRequiredOption } from '@/utils/aria2RestartOptions'
 import type { Aria2Option } from '@/types/aria2'
+
+/**
+ * 未保存修改注册表：设置弹窗关闭前逐一询问（见 SettingsDialog）。
+ * key 用页面 id（与 SettingsDialog 的 tab name 一致），value 为该页 dirty 状态。
+ * 模块级 Map：设置页与弹窗分离挂载，靠全局注册表通信。
+ */
+const dirtyPages = new Map<string, () => boolean>()
+/** 页面 id → 保存函数（「保存并关闭」时逐页调用；resolve(true)=保存成功可关闭） */
+const dirtyPageSavers = new Map<string, () => Promise<boolean>>()
+
+
+export function getDirtyPages(): string[] {
+  const dirty: string[] = []
+  for (const [id, isDirty] of dirtyPages) {
+    try {
+      if (isDirty()) dirty.push(id)
+    } catch { /* 页面已卸载等异常视为不脏 */ }
+  }
+  return dirty
+}
+
+/** 供 SettingsDialog 的「保存并关闭」逐页执行保存；未注册的页返回 null */
+export async function saveDirtyPage(pageId: string): Promise<boolean | null> {
+  const saver = dirtyPageSavers.get(pageId)
+  if (!saver) return null
+  return await saver()
+}
 
 export interface UseGlobalSettingsFormOptions<T extends object> {
   /** Aria2 配置选项 → 表单 映射 */
@@ -25,6 +52,8 @@ export interface UseGlobalSettingsFormOptions<T extends object> {
   onAfterReset?: (form: T) => void | Promise<void>
   /** 加载失败提示的 i18n key（默认 settings.loadFailed） */
   loadErrorKey?: string
+  /** 设置弹窗的未保存离开确认用：页面 id（= SettingsDialog 的 tab name）+ 表单字段名清单 */
+  dirtyTracking?: { pageId: string; fields: Array<keyof T & string> }
 }
 
 export function useGlobalSettingsForm<T extends object>(
@@ -144,5 +173,39 @@ export function useGlobalSettingsForm<T extends object>(
     }
   })
 
+  // 未保存修改追踪：快照最近一次加载/保存完成时的字段值，当前值与之不同即 dirty。
+  // 深比较不需要——这些表单全是原始值字段（数字/字符串/布尔）。
+  if (options.dirtyTracking) {
+    const { pageId, fields } = options.dirtyTracking
+    const serialize = () => JSON.stringify(pickFields(form, fields))
+    let snapshot = serialize()
+    dirtyPages.set(pageId, () => serialize() !== snapshot)
+    dirtyPageSavers.set(pageId, async () => {
+      try {
+        await handleSave()
+        return true
+      } catch {
+        return false
+      }
+    })
+    // 保存完成 / 重新加载完成——把快照对齐当前值（handleSave/handleReset 内部改动经此收敛）
+    watch(saving, (s, was) => {
+      if (was && !s) snapshot = serialize()
+    })
+    watch(loading, (l, was) => {
+      if (was && !l) snapshot = serialize()
+    })
+    onBeforeUnmount(() => {
+      dirtyPages.delete(pageId)
+      dirtyPageSavers.delete(pageId)
+    })
+  }
+
   return { loading, saving, loadSettings, handleSave, handleReset }
+}
+
+function pickFields<T extends object>(form: T, fields: Array<keyof T & string>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const f of fields) out[f] = (form as Record<string, unknown>)[f]
+  return out
 }

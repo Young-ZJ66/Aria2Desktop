@@ -81,6 +81,8 @@ export interface AppSettings {
     autoStart?: boolean
     /** 下载完成后自动解压压缩包（zip/7z/tar 系；RAR 不支持） */
     autoExtract?: boolean
+    /** 最近使用的保存目录（新建任务页快捷选择，最多 8 条，最新在前） */
+    recentSaveDirs?: string[]
   }
 
   // 速度调度规则（按时段自动切换限速）

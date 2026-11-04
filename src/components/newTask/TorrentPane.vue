@@ -80,6 +80,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useNewTaskSubmit } from '@/composables/useNewTaskSubmit'
 import { useDiskFreeSpace } from '@/composables/useDiskFreeSpace'
+import { pushRecentSaveDir } from '@/shared/recentSaveDirs'
 import { CATEGORY_AUTO, resolveCategory } from '@/shared/fileCategories'
 import { formatSize } from '@/utils/taskFormatters'
 import { parseTorrentFiles, type TorrentFileEntry } from '@/utils/torrentFileList'
@@ -152,6 +153,15 @@ const targetDirPreview = computed(() =>
   props.computeTargetDir(settingsStore.taskBaseDir, form.category, form.torrentFile?.name || '')
 )
 const freeBytes = useDiskFreeSpace(targetDirPreview)
+
+/** 提交成功后把实际目标目录记入最近列表（失败静默） */
+async function recordRecentSaveDir(dir: string) {
+  if (!dir) return
+  try {
+    const recent = settingsStore.settings.download?.recentSaveDirs ?? []
+    await settingsStore.updateDownloadConfig({ recentSaveDirs: pushRecentSaveDir(recent, dir) })
+  } catch { /* 记录失败不影响提交结果 */ }
+}
 
 /** 解析种子内容；失败时保留“全部文件下载”的旧行为 */
 async function loadTorrentFiles(file: File) {
@@ -270,6 +280,7 @@ async function handleSubmit() {
       }
 
       await taskStore.addTorrent(torrentData, [], options)
+      void recordRecentSaveDir(targetDir)
       return t('newTask.torrentAdded')
     },
 

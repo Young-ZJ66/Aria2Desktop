@@ -592,6 +592,11 @@ const btSettingsSchema: SettingSchema = {
 const { applyOptions, toOptions, defaults } = useSettingSchema(btSettingsSchema, settings)
 
 const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
+  // 未保存离开确认：跟踪全部表单字段（原始值，JSON 序列化对比）
+  dirtyTracking: {
+    pageId: 'bt',
+    fields: Object.keys(settings) as Array<keyof typeof settings & string>
+  },
   applyOptions,
   toOptions,
   defaults
