@@ -3,6 +3,7 @@ import { ARIA2_ERROR_MESSAGE_KEYS, classifyAria2Error } from './aria2Error'
 
 describe('把 aria2 退出码翻译成分类', () => {
   it('常见的可行动错误各有分类', () => {
+    expect(classifyAria2Error(1)).toBe('network')
     expect(classifyAria2Error(2)).toBe('timeout')
     expect(classifyAria2Error('3')).toBe('notFound')
     expect(classifyAria2Error(6)).toBe('network')

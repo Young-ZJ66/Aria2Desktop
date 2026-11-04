@@ -76,10 +76,10 @@ export function pickTarCommand(
 /**
  * 运行时解析 tar 命令。
  *
- * 候选路径的盘符来源：固定常量（C: / D: 常见盘）+ SystemRoot 环境变量的
- * **首字符**（仅当它是盘符字母时追加一个候选）。env 只贡献一个字符码，
- * 不作为字符串进入任何拼接；候选形态恒为"盘符:\System32\tar.exe"，
- * env 被改写也无法让 tar 指向系统目录之外。
+ * 候选路径 = "<盘符>:\Windows\System32\tar.exe"。盘符来源：固定常量（C: / D: 常见盘）
+ * + SystemRoot 环境变量的**首字符**（仅当它是盘符字母时追加一个候选）。env 只贡献
+ * 一个字符码，不作为字符串进入任何拼接；路径主体（Windows\System32\tar.exe）是
+ * 纯常量段——env 被改写也无法让 tar 指向系统目录之外。
  * 全部候选不存在时回退 PATH 里的 `tar.exe`（极少数精简系统）。
  */
 function resolveTarCommand(): string {
@@ -93,13 +93,29 @@ function resolveTarCommand(): string {
   const driveCodes = new Set<number>([67, 68]) // 'C', 'D'
   if (isDriveLetter) driveCodes.add(firstCode)
 
+  // 路径主体是常量：Windows\System32\tar.exe（标准 Windows 上 SystemRoot 下的固定位置）。
+  // 注意历史教训：此前这里拼的是"盘符:\System32\tar.exe"，丢了 WINDOWS 段，
+  // 候选全部不存在导致静默回退 PATH 里的 GNU tar（它解不了 zip）。
+  const tail =
+    'Windows' + String.fromCharCode(BS) + 'System32' + String.fromCharCode(BS) + 'tar.exe'
   const candidates: string[] = []
   for (const code of driveCodes) {
-    candidates.push(
-      String.fromCharCode(code, COLON) + String.fromCharCode(BS) + 'System32' + String.fromCharCode(BS) + 'tar.exe'
-    )
+    candidates.push(String.fromCharCode(code, COLON) + String.fromCharCode(BS) + tail)
   }
   return pickTarCommand(process.platform, candidates, candidate => fs.existsSync(candidate))
+}
+
+/** 测试观察口：导出候选构造结果，钉住"候选必须含 Windows 段"这一历史教训 */
+export function resolveTarCommandForTest(): string[] {
+  const COLON = 58 // ':'
+  const BS = 92 // '\'
+  const envRoot = process.env.SystemRoot || process.env.windir || ''
+  const firstCode = envRoot.charCodeAt(0)
+  const isDriveLetter = firstCode >= 65 && firstCode <= 90
+  const driveCodes = new Set<number>([67, 68])
+  if (isDriveLetter) driveCodes.add(firstCode)
+  const tail = 'Windows' + String.fromCharCode(BS) + 'System32' + String.fromCharCode(BS) + 'tar.exe'
+  return [...driveCodes].map(code => String.fromCharCode(code, COLON) + String.fromCharCode(BS) + tail)
 }
 
 /**

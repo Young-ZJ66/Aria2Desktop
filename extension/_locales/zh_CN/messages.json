@@ -105,13 +105,23 @@
     "message": "端口需为 1–65535 之间的数字"
   },
   "permissionDenied": {
-    "message": "未授予访问 $1 的权限"
+    "message": "未授予访问 $1 的权限",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
   },
   "errDisabled": {
     "message": "扩展已停用，请先启用"
   },
   "errCannotConnect": {
-    "message": "无法连接 $1：请确认 App 与引擎已启动"
+    "message": "无法连接 $1：请确认 App 与引擎已启动",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
   },
   "errUnauthorized": {
     "message": "密钥错误：请在 App「设置 → RPC 安全」复制"
@@ -314,7 +324,12 @@
     "message": "App 缺少 ffmpeg，无法合并音轨"
   },
   "streamPageFailed": {
-    "message": "交给 App 失败：$1"
+    "message": "交给 App 失败：$1",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
   },
   "streamPageUnreachable": {
     "message": "未检测到 App（未运行或版本过旧）"
@@ -350,13 +365,31 @@
     "message": "发送选中"
   },
   "sendSelectedCount": {
-    "message": "发送选中的 $COUNT$ 个链接"
+    "message": "发送选中的 $COUNT$ 个链接",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "grabSentCount": {
-    "message": "已发送 $COUNT$ 个下载任务"
+    "message": "已发送 $COUNT$ 个下载任务",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "grabPartial": {
-    "message": "已发送 $1$ 个，$2$ 个失败"
+    "message": "已发送 $SENT$ 个，$FAILED$ 个失败",
+    "placeholders": {
+      "sent": {
+        "content": "$1"
+      },
+      "failed": {
+        "content": "$2"
+      }
+    }
   },
   "grabSelectFirst": {
     "message": "请先勾选要下载的链接"

@@ -40,6 +40,11 @@ export function classifyAria2Error(code: string | number | null | undefined): Ar
   if (numeric === 0) return 'unknown'
 
   switch (numeric) {
+    case 1:
+      // 实测（E2E）：aria2 对"连接建立但服务端异常断开/代理拒绝"等网络层失败报 1
+      // （errorMessage 形如 "Network problem has occurred." / "Got EOF from the server."），
+      // 与 6（网络中断）同属用户可自行重试的连接类失败
+      return 'network'
     case 2:
       return 'timeout'
     case 3:

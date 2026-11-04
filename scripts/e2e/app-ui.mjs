@@ -1382,24 +1382,29 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
   reporter.check('打开失败任务的详情', failOpened === 'clicked', String(failOpened))
   const failDetail = await (async () => {
+    let lastText = ''
     for (let i = 0; i < 60; i++) {
       const text = await evalIn(
         session,
         `(() => { const d = [...document.querySelectorAll('.n-drawer')].find((el) => el.offsetParent !== null); return d ? d.innerText : '' })()`
       )
-      if (typeof text === 'string' && /域名解析失败|Name resolution|Domain name/i.test(text)) return text
+      if (typeof text === 'string') lastText = text
+      if (typeof text === 'string' && /域名解析失败|网络连接中断|连接超时|无法连接|Name resolution|Domain name|EOF|abort/i.test(text)) return text
       await sleep(500)
     }
-    return ''
+    return lastText
   })()
   reporter.check(
     '失败详情给出可读原因',
-    /域名解析失败/.test(String(failDetail)),
+    // 不同网络环境下同一 URL 的失败形态不同：CI 是干净的 DNS 失败（域名解析失败），
+    // 本机/代理环境下可能是连接中断（网络连接中断）等。断言"有人话文案"而非写死具体哪句，
+    // 与"引擎原话保留"一起锁定错误映射链路本身。
+    /域名解析失败|网络连接中断|连接超时|无法连接/.test(String(failDetail)),
     String(failDetail).slice(0, 120)
   )
   reporter.check(
     '失败详情仍保留引擎原话',
-    /Name resolution|Domain name|CUID/i.test(String(failDetail)),
+    /Name resolution|Domain name|CUID|EOF|abort/i.test(String(failDetail)),
     String(failDetail).slice(0, 160)
   )
   await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })

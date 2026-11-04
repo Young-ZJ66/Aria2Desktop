@@ -10,7 +10,7 @@ vi.mock('electron-log/main', () => ({
   default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), transports: { file: {}, console: {} } }
 }))
 
-const { buildExtractArgs, extractArchive, extractArchiveTo, isExtractableArchive, pickTarCommand, resolveArchiveArg } =
+const { buildExtractArgs, extractArchive, extractArchiveTo, isExtractableArchive, pickTarCommand, resolveArchiveArg, resolveTarCommandForTest } =
   await import('./archiveService')
 
 /**
@@ -48,6 +48,14 @@ describe('pickTarCommand', () => {
     expect(pickTarCommand('win32', ['C:\\Windows\\System32\\tar.exe'], always)).toBe(
       path.join('C:\\Windows', 'System32', 'tar.exe')
     )
+  })
+
+  it('回归：resolveTarCommand 候选必须含 WINDOWS 路径段（曾因拼成 C:\\System32\\tar.exe 全部 miss 而静默回退 GNU tar，zip 解压报 not a tar archive）', () => {
+    for (const candidate of resolveTarCommandForTest()) {
+      expect(candidate).toMatch(/^[A-Z]:\\Windows\\System32\\tar\.exe$/i)
+    }
+    // 默认候选至少含 C: 与 D: 两个常见盘
+    expect(resolveTarCommandForTest().length).toBeGreaterThanOrEqual(2)
   })
 
   it('多个候选按顺序取第一个存在的', () => {

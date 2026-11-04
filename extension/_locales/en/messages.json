@@ -105,13 +105,23 @@
     "message": "Port must be a number between 1 and 65535"
   },
   "permissionDenied": {
-    "message": "Permission to access $1 was not granted"
+    "message": "Permission to access $1 was not granted",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
   },
   "errDisabled": {
     "message": "Extension disabled — enable it first"
   },
   "errCannotConnect": {
-    "message": "Cannot connect to $1 — make sure the app and engine are running"
+    "message": "Cannot connect to $1 — make sure the app and engine are running",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
   },
   "errUnauthorized": {
     "message": "Wrong secret — copy it under Settings → RPC Security in the app"
@@ -314,7 +324,12 @@
     "message": "ffmpeg missing in the app — cannot merge audio"
   },
   "streamPageFailed": {
-    "message": "Failed to send to App: $1"
+    "message": "Failed to send to App: $1",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
   },
   "streamPageUnreachable": {
     "message": "App not detected (not running or too old)"
@@ -350,13 +365,31 @@
     "message": "Send selected"
   },
   "sendSelectedCount": {
-    "message": "Send $COUNT$ selected links"
+    "message": "Send $COUNT$ selected links",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "grabSentCount": {
-    "message": "Sent $COUNT$ download tasks"
+    "message": "Sent $COUNT$ download tasks",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "grabPartial": {
-    "message": "$1$ sent, $2$ failed"
+    "message": "$SENT$ sent, $FAILED$ failed",
+    "placeholders": {
+      "sent": {
+        "content": "$1"
+      },
+      "failed": {
+        "content": "$2"
+      }
+    }
   },
   "grabSelectFirst": {
     "message": "Select links to download first"
