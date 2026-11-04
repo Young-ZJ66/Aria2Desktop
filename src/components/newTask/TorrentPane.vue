@@ -63,6 +63,10 @@
     <n-form-item :label="t('newTask.categoryLabel')" label-placement="top">
       <n-select v-model:value="form.category" :options="categoryOptions" />
     </n-form-item>
+    <div v-if="targetDirPreview" class="dir-tip">
+      {{ t('newTask.saveTo') }}：{{ targetDirPreview }}
+      <span v-if="freeBytes >= 0" class="dir-free-space"> · {{ t('newTask.diskFree', { size: formatSize(freeBytes) }) }}</span>
+    </div>
   </n-form>
 </template>
 
@@ -75,6 +79,7 @@ import { message } from '@/utils/feedback'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useNewTaskSubmit } from '@/composables/useNewTaskSubmit'
+import { useDiskFreeSpace } from '@/composables/useDiskFreeSpace'
 import { CATEGORY_AUTO, resolveCategory } from '@/shared/fileCategories'
 import { formatSize } from '@/utils/taskFormatters'
 import { parseTorrentFiles, type TorrentFileEntry } from '@/utils/torrentFileList'
@@ -141,6 +146,12 @@ function fileCategoryId(path: string): string {
   const name = path.split(/[\\/]/).pop() || path
   return resolveCategory(name, settingsStore.categoryConfig.categories ?? []).id
 }
+
+/** 将保存到的目录预览（种子名作为文件名提示参与分类）与目标盘剩余空间 */
+const targetDirPreview = computed(() =>
+  props.computeTargetDir(settingsStore.taskBaseDir, form.category, form.torrentFile?.name || '')
+)
+const freeBytes = useDiskFreeSpace(targetDirPreview)
 
 /** 解析种子内容；失败时保留“全部文件下载”的旧行为 */
 async function loadTorrentFiles(file: File) {
@@ -312,6 +323,19 @@ defineExpose({
 </script>
 
 <style scoped>
+/* 与 UriPane 的 dir-tip 同款：保存目录预览 + 剩余空间 */
+.dir-tip {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: -6px 0 10px;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
+.dir-free-space {
+  color: var(--text-tertiary, var(--text-secondary));
+}
+
 .file-drop-area {
   width: 100%;
   height: 150px;

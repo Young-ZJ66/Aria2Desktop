@@ -27,6 +27,7 @@
       {{ autoClassifyFailed
         ? t('newTask.saveToUnclassified', { dir: targetDir })
         : `${t('newTask.saveTo')}：${targetDir}` }}
+      <span v-if="freeBytes >= 0" class="dir-free-space"> · {{ t('newTask.diskFree', { size: formatSize(freeBytes) }) }}</span>
     </div>
     <n-form-item path="fileName" :label="t('newTask.fileName')" label-placement="top">
       <n-input v-model:value="form.fileName" :placeholder="t('newTask.fileNamePlaceholder')" />
@@ -109,6 +110,7 @@ import AppSwitch from '@/components/AppSwitch.vue'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useNewTaskSubmit } from '@/composables/useNewTaskSubmit'
+import { useDiskFreeSpace } from '@/composables/useDiskFreeSpace'
 import { CATEGORY_AUTO, CATEGORY_GENERAL, getFileNameHintFromUri, resolveCategory } from '@/shared/fileCategories'
 import { parseCurlCommand } from '@/utils/curlCommand'
 import { USER_AGENT_PRESETS } from '@/shared/userAgents'
@@ -233,6 +235,9 @@ const targetDir = computed(() => {
   if (!baseDir) return ''
   return props.computeTargetDir(baseDir, form.category, fileNameHint.value)
 })
+
+// 目标盘剩余空间（500ms 防抖查询；失败为 -1 时不显示）
+const freeBytes = useDiskFreeSpace(targetDir)
 
 /**
  * 智能识别模式下无法从链接识别文件类型（网盘直链/跳转链接的 URL 往往没有文件名，
@@ -459,6 +464,11 @@ defineExpose({
   margin: -6px 0 10px;
   word-break: break-all;
   line-height: 1.6;
+}
+
+/* 剩余空间弱化显示：辅助信息，不与目录路径抢注意力 */
+.dir-free-space {
+  color: var(--text-tertiary, var(--text-secondary));
 }
 
 /* 表单项间距收紧。
