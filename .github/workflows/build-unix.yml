@@ -33,10 +33,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -73,7 +73,7 @@ jobs:
       # 这里真的启动一次 .app：引擎起没起来、本地接口有没有监听，只有跑过才知道。
       # 顺序放在上传之后：冒烟失败不该连产物都拿不到——手动跑一次就是为了拿到包 + 结论。
       - name: 上传产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-installers
           path: |
@@ -87,7 +87,7 @@ jobs:
       # 冒烟脚本失败时会把主进程日志与结构化诊断写到 test-results/，这是排查"为什么起不来"的唯一现场
       - name: 冒烟失败时保存现场
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: smoke-failure-mac
           path: test-results/
@@ -100,10 +100,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -137,7 +137,7 @@ jobs:
       # Linux 上是无显示环境：用 xvfb 造一块虚拟屏，再启动一次打包产物。
       # --no-sandbox 只为容器里没有 user namespace 的情况（只关渲染进程沙箱，启动路径不变）。
       - name: 上传产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-installers
           path: |
@@ -153,7 +153,7 @@ jobs:
 
       - name: 冒烟失败时保存现场
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: smoke-failure-linux
           path: test-results/

@@ -30,10 +30,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # 与 release.yml 保持一致：electron 43 / vue-i18n 11 等依赖要求 Node >= 22.12.0
           node-version: 22
@@ -67,7 +67,7 @@ jobs:
       # 注解只带关键几行，完整现场靠这份产物（scripts/run-with-log.mjs 落盘）。
       - name: 保存检查日志
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: check-logs
           path: test-results/ci/
@@ -87,10 +87,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -115,7 +115,7 @@ jobs:
       # 作业日志在网页上不好翻，失败时把冒烟自己写的诊断（退出码、stdout/stderr、主进程日志）带出来
       - name: 失败时保留诊断
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: packaged-smoke-failure
           path: test-results/

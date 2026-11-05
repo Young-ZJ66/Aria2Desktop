@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 打包扩展
         run: |
@@ -28,7 +28,7 @@ jobs:
             icons/ _locales/ README.md
 
       - name: 上传扩展产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: browser-extension
           path: Aria2Desktop-Extension-*.zip
@@ -52,10 +52,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -93,10 +93,10 @@ jobs:
 
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # electron 43 / vue-i18n 11 等依赖要求 Node >= 22.12.0
           node-version: 22
@@ -186,7 +186,7 @@ jobs:
 
       # 下载扩展产物
       - name: 下载扩展产物
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: browser-extension
           path: release/
@@ -252,7 +252,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 校验更新日志版本
         run: |
@@ -294,10 +294,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -336,10 +336,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm

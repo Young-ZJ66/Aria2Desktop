@@ -22,10 +22,10 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -77,7 +77,7 @@ jobs:
       # 失败时把截图与主进程日志带出来。CI 上看不见窗口，没有这些现场只能靠猜
       - name: 上传失败现场（截图与日志）
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-failure
           path: test-results/e2e/
