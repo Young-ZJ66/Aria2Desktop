@@ -17,6 +17,7 @@ import { checkYtdlpAvailable, getVideoInfo, getFormatUrl, installYtdlp, checkYtd
 import { checkFfmpegAvailable, installFfmpeg, checkFfmpegUpdate } from '../services/ffmpegService'
 import { startStreamDownload, cancelStreamDownload, type StreamDownloadRequest } from '../services/streamDownloadService'
 import { extractArchive } from '../services/archiveService'
+import { upnpService } from '../services/upnpService'
 import { getAutoLaunchEnabled, setAutoLaunchEnabled } from '../services/autoLaunch'
 import { PluginManager } from '../services/pluginManager'
 import { createLogger, getLogFilePaths } from '../utils/logger'
@@ -527,6 +528,18 @@ export class IpcController {
         }
       },
       { getMainWindow: this.windowRef, failureValue: { free: -1, total: -1 } }
+    )
+
+    // UPnP 端口映射状态查询与手动重映射（BT 设置页展示）
+    registerSecureHandler<[], Promise<{ state: string; externalIp?: string; ports?: number[]; message?: string }>>(
+      'get-upnp-status',
+      async () => await Promise.resolve(upnpService.getStatus()),
+      { getMainWindow: this.windowRef, failureValue: { state: 'error', message: 'unauthorized' } }
+    )
+    registerSecureHandler<[], Promise<{ state: string; externalIp?: string; ports?: number[]; message?: string }>>(
+      'upnp-remap',
+      async () => await upnpService.mapNow(),
+      { getMainWindow: this.windowRef, failureValue: { state: 'error', message: 'unauthorized' } }
     )
 
     /**

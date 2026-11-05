@@ -91,12 +91,31 @@ export interface AppSettings {
     rules: SpeedScheduleRule[]
   }
 
+  // 定时下载（按时段自动暂停/恢复全部任务）
+  downloadSchedule?: {
+    enabled: boolean
+    rules: Array<{
+      name: string
+      enabled: boolean
+      /** 星期几生效（0=周日…6=周六），空数组表示每天 */
+      days: number[]
+      startTime: string
+      endTime: string
+    }>
+  }
+
   // 分类下载设置
   category?: {
     /** 是否按文件类型自动分类到子目录 */
     autoClassify?: boolean
     /** 分类规则（结构固定：general + Video/Music/Images/Documents/Compressed/Programs，可编辑目录名与扩展名） */
     categories?: CategoryRule[]
+  }
+
+  // BT 设置
+  bt?: {
+    /** 启用 UPnP 端口映射（BT/DHT 端口自动映射到网关，提升 BT 连通性） */
+    upnpEnabled?: boolean
   }
 }
 

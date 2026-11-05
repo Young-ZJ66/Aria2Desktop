@@ -9,6 +9,8 @@ import { IpcController } from './controllers/IpcController'
 import { AppLifecycle } from './controllers/AppLifecycle'
 import { TrackerSubscriptionService } from './services/trackerSubscriptionService'
 import { SpeedScheduler } from './services/speedScheduler'
+import { DownloadScheduler } from './services/downloadScheduler'
+import { upnpService } from './services/upnpService'
 import { ExtensionApiServer } from './services/extensionApiServer'
 import { appState } from './utils/appState'
 import { bindSettingsStore, getSettings } from './utils/settingsAccessor'
@@ -169,10 +171,12 @@ const aria2Controller = new Aria2Controller(windowController)
 const ipcController = new IpcController(windowController, trayController, aria2Controller, store)
 const trackerSubscriptionService = new TrackerSubscriptionService(store, aria2Controller, windowController)
 const speedScheduler = new SpeedScheduler()
+const downloadScheduler = new DownloadScheduler()
 // 引擎每次（重新）启动后，aria2 的全局选项都回到配置文件里的值：
 // 让调度器把当前规则的限速重新下发一次，否则崩溃自动重启后限速会静默消失
 aria2Controller.setEngineStartedListener(() => {
   speedScheduler.reapply()
+  downloadScheduler.reapply()
   // 引擎每次真的起来了都告诉界面一声：既用于收掉"已放弃自动重启"那条红色提示，
   // 也让界面对"手动重启成功了"有回应
   const win = windowController.getMainWindow()
@@ -331,6 +335,10 @@ if (!gotTheLock) {
       trackerSubscriptionService.initialize()
       // 启动速度调度器（每分钟检查是否需要切换限速）
       speedScheduler.start()
+      // 启动定时下载调度器（每分钟检查是否需要暂停/恢复全部任务）
+      downloadScheduler.start()
+      // 启动 UPnP 端口映射（设置开启时映射 BT/DHT 端口；失败静默降级）
+      void upnpService.start()
       // 启动浏览器扩展本地接口（失败不影响其它功能，扩展侧会自动回落）
       extensionApiServer.start()
 
@@ -392,6 +400,8 @@ if (!gotTheLock) {
       // 关闭 Tracker 订阅定时器，避免退出阻塞
       trackerSubscriptionService.shutdown()
       speedScheduler.stop()
+      downloadScheduler.stop()
+      upnpService.stop()
       // 关闭浏览器扩展本地接口
       extensionApiServer.stop()
       logger.info('优雅关闭完成')

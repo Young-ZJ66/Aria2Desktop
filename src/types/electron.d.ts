@@ -88,6 +88,10 @@ export interface ElectronAPI {
   // 磁盘剩余空间查询（新建任务提交前预检）；查询失败返回 free=-1（未知），渲染层跳过预检
   getDiskFreeSpace: (dir: string) => Promise<{ free: number; total: number }>
 
+  // UPnP 端口映射（BT 设置页展示状态 / 手动重映射）
+  getUpnpStatus: () => Promise<{ state: string; externalIp?: string; ports?: number[]; message?: string }>
+  remapUpnp: () => Promise<{ state: string; externalIp?: string; ports?: number[]; message?: string }>
+
   // 下载完成后自动解压（仅支持 zip/7z/tar 系；主进程校验路径必须位于下载目录内）
   extractArchive: (filePath: string) => Promise<{
     success: boolean

@@ -67,6 +67,19 @@
 
         <n-form-item>
           <template #label>
+            <TipLabel :label="t('settings.bt.upnpEnabled')" :tip="t('settings.bt.upnpEnabledTip')" />
+          </template>
+          <div class="upnp-row">
+            <AppSwitch v-model:value="upnpEnabled" @update:value="handleUpnpToggle" />
+            <span v-if="upnpEnabled" class="upnp-status" :class="'upnp-' + upnpStatus.state">
+              {{ upnpStatusText }}
+            </span>
+            <n-button v-if="upnpEnabled" size="tiny" @click="remapNow">{{ t('settings.bt.upnpRemapNow') }}</n-button>
+          </div>
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
             <TipLabel :label="t('settings.bt.btExternalIp')" :tip="t('settings.bt.btExternalIpTip')" :option="'bt-external-ip'" />
           </template>
           <n-input v-model:value="settings.btExternalIp" :placeholder="t('settings.bt.btExternalIpPlaceholder')" clearable />
@@ -468,6 +481,7 @@ import { useI18n } from 'vue-i18n'
 import { FolderOpenOutline, CloseOutline, AddOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
@@ -803,11 +817,94 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   unsubscribeTracker()
 })
+
+// ---------- UPnP 端口映射（应用级设置，存入 AppSettings.bt.upnpEnabled） ----------
+const settingsStoreBt = useSettingsStore()
+const upnpEnabled = ref(settingsStoreBt.settings.bt?.upnpEnabled === true)
+const upnpStatus = ref<{ state: string; externalIp?: string; ports?: number[]; message?: string }>({ state: 'idle' })
+
+const upnpStatusText = computed(() => {
+  switch (upnpStatus.value.state) {
+    case 'ok': {
+      const ports = (upnpStatus.value.ports ?? []).join('/')
+      const ip = upnpStatus.value.externalIp ? ` · ${upnpStatus.value.externalIp}` : ''
+      return t('settings.bt.upnpStatusOk', { ports, ip })
+    }
+    case 'mapping':
+      return t('settings.bt.upnpStatusMapping')
+    case 'unsupported':
+      return t('settings.bt.upnpStatusUnsupported')
+    case 'error':
+      return t('settings.bt.upnpStatusError', { message: upnpStatus.value.message ?? '' })
+    default:
+      return ''
+  }
+})
+
+async function handleUpnpToggle(enabled: boolean) {
+  try {
+    await settingsStoreBt.updateSetting('bt', { upnpEnabled: enabled })
+    if (enabled) {
+      const result = await window.electronAPI?.remapUpnp?.()
+      if (result) upnpStatus.value = result
+      if (result?.state === 'ok') {
+        message.success(t('settings.bt.upnpMappedOk'))
+      } else if (result?.message) {
+        message.warning(result.message)
+      }
+    }
+  } catch (error) {
+    message.error(t('settings.unknownError'))
+    console.error('UPnP toggle failed:', error)
+  }
+}
+
+async function remapNow() {
+  try {
+    const result = await window.electronAPI?.remapUpnp?.()
+    if (result) upnpStatus.value = result
+    if (result?.state === 'ok') message.success(t('settings.bt.upnpMappedOk'))
+    else if (result?.message) message.warning(result.message)
+  } catch (error) {
+    message.error(t('settings.unknownError'))
+    console.error('UPnP remap failed:', error)
+  }
+}
+
+// 打开页面时拉一次当前状态（服务在主进程异步映射）
+onMounted(async () => {
+  if (!upnpEnabled.value) return
+  try {
+    const result = await window.electronAPI?.getUpnpStatus?.()
+    if (result) upnpStatus.value = result
+  } catch { /* 状态查询失败不影响页面 */ }
+})
 </script>
 
 <style scoped>
 .setting-group {
   margin-bottom: 16px;
+}
+
+.upnp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.upnp-status {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.upnp-status.upnp-ok {
+  color: var(--success-color, #18a058);
+}
+
+.upnp-status.upnp-unsupported,
+.upnp-status.upnp-error {
+  color: var(--warning-color, #f0a020);
 }
 
 .tracker-official-sources {

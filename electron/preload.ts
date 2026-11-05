@@ -39,6 +39,10 @@ const electronAPI = {
   // 磁盘剩余空间查询（新建任务提交前预检；查询失败返回 free=-1，渲染层跳过预检）
   getDiskFreeSpace: (dir: string) => ipcRenderer.invoke('get-disk-free-space', dir),
 
+  // UPnP 端口映射（BT 设置页展示状态 / 手动重映射）
+  getUpnpStatus: () => ipcRenderer.invoke('get-upnp-status'),
+  remapUpnp: () => ipcRenderer.invoke('upnp-remap'),
+
   // 下载完成后自动解压（仅在设置开启时由渲染层调用；主进程校验路径必须位于下载目录内）
   extractArchive: (filePath: string) => ipcRenderer.invoke('archive-extract', filePath),
 

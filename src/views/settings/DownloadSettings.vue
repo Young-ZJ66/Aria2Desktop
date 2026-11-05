@@ -191,6 +191,37 @@
         </div>
       </n-card>
 
+      <!-- 定时下载 -->
+      <n-card :title="t('settings.download.downloadSchedule')" class="setting-group">
+        <n-alert type="info" :bordered="false" style="margin-bottom: 12px;">
+          {{ t('settings.download.downloadScheduleTip') }}
+        </n-alert>
+
+        <n-form-item>
+          <template #label>{{ t('settings.download.downloadScheduleEnabled') }}</template>
+          <n-switch v-model:value="dlScheduleEnabled" />
+        </n-form-item>
+
+        <div v-if="dlScheduleEnabled" class="schedule-rules">
+          <div v-for="(rule, index) in dlScheduleRules" :key="index" class="schedule-rule">
+            <n-input v-model:value="rule.name" :placeholder="t('settings.download.scheduleRuleName')" size="small" style="width: 120px;" />
+            <n-select v-model:value="rule.days" :options="dayOptions" multiple size="small" style="min-width: 180px;" :placeholder="t('settings.download.everyDay')" />
+            <n-time-picker v-model:value="rule.startTimestamp" format="HH:mm" size="small" style="width: 100px;" :placeholder="t('settings.download.startTime')" />
+            <span style="color: var(--text-secondary);">-</span>
+            <n-time-picker v-model:value="rule.endTimestamp" format="HH:mm" size="small" style="width: 100px;" :placeholder="t('settings.download.endTime')" />
+            <span class="dl-schedule-action">{{ t('settings.download.downloadScheduleResume') }}</span>
+            <n-button size="small" quaternary type="error" @click="removeDlScheduleRule(index)">
+              <template #icon><n-icon><TrashOutline /></n-icon></template>
+            </n-button>
+          </div>
+          <n-button size="small" dashed @click="addDlScheduleRule" style="width: 100%;">
+            <template #icon><n-icon><AddOutline /></n-icon></template>
+            {{ t('settings.download.addScheduleRule') }}
+          </n-button>
+          <div class="dl-schedule-note">{{ t('settings.download.downloadScheduleNote') }}</div>
+        </div>
+      </n-card>
+
       <!-- 磁盘与存储 -->
       <n-card :title="t('settings.download.diskAndMemory')" class="setting-group">
 
@@ -803,7 +834,7 @@ function onDirChange(rule: CategoryRule, value: string) {
 
 /** 保存：先保存 aria2 全局选项，再保存分类配置和速度调度 */
 async function onSave() {
-  await Promise.all([handleSave(), saveCategoryConfig(), saveScheduleConfig()])
+  await Promise.all([handleSave(), saveCategoryConfig(), saveScheduleConfig(), saveDlScheduleConfig()])
 }
 
 /** 重置：先重置分类配置，再重置 aria2 选项 */
@@ -959,6 +990,64 @@ function addScheduleRule() {
 function removeScheduleRule(index: number) {
   scheduleRules.splice(index, 1)
 }
+
+// ---------- 定时下载设置（独立于 aria2 全局选项，存入 AppSettings.downloadSchedule） ----------
+// 窗口开始 → 恢复全部任务；窗口结束 → 暂停全部任务（主进程 DownloadScheduler 每分钟检查）
+
+interface DlScheduleRuleUI {
+  name: string
+  days: number[]
+  startTimestamp: number
+  endTimestamp: number
+}
+
+const dlScheduleEnabled = ref(false)
+const dlScheduleRules = reactive<DlScheduleRuleUI[]>([])
+
+function loadDlScheduleConfig() {
+  const cfg = settingsStore.settings.downloadSchedule
+  dlScheduleEnabled.value = cfg?.enabled ?? false
+  dlScheduleRules.length = 0
+  if (cfg?.rules) {
+    for (const r of cfg.rules) {
+      dlScheduleRules.push({
+        name: r.name || '',
+        days: r.days || [],
+        startTimestamp: hhmmToTimestamp(r.startTime || '00:00'),
+        endTimestamp: hhmmToTimestamp(r.endTime || '00:00')
+      })
+    }
+  }
+}
+loadDlScheduleConfig()
+
+async function saveDlScheduleConfig() {
+  await settingsStore.updateSettings({
+    downloadSchedule: {
+      enabled: dlScheduleEnabled.value,
+      rules: dlScheduleRules.map(r => ({
+        name: r.name,
+        enabled: true,
+        days: r.days,
+        startTime: timestampToHHmm(r.startTimestamp),
+        endTime: timestampToHHmm(r.endTimestamp)
+      }))
+    }
+  })
+}
+
+function addDlScheduleRule() {
+  dlScheduleRules.push({
+    name: '',
+    days: [],
+    startTimestamp: hhmmToTimestamp('09:00'),
+    endTimestamp: hhmmToTimestamp('18:00')
+  })
+}
+
+function removeDlScheduleRule(index: number) {
+  dlScheduleRules.splice(index, 1)
+}
 </script>
 
 <style scoped>
@@ -1014,6 +1103,17 @@ function removeScheduleRule(index: number) {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.dl-schedule-action {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.dl-schedule-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 
 .schedule-rule {
