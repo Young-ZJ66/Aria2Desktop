@@ -37,6 +37,11 @@ const SSDP_PORT = 1900
 const SSDP_TIMEOUT_MS = 3000
 /** SOAP 请求超时 */
 const SOAP_TIMEOUT_MS = 5000
+/**
+ * 响应体上限。设备描述文档通常几十 KB，SOAP 响应只有几 KB；这里纯粹是防御：
+ * 局域网里任何人都能伪造 SSDP 响应，指向一台会吐无穷数据的服务器就足以把主进程内存吃满。
+ */
+const MAX_BODY_BYTES = 512 * 1024
 /** 映射租期（秒）与续租间隔：租期 30 分钟，每 10 分钟续 */
 const LEASE_SECONDS = 1800
 const RENEW_INTERVAL_MS = 10 * 60 * 1000
@@ -122,6 +127,10 @@ export class UpnpService {
         this.renewTimer = setInterval(() => {
           void this.mapNow()
         }, RENEW_INTERVAL_MS)
+      } else if (this.activeMappings.length > 0) {
+        // 续租失败（网关重启/换网最常见）：旧映射还在租期内，别把状态改成"不支持"，
+        // 定时器保留，10 分钟后再试一次
+        this.status = { state: 'error', message: result.message, ports: this.status.ports }
       } else {
         this.status = { state: 'unsupported', message: result.message }
       }
@@ -170,8 +179,13 @@ export class UpnpService {
       // 引擎未运行时用默认端口
     }
     const ports = buildMappingPorts(btListen, dht)
-    // 5) 逐端口 TCP+UDP 映射
+    // 5) 逐端口 TCP+UDP 映射。
+    // 结果先攒在本地列表里，全部走完再整体替换 activeMappings：
+    // 早期实现直接往 this.activeMappings 上 push，续租每 10 分钟重复 AddPortMapping，
+    // 列表就无上限增长（跑一天一百多条，退出时对同一批端口重复发 DELETE）；
+    // 端口或网关地址变了，旧条目也永远清不掉。
     const mapped: number[] = []
+    const built: Array<{ controlUrl: string; externalPort: number; protocol: 'TCP' | 'UDP' }> = []
     for (const p of ports) {
       for (const proto of ['TCP', 'UDP'] as const) {
         const body = buildAddPortMappingBody(
@@ -183,13 +197,14 @@ export class UpnpService {
         const verdict = isSoapSuccess(resp.statusCode, resp.body)
         if (verdict.ok) {
           if (!mapped.includes(p)) mapped.push(p)
-          this.activeMappings.push({ controlUrl, externalPort: p, protocol: proto })
+          built.push({ controlUrl, externalPort: p, protocol: proto })
         }
       }
     }
     if (mapped.length === 0) {
       return { ok: false, message: '端口映射被路由器拒绝' }
     }
+    this.activeMappings = built
     // 6) 查询外部 IP（失败不影响映射结果）
     let externalIp: string | undefined
     try {
@@ -233,7 +248,13 @@ function httpGet(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const req = http.get(url, { timeout: SOAP_TIMEOUT_MS }, (res) => {
       let data = ''
-      res.on('data', (c: Buffer) => { data += c.toString('utf8') })
+      res.on('data', (c: Buffer) => {
+        data += c.toString('utf8')
+        if (data.length > MAX_BODY_BYTES) {
+          req.destroy()
+          reject(new Error('设备描述文档过大'))
+        }
+      })
       res.on('end', () => resolve(data))
     })
     req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
@@ -257,7 +278,13 @@ function httpSoap(controlUrl: string, body: string, soapAction: string): Promise
       },
       (res) => {
         let data = ''
-        res.on('data', (c: Buffer) => { data += c.toString('utf8') })
+        res.on('data', (c: Buffer) => {
+          data += c.toString('utf8')
+          if (data.length > MAX_BODY_BYTES) {
+            req.destroy()
+            reject(new Error('SOAP 响应过大'))
+          }
+        })
         res.on('end', () => resolve({ statusCode: res.statusCode ?? 0, body: data }))
       }
     )
