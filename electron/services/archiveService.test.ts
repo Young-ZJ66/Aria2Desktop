@@ -10,7 +10,7 @@ vi.mock('electron-log/main', () => ({
   default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), transports: { file: {}, console: {} } }
 }))
 
-const { buildExtractArgs, extractArchive, extractArchiveTo, isExtractableArchive, pickTarCommand, resolveArchiveArg, resolveTarCommandForTest } =
+const { buildExtractArgs, countSkippedEntries, extractArchive, extractArchiveTo, isExtractableArchive, parseArchiveEntries, pickTarCommand, resolveArchiveArg, resolveTarCommandForTest } =
   await import('./archiveService')
 
 /**
@@ -79,15 +79,38 @@ describe('pickTarCommand', () => {
 })
 
 describe('buildExtractArgs', () => {
-  it('只传文件名，不传绝对路径、不带 -C', () => {
+  it('只传文件名，不传绝对路径、不带 -C，并且要求 tar 不覆盖已有文件', () => {
     const args = buildExtractArgs('我的 归档.zip')
-    expect(args).toEqual(['-x', '-f', '我的 归档.zip'])
+    expect(args).toEqual(['-x', '-k', '-f', '我的 归档.zip'])
+    // -k：目标目录已有同名文件时跳过而不是静默覆盖（数据丢失）
+    expect(args).toContain('-k')
     // 回归护栏：出现盘符或绝对路径就会踩到 GNU tar 的远程主机解析
     for (const arg of args) {
       expect(arg).not.toMatch(/^[A-Za-z]:/)
       expect(arg.startsWith('/')).toBe(false)
       expect(arg).not.toBe('-C')
     }
+  })
+})
+
+describe('parseArchiveEntries', () => {
+  it('按行切分并去掉目录尾斜杠与空行', () => {
+    const listing = 'dir/\r\ndir/a.txt\n\nfile.txt\r\n'
+    expect(parseArchiveEntries(listing)).toEqual(['dir', 'dir/a.txt', 'file.txt'])
+  })
+})
+
+describe('countSkippedEntries', () => {
+  it('只统计已经存在的条目', () => {
+    // 用 path.join 构造期望值：Windows 上 join('/t','a.txt') 是 '\\t\\a.txt'
+    const root = '/t'
+    const existing = new Set([path.join(root, 'a.txt'), path.join(root, 'dir')])
+    const skipped = countSkippedEntries(['a.txt', 'b.txt', 'dir'], root, candidate => existing.has(candidate))
+    expect(skipped).toBe(2)
+  })
+
+  it('目标目录为空时一个也不跳', () => {
+    expect(countSkippedEntries(['a.txt', 'dir/b.txt'], '/t', () => false)).toBe(0)
   })
 })
 
@@ -132,6 +155,27 @@ describe('extractArchive', () => {
     expect(result.extracted).toBe(true)
     expect(result.targetDir).toBe(workDir)
     expect(fs.readFileSync(path.join(workDir, 'hello.txt'), 'utf-8')).toBe('hello-archive')
+  })
+
+  it('目标目录已有同名文件时不覆盖，并如实回报跳过的数量', async () => {
+    createArchive('keep.tar', 'keep.txt', 'new-content')
+    fs.writeFileSync(path.join(workDir, 'keep.txt'), 'old-content')
+
+    const result = await extractArchive(path.join(workDir, 'keep.tar'))
+
+    expect(result).toMatchObject({ success: true, extracted: true, targetDir: workDir, skipped: 1 })
+    // 核心断言：老文件原样保留（tar -k），用户数据不被静默覆盖
+    expect(fs.readFileSync(path.join(workDir, 'keep.txt'), 'utf-8')).toBe('old-content')
+  })
+
+  it('目标目录没有冲突时 skipped 为 0', async () => {
+    createArchive('fresh.tar', 'fresh.txt', 'fresh-content')
+    fs.rmSync(path.join(workDir, 'fresh.txt'))
+
+    const result = await extractArchive(path.join(workDir, 'fresh.tar'))
+
+    expect(result).toMatchObject({ success: true, extracted: true, skipped: 0 })
+    expect(fs.readFileSync(path.join(workDir, 'fresh.txt'), 'utf-8')).toBe('fresh-content')
   })
 
   it('不支持的格式直接跳过，不算失败', async () => {

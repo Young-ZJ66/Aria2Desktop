@@ -120,6 +120,13 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       const result = await window.electronAPI.extractArchive(filePath)
       if (result?.extracted) {
         const name = filePath.split(/[\\/]/).pop() || ''
+        const skipped = result.skipped ?? 0
+        // 有同名文件被跳过（未覆盖）时不能删压缩包：被跳过的那几项仍只存在于压缩包里，
+        // 删了就永久丢了新内容。改为提示用户，压缩包原样保留。
+        if (skipped > 0) {
+          window.electronAPI.sendNotification?.(t('notification.archiveExtractedPartial', { count: skipped }), name)
+          return
+        }
         window.electronAPI.sendNotification?.(t('notification.archiveExtracted'), name)
         // 解压成功后可选删除原压缩包（走 delete-files 的路径白名单 → 回收站，可恢复）。
         // 删除失败不打扰：解压本身已成功，压缩包留在原地是最安全的降级。

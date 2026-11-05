@@ -39,15 +39,22 @@ export function resolveDownloadScheduleState(
 
 /**
  * 由前一次状态与当前状态决定要执行的动作。
- * 只在翻转时动作：in→out 暂停全部，out→in 恢复全部，相同状态不动。
- * 首次运行（previous 为 null）不动作——应用启动时不宜突然暂停/唤醒全部任务，
- * 下一个翻转点自然接管。
+ *
+ * 三种情况：
+ * - `previous === null`（首次检查 / 引擎重启 / 刚开启调度）：**对齐**当前状态——
+ *   窗口外暂停全部、窗口内恢复全部。早期版本这里返回 null（"启动时不动"），
+ *   结果应用在窗口外启动时一整天都不会暂停，定时下载形同虚设。
+ * - 状态未变：不动作（不打扰用户手动暂停/恢复）。
+ * - 状态翻转：in→out 暂停全部，out→in 恢复全部。
+ *
+ * 调度器只在 RPC **成功后**才更新记忆——失败（引擎没起来）下一分钟自动重试，
+ * 不会像早期版本那样把这次翻转永久丢掉。
  */
 export function resolveScheduleAction(
   previous: 'in-window' | 'out-window' | null,
   current: 'in-window' | 'out-window'
 ): 'pause-all' | 'unpause-all' | null {
-  if (previous === null || previous === current) return null
+  if (previous === current) return null
   return current === 'in-window' ? 'unpause-all' : 'pause-all'
 }
 

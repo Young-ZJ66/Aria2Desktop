@@ -37,6 +37,8 @@ export interface ExtractResult {
   reason?: string
   /** 解压目标目录 */
   targetDir?: string
+  /** 因目标目录已有同名文件而被跳过（未覆盖）的条目数；undefined 表示无法确定 */
+  skipped?: number
 }
 
 /** 判断文件名是否属于可自动解压的归档格式 */
@@ -119,14 +121,44 @@ export function resolveTarCommandForTest(): string[] {
 }
 
 /**
- * 解压参数：`-x` 解压、`-f` 指定归档。
+ * 解压参数：`-x` 解压、`-k` 不覆盖已存在的文件、`-f` 指定归档。
  *
  * 归档用**相对目标目录的路径**（配合 spawn 的 `cwd = 目标目录`），不传带盘符的绝对路径
  * ——这样既不依赖 tar 实现能否正确处理盘符，也不需要 `-C`。实测 bsdtar 与 GNU tar
  * 都接受这种写法，而带盘符的绝对路径只有 bsdtar 接受。
+ *
+ * `-k`（keep old files）是解压链路上唯一真正的防覆盖手段：下载目录里很可能已有同名
+ * 文件（重新下载同一资源、上次失败残留），tar 默认静默覆盖 = 数据丢失。实测
+ * `C:\Windows\System32\tar.exe`（bsdtar 3.8）与 GNU tar 都支持，已存在的条目跳过、
+ * 退出码仍为 0（不会因为冲突而报错）。
  */
 export function buildExtractArgs(fileName: string): string[] {
-  return ['-x', '-f', fileName]
+  return ['-x', '-k', '-f', fileName]
+}
+
+/**
+ * 解析 `tar -t` 的条目列表（每行一个，去掉目录尾斜杠）。
+ *
+ * 只用于统计"有多少条目因为已存在而被跳过"，解析失败时由调用方按 0 处理。
+ */
+export function parseArchiveEntries(listing: string): string[] {
+  return listing
+    .split(/\r?\n/)
+    .map(line => line.trim().replace(/\/+$/, ''))
+    .filter(line => line.length > 0)
+}
+
+/** 统计归档条目里在目标目录已存在的数量（用于如实告知"未覆盖 N 个文件"） */
+export function countSkippedEntries(
+  entries: string[],
+  targetDir: string,
+  exists: (candidate: string) => boolean
+): number {
+  let skipped = 0
+  for (const entry of entries) {
+    if (exists(path.join(targetDir, entry))) skipped++
+  }
+  return skipped
 }
 
 /**
@@ -181,14 +213,30 @@ export async function extractArchiveTo(filePath: string, targetDir: string): Pro
   }
 
   // 归档用相对路径 + spawn 的 cwd，参数直接给数组，不经 shell，避免路径被二次解释
-  const args = buildExtractArgs(resolveArchiveArg(filePath, targetDir))
+  const archiveArg = resolveArchiveArg(filePath, targetDir)
+  const args = buildExtractArgs(archiveArg)
 
-  // 防覆盖：下载目录里可能已有同名文件（用户重新下载同一资源、上次失败残留等）。
-  // tar 默认无提示覆盖——这是数据丢失风险。压缩包内嵌套路径无法预知，
-  // 只能把"归档根级别"的同名冲突挡住（这是最常见的场景：zip/tar 里直接是文件）。
-  const archivePathInTarget = path.join(targetDir, fileName)
-  if (fs.existsSync(archivePathInTarget) && path.resolve(filePath) !== path.resolve(archivePathInTarget)) {
-    return { success: false, extracted: false, reason: 'target_conflict' }
+  // 防覆盖交给 tar 的 `-k`（见 buildExtractArgs 注释）：已存在的条目直接跳过，
+  // 不覆盖也不报错。这里先扫一遍条目列表，只是为了事后如实告诉用户
+  // "有几项因为已存在而没解出"，解压本身不因冲突而中止。
+  // 旧实现在这里检查"目标目录里有没有与压缩包同名的文件"，既挡不住解压出来的
+  // 同名文件（真正的覆盖风险），又会把无关的同名压缩包误判成冲突。
+  let skipped = 0
+  // 归档里的顶层条目集合：解压失败清理半成品时只删"确实属于这个归档"的条目，
+  // 避免把同一目录里另一个下载刚写出的文件当成半成品删掉。
+  let archiveTopLevel: Set<string> | null = null
+  if (fs.existsSync(targetDir)) {
+    try {
+      const listing = await runTarCapture(resolveTarCommand(), ['-t', '-f', archiveArg], targetDir)
+      const entries = parseArchiveEntries(listing)
+      skipped = countSkippedEntries(entries, targetDir, candidate => fs.existsSync(candidate))
+      archiveTopLevel = new Set(entries.map(entry => entry.split(/[\\/]/)[0]).filter(Boolean))
+    } catch (error) {
+      // 扫不出条目不影响解压（部分归档对 -t 不友好），按"无法确定"处理
+      logger.debug(`列举归档条目失败，跳过冲突统计: ${error instanceof Error ? error.message : error}`)
+      skipped = 0
+      archiveTopLevel = null
+    }
   }
 
   // 失败/超时时 tar 会留下解出一半的文件——解压前先记下目标目录的现存文件集合，
@@ -203,13 +251,20 @@ export async function extractArchiveTo(filePath: string, targetDir: string): Pro
   try {
     await fs.promises.mkdir(targetDir, { recursive: true })
     await runTar(resolveTarCommand(), args, targetDir)
-    logger.info(`已解压 ${fileName} 到 ${targetDir}`)
-    return { success: true, extracted: true, targetDir }
+    if (skipped > 0) {
+      logger.info(`已解压 ${fileName} 到 ${targetDir}（${skipped} 项已存在，未覆盖）`)
+    } else {
+      logger.info(`已解压 ${fileName} 到 ${targetDir}`)
+    }
+    return { success: true, extracted: true, targetDir, skipped }
   } catch (error) {
-    // 清理半成品：只删本次解压新增的顶层条目（跳过归档自身与原有文件）
+    // 清理半成品：只删本次解压新增的顶层条目（跳过归档自身与原有文件）；
+    // 已知归档条目时再收窄到"确实来自这个归档"的条目——否则同一目录里
+    // 另一个下载刚完成的文件会被误删。
     try {
       for (const entry of fs.readdirSync(targetDir)) {
         if (entry === fileName || preExisting.has(entry)) continue
+        if (archiveTopLevel && !archiveTopLevel.has(entry)) continue
         const entryPath = path.join(targetDir, entry)
         fs.rmSync(entryPath, { recursive: true, force: true })
       }
@@ -251,6 +306,48 @@ function runTar(command: string, args: string[], cwd: string): Promise<void> {
     proc.on('exit', (code) => {
       clearTimeout(timer)
       if (code === 0) resolve()
+      else reject(new Error(stderr.trim() || `tar exited with code ${code}`))
+    })
+  })
+}
+
+/**
+ * 执行 tar 并收集 stdout（用于 `tar -t` 列举条目）。
+ *
+ * 与 runTar 的差别只有 stdout：解压时 stdio 忽略输出以免管道被大归档灌满，
+ * 列举时则必须读回来。超时与 ENOENT 归类保持一致。
+ */
+function runTarCapture(command: string, args: string[], cwd: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(command, args, {
+      cwd,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+
+    const timer = setTimeout(() => {
+      proc.kill('SIGKILL')
+      reject(new Error('extract_timeout'))
+    }, EXTRACT_TIMEOUT_MS)
+
+    let stdout = ''
+    let stderr = ''
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      // 条目列表可能有几万行：只在超长时截断，正常归档远小于这个量级
+      if (stdout.length < 4_000_000) stdout += chunk.toString()
+    })
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      stderr = (stderr + chunk.toString()).slice(-2000)
+    })
+
+    proc.on('error', (error: NodeJS.ErrnoException) => {
+      clearTimeout(timer)
+      reject(new Error(error.code === 'ENOENT' ? 'tar_not_available' : error.message))
+    })
+
+    proc.on('exit', (code) => {
+      clearTimeout(timer)
+      if (code === 0) resolve(stdout)
       else reject(new Error(stderr.trim() || `tar exited with code ${code}`))
     })
   })

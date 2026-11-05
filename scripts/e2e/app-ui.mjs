@@ -1630,6 +1630,17 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
       reporter.check('下载目录内 zip 解压成功', extracted?.success === true && extracted?.extracted === true, JSON.stringify(extracted))
       const contentOk = fs.existsSync(helloPath) && fs.readFileSync(helloPath, 'utf8').trim() === helloPayload
       reporter.check('解压出的文件内容正确', contentOk, helloPath)
+
+      // 再解一次同一个包：目标目录已有同名文件时必须保留旧文件（tar -k），
+      // 并把跳过的条目数如实回报（界面据此提示"未覆盖"，且不删压缩包）
+      fs.writeFileSync(helloPath, 'keep-me')
+      const again = await evalIn(session, `window.electronAPI.extractArchive(${JSON.stringify(zipPath)})`)
+      reporter.check(
+        '同名文件已存在时不覆盖',
+        again?.success === true && again?.extracted === true && again?.skipped === 1 &&
+          fs.readFileSync(helloPath, 'utf8') === 'keep-me',
+        JSON.stringify({ result: again, content: fs.readFileSync(helloPath, 'utf8') })
+      )
     } finally {
       fs.rmSync(zipPath, { force: true })
       fs.rmSync(helloPath, { force: true })

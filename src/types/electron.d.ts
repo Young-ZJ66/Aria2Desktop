@@ -99,6 +99,8 @@ export interface ElectronAPI {
     extracted: boolean
     reason?: string
     targetDir?: string
+    /** 因目标目录已有同名文件而未覆盖的条目数 */
+    skipped?: number
   }>
 
   // 托盘控制

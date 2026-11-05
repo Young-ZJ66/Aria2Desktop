@@ -339,6 +339,7 @@
     "downloadComplete": "Download Complete",
     "downloadFailed": "Download Failed",
     "archiveExtracted": "Archive Extracted",
+    "archiveExtractedPartial": "Archive Extracted ({count} existing file(s) kept; the archive was not deleted)",
     "engineCrashed": "The aria2 engine exited unexpectedly. Restarting automatically (attempt {count}).",
     "engineGaveUp": "The aria2 engine failed to restart {count} times, so automatic restarts have stopped. Restart it manually in Settings → Local engine, or open the app log for details.",
     "shutdownCancelled": "New download detected — the scheduled shutdown was cancelled."

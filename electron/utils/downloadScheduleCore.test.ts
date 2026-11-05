@@ -59,9 +59,10 @@ describe('resolveDownloadScheduleState', () => {
 })
 
 describe('resolveScheduleAction', () => {
-  it('首次运行（previous=null）不动作', () => {
-    expect(resolveScheduleAction(null, 'in-window')).toBeNull()
-    expect(resolveScheduleAction(null, 'out-window')).toBeNull()
+  // 回归：早期版本"首次运行不动作"，导致应用在窗口外启动时一整天都不暂停
+  it('首次运行（previous=null）按当前状态对齐：窗口外暂停、窗口内恢复', () => {
+    expect(resolveScheduleAction(null, 'out-window')).toBe('pause-all')
+    expect(resolveScheduleAction(null, 'in-window')).toBe('unpause-all')
   })
 
   it('状态不变不动作', () => {

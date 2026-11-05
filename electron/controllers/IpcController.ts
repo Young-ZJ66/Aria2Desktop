@@ -379,6 +379,8 @@ export class IpcController {
       // 写入口统一走 settingsAccessor，由它保证"写入即刷新缓存"
       if (key === 'settings') {
         saveSettings(value as AppSettings)
+        // UPnP 开关变化立即生效：开启则映射、关闭则撤掉映射（不需要重启应用）
+        void upnpService.reconcile()
       } else {
         this.store.set(key, value)
       }

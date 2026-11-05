@@ -58,22 +58,39 @@ export class UpnpService {
   /** 已建立的映射（退出时删除用） */
   private activeMappings: Array<{ controlUrl: string; externalPort: number; protocol: 'TCP' | 'UDP' }> = []
   private inFlight = false
+  /**
+   * 代数计数：每次 stop() 递增。在途的 mapNow() 完成后发现代数变了就直接丢弃结果，
+   * 否则「关闭开关/退出应用」之后它还会把续租定时器重新装回去（早期版本的泄漏）。
+   */
+  private generation = 0
 
   getStatus(): UpnpStatus {
     return { ...this.status }
   }
 
-  /** 应用启动/设置启用时调用；已启用则映射，未启用则清理状态 */
-  async start(): Promise<void> {
+  /**
+   * 应用启动与设置变更时调用：设置已启用且当前没有映射在跑就映射一次；
+   * 设置关闭则立即撤掉映射。幂等——重复调用不会重复建映射。
+   *
+   * 早期版本只在应用启动时调一次 start()、退出时调一次 stop()，
+   * 设置页里切换开关必须重启应用才生效（或者手动点"立即映射"）。
+   */
+  async reconcile(): Promise<void> {
     const enabled = getSettingsFresh()?.bt?.upnpEnabled === true
     if (!enabled) {
-      this.status = { state: 'idle' }
+      if (this.renewTimer || this.activeMappings.length > 0 || this.status.state !== 'idle') {
+        this.stop()
+      }
       return
     }
+    // 已有映射在维护中：无需重建（避免每次保存设置都重新打洞）
+    if (this.renewTimer) return
     await this.mapNow()
   }
 
   stop(): void {
+    // 让在途的 mapNow() 结果作废（否则它完成后会把续租定时器装回来）
+    this.generation++
     if (this.renewTimer) {
       clearInterval(this.renewTimer)
       this.renewTimer = null
@@ -92,9 +109,12 @@ export class UpnpService {
   async mapNow(): Promise<UpnpStatus> {
     if (this.inFlight) return this.getStatus()
     this.inFlight = true
+    const generation = this.generation
     try {
       this.status = { state: 'mapping' }
       const result = await this.mapAll()
+      // 期间被 stop() 过（关开关/退出）：丢弃结果，别把定时器装回去
+      if (generation !== this.generation) return this.getStatus()
       if (result.ok) {
         this.status = { state: 'ok', externalIp: result.externalIp, ports: result.ports }
         // 续租定时器
@@ -106,6 +126,7 @@ export class UpnpService {
         this.status = { state: 'unsupported', message: result.message }
       }
     } catch (error) {
+      if (generation !== this.generation) return this.getStatus()
       this.status = { state: 'error', message: String(error).slice(0, 200) }
     } finally {
       this.inFlight = false

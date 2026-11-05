@@ -338,7 +338,8 @@ if (!gotTheLock) {
       // 启动定时下载调度器（每分钟检查是否需要暂停/恢复全部任务）
       downloadScheduler.start()
       // 启动 UPnP 端口映射（设置开启时映射 BT/DHT 端口；失败静默降级）
-      void upnpService.start()
+      // 设置页里切换开关也会调同一个 reconcile()，不用重启应用
+      void upnpService.reconcile()
       // 启动浏览器扩展本地接口（失败不影响其它功能，扩展侧会自动回落）
       extensionApiServer.start()
 

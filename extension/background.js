@@ -614,7 +614,7 @@ function collectPageLinks() {
     }
     if (!/^https?:/i.test(url) || seen.has(url)) continue
     seen.add(url)
-    const text = (anchor.textContent || '').trim().replace(/s+/g, ' ').slice(0, 80)
+    const text = (anchor.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80)
     out.push({ url, text })
   }
   for (const el of document.querySelectorAll('video[src], audio[src], source[src]')) {
