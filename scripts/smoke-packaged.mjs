@@ -464,7 +464,7 @@ function reportFailure(options, outcome, attempt, attemptCount) {
     const reportDir = path.join(root, 'test-results')
     fs.mkdirSync(reportDir, { recursive: true })
     fs.writeFileSync(path.join(reportDir, 'smoke-packaged.json'), JSON.stringify({
-      exePath,
+      exePath: options.exePath,
       userData: outcome.userData,
       attempt,
       attemptCount,
