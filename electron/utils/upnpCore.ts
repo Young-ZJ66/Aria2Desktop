@@ -33,12 +33,50 @@ export function parseSsdpLocation(response: string): string | null {
   return null
 }
 
-/** 校验设备描述文档 URL：仅 http（LAN 内明文协议）且有主机；根路径也合法 */
+/**
+ * 判断主机名指向"本机/链路本地"地址。
+ *
+ * SSDP 响应是**局域网内任何设备都能伪造**的（组播 + 明文 UDP），Location 里写什么
+ * 我们都可能照单全收。放行回环就等于把本机所有 HTTP 服务（包括本应用的扩展接口
+ * 127.0.0.1:6801）交给这个响应体去指；链路本地 169.254.169.254 则是云环境的元数据
+ * 服务。真正的 IGD 只会是私网地址，挡掉这些不影响可用性。
+ */
+function isUnsafeSsrfHost(hostname: string): boolean {
+  if (!hostname) return true
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase()
+
+  if (host === 'localhost' || host.endsWith('.localhost')) return true
+
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+    const octets = host.split('.').map(n => Number(n))
+    if (octets.some(n => !Number.isInteger(n) || n > 255)) return true
+    const [a, b] = octets
+    if (a === 127 || a === 0) return true // 回环 / 未指定
+    if (a === 169 && b === 254) return true // 链路本地（含云元数据地址）
+    if (a >= 224) return true // 组播 / 保留
+    return false
+  }
+
+  if (host.includes(':')) {
+    // IPv6：回环、未指定、链路本地（fe80::/10）
+    if (host === '::1' || host === '::') return true
+    if (/^fe[89ab]/.test(host)) return true
+    return false
+  }
+
+  // 其余按主机名处理（路由器可能广播 device.local 之类），放行
+  return false
+}
+
+/**
+ * 校验设备描述文档 URL：仅 http（LAN 内明文协议）、有主机，且不指向本机/链路本地。
+ */
 export function isValidDeviceLocation(location: string): boolean {
   if (!/^http:\/\//i.test(location)) return false
   try {
     const url = new URL(location)
-    return Boolean(url.hostname)
+    if (!url.hostname) return false
+    return !isUnsafeSsrfHost(url.hostname)
   } catch {
     return false
   }

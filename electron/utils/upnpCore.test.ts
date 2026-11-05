@@ -42,6 +42,25 @@ describe('isValidDeviceLocation', () => {
     expect(isValidDeviceLocation('file:///c:/x')).toBe(false)
     expect(isValidDeviceLocation('not a url')).toBe(false)
   })
+
+  it('拒绝回环、未指定与链路本地地址（SSDP 响应可被局域网内任意设备伪造）', () => {
+    expect(isValidDeviceLocation('http://127.0.0.1:6801/api/status')).toBe(false)
+    expect(isValidDeviceLocation('http://127.1.2.3/desc.xml')).toBe(false)
+    expect(isValidDeviceLocation('http://localhost:8080/x')).toBe(false)
+    expect(isValidDeviceLocation('http://router.localhost/x')).toBe(false)
+    expect(isValidDeviceLocation('http://0.0.0.0:5000/')).toBe(false)
+    expect(isValidDeviceLocation('http://169.254.169.254/latest/meta-data/')).toBe(false)
+    expect(isValidDeviceLocation('http://[::1]:5000/desc.xml')).toBe(false)
+    expect(isValidDeviceLocation('http://[fe80::1]/desc.xml')).toBe(false)
+    expect(isValidDeviceLocation('http://224.0.0.1/x')).toBe(false)
+  })
+
+  it('私网与普通主机名仍然放行（IGD 就在这些地址上）', () => {
+    expect(isValidDeviceLocation('http://10.0.0.1:49152/desc.xml')).toBe(true)
+    expect(isValidDeviceLocation('http://172.16.31.1/x')).toBe(true)
+    expect(isValidDeviceLocation('http://192.168.0.1/')).toBe(true)
+    expect(isValidDeviceLocation('http://router.local/desc.xml')).toBe(true)
+  })
 })
 
 describe('extractControlUrls', () => {
