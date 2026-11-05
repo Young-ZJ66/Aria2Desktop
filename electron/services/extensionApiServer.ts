@@ -30,7 +30,8 @@ import {
   mcpResult,
   optNumber,
   optString,
-  parseToolCallParams
+  parseToolCallParams,
+  pickTaskName
 } from '../utils/mcpCore'
 // 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import {
@@ -430,22 +431,18 @@ export class ExtensionApiServer {
           const limitRaw = optNumber(args, 'limit', 20)
           if (limitRaw === null) return buildToolErrorResult('limit must be a number')
           const limit = Math.min(Math.max(limitRaw, 1), 100)
-          const keys = ['gid', 'status', 'totalLength', 'completedLength', 'downloadSpeed', 'files']
+          const keys = ['gid', 'status', 'totalLength', 'completedLength', 'downloadSpeed', 'files', 'bittorrent']
 
           const fetchList = async (m: string, extra: unknown[] = []): Promise<Array<Record<string, unknown>>> => {
             const list = (await rpc(m, [...extra, keys])) as Array<Record<string, unknown>>
-            return (list ?? []).slice(0, limit).map(t => {
-              const files = Array.isArray(t.files) ? (t.files as Array<{ path?: string }>) : []
-              const name = files[0]?.path?.split(/[\\/]/).pop() ?? ''
-              return {
-                gid: t.gid,
-                status: t.status,
-                name,
-                size: t.totalLength,
-                completed: t.completedLength,
-                speed: t.downloadSpeed
-              }
-            })
+            return (list ?? []).slice(0, limit).map(t => ({
+              gid: t.gid,
+              status: t.status,
+              name: pickTaskName(t as Parameters<typeof pickTaskName>[0]),
+              size: t.totalLength,
+              completed: t.completedLength,
+              speed: t.downloadSpeed
+            }))
           }
 
           let tasks: Array<Record<string, unknown>>

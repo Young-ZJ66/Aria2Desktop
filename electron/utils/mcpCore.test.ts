@@ -11,7 +11,8 @@ import {
   mcpResult,
   optNumber,
   optString,
-  parseToolCallParams
+  parseToolCallParams,
+  pickTaskName
 } from './mcpCore'
 
 describe('mcpResult / mcpError', () => {
@@ -112,5 +113,45 @@ describe('tool result wrappers', () => {
       content: [{ type: 'text', text: 'nope' }],
       isError: true
     })
+  })
+})
+
+describe('pickTaskName', () => {
+  it('BT 任务优先用 info.name', () => {
+    expect(
+      pickTaskName({
+        gid: 'g1',
+        bittorrent: { info: { name: 'Ubuntu 24.04' } },
+        files: [{ path: '/dl/Ubuntu 24.04.iso' }]
+      })
+    ).toBe('Ubuntu 24.04')
+  })
+
+  it('普通任务取文件路径末段', () => {
+    expect(pickTaskName({ gid: 'g2', files: [{ path: 'D:/Downloads/movie.mkv' }] })).toBe('movie.mkv')
+  })
+
+  it('路径为空（未开始/失败任务）回落到 URI 末段', () => {
+    expect(
+      pickTaskName({
+        gid: 'g3',
+        files: [{ path: '', uris: [{ uri: 'https://speed.cloudflare.com/__down?bytes=100' }] }]
+      })
+    ).toBe('__down')
+  })
+
+  it('URI 末段做 URL 解码', () => {
+    expect(
+      pickTaskName({ gid: 'g4', files: [{ path: '', uris: [{ uri: 'https://a.com/%E6%B5%8B%E8%AF%95.zip' }] }] })
+    ).toBe('测试.zip')
+  })
+
+  it('magnet 等无法取名的 URI 跳过，最终回落 gid', () => {
+    expect(pickTaskName({ gid: 'g5', files: [{ path: '', uris: [{ uri: 'magnet:?xt=urn:btih:abc' }] }] })).toBe('g5')
+  })
+
+  it('无 files 时回落 gid；异常形状不抛错', () => {
+    expect(pickTaskName({ gid: 'g6' })).toBe('g6')
+    expect(pickTaskName({} as never)).toBe('')
   })
 })

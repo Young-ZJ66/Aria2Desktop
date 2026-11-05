@@ -660,6 +660,11 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     typeof componentsText === 'string' && /浏览器扩展|Browser extension|Get Extension|获取浏览器扩展/i.test(componentsText)
   )
   reporter.check(
+    '组件页包含 AI 助手接入（MCP）卡片',
+    typeof componentsText === 'string' && /MCP/i.test(componentsText) && /localhost:6801\/api\/mcp/.test(componentsText),
+    String(componentsText).slice(0, 120)
+  )
+  reporter.check(
     '组件页分组已更名为媒体工具',
     typeof componentsText === 'string' && /媒体工具|Media Tools/i.test(componentsText),
     String(componentsText).slice(0, 80)

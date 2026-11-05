@@ -165,3 +165,48 @@ export function optNumber(args: Record<string, unknown>, key: string, defaultVal
   if (typeof v !== 'number' || !Number.isFinite(v)) return null
   return Math.trunc(v)
 }
+
+/** 任务名解析所需的字段（与 aria2 tellStatus 返回形状对齐） */
+export interface TaskNameInput {
+  gid?: unknown
+  bittorrent?: { info?: { name?: unknown } }
+  files?: Array<{ path?: unknown; uris?: Array<{ uri?: unknown }> }>
+}
+
+/**
+ * 任务显示名：BT 名 → 文件路径末段 → URI 末段 → gid。
+ *
+ * 为什么需要 URI 兜底：下载尚未开始时 aria2 的 files[].path 为空串，
+ * 而 AI 客户端只能看到这里给的名字——为空就完全无法分辨任务是哪个。
+ * 实测（v1.2.3 打包版）：错误/未开始任务若只取 path，name 全是空串。
+ */
+export function pickTaskName(task: TaskNameInput): string {
+  const btName = task.bittorrent?.info?.name
+  if (typeof btName === 'string' && btName.trim()) return btName.trim()
+
+  const files = Array.isArray(task.files) ? task.files : []
+  for (const f of files) {
+    const p = typeof f.path === 'string' ? f.path : ''
+    if (!p) continue
+    const base = p.split(/[\\/]/).pop()
+    if (base) return base
+  }
+
+  for (const f of files) {
+    const uris = Array.isArray(f.uris) ? f.uris : []
+    for (const u of uris) {
+      const uri = typeof u.uri === 'string' ? u.uri : ''
+      if (!uri) continue
+      try {
+        const url = new URL(uri)
+        const last = url.pathname.split('/').filter(Boolean).pop() ?? ''
+        const decoded = decodeURIComponent(last)
+        if (decoded) return decoded
+      } catch {
+        // magnet / 非法 URI：跳过（它们的文件名在 dn 参数里，不在此处展开）
+      }
+    }
+  }
+
+  return typeof task.gid === 'string' ? task.gid : ''
+}
