@@ -659,7 +659,11 @@ export class IpcController {
                   if ((repairErr as NodeJS.ErrnoException).code !== 'ENOENT') throw repairErr
                 }
               }
-              results.push({ path: p, success: false, error: 'Not found' })
+              // 文件本来就不在（下载失败时 aria2 可能一个字节都没写、或用户已经手动删过）：
+              // 用户要的结果是"这个路径不存在"，此刻已经成立，因此算成功。
+              // 早期这里返回失败，渲染层据此拒绝删除整个任务——下载失败的任务于是
+              // 永远删不掉（"已删除 0/1 个任务"）。
+              results.push({ path: p, success: true, missing: true })
             } else {
               throw statErr
             }
