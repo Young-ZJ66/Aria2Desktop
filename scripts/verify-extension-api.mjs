@@ -28,7 +28,9 @@ const require = createRequire(import.meta.url)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const DIST = path.join(root, 'dist/electron/electron')
 const AUTH_SECRET = 'harness-secret-abc123'
-const HARNESS_PORT = 6809
+// 端口可经环境变量覆盖：Windows 的 TIME_WAIT 会让固定端口 bind 失败（SO_REUSEADDR
+// 语义与 Unix 不同），本地/CI 遇到端口冲突时换一个即可，不必改脚本。
+const HARNESS_PORT = Number(process.env.VERIFY_API_PORT ?? 0) || 6809
 const ARIA2_PORT = 6800
 
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'aria2-api-verify-'))

@@ -121,6 +121,11 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       if (result?.extracted) {
         const name = filePath.split(/[\\/]/).pop() || ''
         window.electronAPI.sendNotification?.(t('notification.archiveExtracted'), name)
+        // 解压成功后可选删除原压缩包（走 delete-files 的路径白名单 → 回收站，可恢复）。
+        // 删除失败不打扰：解压本身已成功，压缩包留在原地是最安全的降级。
+        if (settingsStore.settings.download?.autoDeleteArchive === true && window.electronAPI.deleteFiles) {
+          void window.electronAPI.deleteFiles([filePath]).catch(() => {})
+        }
         return
       }
       if (result && !result.success && result.reason !== 'unsupported_format') {

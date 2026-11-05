@@ -81,6 +81,8 @@ export interface AppSettings {
     autoStart?: boolean
     /** 下载完成后自动解压压缩包（zip/7z/tar 系；RAR 不支持） */
     autoExtract?: boolean
+    /** 自动解压成功后删除原压缩包（移入回收站，可恢复） */
+    autoDeleteArchive?: boolean
     /** 最近使用的保存目录（新建任务页快捷选择，最多 8 条，最新在前） */
     recentSaveDirs?: string[]
   }

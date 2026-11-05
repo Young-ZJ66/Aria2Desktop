@@ -19,6 +19,19 @@ import {
   sanitizeRequestHeaders,
   type SanitizedRequestHeaders
 } from '../utils/extensionApiCore'
+import {
+  MCP_ERROR_CODES,
+  buildInitializeResult,
+  buildToolErrorResult,
+  buildToolTextResult,
+  buildToolsListResult,
+  isNotification,
+  mcpError,
+  mcpResult,
+  optNumber,
+  optString,
+  parseToolCallParams
+} from '../utils/mcpCore'
 // 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import {
   CATEGORY_GENERAL,
@@ -299,7 +312,188 @@ export class ExtensionApiServer {
       return
     }
 
+    /**
+     * POST /api/mcp：MCP（Model Context Protocol）端点。
+     *
+     * 让 AI 客户端（Claude Desktop / Cursor / Agent）直接用自然语言驱动下载。
+     * 与其它端点共用 Bearer 鉴权；工具集只覆盖下载管理（添加/查询/暂停/恢复），
+     * URL 仍走 isAllowedDownloadUri 白名单。协议子集见 utils/mcpCore。
+     */
+    if (pathname === '/api/mcp') {
+      if (req.method !== 'POST') {
+        this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
+        return
+      }
+      // MCP 是 JSON-RPC 信封，没有 url 字段：不能走 readBodyOrReject（那是 resolve/add 的校验）
+      let payload: unknown
+      try {
+        payload = await readJsonBody(req)
+      } catch (error) {
+        this.send(res, 400, { ok: false, code: 'bad_request', error: error instanceof Error ? error.message : 'Bad Request' })
+        return
+      }
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+        this.send(res, 200, mcpError(null, MCP_ERROR_CODES.invalidRequest, 'Payload must be a JSON object'))
+        return
+      }
+      await this.handleMcp(payload as Record<string, unknown>, res)
+      return
+    }
+
     this.send(res, 404, { ok: false, code: 'not_found', error: 'Not Found' })
+  }
+
+  /**
+   * MCP JSON-RPC 分发：initialize / tools/list / tools/call。
+   * 通知（无 id）返回 202 无响应体；方法未知返回 -32601。
+   * 工具执行失败用 buildToolErrorResult（isError: true），让模型看到原因而非协议错误。
+   */
+  private async handleMcp(body: Record<string, unknown>, res: http.ServerResponse): Promise<void> {
+    const id = body.id
+    const rpcId = typeof id === 'string' || typeof id === 'number' ? id : null
+    const method = typeof body.method === 'string' ? body.method : ''
+
+    // 通知（如 notifications/initialized）：MCP 要求无响应体
+    if (isNotification(body)) {
+      res.writeHead(202).end()
+      return
+    }
+
+    if (!method) {
+      this.send(res, 200, mcpError(rpcId, MCP_ERROR_CODES.invalidRequest, 'Missing method'))
+      return
+    }
+
+    if (method === 'initialize') {
+      this.send(res, 200, mcpResult(rpcId, buildInitializeResult(this.deps.getAppVersion())))
+      return
+    }
+
+    if (method === 'ping') {
+      this.send(res, 200, mcpResult(rpcId, {}))
+      return
+    }
+
+    if (method === 'tools/list') {
+      this.send(res, 200, mcpResult(rpcId, buildToolsListResult()))
+      return
+    }
+
+    if (method === 'tools/call') {
+      const parsed = parseToolCallParams(body.params)
+      if ('error' in parsed) {
+        this.send(res, 200, mcpError(rpcId, MCP_ERROR_CODES.invalidParams, parsed.error))
+        return
+      }
+      const result = await this.callMcpTool(parsed.toolName, parsed.args)
+      this.send(res, 200, mcpResult(rpcId, result))
+      return
+    }
+
+    this.send(res, 200, mcpError(rpcId, MCP_ERROR_CODES.methodNotFound, `Unknown method: ${method}`))
+  }
+
+  /** MCP 工具实现：只覆盖下载管理，URL 走既有白名单 */
+  private async callMcpTool(
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const settings = getSettingsFresh()
+    const port = settings?.aria2?.port ?? 6800
+    const secret = settings?.aria2?.secret ?? ''
+    const rpc = (m: string, p: unknown[] = []) =>
+      callAria2Rpc({ port, secret, method: m, params: p, timeoutMs: ENGINE_RPC_TIMEOUT_MS })
+
+    try {
+      switch (toolName) {
+        case 'add_download': {
+          const url = optString(args, 'url')
+          if (url === undefined) return buildToolErrorResult('url is required')
+          if (url === null) return buildToolErrorResult('url must be a string')
+          if (!isAllowedDownloadUri(url)) {
+            return buildToolErrorResult('URL is not allowed (only http/https/ftp/magnet/metalink are supported)')
+          }
+          const fileName = optString(args, 'fileName')
+          if (fileName === null) return buildToolErrorResult('fileName must be a string')
+          const options: Record<string, string> = {}
+          if (fileName) {
+            const safeName = sanitizeDownloadFileName(fileName)
+            if (safeName) options.out = safeName
+          }
+          const gid = await rpc('aria2.addUri', [[url], options])
+          return buildToolTextResult(`Download added. gid=${String(gid)}`)
+        }
+
+        case 'list_tasks': {
+          const status = optString(args, 'status') ?? 'default'
+          if (status === null) return buildToolErrorResult('status must be a string')
+          const limitRaw = optNumber(args, 'limit', 20)
+          if (limitRaw === null) return buildToolErrorResult('limit must be a number')
+          const limit = Math.min(Math.max(limitRaw, 1), 100)
+          const keys = ['gid', 'status', 'totalLength', 'completedLength', 'downloadSpeed', 'files']
+
+          const fetchList = async (m: string, extra: unknown[] = []): Promise<Array<Record<string, unknown>>> => {
+            const list = (await rpc(m, [...extra, keys])) as Array<Record<string, unknown>>
+            return (list ?? []).slice(0, limit).map(t => {
+              const files = Array.isArray(t.files) ? (t.files as Array<{ path?: string }>) : []
+              const name = files[0]?.path?.split(/[\\/]/).pop() ?? ''
+              return {
+                gid: t.gid,
+                status: t.status,
+                name,
+                size: t.totalLength,
+                completed: t.completedLength,
+                speed: t.downloadSpeed
+              }
+            })
+          }
+
+          let tasks: Array<Record<string, unknown>>
+          if (status === 'active') tasks = await fetchList('aria2.tellActive')
+          else if (status === 'waiting') tasks = await fetchList('aria2.tellWaiting', [0, limit])
+          else if (status === 'stopped') tasks = await fetchList('aria2.tellStopped', [0, limit])
+          else if (status === 'all') {
+            const [a, w, s] = await Promise.all([
+              fetchList('aria2.tellActive'),
+              fetchList('aria2.tellWaiting', [0, limit]),
+              fetchList('aria2.tellStopped', [0, limit])
+            ])
+            tasks = [...a, ...w, ...s]
+          } else {
+            const [a, w] = await Promise.all([fetchList('aria2.tellActive'), fetchList('aria2.tellWaiting', [0, limit])])
+            tasks = [...a, ...w]
+          }
+          return buildToolTextResult(JSON.stringify({ count: tasks.length, tasks }, null, 2))
+        }
+
+        case 'get_download_status': {
+          const stat = (await rpc('aria2.getGlobalStat')) as Record<string, unknown>
+          return buildToolTextResult(
+            JSON.stringify({
+              downloadSpeed: stat.downloadSpeed,
+              uploadSpeed: stat.uploadSpeed,
+              numActive: stat.numActive,
+              numWaiting: stat.numWaiting,
+              numStopped: stat.numStopped
+            })
+          )
+        }
+
+        case 'pause_task':
+        case 'resume_task': {
+          const gid = optString(args, 'gid')
+          if (gid === undefined) return buildToolErrorResult('gid is required')
+          if (gid === null) return buildToolErrorResult('gid must be a string')
+          await rpc(toolName === 'pause_task' ? 'aria2.pause' : 'aria2.unpause', [gid])
+          return buildToolTextResult(`${toolName === 'pause_task' ? 'Paused' : 'Resumed'} task ${gid}`)
+        }
+
+        default:
+          return buildToolErrorResult(`Unknown tool: ${toolName}`)
+      }
+    } catch (error) {
+      return buildToolErrorResult(error instanceof Error ? error.message : String(error))
+    }
   }
 
   /**

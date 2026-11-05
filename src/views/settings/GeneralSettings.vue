@@ -109,6 +109,17 @@
           />
         </n-form-item>
 
+        <n-form-item v-if="form.autoExtract">
+          <template #label>
+            <TipLabel :label="t('generalSettings.autoDeleteArchive')" :tip="t('generalSettings.autoDeleteArchiveTip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.autoDeleteArchive"
+            :disabled="!isElectronAvailable"
+            @update:value="handleAutoDeleteArchiveChange"
+          />
+        </n-form-item>
+
         <n-form-item>
           <template #label>
             <TipLabel :label="t('generalSettings.checkForUpdates')" :tip="t('generalSettings.updateCheckTooltip')" />
@@ -255,6 +266,7 @@ const form = reactive({
   keepWindowState: true,
   autoLaunch: false,
   autoExtract: false,
+  autoDeleteArchive: false,
   downloadCompleteAction: 'none' as 'none' | 'shutdown' | 'hibernate' | 'close'
 })
 
@@ -338,7 +350,8 @@ watch(
     settingsStore.settings.keepWindowState,
     settingsStore.settings.autoLaunch,
     settingsStore.settings.downloadCompleteAction,
-    settingsStore.settings.download?.autoExtract
+    settingsStore.settings.download?.autoExtract,
+    settingsStore.settings.download?.autoDeleteArchive
   ],
   () => {
     loadFormData()
@@ -358,6 +371,7 @@ function loadFormData() {
     keepWindowState: settingsStore.settings.keepWindowState !== false,
     autoLaunch: settingsStore.settings.autoLaunch,
     autoExtract: settingsStore.settings.download?.autoExtract === true,
+    autoDeleteArchive: settingsStore.settings.download?.autoDeleteArchive === true,
     downloadCompleteAction: settingsStore.settings.downloadCompleteAction || 'none'
   })
 }
@@ -684,12 +698,29 @@ async function handleAutoExtractChange(value: boolean) {
   form.autoExtract = value
   try {
     await settingsStore.updateDownloadConfig({ autoExtract: value })
+    // 关闭自动解压时一并关闭"删除压缩包"（它只在解压成功后有意义的联动项）
+    if (!value && form.autoDeleteArchive) {
+      form.autoDeleteArchive = false
+      await settingsStore.updateDownloadConfig({ autoDeleteArchive: false })
+    }
   } catch (error) {
     console.error('Auto extract change error:', error)
     form.autoExtract = previous
     message.error(t('generalSettings.autoExtractFailed', {
       error: error instanceof Error ? error.message : t('settings.unknownError')
     }))
+  }
+}
+
+async function handleAutoDeleteArchiveChange(value: boolean) {
+  const previous = settingsStore.settings.download?.autoDeleteArchive === true
+  form.autoDeleteArchive = value
+  try {
+    await settingsStore.updateDownloadConfig({ autoDeleteArchive: value })
+  } catch (error) {
+    console.error('Auto delete archive change error:', error)
+    form.autoDeleteArchive = previous
+    message.error(t('settings.unknownError'))
   }
 }
 

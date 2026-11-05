@@ -159,6 +159,18 @@
         </n-button>
       </p>
     </n-card>
+
+    <!-- MCP：让 AI 助手（Claude Desktop / Cursor 等）直接驱动下载 -->
+    <n-card :title="t('settings.rpc.groupMcp')" class="setting-group">
+      <p class="extension-desc">{{ t('settings.rpc.mcpDesc') }}</p>
+      <n-space align="center" :size="12" wrap>
+        <code class="mcp-endpoint">{{ mcpEndpoint }}</code>
+        <n-button size="small" @click="copyText(mcpEndpoint)">{{ t('settings.rpc.mcpCopyEndpoint') }}</n-button>
+      </n-space>
+      <p class="extension-desc mcp-hint">{{ t('settings.rpc.mcpAuthHint') }}</p>
+      <pre class="mcp-json">{{ mcpConfigSample }}</pre>
+      <n-button size="small" text @click="copyText(mcpConfigSample)">{{ t('settings.rpc.mcpCopyConfig') }}</n-button>
+    </n-card>
   </SettingsPage>
 </template>
 
@@ -196,6 +208,35 @@ function describeComponentFailure(fallbackKey: string, raw?: string): string {
 // 商店入口是否可用（扩展已于 2026-10-14 上架，即为 true；若商店下架，把它改回 false
 // 按钮就会回到「置灰 + 提示」，见 shared/extensionStore）
 const storeUrlReady = isExtensionStoreAvailable()
+
+// ---------- MCP（AI 助手接入）----------
+// 端点固定在扩展本地接口（端口与 electron/utils/extensionApiCore 一致），
+// Bearer 鉴权用当前 RPC 密钥；示例配置写给用户复制，不包含真实密钥值。
+const mcpEndpoint = 'http://localhost:6801/api/mcp'
+const mcpConfigSample = `{
+  "mcpServers": {
+    "aria2-desktop": {
+      "type": "http",
+      "url": "${mcpEndpoint}",
+      "headers": { "Authorization": "Bearer <你的 RPC 密钥>" }
+    }
+  }
+}`
+
+async function copyText(text: string): Promise<void> {
+  try {
+    const api = window.electronAPI
+    if (api?.writeClipboard) {
+      await api.writeClipboard(text)
+      message.success(t('settings.rpc.mcpCopied'))
+      return
+    }
+    await navigator.clipboard.writeText(text)
+    message.success(t('settings.rpc.mcpCopied'))
+  } catch {
+    message.error(t('settings.unknownError'))
+  }
+}
 
 onMounted(() => {
   // 首次进入才真正执行检测；之后复用 store 里已检测的结果
@@ -414,6 +455,32 @@ async function openExtensionStore() {
 .pending-hint {
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+/* MCP 接入信息：端点与示例配置用等宽字体，便于肉眼核对/复制 */
+.mcp-endpoint {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.mcp-hint {
+  margin: 10px 0 6px;
+}
+
+.mcp-json {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-regular);
+  overflow-x: auto;
+  white-space: pre;
 }
 
 /* 扩展连接状态：中性信息在左，重新检测在右，整行不抢按钮视觉重量 */
