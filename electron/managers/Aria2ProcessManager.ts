@@ -6,6 +6,7 @@ import { ResourceManager } from '../utils/resourceManager'
 import { Aria2ConfigManager } from '../utils/aria2ConfigManager'
 import { callAria2Rpc, Aria2RpcError } from '../utils/aria2Rpc'
 import { createLogger } from '../utils/logger'
+import { nextRestartDelayMs, shouldResetRetryCount } from '../utils/engineRestartCore'
 import {
   describeMissingExecutableBit,
   executableModeFor,
@@ -53,6 +54,8 @@ export class Aria2ProcessManager {
   private isStarting = false
   private isStopping = false
   private retryCount = 0
+  /** 本轮进程的启动时刻，退出时用来判断"上一次启动是否稳定过" */
+  private spawnedAt = 0
   private maxRetries = 3
   private restartTimer: NodeJS.Timeout | null = null
   private pendingRestartTimer: NodeJS.Timeout | null = null
@@ -209,7 +212,9 @@ export class Aria2ProcessManager {
       await this.waitForRpcReady()
 
       logger.info('Aria2 进程启动成功, PID:', this.process?.pid)
-      this.retryCount = 0
+      // 不在这里清 retryCount：一个"能起来、几秒后就崩"的引擎会因此无限循环。
+      // 计数只在退出来发现本次存活超过 STABLE_UPTIME_MS 时清零（见 handleProcessExit）。
+      this.spawnedAt = Date.now()
       this.stderrBuffer = [] // 清空历史错误，避免后续查询读到旧失败信息
       // 新进程的全局选项都是配置文件里的默认值，通知订阅者把它们重新下发
       try {
@@ -409,10 +414,19 @@ export class Aria2ProcessManager {
       return
     }
 
+    // 上一次启动稳定存活过（>= STABLE_UPTIME_MS）才算"重新计数"，
+    // 否则连续短命崩溃会一直被清零，重启上限形同虚设。
+    const uptimeMs = this.spawnedAt > 0 ? Date.now() - this.spawnedAt : 0
+    this.spawnedAt = 0
+    if (shouldResetRetryCount(uptimeMs)) {
+      this.retryCount = 0
+    }
+
     // 异常退出时自动重启（与 autoStart 无关，重试次数限制）
     if (this.retryCount < this.maxRetries) {
       this.retryCount++
-      logger.info(`Aria2 进程异常退出，3秒后尝试第${this.retryCount}次重启`)
+      const delayMs = nextRestartDelayMs(this.retryCount)
+      logger.info(`Aria2 进程异常退出（存活 ${Math.round(uptimeMs / 1000)}s），${delayMs / 1000}秒后尝试第${this.retryCount}次重启`)
 
       try {
         this.engineCrashListener?.(this.retryCount)
@@ -424,7 +438,7 @@ export class Aria2ProcessManager {
         this.start().catch(error => {
           logger.error(`第${this.retryCount}次重启失败:`, error)
         })
-      }, 3000)
+      }, delayMs)
     } else {
       logger.error('Aria2 进程重启次数超限，停止自动重启')
 
@@ -782,6 +796,8 @@ export class Aria2ProcessManager {
       logger.info('已有重启正在进行，合并本次重启请求')
       return this.restartInFlight
     }
+    // 用户主动重启：重试计数从零开始（否则崩溃过几次后一次手动重启就"超限"）
+    this.retryCount = 0
     this.restartInFlight = this.doRestart().finally(() => {
       this.restartInFlight = null
     })
