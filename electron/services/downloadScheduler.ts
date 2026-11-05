@@ -16,6 +16,7 @@ import { getSettingsFresh } from '../utils/settingsAccessor'
 import { createLogger } from '../utils/logger'
 import {
   formatClockTime,
+  pickUserPausedGids,
   resolveDownloadScheduleState,
   resolveScheduleAction,
   type DownloadScheduleConfig
@@ -30,6 +31,8 @@ const CHECK_INTERVAL_MS = 60 * 1000
 export class DownloadScheduler {
   private timer: NodeJS.Timeout | null = null
   private lastState: 'in-window' | 'out-window' | null = null
+  /** 进入窗口前用户就手动暂停的任务：恢复窗口时要把它们按回暂停 */
+  private pausedByUser = new Set<string>()
 
   start(): void {
     this.stop()
@@ -78,17 +81,72 @@ export class DownloadScheduler {
     const settings = getSettingsFresh()
     const port = Number(settings.aria2?.port) || 6800
     const secret = String(settings.aria2?.secret || '')
-    const method = action === 'pause-all' ? 'aria2.pauseAll' : 'aria2.unpauseAll'
-    callAria2Rpc({ port, secret, method })
-      .then(() => {
-        // 只有真正下发成功才记住状态；失败时保持原值，下一分钟自动重试
-        this.lastState = current
-        logger.info(`[DownloadScheduler] ${action === 'pause-all' ? '窗口结束，已暂停全部任务' : '窗口开始，已恢复全部任务'}`)
+    if (action === 'pause-all') {
+      void this.applyPauseAll(port, secret, current)
+    } else {
+      void this.applyUnpauseAll(port, secret, current)
+    }
+  }
+
+  /** 窗口结束：暂停全部。先记下用户原本就暂停的任务，恢复时把它们放回去 */
+  private async applyPauseAll(
+    port: number,
+    secret: string,
+    current: 'in-window' | 'out-window'
+  ): Promise<void> {
+    this.pausedByUser = await this.collectUserPausedGids(port, secret)
+    try {
+      await callAria2Rpc({ port, secret, method: 'aria2.pauseAll' })
+      this.lastState = current
+      const note = this.pausedByUser.size > 0 ? `（其中 ${this.pausedByUser.size} 个是用户手动暂停，恢复时会保持暂停）` : ''
+      logger.info(`[DownloadScheduler] 窗口结束，已暂停全部任务${note}`)
+    } catch (err) {
+      logger.warn('[DownloadScheduler] pause-all 下发失败，将在一分钟后重试（引擎未运行？）:', err)
+    }
+  }
+
+  /** 窗口开始：恢复全部，再把用户手动暂停的那些重新暂停回去 */
+  private async applyUnpauseAll(
+    port: number,
+    secret: string,
+    current: 'in-window' | 'out-window'
+  ): Promise<void> {
+    try {
+      await callAria2Rpc({ port, secret, method: 'aria2.unpauseAll' })
+      this.lastState = current
+      logger.info('[DownloadScheduler] 窗口开始，已恢复全部任务')
+    } catch (err) {
+      logger.warn('[DownloadScheduler] unpause-all 下发失败，将在一分钟后重试（引擎未运行？）:', err)
+      return
+    }
+    // unpauseAll 是全局的，会把用户此前手动暂停的任务一起放行——逐个按回暂停。
+    // 任务可能在这期间被删掉：失败就地忽略（不影响已完成的恢复动作）。
+    for (const gid of this.pausedByUser) {
+      try {
+        await callAria2Rpc({ port, secret, method: 'aria2.pause', params: [gid] })
+      } catch {
+        // 任务已删除 / gid 不存在：无需处理
+      }
+    }
+    if (this.pausedByUser.size > 0) {
+      logger.info(`[DownloadScheduler] 已保持 ${this.pausedByUser.size} 个用户手动暂停的任务不被恢复`)
+    }
+    this.pausedByUser = new Set()
+  }
+
+  /** 读取当前用户手动暂停的任务 gid（拿不到就当作没有，不影响暂停动作本身） */
+  private async collectUserPausedGids(port: number, secret: string): Promise<Set<string>> {
+    try {
+      const rows = await callAria2Rpc({
+        port,
+        secret,
+        method: 'aria2.tellWaiting',
+        params: [0, 1000, ['gid', 'status']]
       })
-      .catch(err => {
-        // 引擎没运行/重启中：不动记忆，一分钟后重试（早期版本在这里丢掉翻转，
-        // 导致整个窗口作废）
-        logger.warn(`[DownloadScheduler] ${action} 下发失败，将在一分钟后重试（引擎未运行？）:`, err)
-      })
+      return new Set(pickUserPausedGids(rows))
+    } catch (err) {
+      logger.warn('[DownloadScheduler] 读取暂停列表失败，本次不区分用户暂停:', err)
+      return new Set()
+    }
   }
 }

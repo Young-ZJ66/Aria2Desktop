@@ -385,18 +385,36 @@ const visible = computed({
 /**
  * 关闭前检查未保存修改：各设置页经 useGlobalSettingsForm({ dirtyTracking }) 注册，
  * 有脏页时询问「保存并关闭 / 放弃修改 / 继续编辑」。
- * 无脏页（或引擎未连接、全部干净）时直接关闭，零打扰。
+ * 无脏页直接关闭，零打扰；引擎未连接时存不了盘，但也不能装作没这回事——
+ * 至少让用户明确知道关闭等于丢弃。
  */
 const closing = ref(false)
 async function requestClose() {
   if (closing.value) return
   const dirty = getDirtyPages()
-  if (dirty.length === 0 || !connectionStore.isConnected) {
+  if (dirty.length === 0) {
     uiStore.closeSettings()
     return
   }
   closing.value = true
   try {
+    if (!connectionStore.isConnected) {
+      const discard = await new Promise<boolean>((resolve) => {
+        confirm({
+          title: t('settings.unsavedTitle'),
+          content: t('settings.unsavedDisconnected'),
+          type: 'warning',
+          positiveText: t('settings.unsavedDiscard'),
+          negativeText: t('common.cancel'),
+          onPositiveClick: () => resolve(true),
+          onNegativeClick: () => resolve(false),
+          onClose: () => resolve(false),
+          onEsc: () => resolve(false)
+        })
+      })
+      if (discard) uiStore.closeSettings()
+      return
+    }
     const action = await new Promise<'save' | 'discard' | 'cancel'>((resolve) => {
       confirm({
         title: t('settings.unsavedTitle'),

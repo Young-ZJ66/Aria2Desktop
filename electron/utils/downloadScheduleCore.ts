@@ -58,4 +58,27 @@ export function resolveScheduleAction(
   return current === 'in-window' ? 'unpause-all' : 'pause-all'
 }
 
+/**
+ * 从 `aria2.tellWaiting` 的结果里挑出**用户自己暂停**的任务 gid。
+ *
+ * 为什么要挑：`pauseAll` 设置的是引擎级全局暂停标记，`unpauseAll` 会把**所有**任务
+ * 一起放行——包括用户在窗口开始前就手动暂停的那些。定时窗口结束后它们会自己跑起来，
+ * 用户看到的是"我明明暂停过"。
+ *
+ * 做法：进入窗口前记下这些 gid，恢复时先 `unpauseAll` 再逐个 `pause` 回去。
+ * 形状防御同样重要：RPC 返回值来自引擎，字段缺失/类型不对时应当返回空集合而不是抛错。
+ */
+export function pickUserPausedGids(rows: unknown): string[] {
+  if (!Array.isArray(rows)) return []
+  const gids: string[] = []
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue
+    const item = row as { gid?: unknown; status?: unknown }
+    if (item.status !== 'paused') continue
+    if (typeof item.gid !== 'string' || !item.gid) continue
+    gids.push(item.gid)
+  }
+  return gids
+}
+
 export { formatClockTime }

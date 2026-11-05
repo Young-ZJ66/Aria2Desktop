@@ -265,8 +265,24 @@ export const useTaskStore = defineStore('task', () => {
    * 磁力链接 → gid 的会话级索引：aria2 不把 magnet URI 存进任务的 files[].uris
    * （实测 1.37 返回空数组），URL 比对路径对磁力任务天然不命中。
    * 添加任务时记录，应用重启后丢失（引擎侧同样查不到，行为一致地"查不到"）。
+   *
+   * 条目只在比对时顺手清理（任务已不在进行中）并限制总量：长时间挂机、
+   * 反复加磁力任务时这张表只增不减会一直涨内存，而它只服务于"提交前查重"。
    */
   const magnetUriIndex = new Map<string, string>()
+  const MAGNET_INDEX_LIMIT = 500
+
+  /** 丢掉已完成/已删除任务的条目，并按插入顺序淘汰超出上限的老条目 */
+  function pruneMagnetIndex(liveGids: Set<string>): void {
+    for (const [uri, gid] of magnetUriIndex) {
+      if (!liveGids.has(gid)) magnetUriIndex.delete(uri)
+    }
+    while (magnetUriIndex.size > MAGNET_INDEX_LIMIT) {
+      const oldest = magnetUriIndex.keys().next()
+      if (oldest.done) break
+      magnetUriIndex.delete(oldest.value)
+    }
+  }
 
   /**
    * 查找与输入 URI 重复的进行中任务（active/waiting/paused）。
@@ -275,6 +291,7 @@ export const useTaskStore = defineStore('task', () => {
    */
   function findDuplicateTasks(uris: string[]): DuplicateMatch[] {
     const inProgress = [...activeTasks.value, ...waitingTasks.value]
+    pruneMagnetIndex(new Set(inProgress.map(t => t.gid)))
     const matches = findDuplicateUris(uris, inProgress)
     const matchedInputs = new Set(matches.map(m => normalizeUrlForCompare(m.uri)))
     const remaining = uris.filter(u => !matchedInputs.has(normalizeUrlForCompare(u)))

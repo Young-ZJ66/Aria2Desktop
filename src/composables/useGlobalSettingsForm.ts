@@ -66,6 +66,8 @@ export function useGlobalSettingsForm<T extends object>(
 
   const loading = ref(false)
   const saving = ref(false)
+  // 最近一次保存是否真的落地（供下面的快照逻辑与弹窗关闭确认判断）
+  let lastSaveOk = true
 
   // 用已缓存的服务端配置初始化表单，首次渲染直接显示真实值，避免异步加载闪烁
   const cached = statsStore.globalOptions
@@ -98,14 +100,22 @@ export function useGlobalSettingsForm<T extends object>(
   }
 
   // 保存配置
-  async function handleSave(): Promise<void> {
+  //
+  // 返回"这次保存是否真的落地"：未连接、校验未通过、以及配置与 RPC 双双失败都返回 false。
+  // 调用方（设置弹窗的关闭确认、脏标记快照）据此决定要不要清脏状态——否则用户看到
+  // "已保存"的提示、关掉弹窗，实际什么都没写进去。
+  async function handleSave(): Promise<boolean> {
     if (!connectionStore.isConnected) {
       message.warning(t('settings.connectFirst'))
-      return
+      lastSaveOk = false
+      return false
     }
     if (options.validate) {
       const valid = await options.validate()
-      if (!valid) return
+      if (!valid) {
+        lastSaveOk = false
+        return false
+      }
     }
     saving.value = true
     try {
@@ -134,19 +144,25 @@ export function useGlobalSettingsForm<T extends object>(
       }
       if (!persisted && !rpcOk) {
         // 既无法写入配置文件（如连接外部 Aria2）又 RPC 失败，展示具体原因
+        lastSaveOk = false
         message.error(t('settings.saveFailed', { error: rpcErrorMsg || t('settings.unknownError') }))
       } else if (persisted) {
         // 已写入配置文件：包含需重启选项或 RPC 未全部生效时，提示重启 Aria2 后生效
+        lastSaveOk = true
         message.success(rpcOk && !needsRestart ? t('settings.saved') : t('settings.savedRestartAria2'))
       } else {
         // 未写配置文件但 RPC 已生效
+        lastSaveOk = true
         message.success(needsRestart ? t('settings.savedRestartAria2') : t('settings.saved'))
       }
+      return lastSaveOk
     } catch (error) {
       // 展示具体失败原因（如 aria2 拒绝某选项），便于用户定位问题
       const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
+      lastSaveOk = false
       message.error(t('settings.saveFailed', { error: errorMessage }))
       console.error('Failed to save settings:', error)
+      return false
     } finally {
       saving.value = false
     }
@@ -182,15 +198,16 @@ export function useGlobalSettingsForm<T extends object>(
     dirtyPages.set(pageId, () => serialize() !== snapshot)
     dirtyPageSavers.set(pageId, async () => {
       try {
-        await handleSave()
-        return true
+        return await handleSave()
       } catch {
         return false
       }
     })
-    // 保存完成 / 重新加载完成——把快照对齐当前值（handleSave/handleReset 内部改动经此收敛）
+    // 保存完成 / 重新加载完成——把快照对齐当前值（handleSave/handleReset 内部改动经此收敛）。
+    // 只有**保存成功**才对齐：保存失败（未连接、校验没过、RPC 与配置双失败）时若也对齐，
+    // 脏标记就被清掉了——用户接着关弹窗不再被提醒，改动就这么丢了。
     watch(saving, (s, was) => {
-      if (was && !s) snapshot = serialize()
+      if (was && !s && lastSaveOk) snapshot = serialize()
     })
     watch(loading, (l, was) => {
       if (was && !l) snapshot = serialize()

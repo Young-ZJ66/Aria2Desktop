@@ -384,6 +384,7 @@
     "unsavedContent": "Some settings have been modified but not saved. Save before closing, or discard the changes?",
     "unsavedSaveClose": "Save and close",
     "unsavedDiscard": "Discard",
+    "unsavedDisconnected": "Not connected to the engine, so these changes cannot be saved. Closing settings will discard them.",
     "savedRestartAria2": "Settings saved. Some settings require restarting Aria2 to take effect",
     "restartRequiredHint": "This option requires restarting the Aria2 service to take effect",
     "saveFailed": "Failed to save settings: {error}",

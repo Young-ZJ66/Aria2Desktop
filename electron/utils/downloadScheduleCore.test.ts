@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatClockTime,
+  pickUserPausedGids,
   resolveDownloadScheduleState,
   resolveScheduleAction,
   type DownloadScheduleConfig,
@@ -79,5 +80,26 @@ describe('resolveScheduleAction', () => {
 describe('formatClockTime', () => {
   it('补零到 HH:mm', () => {
     expect(formatClockTime(new Date(2026, 10, 5, 3, 7))).toBe('03:07')
+  })
+})
+
+describe('pickUserPausedGids', () => {
+  it('只挑出用户手动暂停的任务，忽略等待中的', () => {
+    const rows = [
+      { gid: 'a1', status: 'paused' },
+      { gid: 'b2', status: 'waiting' },
+      { gid: 'c3', status: 'paused' }
+    ]
+    expect(pickUserPausedGids(rows)).toEqual(['a1', 'c3'])
+  })
+
+  it('形状异常时返回空集合而不是抛错（RPC 返回值不可信）', () => {
+    expect(pickUserPausedGids(null)).toEqual([])
+    expect(pickUserPausedGids('nope')).toEqual([])
+    expect(pickUserPausedGids([null, 42, { status: 'paused' }, { gid: '', status: 'paused' }])).toEqual([])
+  })
+
+  it('没有暂停任务时返回空集合', () => {
+    expect(pickUserPausedGids([{ gid: 'x', status: 'waiting' }])).toEqual([])
   })
 })
