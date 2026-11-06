@@ -4,7 +4,7 @@
  */
 
 /** 文件类型分类 */
-export type FileCategory = 'video' | 'audio' | 'image' | 'archive' | 'document' | 'code' | 'default'
+export type FileCategory = 'video' | 'audio' | 'image' | 'archive' | 'document' | 'code' | 'app' | 'default'
 
 /** 扩展名到分类的映射（小写，不含点） */
 const EXTENSION_MAP: Record<string, FileCategory> = {
@@ -20,6 +20,9 @@ const EXTENSION_MAP: Record<string, FileCategory> = {
   // 压缩包
   zip: 'archive', rar: 'archive', '7z': 'archive', tar: 'archive',
   gz: 'archive', bz2: 'archive', xz: 'archive', iso: 'archive',
+  // 应用 / 安装包（与"文档""压缩包"区分开：这两类都容易被误认成纸页或箱子）
+  exe: 'app', msi: 'app', msix: 'app', appx: 'app', appimage: 'app',
+  apk: 'app', ipa: 'app', dmg: 'app', deb: 'app', rpm: 'app', pkg: 'app',
   // 文档
   pdf: 'document', doc: 'document', docx: 'document', xls: 'document',
   xlsx: 'document', ppt: 'document', pptx: 'document', txt: 'document',

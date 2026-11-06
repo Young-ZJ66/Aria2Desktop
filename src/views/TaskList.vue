@@ -124,7 +124,7 @@
 import { computed, h, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon, NProgress, NTag, NCheckbox, type DataTableColumns } from 'naive-ui'
-import { AddOutline, SearchOutline, VideocamOutline, MusicalNotesOutline, ImageOutline, ArchiveOutline, DocumentTextOutline, CodeSlashOutline, DocumentOutline } from '@vicons/ionicons5'
+import { AddOutline, SearchOutline, VideocamOutline, MusicalNotesOutline, ImageOutline, ArchiveOutline, DocumentTextOutline, CodeSlashOutline, CubeOutline, DocumentOutline } from '@vicons/ionicons5'
 import { ExportIcon, ImportIcon } from '@/components/icons/ExportImportIcons'
 import { message, confirm } from '@/utils/feedback'
 import { getUserFriendlyError } from '@/utils/errorMessages'
@@ -448,7 +448,9 @@ const CATEGORY_ICON_MAP: Record<string, Component> = {
   image: ImageOutline,
   archive: ArchiveOutline,
   document: DocumentTextOutline,
-  code: CodeSlashOutline
+  code: CodeSlashOutline,
+  // 安装包/可执行文件用盒子图标：与文档（纸页）、压缩包（箱）一眼可分
+  app: CubeOutline
 }
 
 function getFileTypeIcon(task: Aria2Task): Component {
@@ -492,8 +494,11 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
       const name = getTaskName(row)
       return h('div', { class: 'file-info' }, [
         h('div', { class: 'file-name-row' }, [
-          h('span', { class: 'file-name', title: name }, name),
-          h(NIcon, { class: 'file-type-icon', size: 14 }, { default: () => h(getFileTypeIcon(row)) })
+          // 类型图标放在文件名**前面**：原来放在后面且 `.file-name` 是 flex: 1，
+          // 文件名短时图标会被推到列的最右端，看起来像浮在空白里（用户反馈）。
+          // 前置图标位置固定、和文字基线对齐，长文件名省略时也不会跟着漂移。
+          h(NIcon, { class: 'file-type-icon', size: 16 }, { default: () => h(getFileTypeIcon(row)) }),
+          h('span', { class: 'file-name', title: name }, name)
         ]),
         row.dir ? h('div', { class: 'file-path', title: row.dir }, row.dir) : null
       ])
@@ -1229,13 +1234,13 @@ watch(
 
 :deep(.file-name-row) {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
   min-width: 0;
 }
 
 :deep(.file-name) {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   font-size: 13px;
   font-weight: 500;
@@ -1252,10 +1257,14 @@ watch(
   flex-shrink: 0;
   color: var(--text-secondary);
   display: inline-flex;
+  /* 图标字形在 16px 方框内偏上，与 13px 文字的光学中心差约 1px，向下微调对齐 */
+  transform: translateY(1px);
 }
 
 /* 下载路径使用等宽字体与弱化颜色，与文件名明显区分 */
 :deep(.file-path) {
+  /* 与文件名文字左边缘对齐（图标 16px + gap 6px），视觉上从属于上一行 */
+  padding-left: 22px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 11px;
   color: var(--text-secondary);
