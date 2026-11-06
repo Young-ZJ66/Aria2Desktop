@@ -180,6 +180,15 @@ npm run dist:win64   # 打包 Windows x64 安装包 + 便携版
 [Motrix](https://github.com/agalwood/Motrix) · [Electron](https://www.electronjs.org/) · [Vue.js](https://vuejs.org/) ·
 [Naive UI](https://www.naiveui.com/) · [ECharts](https://echarts.apache.org/) · [Vite](https://vite.dev/)
 
+## Star 趋势
+
+<a href="https://star-history.com/#Young-ZJ66/Aria2Desktop&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Young-ZJ66/Aria2Desktop&type=Date&theme=dark" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Young-ZJ66/Aria2Desktop&type=Date" width="720" />
+  </picture>
+</a>
+
 ---
 
 <div align="center">
