@@ -19,6 +19,7 @@ import {
   pickUserPausedGids,
   resolveDownloadScheduleState,
   resolveScheduleAction,
+  shouldResumeWhenDisabled,
   type DownloadScheduleConfig
 } from '../utils/downloadScheduleCore'
 
@@ -70,7 +71,16 @@ export class DownloadScheduler {
     // 调度关闭时清空记忆：重新开启的那一刻按"首次检查"处理，立刻对齐一次，
     // 而不是等下一个窗口边界（否则在窗口外开启调度会一直跑到边界为止）
     if (!config.enabled) {
+      // 关闭前正处于"窗口结束、任务被我们暂停"的状态：关掉调度就该继续下载，
+      // 否则任务会一直停着，用户只能手动一个个点开始。
+      const resumeNeeded = shouldResumeWhenDisabled(this.lastState)
       this.lastState = null
+      if (resumeNeeded) {
+        const settings = getSettingsFresh()
+        const port = Number(settings.aria2?.port) || 6800
+        const secret = String(settings.aria2?.secret || '')
+        void this.resumeBecauseDisabled(port, secret)
+      }
       return
     }
     const now = new Date()
@@ -119,8 +129,11 @@ export class DownloadScheduler {
       logger.warn('[DownloadScheduler] unpause-all 下发失败，将在一分钟后重试（引擎未运行？）:', err)
       return
     }
-    // unpauseAll 是全局的，会把用户此前手动暂停的任务一起放行——逐个按回暂停。
-    // 任务可能在这期间被删掉：失败就地忽略（不影响已完成的恢复动作）。
+    await this.repauseUserPaused(port, secret)
+  }
+
+  /** 把用户原本手动暂停的任务按回暂停（unpauseAll 是全局的，会一起放行） */
+  private async repauseUserPaused(port: number, secret: string): Promise<void> {
     for (const gid of this.pausedByUser) {
       try {
         await callAria2Rpc({ port, secret, method: 'aria2.pause', params: [gid] })
@@ -132,6 +145,18 @@ export class DownloadScheduler {
       logger.info(`[DownloadScheduler] 已保持 ${this.pausedByUser.size} 个用户手动暂停的任务不被恢复`)
     }
     this.pausedByUser = new Set()
+  }
+
+  /** 调度被关闭后把此前暂停的任务恢复回来（保留用户手动暂停的那些） */
+  private async resumeBecauseDisabled(port: number, secret: string): Promise<void> {
+    try {
+      await callAria2Rpc({ port, secret, method: 'aria2.unpauseAll' })
+      logger.info('[DownloadScheduler] 定时下载已关闭，已恢复此前因窗口结束而暂停的任务')
+    } catch (err) {
+      logger.warn('[DownloadScheduler] 关闭调度后恢复任务失败（引擎未运行？）:', err)
+      return
+    }
+    await this.repauseUserPaused(port, secret)
   }
 
   /** 读取当前用户手动暂停的任务 gid（拿不到就当作没有，不影响暂停动作本身） */

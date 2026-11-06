@@ -59,6 +59,20 @@ export function resolveScheduleAction(
 }
 
 /**
+ * 调度被关闭时，是否需要把此前"因为窗口结束而暂停"的任务恢复回来。
+ *
+ * 为什么需要：关闭定时下载后 `check()` 只清空记忆就返回，窗口外被暂停的任务
+ * 会一直停在那里——用户以为"关掉调度就该继续下载"，实际什么都没发生，
+ * 只能手动一个个点开始。只有上一次动作确实是我们自己下发的 pause-all
+ * （previous === 'out-window'）才需要恢复；用户在窗口内自己暂停的任务不受影响。
+ */
+export function shouldResumeWhenDisabled(
+  previous: 'in-window' | 'out-window' | null
+): boolean {
+  return previous === 'out-window'
+}
+
+/**
  * 从 `aria2.tellWaiting` 的结果里挑出**用户自己暂停**的任务 gid。
  *
  * 为什么要挑：`pauseAll` 设置的是引擎级全局暂停标记，`unpauseAll` 会把**所有**任务

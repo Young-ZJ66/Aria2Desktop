@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  shouldResumeWhenDisabled,
   formatClockTime,
   pickUserPausedGids,
   resolveDownloadScheduleState,
@@ -101,5 +102,16 @@ describe('pickUserPausedGids', () => {
 
   it('没有暂停任务时返回空集合', () => {
     expect(pickUserPausedGids([{ gid: 'x', status: 'waiting' }])).toEqual([])
+  })
+})
+
+describe('shouldResumeWhenDisabled', () => {
+  it('上一次是我们下发的暂停才恢复', () => {
+    expect(shouldResumeWhenDisabled('out-window')).toBe(true)
+  })
+
+  it('窗口内或从未检查过时不动，避免打断用户自己的暂停', () => {
+    expect(shouldResumeWhenDisabled('in-window')).toBe(false)
+    expect(shouldResumeWhenDisabled(null)).toBe(false)
   })
 })
