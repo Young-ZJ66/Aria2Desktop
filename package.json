@@ -139,7 +139,8 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Aria2 Desktop",
       "perMachine": false,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "include": "build/installer.nsh"
     },
     "mac": {
       "target": [
