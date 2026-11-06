@@ -2,12 +2,14 @@
 
 <div align="center">
 
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-![Platform](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-4B5563?style=for-the-badge)
+[![Release](https://img.shields.io/github/v/release/Young-ZJ66/Aria2Desktop?style=flat-square&label=release&color=3b82f6)](https://github.com/Young-ZJ66/Aria2Desktop/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Young-ZJ66/Aria2Desktop/total?style=flat-square&label=downloads&color=3b82f6)](https://github.com/Young-ZJ66/Aria2Desktop/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-4B5563?style=flat-square)](#系统要求)
+[![License](https://img.shields.io/github/license/Young-ZJ66/Aria2Desktop?style=flat-square&color=22c55e)](LICENSE)
 
 **把 Aria2 装进一个看得懂的桌面界面**
 
-[下载安装包](../../releases) • [功能](#功能) • [快速开始](#快速开始) • [常见问题](#常见问题) • [开发](#开发)
+[下载最新版](https://github.com/Young-ZJ66/Aria2Desktop/releases/latest) · [功能](#功能) · [快速开始](#快速开始) · [常见问题](#常见问题) · [开发](#开发)
 
 </div>
 
@@ -144,6 +146,8 @@ macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 | 测试 | Vitest 5、CDP 驱动的真实应用端到端 |
 
 ## 开发
+
+[![CI](https://github.com/Young-ZJ66/Aria2Desktop/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Young-ZJ66/Aria2Desktop/actions/workflows/ci.yml)
 
 ```bash
 npm install
