@@ -21,6 +21,14 @@
 - **扩展协同**：浏览器扩展把链接交给 App 处理，你在 App 里设的分类、子目录与下载选项对扩展同样生效
 - **省流更新**：Windows 支持差量更新，实测相邻版本可复用约 94% 的字节
 
+## 界面
+
+![任务列表](assets/screenshot-light.png)
+
+| 深色主题 | 工具与扩展 |
+|:---:|:---:|
+| ![深色主题](assets/screenshot-dark.png) | ![设置](assets/screenshot-settings.png) |
+
 ## 功能
 
 ### 下载
