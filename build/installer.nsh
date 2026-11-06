@@ -16,6 +16,11 @@
 !include "LogicLib.nsh"
 
 !macro customCheckAppRunning
+  ; 这个宏被插在 electron-builder 自己的 CHECK_APP_RUNNING 中间执行，
+  ; 用到的寄存器要还原，避免影响它后续的逻辑。
+  Push $R9
+  Push $0
+
   ; 先礼：WM_CLOSE → 应用隐藏窗口、刷盘、优雅关闭引擎
   nsExec::Exec 'taskkill /IM "Aria2Desktop.exe" /T'
   Pop $0
@@ -38,4 +43,7 @@
   nsExec::Exec 'taskkill /IM "Aria2Desktop.exe" /F /T'
   Pop $0
   Sleep 600
+
+  Pop $0
+  Pop $R9
 !macroend
