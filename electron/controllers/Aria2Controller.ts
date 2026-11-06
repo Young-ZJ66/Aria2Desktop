@@ -494,6 +494,9 @@ export class Aria2Controller {
     registerSecureHandler('aria2-start', async () => {
       if (!this.aria2Manager) await this.initialize()
       if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
+      // 用户手动启动代表"重新授权重试"：崩溃回环放弃后，计数不清零会让引擎
+      // 再崩一次就立刻再次放弃。
+      this.aria2Manager.resetRestartCounter()
       const ok = await this.aria2Manager.start()
       // 失败时附带 aria2 stderr，便于设置页展示具体原因
       return { success: ok, error: ok ? undefined : (this.aria2Manager.getLastStderr() || 'Aria2 进程启动失败') }
