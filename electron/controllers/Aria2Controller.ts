@@ -3,11 +3,12 @@ import * as path from 'path'
 import * as fs from 'fs'
 import * as crypto from 'crypto'
 import { getAria2ProcessManager } from '../managers/Aria2ProcessManager'
-import type { Aria2ProcessManager } from '../managers/Aria2ProcessManager'
+import type { Aria2ProcessManager, Aria2ProcessConfig } from '../managers/Aria2ProcessManager'
 import { WindowController } from './WindowController'
 import { registerSecureHandler } from '../utils/ipcSecurity'
 import { callAria2Rpc, classifyRpcPortProbe } from '../utils/aria2Rpc'
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
+import { activeRpcOptions, getActiveRpcConfig } from '../utils/activeRpcConfig'
 // 注意：主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import { isLocalEngineAddress } from '../../src/shared/localEngine'
 // 仅类型引用：IPC 入参的形状以共享类型为准，避免主/渲染两侧各写一份而漂移
@@ -82,7 +83,11 @@ export class Aria2Controller {
         port: localPort,
         secret: settingsSecret,
         downloadDir: aria2Settings.downloadDir ? String(aria2Settings.downloadDir) : app.getPath('downloads'),
-        autoStart: aria2Settings.autoStart !== undefined ? Boolean(aria2Settings.autoStart) : true
+        autoStart: aria2Settings.autoStart !== undefined ? Boolean(aria2Settings.autoStart) : true,
+        enableRpc: aria2Settings.enableRpc !== undefined ? Boolean(aria2Settings.enableRpc) : true,
+        rpcAllowOriginAll: aria2Settings.rpcAllowOriginAll !== undefined ? Boolean(aria2Settings.rpcAllowOriginAll) : true,
+        rpcListenAll: aria2Settings.rpcListenAll !== undefined ? Boolean(aria2Settings.rpcListenAll) : false,
+        rpcSecure: aria2Settings.rpcSecure !== undefined ? Boolean(aria2Settings.rpcSecure) : false
       }
 
       this.aria2Manager = getAria2ProcessManager(aria2Config)
@@ -425,8 +430,15 @@ export class Aria2Controller {
    * 尝试通过 RPC 立即应用到运行中的 aria2，失败不影响写配置（下次重启生效）。
    */
   public applyTrackerList(csv: string): { success: boolean; error?: string } {
-    if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
+    const active = getActiveRpcConfig()
     try {
+      // 远程连接：只对远端引擎下发运行时选项，绝不能改写本机 aria2.conf
+      if (!active.isLocal) {
+        void callAria2Rpc({ ...activeRpcOptions(), method: 'aria2.changeGlobalOption', params: [{ 'bt-tracker': csv }] })
+          .catch((error) => logger.warn('[Aria2Controller] 远程 Tracker 下发失败:', error))
+        return { success: true }
+      }
+      if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
       this.aria2Manager.saveGlobalOptionsToConfig({ 'bt-tracker': csv })
       // 尽力立即生效：bt-tracker 为运行时可变全局选项，失败时配置已持久化、重启后仍有效
       const { port, secret } = this.getRpcSettings()
@@ -526,10 +538,75 @@ export class Aria2Controller {
       getMainWindow: this.windowRef
     })
 
-    registerSecureHandler('aria2-save-global-options', (event, options: Record<string, string | number>) => {
+    registerSecureHandler('aria2-save-global-options', (event, options: Record<string, string | number | null>) => {
       if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
+      const rawOptions = options && typeof options === 'object' ? options : {}
+      const has = (key: string) => Object.prototype.hasOwnProperty.call(rawOptions, key)
+      const toBoolean = (value: unknown): boolean => String(value).toLowerCase() === 'true' || value === 1
+
+      // RPC 启动项同时进入管理器内存配置：仅写文件而不更新内存时，
+      // 自动重启仍会使用旧端口/旧密钥等待就绪，表现为"改完端口就连不上"。
+      const rpcConfig: Partial<Aria2ProcessConfig> = {}
+      if (has('rpc-listen-port')) {
+        const port = Number(rawOptions['rpc-listen-port'])
+        if (!Number.isInteger(port) || port < MIN_PORT || port > MAX_PORT) {
+          return { success: false, code: 'invalid_port', error: `Invalid port: ${String(rawOptions['rpc-listen-port'])}` }
+        }
+        rpcConfig.port = port
+      }
+      if (has('rpc-secret')) rpcConfig.secret = String(rawOptions['rpc-secret'] ?? '')
+      if (has('enable-rpc')) rpcConfig.enableRpc = toBoolean(rawOptions['enable-rpc'])
+      if (has('rpc-allow-origin-all')) rpcConfig.rpcAllowOriginAll = toBoolean(rawOptions['rpc-allow-origin-all'])
+      if (has('rpc-listen-all')) rpcConfig.rpcListenAll = toBoolean(rawOptions['rpc-listen-all'])
+      if (has('rpc-secure')) rpcConfig.rpcSecure = toBoolean(rawOptions['rpc-secure'])
+
       try {
-        this.aria2Manager.saveGlobalOptionsToConfig(options || {})
+        if (Object.keys(rpcConfig).length > 0) {
+          this.aria2Manager.updateConfig(rpcConfig)
+        }
+        this.aria2Manager.saveGlobalOptionsToConfig(rawOptions)
+
+        // settings 与连接预设必须跟 conf 同步：否则当前会话看似保存成功，
+        // 应用重启后前端仍拿旧端口/旧密钥连接，直接连不上内置引擎。
+        if (Object.keys(rpcConfig).length > 0) {
+          const currentSettings = getSettingsFresh()
+          const oldPort = Number(currentSettings.aria2?.port) || 6800
+          const nextPort = rpcConfig.port ?? oldPort
+          const previousSecret = String(currentSettings.aria2?.secret || '')
+          const nextSecret = rpcConfig.secret !== undefined ? rpcConfig.secret : previousSecret
+          const updatedProfiles = currentSettings.connectionProfiles?.map(profile => {
+            if (!profile?.config) return profile
+            if (!isLocalEngineAddress(profile.config.host, profile.config.port, oldPort)) return profile
+            return {
+              ...profile,
+              config: {
+                ...profile.config,
+                port: nextPort,
+                ...(rpcConfig.secret !== undefined ? { secret: nextSecret } : {})
+              }
+            }
+          })
+          const updatedSettings: AppSettings = {
+            ...currentSettings,
+            aria2: {
+              ...currentSettings.aria2,
+              host: 'localhost',
+              port: nextPort,
+              secret: nextSecret,
+              protocol: 'http',
+              path: '/jsonrpc',
+              ...(rpcConfig.enableRpc !== undefined ? { enableRpc: rpcConfig.enableRpc } : {}),
+              ...(rpcConfig.rpcAllowOriginAll !== undefined ? { rpcAllowOriginAll: rpcConfig.rpcAllowOriginAll } : {}),
+              ...(rpcConfig.rpcListenAll !== undefined ? { rpcListenAll: rpcConfig.rpcListenAll } : {}),
+              ...(rpcConfig.rpcSecure !== undefined ? { rpcSecure: rpcConfig.rpcSecure } : {}),
+              ...(rpcConfig.secret !== undefined
+                ? { secretAutogenerated: rpcConfig.secret === previousSecret ? currentSettings.aria2?.secretAutogenerated : false }
+                : {})
+            },
+            ...(updatedProfiles ? { connectionProfiles: updatedProfiles } : {})
+          }
+          saveSettings(updatedSettings)
+        }
         return { success: true }
       } catch (e) {
         return { success: false, error: String(e) }

@@ -8,7 +8,7 @@ import {
 
 /**
  * 限速规则的时间匹配是"按星期/时段自动切换限速"的核心判定，
- * 跨午夜与边界语义容易改错，这里逐条锁死（语义与重构前完全一致）。
+ * 跨午夜与边界语义容易改错，这里逐条锁死。
  */
 describe('matchesSpeedRule', () => {
   const everyday = { days: [] as number[], startTime: '09:00', endTime: '18:00' }
@@ -41,6 +41,15 @@ describe('matchesSpeedRule', () => {
     expect(matchesSpeedRule(overnight, 1, '05:59')).toBe(true)
     expect(matchesSpeedRule(overnight, 1, '06:00')).toBe(false)
     expect(matchesSpeedRule(overnight, 1, '12:00')).toBe(false)
+  })
+
+  it('指定星期且跨午夜时，午夜后仍按前一天判断', () => {
+    const fridayOvernight = { days: [5], startTime: '22:00', endTime: '06:00' }
+    expect(matchesSpeedRule(fridayOvernight, 5, '22:00')).toBe(true) // 周五 22:00
+    expect(matchesSpeedRule(fridayOvernight, 6, '00:30')).toBe(true) // 周六凌晨属于周五的时段
+    expect(matchesSpeedRule(fridayOvernight, 6, '05:59')).toBe(true)
+    expect(matchesSpeedRule(fridayOvernight, 6, '06:00')).toBe(false)
+    expect(matchesSpeedRule(fridayOvernight, 5, '00:30')).toBe(false) // 周五凌晨不属于周五晚间规则
   })
 
   it('startTime 等于 endTime 视为空区间（有意保留，可用于临时停用规则）', () => {

@@ -8,11 +8,13 @@ import Store from 'electron-store'
 import * as path from 'path'
 import * as fs from 'fs'
 import { registerSecureHandler, registerSecureListener } from '../utils/ipcSecurity'
+import { isSecretEncryptionAvailable } from '../utils/secretCipher'
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import { isAllowedExternalUrl } from '../utils/externalUrlCore'
 import { undoDuplicatedSegment } from '../utils/pathRepair'
 import { isPathInside } from '../utils/pathContainment'
+import { sanitizeSettingsInput, sanitizeTaskSourcesInput, sanitizeWindowStateInput } from '../utils/ipcInputValidation'
 import { checkYtdlpAvailable, getVideoInfo, getFormatUrl, installYtdlp, checkYtdlpUpdate } from '../services/ytdlpService'
 import { checkFfmpegAvailable, installFfmpeg, checkFfmpegUpdate } from '../services/ffmpegService'
 import { startStreamDownload, cancelStreamDownload, type StreamDownloadRequest } from '../services/streamDownloadService'
@@ -24,7 +26,7 @@ import { createLogger, getLogFilePaths } from '../utils/logger'
 // 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import { resolveBaseDownloadDir } from '../../src/shared/fileCategories'
 import type { ExtensionConnection } from '../../src/shared/extensionVersion'
-import type { StoreData, AppSettings } from '../types/store'
+import type { StoreData } from '../types/store'
 
 // 本文件日志文案自带 [IpcController] 前缀（历史风格），故 scope 传空避免前缀重复
 const logger = createLogger('')
@@ -32,7 +34,8 @@ const logger = createLogger('')
 /** 允许通过 get/set-store-value 访问的 store 键白名单 */
 const ALLOWED_STORE_KEYS = new Set([
   'settings',
-  'windowState'
+  'windowState',
+  'taskSources'
 ])
 
 /**
@@ -271,7 +274,8 @@ export class IpcController {
         } else if (process.platform === 'darwin') {
           await runSystemCommand('osascript', ['-e', 'tell app "System Events" to sleep'])
         } else {
-          await runSystemCommand('systemctl', ['suspend'])
+          // Linux 的“休眠”对应 hibernate（写盘后断电），不是 suspend（仅睡眠）
+          await runSystemCommand('systemctl', ['hibernate'])
         }
         return { success: true }
       } catch (e) {
@@ -279,6 +283,11 @@ export class IpcController {
         return { success: false, error: String(e) }
       }
     }, { getMainWindow: this.windowRef })
+
+    registerSecureHandler('get-secret-storage-status', () => ({
+      available: isSecretEncryptionAvailable(),
+      platform: process.platform
+    }), { getMainWindow: this.windowRef })
 
     registerSecureHandler('read-clipboard', () => {
       try {
@@ -344,12 +353,15 @@ export class IpcController {
     }, { getMainWindow: this.windowRef, failureValue: undefined })
 
     registerSecureHandler('system-cancel-shutdown', async () => {
-      if (process.platform !== 'win32') {
-        // 其它平台没有等价的"取消关机"语义，如实回报而不是假装成功
-        return { success: false, error: 'Cancel shutdown is only supported on Windows' }
-      }
       try {
-        await runSystemCommand('shutdown', ['/a'])
+        if (process.platform === 'win32') {
+          await runSystemCommand('shutdown', ['/a'])
+        } else if (process.platform === 'linux') {
+          // util-linux/systemd 的 shutdown -c 取消已排定的关机
+          await runSystemCommand('shutdown', ['-c'])
+        } else {
+          return { success: false, error: 'Cancel shutdown is not supported on macOS' }
+        }
         return { success: true }
       } catch (e) {
         logger.warn('[IpcController] 取消关机失败（可能本就没有待执行的关机）:', e)
@@ -375,16 +387,29 @@ export class IpcController {
         logger.warn(`[IpcController] Blocked write to store key: ${key}`)
         return { success: false, error: 'Key not allowed' }
       }
-      // settings 含 RPC secret：写入前加密，磁盘上不保存明文；
-      // 写入口统一走 settingsAccessor，由它保证"写入即刷新缓存"
-      if (key === 'settings') {
-        saveSettings(value as AppSettings)
-        // UPnP 开关变化立即生效：开启则映射、关闭则撤掉映射（不需要重启应用）
-        void upnpService.reconcile()
-      } else {
-        this.store.set(key, value)
+      try {
+        // settings 含 RPC secret：写入前加密，磁盘上不保存明文；
+        // 写入口统一走 settingsAccessor，由它保证"写入即刷新缓存"。
+        // 同时做结构白名单校验：渲染层被攻破时不能把任意对象持久化进启动配置。
+        if (key === 'settings') {
+          const sanitized = sanitizeSettingsInput(value)
+          saveSettings(sanitized)
+          // UPnP 开关变化立即生效：开启则映射、关闭则撤掉映射（不需要重启应用）
+          void upnpService.reconcile()
+        } else if (key === 'windowState') {
+          const sanitized = sanitizeWindowStateInput(value)
+          if (!sanitized) return { success: false, error: 'Invalid windowState' }
+          this.store.set(key, sanitized)
+        } else if (key === 'taskSources') {
+          const sanitized = sanitizeTaskSourcesInput(value)
+          if (!sanitized) return { success: false, error: 'Invalid taskSources' }
+          this.store.set(key, sanitized)
+        }
+        return { success: true }
+      } catch (error) {
+        logger.warn(`[IpcController] Rejected invalid store write for ${key}:`, error)
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
       }
-      return { success: true }
     }, { getMainWindow: this.windowRef })
 
     // 注：守卫后的 `!window` 分支同样返回 {canceled:true}——与校验失败值同形但语义不同，
@@ -439,10 +464,35 @@ export class IpcController {
       }
     }, { getMainWindow: this.windowRef })
 
-    registerSecureHandler('show-item-in-folder', async (event, filePath: string) => {
+    /**
+     * 文件操作通道的路径边界：基础下载目录 + 调用方传入的任务目录。
+     * 任务目录本身也必须位于基础下载目录内，避免渲染层借 taskDir 打开任意位置。
+     */
+    const resolveAllowedFileRoots = async (taskDir?: unknown): Promise<string[]> => {
+      const baseDir = resolveBaseDownloadDir(getSettingsFresh() ?? undefined) || app.getPath('downloads')
+      const roots = [path.resolve(baseDir)]
+      if (typeof taskDir === 'string' && taskDir.trim() && path.isAbsolute(taskDir.trim())) {
+        const candidate = path.resolve(taskDir.trim())
+        if (await isInsideDownloadRoot(candidate, baseDir)) roots.push(candidate)
+      }
+      return roots
+    }
+    const isAllowedFileTarget = async (target: string, roots: string[]): Promise<boolean> => {
+      for (const root of roots) {
+        if (await isInsideDownloadRoot(target, root)) return true
+      }
+      return false
+    }
+
+    registerSecureHandler('show-item-in-folder', async (event, filePath: string, taskDir?: string) => {
       try {
-        const normalizedPath = path.normalize(filePath)
+        if (typeof filePath !== 'string' || !filePath.trim()) return { success: false, error: 'Invalid path' }
+        const normalizedPath = path.resolve(path.normalize(filePath.trim()))
         if (!fs.existsSync(normalizedPath)) return { success: false, error: 'Path not found' }
+        if (!(await isAllowedFileTarget(normalizedPath, await resolveAllowedFileRoots(taskDir)))) {
+          logger.warn('[IpcController] 拦截 show-item-in-folder：路径不在下载目录内')
+          return { success: false, error: 'Path not allowed' }
+        }
         shell.showItemInFolder(normalizedPath)
         return { success: true }
       } catch (e) {
@@ -450,9 +500,15 @@ export class IpcController {
       }
     }, { getMainWindow: this.windowRef })
 
-    registerSecureHandler('open-in-explorer', async (event, filePath: string) => {
+    registerSecureHandler('open-in-explorer', async (event, filePath: string, taskDir?: string) => {
       try {
-        const normalizedPath = path.normalize(filePath)
+        if (typeof filePath !== 'string' || !filePath.trim()) return { success: false, error: 'Invalid path' }
+        const normalizedPath = path.resolve(path.normalize(filePath.trim()))
+        const roots = await resolveAllowedFileRoots(taskDir)
+        if (!(await isAllowedFileTarget(normalizedPath, roots))) {
+          logger.warn('[IpcController] 拦截 open-in-explorer：路径不在下载目录内')
+          return { success: false, error: 'Path not allowed' }
+        }
         if (fs.existsSync(normalizedPath)) {
           // 文件存在时在资源管理器中定位并选中它
           shell.showItemInFolder(normalizedPath)
@@ -470,20 +526,41 @@ export class IpcController {
       }
     }, { getMainWindow: this.windowRef })
 
+    // 打开下载完成的文件（默认程序）。同样限制在下载目录内，且必须是已存在的普通文件。
+    registerSecureHandler('open-file', async (event, filePath: string, taskDir?: string) => {
+      try {
+        if (typeof filePath !== 'string' || !filePath.trim()) return { success: false, error: 'Invalid path' }
+        const normalizedPath = path.resolve(path.normalize(filePath.trim()))
+        if (!(await isAllowedFileTarget(normalizedPath, await resolveAllowedFileRoots(taskDir)))) {
+          logger.warn('[IpcController] 拦截 open-file：路径不在下载目录内')
+          return { success: false, error: 'Path not allowed' }
+        }
+        const stat = await fs.promises.stat(normalizedPath).catch(() => null)
+        if (!stat) return { success: false, error: 'Path not found' }
+        if (!stat.isFile()) return { success: false, error: 'Only files can be opened' }
+        const error = await shell.openPath(normalizedPath)
+        return error ? { success: false, error } : { success: true }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    }, { getMainWindow: this.windowRef })
+
     registerSecureHandler('open-path', async (event, filePath: string) => {
       try {
-        const normalizedPath = path.normalize(filePath)
-        if (!fs.existsSync(normalizedPath)) {
-          // 目标文件不存在时，尝试打开其所在目录，提高可用性
-          const dir = path.dirname(normalizedPath)
-          if (fs.existsSync(dir)) {
-            await shell.openPath(dir)
-            return { success: true }
-          }
-          return { success: false, error: 'Path not found' }
+        if (typeof filePath !== 'string' || !filePath.trim()) {
+          return { success: false, error: 'Invalid path' }
         }
-        await shell.openPath(normalizedPath)
-        return { success: true }
+        const normalizedPath = path.normalize(filePath.trim())
+        // 该通道只用于"打开任务目录"：只接受目录，拒绝把任意文件（尤其是 .exe/.bat/.lnk）
+        // 交给系统默认程序执行；也不接受 UNC 路径，避免触发 SMB 凭据泄露。
+        if (!path.isAbsolute(normalizedPath) || normalizedPath.startsWith('\\')) {
+          return { success: false, error: 'Path not allowed' }
+        }
+        const stat = await fs.promises.stat(normalizedPath).catch(() => null)
+        if (!stat) return { success: false, error: 'Path not found' }
+        if (!stat.isDirectory()) return { success: false, error: 'Only directories can be opened' }
+        const error = await shell.openPath(normalizedPath)
+        return error ? { success: false, error } : { success: true }
       } catch (e) {
         return { success: false, error: String(e) }
       }

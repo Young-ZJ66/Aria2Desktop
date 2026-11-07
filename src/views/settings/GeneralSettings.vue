@@ -100,6 +100,17 @@
 
         <n-form-item>
           <template #label>
+            <TipLabel :label="t('generalSettings.clipboardMonitor')" :tip="t('generalSettings.clipboardMonitorTip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.clipboardMonitorEnabled"
+            :disabled="!isElectronAvailable"
+            @update:value="handleClipboardMonitorChange"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
             <TipLabel :label="t('generalSettings.autoExtract')" :tip="t('generalSettings.autoExtractTip')" />
           </template>
           <AppSwitch
@@ -267,11 +278,14 @@ const form = reactive({
   autoLaunch: false,
   autoExtract: false,
   autoDeleteArchive: false,
-  downloadCompleteAction: 'none' as 'none' | 'shutdown' | 'hibernate' | 'close'
+  downloadCompleteAction: 'none' as 'none' | 'shutdown' | 'hibernate' | 'close' | 'open-folder' | 'open-file',
+  clipboardMonitorEnabled: false
 })
 
 const downloadCompleteActionOptions = [
   { label: t('generalSettings.actionNone'), value: 'none' },
+  { label: t('generalSettings.actionOpenFolder'), value: 'open-folder' },
+  { label: t('generalSettings.actionOpenFile'), value: 'open-file' },
   { label: t('generalSettings.actionShutdown'), value: 'shutdown' },
   { label: t('generalSettings.actionHibernate'), value: 'hibernate' },
   { label: t('generalSettings.actionClose'), value: 'close' }
@@ -350,6 +364,7 @@ watch(
     settingsStore.settings.keepWindowState,
     settingsStore.settings.autoLaunch,
     settingsStore.settings.downloadCompleteAction,
+    settingsStore.settings.clipboardMonitorEnabled,
     settingsStore.settings.download?.autoExtract,
     settingsStore.settings.download?.autoDeleteArchive
   ],
@@ -372,7 +387,8 @@ function loadFormData() {
     autoLaunch: settingsStore.settings.autoLaunch,
     autoExtract: settingsStore.settings.download?.autoExtract === true,
     autoDeleteArchive: settingsStore.settings.download?.autoDeleteArchive === true,
-    downloadCompleteAction: settingsStore.settings.downloadCompleteAction || 'none'
+    downloadCompleteAction: settingsStore.settings.downloadCompleteAction || 'none',
+    clipboardMonitorEnabled: settingsStore.settings.clipboardMonitorEnabled === true
   })
 }
 
@@ -678,7 +694,7 @@ async function handleAutoLaunchChange() {
 // 下载完成后操作变化处理
 async function handleDownloadCompleteActionChange(value: string) {
   const previous = settingsStore.settings.downloadCompleteAction ?? 'none'
-  form.downloadCompleteAction = value as 'none' | 'shutdown' | 'hibernate' | 'close'
+  form.downloadCompleteAction = value as 'none' | 'shutdown' | 'hibernate' | 'close' | 'open-folder' | 'open-file'
   try {
     await settingsStore.updateSetting('downloadCompleteAction', form.downloadCompleteAction)
   } catch (error) {
@@ -687,6 +703,20 @@ async function handleDownloadCompleteActionChange(value: string) {
     console.error('Download complete action change error:', error)
     form.downloadCompleteAction = previous
     message.error(t('generalSettings.downloadCompleteActionFailed', {
+      error: error instanceof Error ? error.message : t('settings.unknownError')
+    }))
+  }
+}
+
+// 剪贴板监控开关：隐私敏感项，保存失败要回滚并把真实错误展示出来
+async function handleClipboardMonitorChange(value: boolean) {
+  const previous = settingsStore.settings.clipboardMonitorEnabled === true
+  form.clipboardMonitorEnabled = value
+  try {
+    await settingsStore.updateSetting('clipboardMonitorEnabled', value)
+  } catch (error) {
+    form.clipboardMonitorEnabled = previous
+    message.error(t('generalSettings.clipboardMonitorFailed', {
       error: error instanceof Error ? error.message : t('settings.unknownError')
     }))
   }

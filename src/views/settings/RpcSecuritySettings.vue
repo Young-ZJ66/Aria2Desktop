@@ -67,6 +67,9 @@
 
       <!-- RPC 安全 -->
       <n-card :title="t('settings.rpc.groupSecurity')" class="setting-group">
+        <n-alert v-if="secretStorageWarning" type="warning" :bordered="false" style="margin-bottom: 12px">
+          {{ t('settings.rpc.secretStorageUnavailable') }}
+        </n-alert>
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.rpc.rpcSecret')" :tip="t('settings.rpc.rpcSecretTip')" />
@@ -107,6 +110,13 @@
       <n-card :title="t('settings.rpc.groupTls')" class="setting-group">
         <n-form-item>
           <template #label>
+            <TipLabel :label="t('settings.rpc.rpcSecure')" :tip="t('settings.rpc.rpcSecureTip')" />
+          </template>
+          <AppSwitch v-model:value="settings.rpcSecure" />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
             <TipLabel :label="t('settings.rpc.rpcCertificate')" :tip="t('settings.rpc.rpcCertificateTip')" />
           </template>
           <n-input-group>
@@ -138,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FolderOpenOutline, CopyOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
@@ -155,6 +165,16 @@ import { isReservedSecretPrefix } from '@/shared/secretPrefix'
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
 const formRef = ref<FormInst | null>(null)
+const secretStorageWarning = ref(false)
+
+onMounted(async () => {
+  try {
+    const status = await window.electronAPI?.getSecretStorageStatus?.()
+    secretStorageWarning.value = status ? !status.available : false
+  } catch {
+    secretStorageWarning.value = false
+  }
+})
 
 const settings = reactive({
   enableRpc: true,
@@ -167,6 +187,7 @@ const settings = reactive({
   // 会导致未加载引擎选项时数字输入框为空、且校验（type:'number'）不通过。
   rpcMaxRequestSize: 2,
   rpcSaveUploadMetadata: true,
+  rpcSecure: false,
   rpcCertificate: '',
   rpcPrivateKey: '',
   forceSave: false,
@@ -207,6 +228,7 @@ const rpcSecuritySettingsSchema: SettingSchema = {
     { key: 'rpcAllowOriginAll', aria2Key: 'rpc-allow-origin-all', type: 'boolean', default: true, optionToValue: (raw) => raw === 'true' },
     { key: 'rpcMaxRequestSize', aria2Key: 'rpc-max-request-size', type: 'size', default: 2, unit: 'M' },
     { key: 'rpcSaveUploadMetadata', aria2Key: 'rpc-save-upload-metadata', type: 'boolean', default: true },
+    { key: 'rpcSecure', aria2Key: 'rpc-secure', type: 'boolean', default: false },
     { key: 'rpcCertificate', aria2Key: 'rpc-certificate', type: 'string', default: '' },
     { key: 'rpcPrivateKey', aria2Key: 'rpc-private-key', type: 'string', default: '' },
     { key: 'forceSave', aria2Key: 'force-save', type: 'boolean', default: false },

@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useConnectionStore } from './connectionStore'
 import { taskTimeService } from '@/services/taskTimeService'
 import { taskPersistenceService } from '@/services/taskPersistenceService'
+import { taskSourceService } from '@/services/taskSourceService'
 import { sessionManager } from '@/services/sessionManager'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
 import { getTaskName } from '@/utils/taskUtils'
@@ -12,7 +13,7 @@ import type { Aria2Task, Aria2Option } from '@/types/aria2'
 import type { Aria2ClientEvent } from '@/services/aria2Client'
 
 /** 单次拉取等待/停止任务的最大数量 */
-const MAX_TELL_COUNT = 1000
+const MAX_TELL_COUNT = 5000
 
 /** WS 事件补刷的最大递归深度，避免事件密集时无界递归 */
 const MAX_RELOAD_DEPTH = 3
@@ -60,6 +61,14 @@ export const useTaskStore = defineStore('task', () => {
   let reloadDepth = 0
   /** 进行中的全量刷新：并发调用复用它，而不是静默丢弃（见 loadAllTasks 的说明） */
   let loadAllInFlight: Promise<void> | null = null
+  /** 进行中刷新所属的连接代次；连接切换后旧请求的返回一律丢弃 */
+  let loadAllGeneration = -1
+  /**
+   * 连接代次：每次 service 变化或 clearTasks 时自增。
+   * 异步加载在 await 之后必须重新校验代次，否则旧服务器的任务会被写进新连接的列表。
+   */
+  let connectionGeneration = 0
+  let loadingGeneration = -1
 
   // 指纹算法已抽到 @/utils/fingerprint（纯函数，便于单测）
   function setWaitingIfChanged(waiting: Aria2Task[]): void {
@@ -87,18 +96,26 @@ export const useTaskStore = defineStore('task', () => {
    * 会让这次刷新被静默吞掉——用户点完删除/暂停后界面可能仍是旧状态，且调用方无从察觉。
    */
   async function loadAllTasks(): Promise<void> {
-    if (!connectionStore.service) return
-    if (loadAllInFlight) return loadAllInFlight
+    const service = connectionStore.service
+    if (!service) return
+    const generation = connectionGeneration
+    if (loadAllInFlight && loadAllGeneration === generation) return loadAllInFlight
 
-    loadAllInFlight = doLoadAllTasks()
+    const base = doLoadAllTasks(generation, service)
+    const tracked: Promise<void> = base
       .finally(() => {
-        loadAllInFlight = null
+        // 只有"当前代次、当前请求"才能清 in-flight；旧代次的收尾不能把新请求的引用清掉
+        if (loadAllGeneration === generation && loadAllInFlight === tracked) {
+          loadAllInFlight = null
+        }
       })
       // 补刷必须挂在"清空 in-flight"之后：否则这次补刷会复用刚结束的请求而变成空操作
       .then(() => {
-        scheduleReloadIfNeeded()
+        if (generation === connectionGeneration) scheduleReloadIfNeeded()
       })
-    return loadAllInFlight
+    loadAllGeneration = generation
+    loadAllInFlight = tracked
+    return tracked
   }
 
   /**
@@ -121,12 +138,10 @@ export const useTaskStore = defineStore('task', () => {
     })
   }
 
-  async function doLoadAllTasks(): Promise<void> {
-    // 连接可能在 await 期间断开：这里取一次局部引用，既满足类型收窄，
-    // 也保证三列表用的是同一个连接实例
-    const service = connectionStore.service
-    if (!service) return
+  async function doLoadAllTasks(generation: number, service: NonNullable<typeof connectionStore.service>): Promise<void> {
+    if (generation !== connectionGeneration || connectionStore.service !== service) return
 
+    loadingGeneration = generation
     isLoading.value = true
 
     try {
@@ -135,15 +150,40 @@ export const useTaskStore = defineStore('task', () => {
       const previousStopped = new Set(stoppedTasks.value.map(task => task.gid))
       const previousActive = new Set(activeTasks.value.map(task => task.gid))
 
-      // Promise.allSettled：单个列表拉取失败不影响其他列表，失败的保留旧值
-      // 注：aria2Service.multicall 已实现但此处未使用——system.multicall 单方法失败时
-      // 解析结构复杂（返回 [null, code] 占位），会牺牲 allSettled 的单列表容错，
-      // 且只省 1 次 RPC 往返。权衡后维持独立三请求，保持健壮性优先。
-      const [activeResult, waitingResult, stoppedResult] = await Promise.allSettled([
-        service.tellActive(),
-        service.tellWaiting(0, MAX_TELL_COUNT),
-        service.tellStopped(0, MAX_TELL_COUNT)
-      ])
+      // 优先用 system.multicall 把三张列表合并为一次 RPC（原实现要 3 次往返）。
+      // system.multicall 的单项失败会以 { code, message } 对象占位，不会让整批抛错，
+      // 因此仍能保持"单个列表失败只保留旧值"的容错语义；整体 RPC 失败时回退三请求。
+      type SettledList = { status: 'fulfilled'; value: Aria2Task[] } | { status: 'rejected'; reason: unknown }
+      let activeResult: SettledList
+      let waitingResult: SettledList
+      let stoppedResult: SettledList
+      try {
+        const batch = await service.multicall([
+          { methodName: 'aria2.tellActive', params: [] },
+          { methodName: 'aria2.tellWaiting', params: [0, MAX_TELL_COUNT] },
+          { methodName: 'aria2.tellStopped', params: [0, MAX_TELL_COUNT] }
+        ])
+        const toSettled = (entry: unknown): SettledList => {
+          if (Array.isArray(entry)) return { status: 'fulfilled', value: entry[0] as Aria2Task[] }
+          return { status: 'rejected', reason: entry }
+        }
+        activeResult = toSettled(batch[0])
+        waitingResult = toSettled(batch[1])
+        stoppedResult = toSettled(batch[2])
+      } catch (batchError) {
+        console.warn('system.multicall failed, falling back to individual calls:', batchError)
+        const settled = await Promise.allSettled([
+          service.tellActive(),
+          service.tellWaiting(0, MAX_TELL_COUNT),
+          service.tellStopped(0, MAX_TELL_COUNT)
+        ])
+        activeResult = settled[0]
+        waitingResult = settled[1]
+        stoppedResult = settled[2]
+      }
+
+      // 连接可能在请求期间被切换：旧请求的响应绝不能写入新连接的列表
+      if (generation !== connectionGeneration || connectionStore.service !== service) return
 
       if (activeResult.status === 'fulfilled') {
         const active = activeResult.value
@@ -190,7 +230,9 @@ export const useTaskStore = defineStore('task', () => {
     } catch (error) {
       console.error('Failed to load tasks:', error)
     } finally {
-      isLoading.value = false
+      if (loadingGeneration === generation) {
+        isLoading.value = false
+      }
       // 补刷由 loadAllTasks 的 .then 负责（需等 in-flight 标记清空后才发起）
     }
   }
@@ -200,8 +242,11 @@ export const useTaskStore = defineStore('task', () => {
    * stopped 列表由低频全量刷新与 WS 下载事件负责，降低大任务列表时的轮询开销。
    */
   async function loadLightTasks() {
-    if (!connectionStore.service) return
+    const service = connectionStore.service
+    if (!service) return
     if (isLoading.value) return
+    const generation = connectionGeneration
+    loadingGeneration = generation
     isLoading.value = true
 
     try {
@@ -212,11 +257,14 @@ export const useTaskStore = defineStore('task', () => {
     }
 
     try {
+      if (generation !== connectionGeneration || connectionStore.service !== service) return
       // Promise.allSettled：单个列表拉取失败不影响另一个，与 loadAllTasks 容错策略一致
       const [activeResult, waitingResult] = await Promise.allSettled([
-        connectionStore.service.tellActive(),
-        connectionStore.service.tellWaiting(0, MAX_TELL_COUNT)
+        service.tellActive(),
+        service.tellWaiting(0, MAX_TELL_COUNT)
       ])
+
+      if (generation !== connectionGeneration || connectionStore.service !== service) return
 
       if (activeResult.status === 'fulfilled') {
         const active = activeResult.value
@@ -239,7 +287,9 @@ export const useTaskStore = defineStore('task', () => {
     } catch (error) {
       console.error('Failed to load active tasks:', error)
     } finally {
-      isLoading.value = false
+      if (loadingGeneration === generation) {
+        isLoading.value = false
+      }
       // 轻量轮询期间到达的 WS 事件（如 downloadError 把任务移入 stopped 列表）在
       // 轻量刷新里看不到，若不消费要等下一次 30s 全量才反映——这里补刷一次全量。
       // 复用 scheduleReloadIfNeeded 的深度限制，避免事件密集时无界循环。
@@ -304,6 +354,9 @@ export const useTaskStore = defineStore('task', () => {
 
     const gid = await connectionStore.service.addUri(uris, options)
 
+    // 记录原始来源：aria2 tellStatus 不会返回 magnet 原文，失败重试(尤其应用重启后)依赖这份记录
+    taskSourceService.record(gid, { kind: 'uri', uris }, options)
+
     // 磁力 URI 不入库（见 magnetUriIndex 注释）：添加时记下规范化 magnet → gid
     for (const uri of uris) {
       const normalized = normalizeUrlForCompare(uri)
@@ -322,6 +375,8 @@ export const useTaskStore = defineStore('task', () => {
 
     const gid = await connectionStore.service.addTorrent(torrent, uris, options)
 
+    taskSourceService.record(gid, { kind: 'torrent', torrent, uris }, options)
+
     await afterTaskAdded([gid], 'Torrent Task')
 
     await loadAllTasks()
@@ -332,6 +387,10 @@ export const useTaskStore = defineStore('task', () => {
     if (!connectionStore.service) throw new Error('Not connected')
 
     const gids = await connectionStore.service.addMetalink(metalink, options)
+
+    for (const gid of gids) {
+      taskSourceService.record(gid, { kind: 'metalink', metalink }, options)
+    }
 
     await afterTaskAdded(gids, 'Metalink Task')
 
@@ -478,14 +537,23 @@ export const useTaskStore = defineStore('task', () => {
     await loadAllTasks()
   }
 
+  /**
+   * 重试失败任务。
+   *
+   * 关键点：
+   * 1. 优先使用添加任务时保存的原始来源（磁力/种子/metalink 内容）。aria2 的
+   *    tellStatus 对 BT/磁力任务不会返回 files[].uris，旧实现因此直接报 No URIs found。
+   * 2. **先建新任务、成功后再删旧任务**。旧实现先 forceRemove 再 addUri，一旦新请求失败，
+   *    原任务记录已被删除，用户连重试入口都没有了。
+   */
   async function retryErrorTask(gid: string) {
     if (!connectionStore.service) throw new Error('Not connected')
-    // tellStatus -> 获取 URIs 与原任务选项 -> 删除 -> addUri（尽量保留原始下载选项）
-    const taskInfo = await connectionStore.service.tellStatus(gid)
-    const uris = taskInfo.files?.flatMap(f => f.uris || []).map(u => u.uri).filter(Boolean) || []
-    if (uris.length === 0) throw new Error('No URIs found')
+    await taskSourceService.ensureLoaded()
 
-    // 读取原任务的选项（out、split、header 等），避免重试后行为与原任务不一致
+    const taskInfo = await connectionStore.service.tellStatus(gid)
+    const sourceRecord = taskSourceService.get(gid)
+
+    // 读取原任务选项（out、split、header 等）；原始来源记录的选项更贴近添加时语义
     let originalOptions: Aria2Option = { dir: taskInfo.dir }
     try {
       const fullOptions = await connectionStore.service.getOption(gid)
@@ -496,16 +564,38 @@ export const useTaskStore = defineStore('task', () => {
     } catch {
       // 获取选项失败时仅保留目录
     }
+    const retryOptions = (sourceRecord?.options as Aria2Option | undefined) || originalOptions
 
-    // 删除旧任务
+    let newGid: string
+    if (sourceRecord?.source.kind === 'torrent') {
+      newGid = await connectionStore.service.addTorrent(
+        sourceRecord.source.torrent,
+        sourceRecord.source.uris,
+        retryOptions
+      )
+    } else if (sourceRecord?.source.kind === 'metalink') {
+      const gids = await connectionStore.service.addMetalink(sourceRecord.source.metalink, retryOptions)
+      if (gids.length === 0) throw new Error('No GID returned')
+      newGid = gids[0]!
+    } else {
+      let uris = sourceRecord?.source.kind === 'uri'
+        ? sourceRecord.source.uris
+        : taskInfo.files?.flatMap(f => f.uris || []).map(u => u.uri).filter(Boolean) || []
+      // 没有原始 URI 但能拿到 infoHash：用磁力链接兜底（仅依赖 DHT/Tracker 重新抓取元数据）
+      if (uris.length === 0 && taskInfo.infoHash) {
+        uris = [`magnet:?xt=urn:btih:${taskInfo.infoHash}`]
+      }
+      if (uris.length === 0) throw new Error('No URIs found')
+      newGid = await connectionStore.service.addUri(uris, retryOptions)
+    }
+
+    // 新任务已成功创建，再清理旧任务；失败不影响新任务
     try { await connectionStore.service.forceRemove(gid) } catch { /* 忽略旧任务删除失败 */ }
     try { await connectionStore.service.removeDownloadResult(gid) } catch { /* 忽略结果删除失败 */ }
 
-    // 添加新任务（透传原始选项）
-    const newGid = await connectionStore.service.addUri(uris, originalOptions)
-
-    // 清理本地
     taskPersistenceService.removePersistedTask(gid)
+    taskTimeService.removeTaskTime(gid)
+    taskSourceService.remove(gid)
     await loadAllTasks()
     return newGid
   }
@@ -524,6 +614,13 @@ export const useTaskStore = defineStore('task', () => {
 
   // 清空前端缓存的任务列表（断开连接 / 切换服务器时调用）
   function clearTasks() {
+    // 代次自增：让所有进行中的旧连接刷新请求在 await 之后失效
+    connectionGeneration++
+    loadAllInFlight = null
+    loadAllGeneration = -1
+    loadingGeneration = -1
+    needsReload = false
+    isLoading.value = false
     activeTasks.value = []
     waitingTasks.value = []
     stoppedTasks.value = []
@@ -625,6 +722,13 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   watch(() => connectionStore.service, (service, oldService) => {
+    // 连接实例变化即进入新代次：旧请求的响应全部作废，in-flight 缓存也不再复用
+    connectionGeneration++
+    loadAllInFlight = null
+    loadAllGeneration = -1
+    loadingGeneration = -1
+    needsReload = false
+    isLoading.value = false
     if (oldService) {
       downloadEvents.forEach(evt => oldService.off(evt, handleDownloadEvent))
       oldService.off('downloadComplete', handleDownloadComplete)

@@ -20,9 +20,10 @@ const electronAPI = {
   showOpenDialog: (options: unknown) => ipcRenderer.invoke('show-open-dialog', options),
 
   // 文件系统操作
-  showItemInFolder: (path: string) => ipcRenderer.invoke('show-item-in-folder', path),
+  showItemInFolder: (path: string, taskDir?: string) => ipcRenderer.invoke('show-item-in-folder', path, taskDir),
   openPath: (path: string) => ipcRenderer.invoke('open-path', path),
-  openInExplorer: (path: string) => ipcRenderer.invoke('open-in-explorer', path),
+  openInExplorer: (path: string, taskDir?: string) => ipcRenderer.invoke('open-in-explorer', path, taskDir),
+  openFile: (path: string, taskDir?: string) => ipcRenderer.invoke('open-file', path, taskDir),
   deleteFiles: (paths: string[], taskDir?: string) => ipcRenderer.invoke('delete-files', paths, taskDir),
 
   // 在系统浏览器里打开外部链接（主进程按站点白名单校验，见 utils/externalUrlCore）
@@ -108,6 +109,9 @@ const electronAPI = {
 
   // 剪贴板写入（同样经主进程：sandbox:true 下 preload 不可直接用 clipboard 模块）
   writeClipboard: (text: string): Promise<boolean> => ipcRenderer.invoke('write-clipboard', text),
+
+  // 系统密钥环是否可用（false 时 RPC secret 会以明文落盘，设置页据此提示）
+  getSecretStorageStatus: (): Promise<{ available: boolean; platform: string }> => ipcRenderer.invoke('get-secret-storage-status'),
 
   // 系统通知（通过主进程 Electron Notification API）
   sendNotification: (title: string, body: string) => ipcRenderer.invoke('send-notification', title, body),
@@ -245,6 +249,15 @@ const electronAPI = {
     ipcRenderer.on('pending-download-url', listener)
     return () => {
       ipcRenderer.removeListener('pending-download-url', listener)
+    }
+  },
+
+  // 系统文件关联打开的 .torrent/.metalink 文件（主进程读取后以 base64 推送）
+  onPendingTaskFile: (callback: (file: { name: string; data: string; kind: 'torrent' | 'metalink' }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, file: { name: string; data: string; kind: 'torrent' | 'metalink' }) => callback(file)
+    ipcRenderer.on('pending-task-file', listener)
+    return () => {
+      ipcRenderer.removeListener('pending-task-file', listener)
     }
   }
 }

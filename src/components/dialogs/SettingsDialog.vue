@@ -85,6 +85,9 @@
         <n-tab-pane :display-directive="paneDirective('advanced')" name="advanced" :tab="t('nav.advancedSettings')">
           <AdvancedSettings />
         </n-tab-pane>
+        <n-tab-pane :display-directive="paneDirective('diagnostics')" name="diagnostics" :tab="t('nav.diagnostics')">
+          <DiagnosticsSettings />
+        </n-tab-pane>
       </n-tabs>
     </div>
   </n-modal>
@@ -112,7 +115,8 @@ const settingsLoaders = {
   components: () => import('@/views/settings/ComponentSettings.vue'),
   plugins: () => import('@/views/settings/PluginSettings.vue'),
   rpcSecurity: () => import('@/views/settings/RpcSecuritySettings.vue'),
-  advanced: () => import('@/views/settings/AdvancedSettings.vue')
+  advanced: () => import('@/views/settings/AdvancedSettings.vue'),
+  diagnostics: () => import('@/views/settings/DiagnosticsSettings.vue')
 } as const
 
 const GeneralSettings = defineAsyncComponent(settingsLoaders.general)
@@ -126,6 +130,7 @@ const ComponentSettings = defineAsyncComponent(settingsLoaders.components)
 const PluginSettings = defineAsyncComponent(settingsLoaders.plugins)
 const RpcSecuritySettings = defineAsyncComponent(settingsLoaders.rpcSecurity)
 const AdvancedSettings = defineAsyncComponent(settingsLoaders.advanced)
+const DiagnosticsSettings = defineAsyncComponent(settingsLoaders.diagnostics)
 
 const uiStore = useUiStore()
 const connectionStore = useConnectionStore()
@@ -163,7 +168,8 @@ const BASE_TABS: Array<{ name: string; labelKey: string }> = [
 ]
 const EXTRA_TABS: Array<{ name: string; labelKey: string }> = [
   { name: 'rpc-security', labelKey: 'nav.rpcSecuritySettings' },
-  { name: 'advanced', labelKey: 'nav.advancedSettings' }
+  { name: 'advanced', labelKey: 'nav.advancedSettings' },
+  { name: 'diagnostics', labelKey: 'nav.diagnostics' }
 ]
 
 const tabNames = computed(() => [...BASE_TABS, ...EXTRA_TABS].map(tab => tab.name))

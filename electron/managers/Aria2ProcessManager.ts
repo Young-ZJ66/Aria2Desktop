@@ -45,6 +45,8 @@ export interface Aria2ProcessConfig {
   downloadDir?: string
   enableRpc?: boolean
   rpcAllowOriginAll?: boolean
+  rpcListenAll?: boolean
+  rpcSecure?: boolean
   autoStart?: boolean
 }
 
@@ -121,6 +123,8 @@ export class Aria2ProcessManager {
       downloadDir: config.downloadDir || app.getPath('downloads'),
       enableRpc: config.enableRpc ?? true,
       rpcAllowOriginAll: config.rpcAllowOriginAll ?? true,
+      rpcListenAll: config.rpcListenAll ?? false,
+      rpcSecure: config.rpcSecure ?? false,
       autoStart: config.autoStart ?? true
     }
   }
@@ -208,8 +212,16 @@ export class Aria2ProcessManager {
 
       this.setupProcessHandlers(token)
 
-      // 等待进程就绪：轮询探测 RPC 端口是否可连接，确保后续 RPC 调用可用
-      await this.waitForRpcReady()
+      // 等待进程就绪：必须通过 RPC 协议层探测才算启动成功。
+      // 仅"进程还活着"或"端口可连接"都不够——端口可能被其它程序占用，
+      // 而 aria2 在配置错误时也可能长时间存活却永远不提供 RPC 服务。
+      const rpcReady = await this.waitForRpcReady()
+      if (!rpcReady) {
+        throw new Error(
+          `Aria2 RPC 服务未就绪（端口 ${this.config.port}）。` +
+          '请检查该端口是否被其它程序占用，或 RPC 相关配置是否正确。'
+        )
+      }
 
       logger.info('Aria2 进程启动成功, PID:', this.process?.pid)
       // 不在这里清 retryCount：一个"能起来、几秒后就崩"的引擎会因此无限循环。
@@ -280,42 +292,48 @@ export class Aria2ProcessManager {
   }
 
   /**
-   * 探测 RPC 端口是否可连接（TCP 层探活）
-   * 最多等待 10 秒：端口通了即认为就绪；超时但进程仍存活时也视为启动成功（回退为宽容判定），
-   * 进程已退出则抛出错误。替代原先固定延迟 3 秒就判定成功的做法。
+   * 等待 RPC 服务真正可用。
+   *
+   * 成功条件只有一条：用当前密钥调用 aria2.getVersion 成功。
+   * - TCP 端口可连接但 JSON-RPC 不响应，说明端口被其它程序占用；
+   * - 进程仍存活但 RPC 未就绪，说明 aria2 配置有问题（例如 enable-rpc=false）。
+   * 这两种都必须让 start() 失败，否则界面会显示"运行中"而所有操作都不可用。
    */
-  private async waitForRpcReady(timeoutMs = 10000): Promise<void> {
+  private async waitForRpcReady(timeoutMs = 15000): Promise<boolean> {
     const port = this.config.port
     const secret = this.configManager.getConfigValue('rpc-secret') || this.config.secret
+    const rpcEnabled = (this.configManager.getConfigValue('enable-rpc') || 'true').toLowerCase() !== 'false'
     const startAt = Date.now()
+
+    if (!rpcEnabled) {
+      logger.error('Aria2 配置中 enable-rpc=false，内置引擎无法提供 RPC 服务')
+      return false
+    }
 
     while (Date.now() - startAt < timeoutMs) {
       // 进程已退出则直接失败
       if (!this.process || this.process.exitCode !== null || this.process.signalCode !== null) {
         throw new Error(`Aria2 进程异常退出，代码: ${this.process?.exitCode}`)
       }
-      // TCP 端口通了之后，再验证 RPC 协议层就绪，排除端口被其他进程占用的情况
+      // 先做轻量 TCP 探测，避免每次都用 HTTP 超时等待；端口通了再验证协议层。
       if (await this.probePort(port)) {
         if (await this.probeRpc(port, secret)) {
-          return
+          return true
         }
       }
       await new Promise(resolve => setTimeout(resolve, 250))
     }
 
-    // 超时但进程仍存活：宽容判定为成功（与旧行为兼容），但把根因区分开——
-    // "端口被别的程序占用"与"aria2 还没就绪"对用户是完全不同的两件事，
-    // 不区分的话只能看到笼统的"启动成功但用不了"。
     if (this.process && !this.process.killed) {
       if (await this.probePort(port)) {
         logger.error(
-          `Aria2 RPC 端口 ${port} 上有服务在监听但不是本引擎（未返回 JSON-RPC 响应）：` +
+          `Aria2 RPC 端口 ${port} 上有服务在监听但不是本引擎（未返回有效 JSON-RPC 响应）：` +
           '该端口很可能被其它程序占用，请在引擎设置里更换 rpc-listen-port'
         )
       } else {
-        logger.warn(`Aria2 RPC 端口 ${port} 探测超时，进程仍在运行，视为启动成功`)
+        logger.error(`Aria2 RPC 端口 ${port} 在 ${timeoutMs}ms 内未就绪，进程仍在运行`)
       }
-      return
+      return false
     }
     throw new Error('Aria2 启动超时')
   }
@@ -337,16 +355,18 @@ export class Aria2ProcessManager {
   }
 
   /**
-   * 通过轻量 JSON-RPC 调用（getVersion）验证 RPC 协议层就绪。
-   * 协议层有响应即视为就绪（含密钥不匹配等 RPC 级错误）——本探测只判断
-   * "aria2 的 RPC 服务是否已起来"，避免密钥异常时误判未就绪而白等超时。
+   * 通过 aria2.getVersion 验证 RPC 协议层与密钥都正确。
+   * 只有拿到版本信息才算就绪：认证失败/外来服务同样不可用，不能放行。
    */
   private async probeRpc(port: number, secret: string): Promise<boolean> {
     try {
-      await callAria2Rpc({ port, secret, method: 'aria2.getVersion', timeoutMs: 1000 })
+      await callAria2Rpc({ port, secret, method: 'aria2.getVersion', timeoutMs: 1500 })
       return true
     } catch (error) {
-      return error instanceof Aria2RpcError
+      if (error instanceof Aria2RpcError) {
+        logger.warn(`RPC 探测失败（端口 ${port}）：${error.message}`)
+      }
+      return false
     }
   }
 
@@ -685,10 +705,22 @@ export class Aria2ProcessManager {
 
     const result = {
       ...this.config,
-      // 直接使用配置文件中的值
+      // 直接使用配置文件中的值；缺失时回退到当前内存配置
       downloadDir: actualConfigs.dir || '',
       port: actualConfigs.port ? parseInt(actualConfigs.port, 10) : this.config.port,
-      secret: actualConfigs.secret || ''
+      secret: actualConfigs.secret || '',
+      enableRpc: actualConfigs.enableRpc === undefined
+        ? this.config.enableRpc
+        : actualConfigs.enableRpc.toLowerCase() !== 'false',
+      rpcAllowOriginAll: actualConfigs.rpcAllowOriginAll === undefined
+        ? this.config.rpcAllowOriginAll
+        : actualConfigs.rpcAllowOriginAll.toLowerCase() === 'true',
+      rpcListenAll: actualConfigs.rpcListenAll === undefined
+        ? this.config.rpcListenAll
+        : actualConfigs.rpcListenAll.toLowerCase() === 'true',
+      rpcSecure: actualConfigs.rpcSecure === undefined
+        ? this.config.rpcSecure
+        : actualConfigs.rpcSecure.toLowerCase() === 'true'
     }
 
     return result
@@ -719,8 +751,23 @@ export class Aria2ProcessManager {
       configUpdates['dir'] = newConfig.downloadDir.trim().replace(/\\/g, '/')
     }
 
+    // RPC 启动项必须落盘，否则重启后页面上的开关会被无声还原。
+    if (newConfig.enableRpc !== undefined) {
+      configUpdates['enable-rpc'] = newConfig.enableRpc ? 'true' : 'false'
+    }
+    if (newConfig.rpcAllowOriginAll !== undefined) {
+      configUpdates['rpc-allow-origin-all'] = newConfig.rpcAllowOriginAll ? 'true' : 'false'
+    }
+    if (newConfig.rpcListenAll !== undefined) {
+      configUpdates['rpc-listen-all'] = newConfig.rpcListenAll ? 'true' : 'false'
+    }
+    if (newConfig.rpcSecure !== undefined) {
+      configUpdates['rpc-secure'] = newConfig.rpcSecure ? 'true' : 'false'
+    }
+
     if (Object.keys(configUpdates).length > 0) {
       this.configManager.setMultipleConfigs(configUpdates)
+      this.configManager.flushSave()
     }
 
     this.config = mergedConfig
@@ -779,7 +826,11 @@ export class Aria2ProcessManager {
     const restartRequiredFields: (keyof Aria2ProcessConfig)[] = [
       'port',
       'secret',
-      'downloadDir'
+      'downloadDir',
+      'enableRpc',
+      'rpcAllowOriginAll',
+      'rpcListenAll',
+      'rpcSecure'
     ]
 
     return restartRequiredFields.some(field => oldConfig[field] !== newConfig[field])
@@ -886,7 +937,7 @@ export class Aria2ProcessManager {
    * 将运行时会话级全局选项持久化到 aria2 配置文件，
    * 使 aria2 进程重启（如每次软件启动）后仍能自动应用（如 max-mmap-limit）。
    */
-  public saveGlobalOptionsToConfig(options: Record<string, string | number>): void {
+  public saveGlobalOptionsToConfig(options: Record<string, string | number | null>): void {
     if (!options || Object.keys(options).length === 0) return
 
     // 键名白名单校验：
@@ -895,23 +946,36 @@ export class Aria2ProcessManager {
     const BLOCKED_OPTION_PATTERN = /^on-(download|bt-download)-/
     const KEY_NAME_PATTERN = /^[a-z][a-z0-9-]*$/
     const safeOptions: Record<string, string | number> = {}
+    const keysToClear: string[] = []
 
     for (const [key, value] of Object.entries(options)) {
       if (!KEY_NAME_PATTERN.test(key) || BLOCKED_OPTION_PATTERN.test(key)) {
         logger.warn(`[Aria2ProcessManager] Blocked unsafe global option: ${key}`)
         continue
       }
-      // 跳过空字符串值（表单占位/未设置项），避免把无意义默认值写进配置文件触发 Unknown option 警告
-      if (typeof value === 'string' && value.trim() === '') continue
+      // null 或空字符串表达"清除该选项"（例如用户在 RPC 页清空了密钥/证书路径）。
+      // 旧实现直接跳过空值，导致清空操作看起来保存成功、重启后旧值又回来了。
+      if (value === null || (typeof value === 'string' && value.trim() === '')) {
+        keysToClear.push(key)
+        continue
+      }
       if (typeof value === 'string' || typeof value === 'number') {
         safeOptions[key] = value
       }
     }
 
-    if (Object.keys(safeOptions).length === 0) return
+    if (Object.keys(safeOptions).length === 0 && keysToClear.length === 0) return
     // 重新加载配置文件，确保基于最新文件内容写入
-    this.configManager.reload()
-    this.configManager.setMultipleConfigs(safeOptions)
+    if (!this.configManager.reload()) {
+      throw new Error('aria2 配置读取失败，已拒绝写入以避免覆盖用户配置')
+    }
+    if (Object.keys(safeOptions).length > 0) {
+      this.configManager.setMultipleConfigs(safeOptions)
+    }
+    for (const key of keysToClear) {
+      this.configManager.commentConfigValue(key)
+    }
+    this.configManager.flushSave()
   }
 
   public isAria2Available(): boolean {

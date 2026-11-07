@@ -209,6 +209,9 @@
   "pairingForbidden": {
     "message": "Pairing rejected — update the app or enter the secret manually"
   },
+  "pairingSecretRequired": {
+    "message": "Set an RPC secret in Settings → RPC & Security first, then pair"
+  },
   "pairingTimeout": {
     "message": "Timed out — try again"
   },

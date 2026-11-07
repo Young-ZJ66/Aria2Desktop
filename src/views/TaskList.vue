@@ -296,8 +296,9 @@ const allTasks = computed(() => {
       return []
   }
 
-  // 按状态和添加时间排序
-  return sortTasksByStatus(tasks)
+  // 不在 computed 里排序：waiting 列表的顺序就是 aria2 的队列顺序，
+  // 任何"按 gid 重排"都会让上移/下移/置顶操作看起来无效。具体排序见 filteredTasks。
+  return tasks
 })
 
 /** 分类筛选选项：内置分类 + 用户自定义分类（与新建任务下拉同口径） */
@@ -372,6 +373,21 @@ function sortTasksByStatus(tasks: Aria2Task[]): Aria2Task[] {
   })
 }
 
+/**
+ * 混合列表排序：只按状态分组，同状态保持输入顺序。
+ * 输入中的 waiting 段来自 tellWaiting，顺序即真实队列顺序；按 gid 再排会覆盖它。
+ * Array.prototype.sort 在现代 V8 是稳定排序，这里仍显式记录原始下标，避免依赖实现细节。
+ */
+function sortTasksByStatusStable(tasks: Aria2Task[]): Aria2Task[] {
+  const statusPriority: Record<string, number> = { 'error': 4, 'active': 3, 'waiting': 2, 'paused': 1 }
+  const originalIndex = new Map(tasks.map((task, index) => [task, index]))
+  return [...tasks].sort((a, b) => {
+    const diff = (statusPriority[b.status] || 0) - (statusPriority[a.status] || 0)
+    if (diff !== 0) return diff
+    return (originalIndex.get(a) ?? 0) - (originalIndex.get(b) ?? 0)
+  })
+}
+
 // 排序和过滤后的任务
 const filteredTasks = computed(() => {
   let tasks = [...allTasks.value]
@@ -390,6 +406,16 @@ const filteredTasks = computed(() => {
   // 搜索过滤（复用 taskUtils.searchTasks 的统一实现，避免两份过滤逻辑漂移）
   if (searchText.value.trim()) {
     tasks = searchTasks(tasks, searchText.value)
+  }
+
+  // 等待队列：保持 tellWaiting 的原始顺序（队列操作的唯一事实来源）
+  if (props.taskType === 'waiting') {
+    return tasks
+  }
+
+  // 混合列表：只按状态分组，等待段内部保持队列顺序
+  if (props.taskType === 'active-and-waiting') {
+    return sortTasksByStatusStable(tasks)
   }
 
   // 默认排序：根据任务类型（列头排序由 Naive UI DataTable 内置处理）
@@ -574,6 +600,8 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         status: row.status,
         operating: operatingTasks.value.has(row.gid),
         showOpenLocation: props.taskType === 'stopped',
+        // 已完成且文件存在时才显示“打开文件”（BT 多文件任务同样打开第一个文件）
+        showOpenFile: props.taskType === 'stopped' && Boolean(row.files?.[0]?.path),
         // 流媒体任务没有 aria2 详情（tellStatus 会失败），隐藏详情入口
         showDetail: !isStreamTask,
         // 等待队列排序按钮仅在"下载任务"页显示（waiting 状态才有队列位置）
@@ -583,11 +611,12 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         onRetry: isStreamTask ? retryStreamTask : retryTask,
         onPause: isStreamTask ? cancelStreamTask : pauseTask,
         'onOpen-location': (task: Aria2Task) => openTaskLocation(task),
+        'onOpen-file': (task: Aria2Task) => openTaskFile(task),
         onRemove: isStreamTask ? removeStreamTask : removeTask,
         'onView-detail': viewTaskDetail,
-        'onMove-up': (gid: string) => void taskStore.moveInQueue(gid, 'up'),
-        'onMove-down': (gid: string) => void taskStore.moveInQueue(gid, 'down'),
-        'onMove-top': (gid: string) => void taskStore.moveInQueue(gid, 'top')
+        'onMove-up': (gid: string) => void moveTaskInQueue(gid, 'up'),
+        'onMove-down': (gid: string) => void moveTaskInQueue(gid, 'down'),
+        'onMove-top': (gid: string) => void moveTaskInQueue(gid, 'top')
       })
     }
   }
@@ -605,6 +634,25 @@ function rowProps(row: Aria2Task) {
 }
 
 // ── 单任务操作 ──
+
+/**
+ * 队列上移/下移/置顶。
+ * 旧实现 fire-and-forget：RPC 失败（任务已开始下载、不在队列中）时界面毫无反馈，
+ * 用户只会觉得按钮没反应；这里统一捕获并提示，成功后刷新队列。
+ */
+async function moveTaskInQueue(gid: string, direction: 'up' | 'down' | 'top') {
+  if (operatingTasks.value.has(gid)) return
+  operatingTasks.value.add(gid)
+  try {
+    await taskStore.moveInQueue(gid, direction)
+  } catch (error: unknown) {
+    console.error('调整队列位置失败:', error)
+    message.error(t('task.queueMoveFailed', { error: getUserFriendlyError(error) }))
+    await taskStore.loadAllTasks()
+  } finally {
+    operatingTasks.value.delete(gid)
+  }
+}
 
 async function pauseTask(gid: string) {
   if (operatingTasks.value.has(gid)) return
@@ -798,7 +846,7 @@ async function openTaskLocation(task: Aria2Task) {
       if (task.files && task.files.length > 0) {
         const firstFile = task.files[0]
         if (firstFile?.path) {
-          result = await window.electronAPI.openInExplorer(firstFile.path)
+          result = await window.electronAPI.openInExplorer(firstFile.path, task.dir)
           if (result?.success) {
             message.success(t('task.openedLocation'))
             return
@@ -815,7 +863,7 @@ async function openTaskLocation(task: Aria2Task) {
     if (task.files && task.files.length > 0) {
       const firstFile = task.files[0]
       if (firstFile?.path) {
-        result = await window.electronAPI.showItemInFolder(firstFile.path)
+        result = await window.electronAPI.showItemInFolder(firstFile.path, task.dir)
         if (result?.success) {
           message.success(t('task.openedLocation'))
           return
@@ -832,6 +880,30 @@ async function openTaskLocation(task: Aria2Task) {
   } catch (error) {
     console.error('Failed to open task location:', error)
     message.error(t('task.openLocationFailed'))
+  }
+}
+
+// 打开任务文件（下载完成后用系统默认程序查看；主进程会再次校验路径边界）
+async function openTaskFile(task: Aria2Task) {
+  if (!window.electronAPI?.openFile) {
+    message.warning(t('task.desktopOnly'))
+    return
+  }
+  const firstFile = task.files?.find(file => file.path)
+  if (!firstFile?.path) {
+    message.warning(t('task.noFileInfo'))
+    return
+  }
+  try {
+    const result = await window.electronAPI.openFile(firstFile.path, task.dir)
+    if (result?.success) {
+      message.success(t('task.openedFile'))
+    } else {
+      message.error(t('task.openFileFailed', { error: result?.error || t('common.unknown') }))
+    }
+  } catch (error) {
+    console.error('Failed to open task file:', error)
+    message.error(t('task.openFileFailed', { error: getUserFriendlyError(error) }))
   }
 }
 
@@ -996,18 +1068,43 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
 // 下载任务页：导出未完成任务 URI 用于迁移，导入时重新创建下载
 // 下载完成页：导出历史记录用于备份，导入时仅恢复记录（不重新下载）
 
+/** 去掉 URL 中的用户名/密码与片段：导出文件常被分享/上传，不能带凭据 */
+function sanitizeExportUri(raw: string): string {
+  try {
+    const url = new URL(raw)
+    if (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'ftp:') {
+      url.username = ''
+      url.password = ''
+      url.hash = ''
+      return url.toString()
+    }
+  } catch {
+    // magnet 等非 URL 形式原样保留（磁力链接本身不含文件内容）
+  }
+  return raw
+}
+
 function exportTasks() {
+  // 导出只保留迁移所需字段：目录替换为文件名，避免把本机用户名/盘符结构写进分享文件；
+  // 文件 URI 去掉 userinfo/hash。完成页历史记录不需要 URI，因此不导出（更小的隐私面）。
   const tasks = filteredTasks.value.map(task => ({
     gid: task.gid,
     status: task.status,
-    files: task.files,
-    dir: task.dir,
+    fileName: task.files?.[0]?.path ? String(task.files[0].path).split(/[\\/]/).pop() : '',
+    dir: '',
     totalLength: task.totalLength,
     completedLength: task.completedLength,
-    bittorrent: task.bittorrent
+    files: (task.files || []).map(file => ({
+      index: String(file.index ?? ''),
+      path: String(file.path || '').split(/[\\/]/).pop() || '',
+      length: String(file.length ?? '0'),
+      completedLength: String(file.completedLength ?? '0'),
+      selected: String(file.selected ?? 'true'),
+      uris: (file.uris || []).map(uri => ({ uri: sanitizeExportUri(String(uri.uri || '')), status: uri.status || 'waiting' }))
+    }))
   }))
 
-  const json = JSON.stringify({ version: 1, type: props.taskType, tasks }, null, 2)
+  const json = JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), type: props.taskType, tasks }, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -1026,26 +1123,85 @@ function exportTasks() {
  * `task.files[0].path` 等字段——一个字段类型不对的条目就会抛 TypeError 让整页白屏，
  * 且**重启后依旧**（坏数据已经落盘）。这里只放行字段齐备的条目，其余跳过并提示数量。
  */
+/** 导入的 URI 只接受下载器支持的协议；解析失败/协议不符直接丢弃 */
+function sanitizeImportedUri(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !raw || raw.length > 8192) return null
+  try {
+    const parsed = new URL(raw)
+    if (!['http:', 'https:', 'ftp:', 'magnet:'].includes(parsed.protocol)) return null
+    if ((parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'ftp:')
+      && (parsed.username || parsed.password)) {
+      return null
+    }
+    return raw
+  } catch {
+    return null
+  }
+}
+
+const IMPORTABLE_STATUS = new Set(['active', 'waiting', 'paused', 'error', 'complete', 'removed'])
+
 function isImportableTask(value: unknown): value is Record<string, unknown> & Aria2Task {
-  if (!value || typeof value !== 'object') return false
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const task = value as Record<string, unknown>
-  if (typeof task.gid !== 'string' || !task.gid) return false
-  if (typeof task.status !== 'string' || !task.status) return false
-  if (!Array.isArray(task.files)) return false
+  if (typeof task.gid !== 'string' || !task.gid || task.gid.length > 128) return false
+  if (typeof task.status !== 'string' || !IMPORTABLE_STATUS.has(task.status)) return false
+  if (!Array.isArray(task.files) || task.files.length > 1000) return false
+  for (const file of task.files) {
+    if (!file || typeof file !== 'object' || Array.isArray(file)) return false
+    const f = file as Record<string, unknown>
+    if (typeof f.path !== 'string' || f.path.length > 32768) return false
+    if (f.uris !== undefined) {
+      if (!Array.isArray(f.uris) || f.uris.length > 100) return false
+      for (const uri of f.uris) {
+        if (!uri || typeof uri !== 'object') return false
+        if (!sanitizeImportedUri((uri as Record<string, unknown>).uri)) return false
+      }
+    }
+  }
+  if (task.dir !== undefined && (typeof task.dir !== 'string' || task.dir.length > 32768)) return false
   return true
 }
 
-/** 补齐渲染层会直接使用、但老版本导出可能缺失的字段（避免 parseInt(undefined) → NaN 污染统计与排序） */
+/** 仅重建已知字段：导入文件里的任意扩展键不会被持久化/渲染 */
 function normalizeImportedTask(task: Record<string, unknown> & Aria2Task): Aria2Task {
   const asLengthString = (value: unknown): string =>
     typeof value === 'string' && value ? value : String(Number(value) || 0)
+  const files = (task.files || []).map((file, index) => ({
+    index: String(file.index ?? index + 1),
+    path: String(file.path || ''),
+    length: asLengthString(file.length),
+    completedLength: asLengthString(file.completedLength),
+    selected: String(file.selected ?? 'true'),
+    uris: (file.uris || [])
+      .map(uri => sanitizeImportedUri(uri.uri))
+      .filter((uri): uri is string => !!uri)
+      .map(uri => ({ uri, status: 'waiting' as const }))
+  }))
   return {
-    ...task,
+    gid: String(task.gid),
+    status: task.status,
     totalLength: asLengthString(task.totalLength),
     completedLength: asLengthString(task.completedLength),
-    dir: typeof task.dir === 'string' ? task.dir : ''
+    uploadLength: asLengthString(task.uploadLength),
+    downloadSpeed: '0',
+    uploadSpeed: '0',
+    connections: '0',
+    dir: typeof task.dir === 'string' ? task.dir : '',
+    files,
+    ...(typeof task.infoHash === 'string' ? { infoHash: task.infoHash } : {}),
+    ...(typeof task.errorCode === 'string' ? { errorCode: task.errorCode } : {}),
+    ...(typeof task.errorMessage === 'string' ? { errorMessage: task.errorMessage } : {})
   }
 }
+
+/** 导入目录只接受本机绝对路径（拒绝 UNC/相对路径），避免把任意网络位置写进任务 */
+function isSafeImportDir(dir: unknown): dir is string {
+  if (typeof dir !== 'string' || !dir || dir.length > 32768) return false
+  if (/^[a-zA-Z]:[\\/]/.test(dir)) return true
+  return /^\/(?!\/)/.test(dir)
+}
+
 
 function importTasks() {
   const input = document.createElement('input')
@@ -1055,14 +1211,20 @@ function importTasks() {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (!file) return
     try {
+      // 导入文件是外部输入：先限大小，避免一次 JSON.parse 卡死渲染进程
+      if (file.size > 10 * 1024 * 1024) {
+        message.error(t('task.importTooLarge'))
+        return
+      }
       const text = await file.text()
       const parsed = JSON.parse(text)
       // 兼容旧格式（纯数组）和新格式（{ version, type, tasks }）
-      const data: Array<Record<string, unknown>> = Array.isArray(parsed) ? parsed : (parsed.tasks || [])
-      if (!Array.isArray(data) || data.length === 0) {
+      const rawData: unknown = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>).tasks : null)
+      if (!Array.isArray(rawData) || rawData.length === 0 || rawData.length > 5000) {
         message.error(t('task.importFailed'))
         return
       }
+      const data = rawData as Array<Record<string, unknown>>
 
       // 运行时校验：导入文件是**外部输入**，此前只检查 gid 非空就用 `as unknown as Aria2Task`
       // 直接持久化——坏数据会被永久写进 userData，之后 task.files[0].path 之类的访问会抛
@@ -1104,7 +1266,7 @@ function importTasks() {
           if (uris && uris.length > 0) {
             try {
               const options: Record<string, string> = {}
-              if (task.dir) options.dir = String(task.dir)
+              if (isSafeImportDir(task.dir)) options.dir = task.dir
               await taskStore.addUri(uris, options)
               imported++
             } catch {

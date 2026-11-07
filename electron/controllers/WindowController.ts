@@ -1,4 +1,4 @@
-import { BrowserWindow, Menu, shell, screen, nativeTheme, session, app, clipboard } from 'electron'
+import { BrowserWindow, Menu, shell, screen, nativeTheme, session, app, clipboard, dialog } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import Store from 'electron-store'
@@ -47,6 +47,11 @@ export class WindowController {
   /** 注册渲染层就绪回调（覆盖式：main.ts 只注册一次） */
   public setOnRendererReady(callback: (() => void) | null): void {
     this.onRendererReady = callback
+  }
+
+  /** 当前窗口的渲染层是否已完成 app-ready（窗口重建后为 false） */
+  public isRendererContentReady(): boolean {
+    return this.isContentReady
   }
 
   /**
@@ -212,7 +217,9 @@ export class WindowController {
       }
     }
 
-    // 创建主窗口
+    // 创建主窗口：新窗口必须先重置就绪/刷盘状态，否则重建窗口会继承旧窗口的标记
+    this.closeFlushStarted = false
+    this.isContentReady = false
     this.mainWindow = new BrowserWindow(windowOptions)
 
     // 恢复最大化/全屏状态
@@ -308,6 +315,38 @@ export class WindowController {
       } catch {
         // 剪贴板读取失败，静默忽略
       }
+    })
+
+    // 渲染进程崩溃：记录并自动重载（最多 3 次），避免用户只看到一个白屏窗口。
+    let rendererCrashCount = 0
+    this.mainWindow.webContents.on('render-process-gone', (_event, details) => {
+      logger.error('[WindowController] Renderer process gone:', details.reason, details.exitCode)
+      if (appState.isQuitting() || !this.mainWindow || this.mainWindow.isDestroyed()) return
+      rendererCrashCount++
+      if (rendererCrashCount <= 3) {
+        setTimeout(() => {
+          if (this.mainWindow && !this.mainWindow.isDestroyed()) this.mainWindow.reload()
+        }, 1000)
+      } else {
+        void dialog.showMessageBox(this.mainWindow, {
+          type: 'error',
+          title: '界面进程异常',
+          message: '界面进程连续崩溃，已停止自动恢复',
+          detail: '请尝试重新启动应用；如果问题持续出现，请导出诊断报告并反馈。',
+          buttons: ['重新启动', '关闭']
+        }).then((result) => {
+          if (result.response === 0) {
+            app.relaunch()
+            app.exit(0)
+          }
+        })
+      }
+    })
+    this.mainWindow.on('unresponsive', () => {
+      logger.warn('[WindowController] Window became unresponsive')
+    })
+    this.mainWindow.on('responsive', () => {
+      logger.info('[WindowController] Window responsive again')
     })
 
     this.mainWindow.webContents.setWindowOpenHandler((details) => {

@@ -15,6 +15,7 @@ import dgram from 'dgram'
 import http from 'http'
 import { createLogger } from '../utils/logger'
 import { getSettingsFresh } from '../utils/settingsAccessor'
+import { activeRpcOptions, getActiveRpcConfig } from '../utils/activeRpcConfig'
 import {
   addPortMappingSoapAction,
   buildAddPortMappingBody,
@@ -68,6 +69,8 @@ export class UpnpService {
    * 否则「关闭开关/退出应用」之后它还会把续租定时器重新装回去（早期版本的泄漏）。
    */
   private generation = 0
+  /** 上次成功建映射的时间；设置页每次保存都会 reconcile，用它避免无意义的重复打洞 */
+  private lastMappingAt = 0
 
   getStatus(): UpnpStatus {
     return { ...this.status }
@@ -88,8 +91,9 @@ export class UpnpService {
       }
       return
     }
-    // 已有映射在维护中：无需重建（避免每次保存设置都重新打洞）
-    if (this.renewTimer) return
+    // 已有映射在维护中：短时间内不重复打洞；但端口/网关可能刚被用户改过，
+    // 超过 5 秒的 reconcile（设置页保存）允许强制重建，不再傻等 10 分钟续租。
+    if (this.renewTimer && Date.now() - this.lastMappingAt < 5000) return
     await this.mapNow()
   }
 
@@ -122,6 +126,7 @@ export class UpnpService {
       if (generation !== this.generation) return this.getStatus()
       if (result.ok) {
         this.status = { state: 'ok', externalIp: result.externalIp, ports: result.ports }
+        this.lastMappingAt = Date.now()
         // 续租定时器
         if (this.renewTimer) clearInterval(this.renewTimer)
         this.renewTimer = setInterval(() => {
@@ -164,15 +169,18 @@ export class UpnpService {
     if (!internalIp) {
       return { ok: false, message: '未获取到局域网地址' }
     }
-    // 4) 端口清单：读引擎全局选项的 bt-listen-port / dht-port
+    // 4) 端口清单：读引擎全局选项的 bt-listen-port / dht-port。
+    // 远程连接时不做 UPnP：映射本机路由器对远端引擎毫无意义，还会误报成功。
     const settings = getSettingsFresh()
-    const port = Number(settings.aria2?.port) || 6800
-    const secret = String(settings.aria2?.secret || '')
+    if (!getActiveRpcConfig(settings).isLocal) {
+      return { ok: false, message: '当前连接为远程引擎，UPnP 仅对本机引擎生效' }
+    }
+    const rpc = activeRpcOptions(settings)
     const { callAria2Rpc } = await import('../utils/aria2Rpc')
     let btListen = 6881
     let dht = 6881
     try {
-      const opts = (await callAria2Rpc({ port, secret, method: 'aria2.getGlobalOption' })) as Record<string, string>
+      const opts = (await callAria2Rpc({ ...rpc, method: 'aria2.getGlobalOption' })) as Record<string, string>
       btListen = Number(String(opts?.['bt-listen-port'] ?? '6881').split(',')[0]) || 6881
       dht = Number(String(opts?.['dht-listen-port'] ?? '6881').split(',')[0]) || 6881
     } catch {
@@ -203,6 +211,15 @@ export class UpnpService {
     }
     if (mapped.length === 0) {
       return { ok: false, message: '端口映射被路由器拒绝' }
+    }
+    // 删除本次不再需要的旧映射（端口修改 / 网关切换 / 续租缩表）。
+    // 旧实现直接 this.activeMappings = built，旧条目只能等 30 分钟租期自然过期。
+    const nextKeys = new Set(built.map(m => `${m.controlUrl}|${m.externalPort}|${m.protocol}`))
+    for (const old of this.activeMappings) {
+      if (nextKeys.has(`${old.controlUrl}|${old.externalPort}|${old.protocol}`)) continue
+      httpSoap(old.controlUrl, buildDeletePortMappingBody(old.externalPort, old.protocol), addPortMappingSoapAction()).catch(
+        () => {}
+      )
     }
     this.activeMappings = built
     // 6) 查询外部 IP（失败不影响映射结果）
@@ -247,15 +264,19 @@ async function discoverGateway(): Promise<string | null> {
 function httpGet(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const req = http.get(url, { timeout: SOAP_TIMEOUT_MS }, (res) => {
-      let data = ''
+      const chunks: Buffer[] = []
+      let total = 0
       res.on('data', (c: Buffer) => {
-        data += c.toString('utf8')
-        if (data.length > MAX_BODY_BYTES) {
+        // 用字节数而不是字符数：中文/多字节文本按 length 判断会提前放行 2~3 倍大小
+        total += c.length
+        if (total > MAX_BODY_BYTES) {
           req.destroy()
           reject(new Error('设备描述文档过大'))
+          return
         }
+        chunks.push(c)
       })
-      res.on('end', () => resolve(data))
+      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     })
     req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
     req.on('error', reject)
@@ -277,15 +298,18 @@ function httpSoap(controlUrl: string, body: string, soapAction: string): Promise
         timeout: SOAP_TIMEOUT_MS
       },
       (res) => {
-        let data = ''
+        const chunks: Buffer[] = []
+        let total = 0
         res.on('data', (c: Buffer) => {
-          data += c.toString('utf8')
-          if (data.length > MAX_BODY_BYTES) {
+          total += c.length
+          if (total > MAX_BODY_BYTES) {
             req.destroy()
             reject(new Error('SOAP 响应过大'))
+            return
           }
+          chunks.push(c)
         })
-        res.on('end', () => resolve({ statusCode: res.statusCode ?? 0, body: data }))
+        res.on('end', () => resolve({ statusCode: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }))
       }
     )
     req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })

@@ -17,13 +17,19 @@ export const defaultSettings: AppSettings = {
   minimizeToTray: true,
   keepWindowState: true,
   autoLaunch: false,
+  downloadCompleteAction: 'none',
+  clipboardMonitorEnabled: false,
 
   aria2: {
     host: 'localhost',
     port: 6800,
     protocol: 'http',
     secret: '',
-    path: '/jsonrpc'
+    path: '/jsonrpc',
+    enableRpc: true,
+    rpcAllowOriginAll: true,
+    rpcListenAll: false,
+    rpcSecure: false
   },
 
   connectionProfiles: [
@@ -54,7 +60,11 @@ export const defaultSettings: AppSettings = {
     autoClassify: true,
     // 拷贝一份，避免直接引用共享默认数组被后续修改污染
     categories: mergeCategoryRules(undefined)
-  }
+  },
+
+  speedSchedule: { enabled: false, rules: [] },
+  downloadSchedule: { enabled: false, rules: [] },
+  bt: { upnpEnabled: false }
 }
 
 class SettingsService {
@@ -102,7 +112,18 @@ class SettingsService {
       category: {
         autoClassify: saved.category?.autoClassify ?? defaultSettings.category!.autoClassify,
         categories: mergeCategoryRules(saved.category?.categories)
-      }
+      },
+      speedSchedule: {
+        ...defaultSettings.speedSchedule!,
+        ...(saved.speedSchedule || {}),
+        rules: saved.speedSchedule?.rules ?? defaultSettings.speedSchedule!.rules
+      },
+      downloadSchedule: {
+        ...defaultSettings.downloadSchedule!,
+        ...(saved.downloadSchedule || {}),
+        rules: saved.downloadSchedule?.rules ?? defaultSettings.downloadSchedule!.rules
+      },
+      bt: { ...defaultSettings.bt, ...(saved.bt || {}) }
     }
   }
 
@@ -130,6 +151,15 @@ class SettingsService {
         autoClassify: patch.category.autoClassify ?? base.category?.autoClassify,
         categories: mergeCategoryRules(patch.category.categories ?? base.category?.categories)
       }
+    }
+    if (patch.bt) {
+      merged.bt = { ...base.bt, ...patch.bt }
+    }
+    if (patch.speedSchedule) {
+      merged.speedSchedule = { ...base.speedSchedule, ...patch.speedSchedule }
+    }
+    if (patch.downloadSchedule) {
+      merged.downloadSchedule = { ...base.downloadSchedule, ...patch.downloadSchedule }
     }
     if (patch.connectionProfiles) {
       merged.connectionProfiles = patch.connectionProfiles

@@ -104,6 +104,7 @@ import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useStreamTaskStore } from '@/stores/streamTaskStore'
 import { useNotificationStore } from '@/stores/notificationStore'
+import { useThemeManager } from '@/composables/useThemeManager'
 import appIcon from '@/../build/Icon.ico'
 
 const GITHUB_URL = 'https://github.com/Young-ZJ66/Aria2Desktop'
@@ -169,10 +170,7 @@ const connectionIcon = computed(() => {
   if (isConnected.value) return CloudDoneOutline
   return isConnecting.value ? SyncOutline : CloudOfflineOutline
 })
-const isDark = computed(() => {
-  const theme = settingsStore.settings.theme
-  return theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-})
+const { isDark } = useThemeManager()
 const githubUrl = GITHUB_URL
 
 async function toggleTheme() {

@@ -11,9 +11,12 @@ export interface PersistedTask extends Aria2Task {
   completedAt?: number // 完成时间戳
 }
 
+/** 已完成任务保留上限（按完成时间淘汰最旧）。导出给测试断言，避免两边各写一个数字。 */
+export const MAX_PERSISTED_TASKS = 5000
+
 class TaskPersistenceService {
   private readonly STORAGE_KEY = 'aria2_persisted_tasks'
-  private readonly MAX_TASKS = 1000 // 最多保存1000个已完成任务
+  private readonly MAX_TASKS = MAX_PERSISTED_TASKS
   private persistedTasks: Map<string, PersistedTask> = new Map()
   /** 是否已完成异步后端加载（避免每次 loadAllTasks 都重复请求） */
   private loaded = false
@@ -94,36 +97,56 @@ class TaskPersistenceService {
     }, TaskPersistenceService.PERSIST_DEBOUNCE_MS)
   }
 
-  /** 立即落盘并等待写盘完成（清空、退出前等需要强一致的场景） */
-  async flush(): Promise<void> {
+  /** 立即落盘并等待写盘完成（清空、退出前等需要强一致的场景）；返回是否成功 */
+  async flush(): Promise<boolean> {
     if (this.persistTimer) {
       clearTimeout(this.persistTimer)
       this.persistTimer = null
     }
-    await this.persist()
+    return await this.persist()
+  }
+
+  /** 最近一次落盘失败原因（诊断页/设置页展示用） */
+  private lastPersistError: string | null = null
+
+  getLastPersistError(): string | null {
+    return this.lastPersistError
   }
 
   /** 持久化到后端（Electron IPC 写文件），非 Electron 环境回退 localStorage。
-    返回写盘完成的 Promise：schedulePersist 路径不 await（合批语义）；flush 路径 await（强一致） */
-  private async persist(): Promise<void> {
+    返回 Promise<boolean>：schedulePersist 路径不 await（合批语义）；flush 路径 await（强一致） */
+  private async persist(): Promise<boolean> {
     if (window.electronAPI?.savePersistedTasks) {
       const data = Object.fromEntries(this.persistedTasks)
       try {
-        await window.electronAPI.savePersistedTasks(data)
+        const result = await window.electronAPI.savePersistedTasks(data)
+        if (result && result.success === false) {
+          // 后端会因超过 10MB 上限拒绝写入；过去这里直接忽略返回值，界面却显示“已保存”
+          this.lastPersistError = result.error || '保存失败'
+          console.error('Failed to persist tasks to backend:', this.lastPersistError)
+          return false
+        }
+        this.lastPersistError = null
+        return true
       } catch (error) {
+        this.lastPersistError = error instanceof Error ? error.message : String(error)
         console.error('Failed to persist tasks to backend:', error)
+        return false
       }
-    } else {
-      this.saveToLocalStorage()
     }
+    return this.saveToLocalStorage()
   }
 
-  private saveToLocalStorage() {
+  private saveToLocalStorage(): boolean {
     try {
       const data = Object.fromEntries(this.persistedTasks)
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data))
+      this.lastPersistError = null
+      return true
     } catch (error) {
+      this.lastPersistError = error instanceof Error ? error.message : String(error)
       console.error('Failed to save persisted tasks to localStorage:', error)
+      return false
     }
   }
 
@@ -278,12 +301,13 @@ class TaskPersistenceService {
   /**
    * 清空所有持久化任务（慎用）
    */
-  clearAllPersistedTasks() {
+  async clearAllPersistedTasks(): Promise<boolean> {
     this.persistedTasks.clear()
     localStorage.removeItem(this.STORAGE_KEY)
     // 同步清空后端文件（Electron IPC 写文件），避免主进程残留旧记录
-    this.flush()
+    const ok = await this.flush()
     devLog('Cleared all persisted tasks')
+    return ok
   }
 }
 
@@ -292,7 +316,8 @@ export const taskPersistenceService = new TaskPersistenceService()
 
 // 定期清理过期任务（保存引用，可通过 stopCleanupTimer 停止）
 const cleanupTimer = setInterval(() => {
-  taskPersistenceService.cleanupExpiredTasks(30) // 清理30天前的任务
+  // 保留 180 天；清理是有意的低频维护，不再使用 30 天静默删除用户历史
+  taskPersistenceService.cleanupExpiredTasks(180)
 }, 24 * 60 * 60 * 1000) // 每24小时执行一次
 
 export function stopCleanupTimer() {

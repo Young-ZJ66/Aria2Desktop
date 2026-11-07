@@ -60,8 +60,22 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'get_download_status',
     description:
-      'Get overall download statistics: global speed, number of active/waiting/stopped tasks, and engine availability.',
-    inputSchema: { type: 'object', properties: {} }
+      'Get overall download statistics: global speed, number of active/waiting/stopped tasks. Pass gid to get one task instead.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        gid: { type: 'string', description: 'Optional task gid; when set returns that task instead of global stats' }
+      }
+    }
+  },
+  {
+    name: 'get_task_status',
+    description: 'Get detailed status of one download task by gid (progress, speed, files, error).',
+    inputSchema: {
+      type: 'object',
+      properties: { gid: { type: 'string', description: 'Task gid shown by list_tasks' } },
+      required: ['gid']
+    }
   },
   {
     name: 'pause_task',
@@ -79,6 +93,39 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       type: 'object',
       properties: { gid: { type: 'string', description: 'Task gid shown by list_tasks' } },
       required: ['gid']
+    }
+  },
+  {
+    name: 'remove_task',
+    description:
+      'Remove a download task and its aria2 result entry. Downloaded files are NOT deleted. Use list_tasks to obtain gids.',
+    inputSchema: {
+      type: 'object',
+      properties: { gid: { type: 'string', description: 'Task gid shown by list_tasks' } },
+      required: ['gid']
+    }
+  },
+  {
+    name: 'pause_all',
+    description: 'Pause all active download tasks.',
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'resume_all',
+    description: 'Resume all paused/waiting download tasks.',
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'set_speed_limit',
+    description:
+      'Set the global download speed limit in bytes per second. Use 0 to remove the limit. Upload limit can optionally be set too.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        download: { type: 'number', description: 'Download limit in bytes/s; 0 means unlimited' },
+        upload: { type: 'number', description: 'Optional upload limit in bytes/s; 0 means unlimited' }
+      },
+      required: ['download']
     }
   }
 ]

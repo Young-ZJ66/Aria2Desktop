@@ -25,6 +25,15 @@ const logger = createLogger('')
 /** 是否已提示过 safeStorage 不可用（避免重复刷屏） */
 let warnedUnavailable = false
 
+/** 当前平台是否可安全加密存储 secret（供设置页/诊断中心展示真实降级状态） */
+export function isSecretEncryptionAvailable(): boolean {
+  try {
+    return safeStorage.isEncryptionAvailable()
+  } catch {
+    return false
+  }
+}
+
 /** 输出一次 safeStorage 不可用的降级提示 */
 function warnEncryptionUnavailable(): void {
   if (warnedUnavailable) return

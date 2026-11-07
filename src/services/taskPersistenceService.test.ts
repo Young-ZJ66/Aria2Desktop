@@ -55,7 +55,13 @@ async function loadService(options: LoadOptions = {}) {
   })
 
   const mod = await import('./taskPersistenceService')
-  return { service: mod.taskPersistenceService, savePersistedTasks, loadPersistedTasks, localStorage }
+  return {
+    service: mod.taskPersistenceService,
+    maxTasks: mod.MAX_PERSISTED_TASKS,
+    savePersistedTasks,
+    loadPersistedTasks,
+    localStorage
+  }
 }
 
 /** 取第一次落盘的载荷（`mock.calls` 的索引访问在 noUncheckedIndexedAccess 下是可能为空的） */
@@ -125,18 +131,18 @@ describe('persistCompletedTask（重复与合批）', () => {
   })
 })
 
-describe('上限淘汰（超过 1000 条时保留最新的）', () => {
+describe('上限淘汰（超过上限时保留最新的）', () => {
   it('挤掉完成时间最早的那条，条数收敛到上限', async () => {
-    const { service } = await loadService()
+    const { service, maxTasks } = await loadService()
 
-    for (let index = 0; index < 1_001; index++) {
+    for (let index = 0; index < maxTasks + 1; index++) {
       service.persistCompletedTask(makeTask(`task-${index}`), 1_000 + index)
     }
 
-    expect(service.getStorageStats().totalTasks).toBe(1000)
+    expect(service.getStorageStats().totalTasks).toBe(maxTasks)
     expect(service.getPersistedTask('task-0')).toBeUndefined()
     expect(service.getPersistedTask('task-1')).toBeDefined()
-    expect(service.getPersistedTask('task-1000')).toBeDefined()
+    expect(service.getPersistedTask(`task-${maxTasks}`)).toBeDefined()
   })
 })
 

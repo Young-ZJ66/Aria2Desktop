@@ -17,10 +17,11 @@ export interface Aria2UpdateConfig {
    */
   clearSecret?: boolean
   /**
-   * 以下两项是历史遗留字段：**当前渲染层不再发送**（RPC 开关与跨源设置由「RPC 安全」页
-   * 经 `aria2.saveGlobalOptions` 直接写配置），主进程读到后也只合并进内存配置、不落盘。
-   * 这里如实声明，是为了让"主进程接受的入参形状"有类型可依，而不是留一处隐式 any。
+   * RPC 启动项。由「RPC 安全」页经 `aria2.saveGlobalOptions` 写入配置，
+   * 主进程会同时合并进内存配置并同步 settings/本机连接预设。
    */
   enableRpc?: boolean
   rpcAllowOriginAll?: boolean
+  rpcListenAll?: boolean
+  rpcSecure?: boolean
 }

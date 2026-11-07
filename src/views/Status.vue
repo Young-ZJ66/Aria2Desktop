@@ -30,6 +30,14 @@
           <span class="summary-label">{{ item.label }}</span>
         </div>
       </div>
+      <div class="summary-footer">
+        <n-popconfirm @positive-click="downloadHistoryStore.reset()">
+          <template #trigger>
+            <n-button text size="tiny">{{ t('statusPage.resetHistory') }}</n-button>
+          </template>
+          {{ t('statusPage.resetHistoryConfirm') }}
+        </n-popconfirm>
+      </div>
     </n-card>
 
     <!-- 流量统计卡片 -->
@@ -78,11 +86,11 @@ import { useI18n } from 'vue-i18n'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useStatsStore } from '@/stores/statsStore'
-import { useSettingsStore } from '@/stores/settingsStore'
 import { useDownloadHistoryStore } from '@/stores/downloadHistoryStore'
 import { formatSpeed, formatSize } from '@/utils/taskFormatters'
 import { getTaskStats } from '@/utils/taskUtils'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
+import { useThemeManager } from '@/composables/useThemeManager'
 import {
   DownloadOutline,
   CloudUploadOutline,
@@ -101,15 +109,11 @@ echarts.use([LineChart, TooltipComponent, GridComponent, CanvasRenderer])
 const connectionStore = useConnectionStore()
 const taskStore = useTaskStore()
 const statsStore = useStatsStore()
-const settingsStore = useSettingsStore()
 const downloadHistoryStore = useDownloadHistoryStore()
 const { t } = useI18n()
 
-// 暗色模式判断（与 AppSidebar 一致）：dark 或 auto 跟随系统
-const isDark = computed(() => {
-  const theme = settingsStore.settings.theme
-  return theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-})
+// 暗色模式判断（与 AppSidebar 共用同一个响应式系统主题状态）
+const { isDark } = useThemeManager()
 
 const isConnected = computed(() => connectionStore.isConnected)
 const config = computed(() => connectionStore.config)
@@ -437,6 +441,11 @@ function updateTrafficChart() {
 .summary-label {
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.summary-footer {
+  margin-top: 8px;
+  text-align: right;
 }
 
 .info-item {

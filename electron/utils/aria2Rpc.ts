@@ -1,4 +1,5 @@
 import * as http from 'http'
+import * as https from 'https'
 
 /**
  * aria2 JSON-RPC（HTTP）统一调用工具。
@@ -8,8 +9,14 @@ import * as http from 'http'
 
 /** RPC 请求参数 */
 export interface Aria2RpcOptions {
-  /** aria2 RPC 端口 */
+  /** aria2 RPC 主机，默认 127.0.0.1（远程连接预设会传远端地址） */
+  host?: string
+  /** RPC 端口 */
   port: number
+  /** http 或 https（wss/ws 在 HTTP JSON-RPC 调用中分别映射为 https/http） */
+  protocol?: 'http' | 'https'
+  /** JSON-RPC 路径，默认 /jsonrpc */
+  path?: string
   /** RPC 密钥（空串表示无密钥） */
   secret?: string
   /** JSON-RPC 方法名，如 aria2.getVersion */
@@ -18,6 +25,10 @@ export interface Aria2RpcOptions {
   params?: unknown[]
   /** 超时（毫秒），默认 5000 */
   timeoutMs?: number
+  /** 自定义 CA 证书（PEM），用于自签名/私有 CA 的 HTTPS RPC */
+  ca?: string
+  /** 是否允许自签名证书；仅对 https 生效，默认 false */
+  allowSelfSigned?: boolean
 }
 
 /** 请求序号（仅用于 JSON-RPC id，单进程内递增即可） */
@@ -78,7 +89,18 @@ export function classifyRpcPortProbe(error?: unknown): PortOccupancy {
  * - RPC 返回 error / 网络错误 / 超时 / 响应非 JSON-RPC 结构：reject Error
  */
 export function callAria2Rpc(options: Aria2RpcOptions): Promise<unknown> {
-  const { port, secret, method, params = [], timeoutMs = 5000 } = options
+  const {
+    host = '127.0.0.1',
+    port,
+    protocol = 'http',
+    path = '/jsonrpc',
+    secret,
+    method,
+    params = [],
+    timeoutMs = 5000,
+    ca,
+    allowSelfSigned = false
+  } = options
 
   return new Promise((resolve, reject) => {
     const rpcParams = secret ? [`token:${secret}`, ...params] : params
@@ -89,16 +111,25 @@ export function callAria2Rpc(options: Aria2RpcOptions): Promise<unknown> {
       params: rpcParams
     })
 
-    const req = http.request({
-      hostname: '127.0.0.1',
+    const isHttps = protocol === 'https'
+    const requestOptions: https.RequestOptions = {
+      hostname: host,
       port,
-      path: '/jsonrpc',
+      path,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body)
-      }
-    }, (res) => {
+      },
+      ...(isHttps
+        ? {
+          ...(ca ? { ca } : {}),
+          ...(allowSelfSigned ? { rejectUnauthorized: false } : {})
+        }
+        : {})
+    }
+    const transport = isHttps ? https : http
+    const req = transport.request(requestOptions, (res) => {
       let data = ''
       res.on('data', (chunk) => { data += chunk })
       res.on('end', () => {

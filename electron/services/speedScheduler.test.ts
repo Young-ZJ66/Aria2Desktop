@@ -63,12 +63,14 @@ describe('SpeedScheduler', () => {
 
     scheduler.check()
     expect(mockedRpc).toHaveBeenCalledTimes(1)
-    expect(mockedRpc).toHaveBeenCalledWith({
-      port: 6801,
-      secret: 'test-secret',
-      method: 'aria2.changeGlobalOption',
-      params: [{ 'max-overall-download-limit': '1048576' }]
-    })
+    expect(mockedRpc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        port: 6801,
+        secret: 'test-secret',
+        method: 'aria2.changeGlobalOption',
+        params: [{ 'max-overall-download-limit': '1048576' }]
+      })
+    )
 
     // 每分钟一轮检查，规则没变就不应该重复打扰引擎
     scheduler.check()

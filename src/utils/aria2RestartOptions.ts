@@ -28,7 +28,16 @@ export const RESTART_REQUIRED_OPTIONS: ReadonlySet<string> = new Set([
   'bt-external-ip',
   // 客户端标识
   'peer-id-prefix',
-  'peer-agent'
+  'peer-agent',
+  // RPC 服务启动项（只能通过配置文件 + 重启生效）
+  'enable-rpc',
+  'rpc-listen-port',
+  'rpc-listen-all',
+  'rpc-allow-origin-all',
+  'rpc-secret',
+  'rpc-secure',
+  'rpc-certificate',
+  'rpc-private-key'
 ])
 
 /** 判断选项集是否包含需要重启 Aria2 生效的选项 */

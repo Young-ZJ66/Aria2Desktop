@@ -65,9 +65,11 @@ export interface ElectronAPI {
   showOpenDialog: (options: unknown) => Promise<{ canceled: boolean; filePaths: string[] }>
 
   // 文件系统操作
-  showItemInFolder: (path: string) => Promise<{ success: boolean; error?: string }>
+  showItemInFolder: (path: string, taskDir?: string) => Promise<{ success: boolean; error?: string }>
   openPath: (path: string) => Promise<{ success: boolean; error?: string }>
-  openInExplorer: (path: string) => Promise<{ success: boolean; error?: string }>
+  openInExplorer: (path: string, taskDir?: string) => Promise<{ success: boolean; error?: string }>
+  /** 用系统默认程序打开下载目录内的文件（主进程校验路径边界） */
+  openFile: (path: string, taskDir?: string) => Promise<{ success: boolean; error?: string }>
   deleteFiles: (paths: string[], taskDir?: string) => Promise<{
     success: boolean
     error?: string
@@ -232,6 +234,9 @@ export interface ElectronAPI {
   // 剪贴板写入（同上，经主进程）
   writeClipboard: (text: string) => Promise<boolean>
 
+  // 系统密钥环是否可用
+  getSecretStorageStatus: () => Promise<{ available: boolean; platform: string }>
+
   // 系统通知（通过主进程 Electron Notification API，比 Web API 更可靠）
   sendNotification: (title: string, body: string) => Promise<void>
 
@@ -313,6 +318,9 @@ export interface ElectronAPI {
 
   // 待处理的下载链接（magnet: 等协议链接）
   onPendingDownloadUrl: (callback: (url: string) => void) => () => void
+
+  // 系统文件关联打开的 .torrent/.metalink 文件
+  onPendingTaskFile: (callback: (file: { name: string; data: string; kind: 'torrent' | 'metalink' }) => void) => () => void
 }
 
 declare global {

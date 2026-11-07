@@ -2,6 +2,7 @@ import * as http from 'http'
 import { app } from 'electron'
 import { createLogger } from '../utils/logger'
 import { getSettingsFresh } from '../utils/settingsAccessor'
+import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { callAria2Rpc } from '../utils/aria2Rpc'
 import { checkYtdlpAvailable } from './ytdlpService'
 import { startStreamDownload, type StreamDownloadEvent } from './streamDownloadService'
@@ -215,7 +216,8 @@ export class ExtensionApiServer {
       return
     }
 
-    // 密钥每次都直读（settings 的 secret 变化后必须立即生效，不能吃到缓存值）
+    // 密钥每次都直读（settings 的 secret 变化后必须立即生效，不能吃到缓存值）。
+    // 扩展与内置引擎的直连回退共用这个密钥，因此保持本机引擎语义，不跟随远程预设。
     const secret = getSettingsFresh()?.aria2?.secret ?? ''
     const authorized = isAuthorizedExtensionRequest({
       authorization: req.headers.authorization,
@@ -400,10 +402,9 @@ export class ExtensionApiServer {
     args: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     const settings = getSettingsFresh()
-    const port = settings?.aria2?.port ?? 6800
-    const secret = settings?.aria2?.secret ?? ''
+    const rpcOptions = activeRpcOptions(settings)
     const rpc = (m: string, p: unknown[] = []) =>
-      callAria2Rpc({ port, secret, method: m, params: p, timeoutMs: ENGINE_RPC_TIMEOUT_MS })
+      callAria2Rpc({ ...rpcOptions, method: m, params: p, timeoutMs: ENGINE_RPC_TIMEOUT_MS })
 
     try {
       switch (toolName) {
@@ -455,15 +456,25 @@ export class ExtensionApiServer {
               fetchList('aria2.tellWaiting', [0, limit]),
               fetchList('aria2.tellStopped', [0, limit])
             ])
-            tasks = [...a, ...w, ...s]
+            // 三类各取 limit 后再整体截断，避免 all 返回超过用户要求的条数
+            tasks = [...a, ...w, ...s].slice(0, limit)
           } else {
             const [a, w] = await Promise.all([fetchList('aria2.tellActive'), fetchList('aria2.tellWaiting', [0, limit])])
-            tasks = [...a, ...w]
+            tasks = [...a, ...w].slice(0, limit)
           }
           return buildToolTextResult(JSON.stringify({ count: tasks.length, tasks }, null, 2))
         }
 
         case 'get_download_status': {
+          const gid = optString(args, 'gid')
+          if (gid === null) return buildToolErrorResult('gid must be a string')
+          if (gid) {
+            const task = (await rpc('aria2.tellStatus', [gid, [
+              'gid', 'status', 'totalLength', 'completedLength', 'downloadSpeed', 'uploadSpeed',
+              'connections', 'numSeeders', 'dir', 'files', 'errorCode', 'errorMessage'
+            ]])) as Record<string, unknown>
+            return buildToolTextResult(JSON.stringify(task, null, 2))
+          }
           const stat = (await rpc('aria2.getGlobalStat')) as Record<string, unknown>
           return buildToolTextResult(
             JSON.stringify({
@@ -476,6 +487,17 @@ export class ExtensionApiServer {
           )
         }
 
+        case 'get_task_status': {
+          const gid = optString(args, 'gid')
+          if (gid === undefined) return buildToolErrorResult('gid is required')
+          if (gid === null) return buildToolErrorResult('gid must be a string')
+          const task = (await rpc('aria2.tellStatus', [gid, [
+            'gid', 'status', 'totalLength', 'completedLength', 'downloadSpeed', 'uploadSpeed',
+            'connections', 'numSeeders', 'dir', 'files', 'errorCode', 'errorMessage', 'bittorrent'
+          ]])) as Record<string, unknown>
+          return buildToolTextResult(JSON.stringify(task, null, 2))
+        }
+
         case 'pause_task':
         case 'resume_task': {
           const gid = optString(args, 'gid')
@@ -483,6 +505,43 @@ export class ExtensionApiServer {
           if (gid === null) return buildToolErrorResult('gid must be a string')
           await rpc(toolName === 'pause_task' ? 'aria2.pause' : 'aria2.unpause', [gid])
           return buildToolTextResult(`${toolName === 'pause_task' ? 'Paused' : 'Resumed'} task ${gid}`)
+        }
+
+        case 'remove_task': {
+          const gid = optString(args, 'gid')
+          if (gid === undefined) return buildToolErrorResult('gid is required')
+          if (gid === null) return buildToolErrorResult('gid must be a string')
+          // 只移除任务与结果记录，不删除磁盘文件（MCP 不暴露文件系统操作）
+          try {
+            await rpc('aria2.remove', [gid])
+          } catch {
+            // 已停止的任务 remove 会失败，继续尝试清结果
+          }
+          await rpc('aria2.removeDownloadResult', [gid])
+          return buildToolTextResult(`Removed task ${gid} (downloaded files were kept)`)
+        }
+
+        case 'pause_all': {
+          await rpc('aria2.pauseAll')
+          return buildToolTextResult('All active tasks paused')
+        }
+
+        case 'resume_all': {
+          await rpc('aria2.unpauseAll')
+          return buildToolTextResult('All paused tasks resumed')
+        }
+
+        case 'set_speed_limit': {
+          const download = optNumber(args, 'download', -1)
+          if (download === null || download < 0) return buildToolErrorResult('download must be a non-negative number')
+          const upload = optNumber(args, 'upload', -1)
+          if (upload === null || (upload !== -1 && upload < 0)) {
+            return buildToolErrorResult('upload must be a non-negative number')
+          }
+          const options: Record<string, string> = { 'max-overall-download-limit': String(Math.floor(download)) }
+          if (upload !== -1) options['max-overall-upload-limit'] = String(Math.floor(upload))
+          await rpc('aria2.changeGlobalOption', [options])
+          return buildToolTextResult(`Speed limit set: download=${options['max-overall-download-limit']} B/s${upload !== -1 ? `, upload=${options['max-overall-upload-limit']} B/s` : ''}`)
         }
 
         default:
@@ -501,7 +560,7 @@ export class ExtensionApiServer {
  * 扩展保存后即可使用——免去"到 App 设置里复制密钥再粘贴"的手工环节。
  *
  * 安全模型（三层）：
- * ① 仅本机（127.0.0.1）；② Origin 必须是 chrome-extension://（网页/curl 都触发不了）；
+ * ① 仅本机（127.0.0.1）；② Origin 必须是 chrome-extension:// 或 moz-extension://（网页/curl 都触发不了）；
  * ③ 用户在 App 里手动确认——本地恶意进程能伪造 Origin，但伪造不出用户的点击。
  * 该端点不引入新的本地攻击面：能读文件的本机进程早已能从 aria2.conf 拿到明文密钥。
  *
@@ -524,8 +583,13 @@ export class ExtensionApiServer {
 
     const settings = getSettingsFresh()
     if (!settings?.aria2?.secret) {
-    // 引擎没设密钥（RPC 无保护）：扩展直接连即可，无需配对
-      this.send(res, 200, { ok: true, secret: '', port: settings?.aria2?.port ?? 6800, note: 'no_secret' })
+      // RPC 未设密钥时扩展接口本身会拒绝所有请求（isAuthorizedExtensionRequest 要求非空密钥），
+      // 过去这里返回 ok:true + secret:'' 会让扩展保存一个永远 401 的配置；直接明确失败并引导用户先设置密钥。
+      this.send(res, 409, {
+        ok: false,
+        code: 'secret_required',
+        error: '请先在「设置 → RPC 与安全」设置 RPC 密钥，再配对扩展'
+      })
       return
     }
 
@@ -669,8 +733,7 @@ export class ExtensionApiServer {
 
     try {
       const gid = await callAria2Rpc({
-        port: settings?.aria2?.port ?? 6800,
-        secret: settings?.aria2?.secret ?? '',
+        ...activeRpcOptions(settings),
         method: 'aria2.addUri',
         params: [[url], options],
         timeoutMs: ADD_RPC_TIMEOUT_MS
@@ -715,8 +778,7 @@ export class ExtensionApiServer {
     if (info.isRunning) {
       try {
         const result = await callAria2Rpc({
-          port: settings?.aria2?.port ?? 6800,
-          secret: settings?.aria2?.secret ?? '',
+          ...activeRpcOptions(settings),
           method: 'aria2.getVersion',
           timeoutMs: ENGINE_RPC_TIMEOUT_MS
         }) as { version?: string } | undefined

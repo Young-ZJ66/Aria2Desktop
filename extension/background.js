@@ -328,6 +328,8 @@ async function startPairing() {
       result = { ok: false, error: i18n('pairingDenied') }
     } else if (data?.code === 'pairing_forbidden') {
       result = { ok: false, error: i18n('pairingForbidden') }
+    } else if (data?.code === 'secret_required') {
+      result = { ok: false, error: i18n('pairingSecretRequired') }
     } else {
       result = { ok: false, error: i18n('pairingFailed') }
     }

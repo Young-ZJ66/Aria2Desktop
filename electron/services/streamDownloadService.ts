@@ -15,6 +15,7 @@ import { app, Notification } from 'electron'
 import { getYtdlpExecutablePath } from './ytdlpService'
 import { checkFfmpegAvailable, getFfmpegLocation } from './ffmpegService'
 import { createLogger } from '../utils/logger'
+import { isSafeHttpUrl } from '../utils/ipcInputValidation'
 
 const logger = createLogger('StreamDownload')
 
@@ -90,12 +91,10 @@ export async function startStreamDownload(
   request: StreamDownloadRequest,
   onEvent: (event: StreamDownloadEvent) => void
 ): Promise<StreamDownloadStartResult> {
-  let parsedUrl: URL
-  try {
-    parsedUrl = new URL(request.url)
-  } catch {
+  if (!isSafeHttpUrl(request.url)) {
     return { success: false, code: 'invalid_request', error: 'Invalid URL' }
   }
+  const parsedUrl = new URL(request.url)
   if (!/^https?:$/.test(parsedUrl.protocol)) {
     return { success: false, code: 'invalid_request', error: 'Unsupported URL scheme' }
   }

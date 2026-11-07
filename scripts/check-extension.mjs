@@ -70,7 +70,10 @@ if (manifest) {
   const permissions = JSON.stringify(manifest.permissions ?? [])
   const hosts = JSON.stringify(manifest.host_permissions ?? [])
   if (hosts.includes('<all_urls>')) fail('host_permissions 仍含 <all_urls>')
-  if (permissions.includes('clipboardRead')) fail('permissions 仍含未使用的 clipboardRead')
+  const popupSource = fs.readFileSync(path.join(extensionDir, 'popup.js'), 'utf8')
+  if (popupSource.includes('navigator.clipboard.readText') && !permissions.includes('clipboardRead')) {
+    fail('popup.js 使用 navigator.clipboard.readText，但 manifest 缺少 clipboardRead')
+  }
   if (!permissions.includes('notifications')) fail('permissions 缺少 notifications（通知会静默失败）')
   ok(`权限: ${permissions}`)
   ok(`host_permissions: ${hosts}`)

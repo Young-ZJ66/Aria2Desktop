@@ -81,5 +81,16 @@ export const useDownloadHistoryStore = defineStore('downloadHistory', () => {
     }
   }
 
-  return { history, todayBytes, totalBytes, record }
+  /** 清空今日/累计统计（只影响本应用的下载量历史，不动 aria2 任务） */
+  function reset() {
+    history.value = { totalBytes: 0, daily: {} }
+    todayKey.value = localDateKey()
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // 存储不可用时仅本会话生效
+    }
+  }
+
+  return { history, todayBytes, totalBytes, record, reset }
 })

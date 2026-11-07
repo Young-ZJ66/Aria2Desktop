@@ -19,6 +19,7 @@ import * as fs from 'fs'
 import * as vm from 'vm'
 import Store from 'electron-store'
 import { callAria2Rpc } from '../utils/aria2Rpc'
+import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { createLogger } from '../utils/logger'
 import type { PluginManifest, PluginInstance, PluginInfo, PluginContext } from '../types/plugin'
@@ -189,8 +190,6 @@ export class PluginManager {
   /** 创建沙箱上下文（按权限裁剪 API） */
   private createSandbox(manifest: PluginManifest): PluginContext {
     const permissions = new Set(manifest.permissions || [])
-    // 提供给插件的是脱敏快照：保留配置结构，但不含任何密钥字段
-    const pluginSettings = toPluginSafeSettings(getSettingsFresh())
 
     /**
      * RPC 句柄**每次调用时**才解析端口与密钥（不要提到闭包外一次性求值）。
@@ -202,9 +201,7 @@ export class PluginManager {
      */
     const rpc = <T>(method: string, params?: unknown[]) => {
       const settings = getSettingsFresh()
-      const port = Number(settings.aria2?.port) || 6800
-      const secret = String(settings.aria2?.secret || '')
-      return this.callAria2Rpc(port, secret, method, params) as Promise<T>
+      return callAria2Rpc({ ...activeRpcOptions(settings), method, params }) as Promise<T>
     }
 
     const ctx: PluginContext = {
@@ -216,16 +213,18 @@ export class PluginManager {
       aria2: {
         getGlobalStat: () => rpc<Record<string, string>>('aria2.getGlobalStat'),
         getActiveTasks: () => rpc<unknown[]>('aria2.tellActive'),
-        getWaitingTasks: () => rpc<unknown[]>('aria2.tellWaiting', [0, 100]),
-        getStoppedTasks: () => rpc<unknown[]>('aria2.tellStopped', [0, 100]),
+        // 取满 aria2 单次上限（1000），避免插件只能看到前 100 个等待/停止任务
+        getWaitingTasks: () => rpc<unknown[]>('aria2.tellWaiting', [0, 1000]),
+        getStoppedTasks: () => rpc<unknown[]>('aria2.tellStopped', [0, 1000]),
         addUri: (uris, options) => rpc<string>('aria2.addUri', [uris, options || {}]),
         pause: (gid) => rpc<string>('aria2.pause', [gid]),
         unpause: (gid) => rpc<string>('aria2.unpause', [gid]),
         remove: (gid) => rpc<string>('aria2.remove', [gid])
       },
       settings: {
-        // 脱敏后的配置快照（已剔除 aria2.secret 与连接预设中的 secret）
-        get: (key: string) => pluginSettings[key]
+        // 每次调用都重新取脱敏快照：插件在激活时缓存 settings.get 的旧值，
+        // 用户随后改设置却读不到（例如插件按刷新间隔工作，会一直用旧值）。
+        get: (key: string) => toPluginSafeSettings(getSettingsFresh())[key]
       },
       notify: {
         send: (title: string, body: string) => {
@@ -358,7 +357,10 @@ export class PluginManager {
 
     const script = new vm.Script(code, { filename: 'plugin' })
     const vmContext = vm.createContext(sandbox)
-    script.runInContext(vmContext)
+    // 同步执行超时：插件入口里的死循环会冻结整个主进程（窗口无响应、下载也停摆）。
+    // vm 的 timeout 能中断同步脚本；插件仍被视为可信代码（vm 非安全边界），
+    // 这里只防"写错的插件拖垮应用"，不承诺抵御恶意代码。
+    script.runInContext(vmContext, { timeout: 3000, breakOnSigint: true })
 
     // 插件导出的实例
     const exported = sandbox.module.exports || sandbox.exports

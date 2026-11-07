@@ -331,8 +331,8 @@ const run = async () => {
   const savedSecret = harnessSettings.aria2.secret
   harnessSettings.aria2.secret = ''
   const noSecret = await request(pairUrl, { ...pairBody, headers: { ...jsonHeaders, Origin: extOrigin } })
-  check('配对: 引擎未设密钥 → 直接成功且不触发弹窗',
-    noSecret.status === 200 && noSecret.json?.ok === true && noSecret.json?.secret === '' && noSecret.json?.note === 'no_secret')
+  check('配对: 引擎未设密钥 → 409 并提示先设置密钥',
+    noSecret.status === 409 && noSecret.json?.ok === false && noSecret.json?.code === 'secret_required')
   harnessSettings.aria2.secret = savedSecret
 
   // ---- G. 畸形请求目标：曾让主进程按"未处理的 Promise 拒绝"直接退出（本轮修复） ----

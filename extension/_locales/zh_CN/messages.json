@@ -209,6 +209,9 @@
   "pairingForbidden": {
     "message": "配对被拒绝：请升级 App 或手动填写"
   },
+  "pairingSecretRequired": {
+    "message": "请先在 App 的「设置 → RPC 与安全」设置 RPC 密钥，再点配对"
+  },
   "pairingTimeout": {
     "message": "等待确认超时，请重试"
   },

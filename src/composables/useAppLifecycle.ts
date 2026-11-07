@@ -49,6 +49,7 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   let unsubscribeDownloadComplete: (() => void) | null = null
   let unsubscribeDownloadError: (() => void) | null = null
   let unsubscribePendingUrl: (() => void) | null = null
+  let unsubscribePendingTaskFile: (() => void) | null = null
   let unsubscribeClipboardUrl: (() => void) | null = null
   let unsubscribeTrayAction: (() => void) | null = null
   let unsubscribeEngineCrashed: (() => void) | null = null
@@ -195,6 +196,27 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
         // 3 秒宽限里用户可能把完成的任务也删光了——那不是"下载完成"，是清理现场
         if (taskStore.completedTasks.length === 0) return
 
+        // 打开最近完成任务的文件/目录：属于"下载完成工作流"的一部分。
+        // 只使用 aria2 返回的文件路径，主进程还会再次校验路径必须位于下载目录内。
+        if (action === 'open-folder' || action === 'open-file') {
+          const latestTask = taskStore.completedTasks[0]
+          const latestFile = latestTask?.files?.find(file => Boolean(file.path))
+          let result: { success: boolean; error?: string } | null | undefined
+          if (action === 'open-file' && latestFile?.path) {
+            result = await window.electronAPI?.openFile?.(latestFile.path, latestTask?.dir)
+          } else if (latestFile?.path) {
+            result = await window.electronAPI?.openInExplorer?.(latestFile.path, latestTask?.dir)
+          } else if (latestTask?.dir) {
+            result = await window.electronAPI?.openPath?.(latestTask.dir)
+          }
+          if (!result || result.success === false) {
+            message.error(t('generalSettings.openAfterCompleteFailed', {
+              error: result?.error ?? t('settings.unknownError')
+            }))
+          }
+          return
+        }
+
         // 关机/休眠必须检查返回值：命令失败时（如系统禁用了休眠、有策略限制）主进程会如实
         // 返回 {success:false}，此前这里把结果丢掉，用户什么也看不到，只会以为"没生效"。
         if (action === 'shutdown' || action === 'hibernate') {
@@ -228,10 +250,14 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       statsStore.loadVersion()
       // 全局配置缓存由 connectionStore.connect 连接成功后预热，设置页直接使用缓存，避免切换页面时重复请求闪烁
       taskStore.loadAllTasks()
-      // 后台持续采集流量数据（不依赖状态页是否打开）
+      // 后台持续采集流量数据（不依赖状态页是否打开）；新连接从空曲线开始
+      trafficMonitor.resetHistory()
       trafficMonitor.startMonitor()
-      // 启动剪贴板下载链接检测（渲染层 visibilitychange/focus + 主进程窗口焦点推送双重保障）
-      clipboardMonitor.start()
+      // 剪贴板下载链接检测是隐私敏感功能：仅在用户显式开启时启动
+      //（渲染层 visibilitychange/focus + 主进程窗口焦点推送双重保障）
+      if (settingsStore.getSetting('clipboardMonitorEnabled') === true) {
+        clipboardMonitor.start()
+      }
       if (window.electronAPI?.onClipboardUrlDetected) {
         unsubscribeClipboardUrl = window.electronAPI.onClipboardUrlDetected((url: string) => {
           clipboardMonitor.handleDetectedUrl(url)
@@ -283,6 +309,7 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     } else {
       stopAllRefresh()
       trafficMonitor.stopMonitor()
+      trafficMonitor.resetHistory()
       clipboardMonitor.stop()
       unsubscribeClipboardUrl?.()
       unsubscribeClipboardUrl = null
@@ -294,6 +321,16 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       unsubscribeTrayAction = null
     }
   })
+
+  // 用户切换剪贴板监控开关后立即生效，不必等重新连接
+  watch(
+    () => settingsStore.settings.clipboardMonitorEnabled,
+    (enabled) => {
+      if (!connectionStore.isConnected) return
+      if (enabled === true) clipboardMonitor.start()
+      else clipboardMonitor.stop()
+    }
+  )
 
   // 启动时的后台更新检查：检查失败视为已是最新版本（不弹窗打扰）；
   // 仅在每次真实启动（onMounted，含退出后重开）时触发一次；
@@ -342,6 +379,21 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       unsubscribePendingUrl = window.electronAPI.onPendingDownloadUrl((url: string) => {
         if (url && (url.startsWith('magnet:') || url.startsWith('http'))) {
           uiStore.openNewTaskWithUrl(url)
+        }
+      })
+    }
+
+    // 监听系统文件关联打开的种子/元链接文件，解码后复用拖拽文件的预填流程
+    if (window.electronAPI?.onPendingTaskFile) {
+      unsubscribePendingTaskFile = window.electronAPI.onPendingTaskFile((payload) => {
+        try {
+          const binary = atob(payload.data)
+          const bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+          const mime = payload.kind === 'torrent' ? 'application/x-bittorrent' : 'application/metalink4+xml'
+          uiStore.openNewTaskWithFile(new File([bytes], payload.name, { type: mime }))
+        } catch (error) {
+          console.error('Failed to decode associated task file:', error)
         }
       })
     }
@@ -436,6 +488,7 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
     unsubscribeDownloadError?.()
     unsubscribeClipboardUrl?.()
     unsubscribePendingUrl?.()
+    unsubscribePendingTaskFile?.()
     unsubscribeTrayAction?.()
     unsubscribeEngineCrashed?.()
     unsubscribeEngineGaveUp?.()

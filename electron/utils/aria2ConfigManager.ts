@@ -371,7 +371,11 @@ bt-tracker=${DEFAULT_BT_TRACKERS_CSV}
     return {
       dir: this.getConfigValue('dir'),
       port: this.getConfigValue('rpc-listen-port'),
-      secret: this.getConfigValue('rpc-secret')
+      secret: this.getConfigValue('rpc-secret'),
+      enableRpc: this.getConfigValue('enable-rpc'),
+      rpcAllowOriginAll: this.getConfigValue('rpc-allow-origin-all'),
+      rpcListenAll: this.getConfigValue('rpc-listen-all'),
+      rpcSecure: this.getConfigValue('rpc-secure')
     }
   }
 }

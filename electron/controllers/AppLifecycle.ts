@@ -34,6 +34,8 @@ export class AppLifecycle {
   private trayController: TrayController
   private aria2Controller: Aria2Controller
   private ipcController: IpcController
+  /** `--headless`：不显示主窗口，只保留引擎、托盘与后台服务（服务器/远程管理场景） */
+  private readonly headless = process.argv.includes('--headless')
 
   constructor(
     store: Store<StoreData>,
@@ -82,9 +84,13 @@ export class AppLifecycle {
       this.status = AppStatus.READY
       logger.info('[AppLifecycle] Initialization complete')
 
-      // 步骤 7: 显示窗口
-      logger.info('[AppLifecycle] Step 7: Showing window...')
-      this.windowController.show()
+      // 步骤 7: 显示窗口（--headless 时保持隐藏，由托盘/远程接口控制）
+      if (this.headless) {
+        logger.info('[AppLifecycle] --headless: 跳过显示主窗口')
+      } else {
+        logger.info('[AppLifecycle] Step 7: Showing window...')
+        this.windowController.show()
+      }
 
     } catch (error) {
       // 用户主动选择退出：先执行优雅关闭（Aria2 子进程可能已启动），再向上抛出
@@ -107,6 +113,11 @@ export class AppLifecycle {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('[AppLifecycle] Aria2 initialization failed:', errorMessage)
+
+      // 无头模式没有用户可点对话框：直接失败退出，避免后台进程带病运行
+      if (this.headless) {
+        throw new Error(`Aria2 下载引擎启动失败: ${errorMessage}`)
+      }
 
       // 显示用户友好的错误对话框
       const result = await dialog.showMessageBox({
@@ -131,6 +142,10 @@ export class AppLifecycle {
    * 如果设置中启用，则创建托盘
    */
   private createTrayIfEnabled() {
+    if (this.headless) {
+      logger.info('[AppLifecycle] --headless: 跳过创建托盘')
+      return
+    }
     const settings = getSettings()
     const minimizeToTray = settings.minimizeToTray !== false
     if (minimizeToTray) {

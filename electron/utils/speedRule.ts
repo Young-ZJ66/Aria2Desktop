@@ -29,17 +29,26 @@ export function matchesSpeedRule(
   currentDay: number,
   currentTime: string
 ): boolean {
-  // 检查星期几
-  if (rule.days.length > 0 && !rule.days.includes(currentDay)) return false
+  const dayAllowed = (day: number): boolean =>
+    rule.days.length === 0 || rule.days.includes(day)
 
   // 检查时间段（支持跨午夜，如 22:00 - 06:00）
   const { startTime, endTime } = rule
-  if (startTime <= endTime) {
-    // 不跨午夜：currentTime 在 [startTime, endTime) 范围内
-    return currentTime >= startTime && currentTime < endTime
+  if (startTime === endTime) {
+    // 空区间：用于临时禁用某条规则
+    return false
   }
-  // 跨午夜：currentTime 在 [startTime, 23:59] 或 [00:00, endTime) 范围内
-  return currentTime >= startTime || currentTime < endTime
+  if (startTime < endTime) {
+    // 不跨午夜：currentTime 在 [startTime, endTime) 范围内，星期按当天判断
+    return dayAllowed(currentDay) && currentTime >= startTime && currentTime < endTime
+  }
+
+  // 跨午夜：区间为 [startTime, 23:59] ∪ [00:00, endTime)。
+  // 关键点：午夜后的那一段在日历上已经是"第二天"，但它属于前一天开始的那次
+  // 时段。例如规则"周一 22:00-06:00"，周二 02:00 应命中，因此星期要按前一天判断。
+  if (currentTime >= startTime) return dayAllowed(currentDay)
+  if (currentTime < endTime) return dayAllowed((currentDay + 6) % 7)
+  return false
 }
 
 /** 将 Date 格式化为规则匹配所需的 HH:mm */

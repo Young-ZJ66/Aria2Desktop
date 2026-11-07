@@ -240,7 +240,9 @@ function sanitizeReferer(value: string): string {
  */
 export function isExtensionOrigin(origin: string | undefined): boolean {
   if (!origin) return false
+  // Chrome/Edge：32 位 a-p 字母 ID；Firefox：随机 UUID 形式的 moz-extension 源
   return /^chrome-extension:\/\/[a-p]{32}$/.test(origin)
+    || /^moz-extension:\/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(origin)
 }
 
 export interface ExtensionApiAuthInput {
@@ -286,5 +288,5 @@ export function isAuthorizedExtensionRequest(input: ExtensionApiAuthInput): bool
   if (!token || !timingSafeEqualStr(token, secret)) return false
 
   if (!origin) return true
-  return origin.startsWith('chrome-extension://')
+  return origin.startsWith('chrome-extension://') || origin.startsWith('moz-extension://')
 }

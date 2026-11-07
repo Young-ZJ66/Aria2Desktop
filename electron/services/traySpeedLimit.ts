@@ -9,6 +9,7 @@
 
 import { callAria2Rpc } from '../utils/aria2Rpc'
 import { getSettingsFresh } from '../utils/settingsAccessor'
+import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { createLogger } from '../utils/logger'
 import { parseLimitToBytes, resolveLimitToggle } from '../utils/speedLimitCore'
 
@@ -25,21 +26,16 @@ export interface SpeedLimitSnapshot {
   limitBytes: number
 }
 
-function engineRpcConfig(): { port: number; secret: string } {
-  const settings = getSettingsFresh()
-  return {
-    port: Number(settings.aria2?.port) || 6800,
-    secret: String(settings.aria2?.secret || '')
-  }
+function engineRpcConfig(): ReturnType<typeof activeRpcOptions> {
+  return activeRpcOptions(getSettingsFresh())
 }
 
 /** 读取当前限速状态（引擎不可达返回 null，调用方保持菜单原文案） */
 export async function readSpeedLimit(): Promise<SpeedLimitSnapshot | null> {
-  const { port, secret } = engineRpcConfig()
+  const rpc = engineRpcConfig()
   try {
     const options = await callAria2Rpc({
-      port,
-      secret,
+      ...rpc,
       method: 'aria2.getGlobalOption'
     })
     const raw = (options as Record<string, string> | undefined)?.['max-overall-download-limit']
@@ -54,11 +50,10 @@ export async function readSpeedLimit(): Promise<SpeedLimitSnapshot | null> {
 
 /** 切换限速并返回切换后的状态（读取或下发失败返回 null，调用方保持菜单原文案） */
 export async function toggleSpeedLimit(): Promise<SpeedLimitSnapshot | null> {
-  const { port, secret } = engineRpcConfig()
+  const rpc = engineRpcConfig()
   try {
     const options = await callAria2Rpc({
-      port,
-      secret,
+      ...rpc,
       method: 'aria2.getGlobalOption'
     })
     const raw = (options as Record<string, string> | undefined)?.['max-overall-download-limit']
@@ -67,8 +62,7 @@ export async function toggleSpeedLimit(): Promise<SpeedLimitSnapshot | null> {
     rememberedLimit = decision.remembered
 
     await callAria2Rpc({
-      port,
-      secret,
+      ...rpc,
       method: 'aria2.changeGlobalOption',
       params: [{ 'max-overall-download-limit': decision.nextRaw }]
     })

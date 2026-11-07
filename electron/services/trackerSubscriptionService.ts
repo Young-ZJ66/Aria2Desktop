@@ -52,7 +52,8 @@ export class TrackerSubscriptionService {
   private aria2Controller: Aria2Controller
   private windowController: WindowController
   private timer: NodeJS.Timeout | null = null
-  private updating = false
+  /** 进行中的更新：并发调用共享同一个 Promise，而不是直接报"正在更新中" */
+  private pendingUpdate: Promise<TrackerUpdateResult> | null = null
 
   /**
    * 供 ipcSecurity 工厂使用的窗口取值器。
@@ -148,11 +149,17 @@ export class TrackerSubscriptionService {
   }
 
   /** 拉取并应用最新 Tracker 列表。manual=true 表示用户手动触发 */
-  async update(_manual: boolean, customSources?: string[]): Promise<TrackerUpdateResult> {
-    // 防止定时触发与手动触发并发重复拉取
-    if (this.updating) return { success: false, error: '正在更新中' }
-    this.updating = true
+  async update(manual: boolean, customSources?: string[]): Promise<TrackerUpdateResult> {
+    // 并发触发（定时器 + 用户手点）共享同一次请求：重复拉取既浪费流量，
+    // 也会让先完成的请求把状态改掉、后一次却报"正在更新中"。
+    if (this.pendingUpdate) return this.pendingUpdate
+    this.pendingUpdate = this.performUpdate(manual, customSources).finally(() => {
+      this.pendingUpdate = null
+    })
+    return this.pendingUpdate
+  }
 
+  private async performUpdate(_manual: boolean, customSources?: string[]): Promise<TrackerUpdateResult> {
     const sources = customSources ?? this.getState().customSources
     // 仅接受 https:// 订阅源：http:// 源会被本服务按 TLS 请求导致困惑失败，且明文拉取的
     // tracker 列表可被中间人篡改（tracker 会被写入 aria2 配置并影响 BT 网络行为）。
@@ -163,7 +170,6 @@ export class TrackerSubscriptionService {
       .filter(source => /^https:\/\//i.test(source))
 
     if (validSources.length === 0) {
-      this.updating = false
       const result: TrackerUpdateResult = { success: false, error: '没有可用的订阅源（仅支持 https:// 地址）' }
       // 与其它失败分支保持一致：推送给渲染层，避免设置页只看到"保存成功"却不知为何未更新
       this.notifyRenderer(result)
@@ -217,8 +223,12 @@ export class TrackerSubscriptionService {
       }
       this.notifyRenderer(result)
       return result
-    } finally {
-      this.updating = false
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.warn('[TrackerSubscription] 更新失败:', error)
+      const result: TrackerUpdateResult = { success: false, error: message }
+      this.notifyRenderer(result)
+      return result
     }
   }
 

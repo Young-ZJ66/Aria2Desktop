@@ -43,14 +43,19 @@ describe('buildInitializeResult', () => {
 })
 
 describe('buildToolsListResult', () => {
-  it('工具清单含 5 个核心工具且 inputSchema 合法', () => {
+  it('工具清单含核心与扩展工具且 inputSchema 合法', () => {
     const r = buildToolsListResult() as { tools: Array<{ name: string; inputSchema: { type: string } }> }
     expect(r.tools.map(t => t.name)).toEqual([
       'add_download',
       'list_tasks',
       'get_download_status',
+      'get_task_status',
       'pause_task',
-      'resume_task'
+      'resume_task',
+      'remove_task',
+      'pause_all',
+      'resume_all',
+      'set_speed_limit'
     ])
     for (const t of r.tools) expect(t.inputSchema.type).toBe('object')
   })

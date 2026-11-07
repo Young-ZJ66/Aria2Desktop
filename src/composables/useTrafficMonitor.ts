@@ -64,10 +64,16 @@ function stopMonitor() {
   }
 }
 
+/** 清空历史曲线：切换连接或断开时调用，避免把上一个引擎的速度画到新连接上 */
+function resetHistory() {
+  speedHistory.value = []
+}
+
 export function useTrafficMonitor() {
   return {
     speedHistory,
     startMonitor,
-    stopMonitor
+    stopMonitor,
+    resetHistory
   }
 }

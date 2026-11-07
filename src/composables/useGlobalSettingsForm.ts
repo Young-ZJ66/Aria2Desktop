@@ -9,6 +9,8 @@ import { useI18n } from 'vue-i18n'
 import { message, confirm } from '@/utils/feedback'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
+import { useSettingsStore } from '@/stores/settingsStore'
+import { isLocalEngineAddress } from '@/shared/localEngine'
 import { hasRestartRequiredOption } from '@/utils/aria2RestartOptions'
 import type { Aria2Option } from '@/types/aria2'
 
@@ -63,6 +65,7 @@ export function useGlobalSettingsForm<T extends object>(
   const { t } = useI18n()
   const connectionStore = useConnectionStore()
   const statsStore = useStatsStore()
+  const settingsStore = useSettingsStore()
 
   const loading = ref(false)
   const saving = ref(false)
@@ -122,9 +125,15 @@ export function useGlobalSettingsForm<T extends object>(
       const opts = options.toOptions(form)
       // 保存的选项集中是否包含需要重启 Aria2 生效的启动时选项（如 BT、event-poll 等）
       const needsRestart = hasRestartRequiredOption(opts)
-      // 1) 持久化到 aria2 配置文件：启动时选项（如 BT 相关、event-poll 等）重启 Aria2 后生效
+      // 1) 持久化到 aria2 配置文件：仅内置引擎可写。远程连接时写的是"本机"aria2.conf，
+      //    既不会影响远端引擎，还会污染本地配置并在重启后覆盖本地引擎设置。
+      const isLocalEngine = isLocalEngineAddress(
+        connectionStore.config.host,
+        connectionStore.config.port,
+        settingsStore.settings?.aria2?.port
+      )
       let persisted = false
-      if (window.electronAPI?.aria2?.saveGlobalOptions && Object.keys(opts).length > 0) {
+      if (isLocalEngine && window.electronAPI?.aria2?.saveGlobalOptions && Object.keys(opts).length > 0) {
         try {
           const res = await window.electronAPI.aria2.saveGlobalOptions(opts)
           persisted = !!res?.success

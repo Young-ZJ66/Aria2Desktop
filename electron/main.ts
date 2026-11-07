@@ -119,6 +119,7 @@ function migrateLegacyData(): void {
     }
   ]
 
+  let failed = 0
   for (const { from, to } of migrations) {
     try {
       if (!fs.existsSync(from) || fs.existsSync(to)) continue
@@ -126,11 +127,16 @@ function migrateLegacyData(): void {
       fs.copyFileSync(from, to)
       logger.info(`已迁移旧版数据: ${from} -> ${to}`)
     } catch (error) {
+      failed++
       logger.warn(`迁移旧版数据失败 ${from}:`, error)
     }
   }
 
-  // 无论单项迁移是否全部成功（单项失败已被吞掉），标记已完成，避免启动时重复扫描
+  // 只有全部成功才写标记；单项失败留待下次启动重试，避免旧数据永久缺失
+  if (failed > 0) {
+    logger.warn(`旧版数据迁移存在 ${failed} 项失败，将在下次启动重试`)
+    return
+  }
   try {
     fs.writeFileSync(flagFile, Date.now().toString(), 'utf-8')
   } catch (error) {
@@ -259,6 +265,25 @@ function extractPendingUrl(argv: string[]): string | null {
   return null
 }
 
+/** 从命令行参数中提取 .torrent / .metalink 文件路径（系统文件关联打开） */
+function extractPendingTaskFilePath(argv: string[]): string | null {
+  for (const arg of argv) {
+    if (!arg || arg.startsWith('-')) continue
+    const ext = path.extname(arg).toLowerCase()
+    if (ext === '.torrent' || ext === '.metalink' || ext === '.meta4') return arg
+  }
+  return null
+}
+
+/** 文件关联投递的最大文件尺寸，防止把异常大文件读入内存 */
+const MAX_TASK_FILE_BYTES = 20 * 1024 * 1024
+
+interface PendingTaskFilePayload {
+  name: string
+  data: string
+  kind: 'torrent' | 'metalink'
+}
+
 /**
  * 待投递的协议链接队列。
  *
@@ -268,24 +293,56 @@ function extractPendingUrl(argv: string[]): string | null {
  * 用户点了磁力链接却什么都没发生。现在改为"渲染层就绪（app-ready）后统一投递"。
  */
 const pendingDownloadUrls: string[] = []
+const pendingTaskFiles: PendingTaskFilePayload[] = []
 let rendererReady = false
 
 /** 投递一个待处理链接；渲染层未就绪时先入队 */
 function sendPendingUrl(url: string): void {
   const win = windowController.getMainWindow()
-  if (!rendererReady || !win || win.isDestroyed()) {
+  if (!rendererReady || !win || win.isDestroyed() || !windowController.isRendererContentReady()) {
     pendingDownloadUrls.push(url)
     return
   }
   win.webContents.send('pending-download-url', url)
 }
 
-/** 渲染层就绪：把启动期缓存的链接按到达顺序补投 */
+/** 投递一个待处理的种子/元链接文件；渲染层未就绪时先入队 */
+function sendPendingTaskFile(payload: PendingTaskFilePayload): void {
+  const win = windowController.getMainWindow()
+  if (!rendererReady || !win || win.isDestroyed() || !windowController.isRendererContentReady()) {
+    pendingTaskFiles.push(payload)
+    return
+  }
+  win.webContents.send('pending-task-file', payload)
+}
+
+/** 读取并投递一个由系统文件关联打开的 .torrent/.metalink 文件 */
+async function queueTaskFileFromPath(filePath: string): Promise<void> {
+  try {
+    const ext = path.extname(filePath).toLowerCase()
+    const kind: 'torrent' | 'metalink' = ext === '.torrent' ? 'torrent' : 'metalink'
+    const stat = await fs.promises.stat(filePath)
+    if (!stat.isFile() || stat.size === 0 || stat.size > MAX_TASK_FILE_BYTES) {
+      logger.warn('忽略无法处理的关联文件:', filePath)
+      return
+    }
+    const data = await fs.promises.readFile(filePath)
+    sendPendingTaskFile({ name: path.basename(filePath), data: data.toString('base64'), kind })
+  } catch (error) {
+    logger.warn('读取关联文件失败:', filePath, error)
+  }
+}
+
+/** 渲染层就绪：把启动期缓存的链接与文件按到达顺序补投 */
 function flushPendingUrls(): void {
   rendererReady = true
   const queued = pendingDownloadUrls.splice(0, pendingDownloadUrls.length)
   for (const url of queued) {
     sendPendingUrl(url)
+  }
+  const queuedFiles = pendingTaskFiles.splice(0, pendingTaskFiles.length)
+  for (const file of queuedFiles) {
+    sendPendingTaskFile(file)
   }
 }
 
@@ -304,6 +361,13 @@ if (!gotTheLock) {
     app.setAsDefaultProtocolClient('magnet')
   }
 
+  // macOS: 系统文件关联通过 open-file 事件传入文件路径
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault()
+    windowController.show()
+    void queueTaskFileFromPath(filePath)
+  })
+
   // macOS/Linux: 通过 open-url 事件接收协议链接
   app.on('open-url', (event, url) => {
     event.preventDefault()
@@ -320,6 +384,10 @@ if (!gotTheLock) {
     const pendingUrl = extractPendingUrl(argv)
     if (pendingUrl) {
       sendPendingUrl(pendingUrl)
+    }
+    const taskFilePath = extractPendingTaskFilePath(argv)
+    if (taskFilePath) {
+      void queueTaskFileFromPath(taskFilePath)
     }
   })
 
@@ -348,6 +416,10 @@ if (!gotTheLock) {
       const startupUrl = extractPendingUrl(process.argv)
       if (startupUrl) {
         sendPendingUrl(startupUrl)
+      }
+      const startupTaskFile = extractPendingTaskFilePath(process.argv)
+      if (startupTaskFile) {
+        void queueTaskFileFromPath(startupTaskFile)
       }
 
       logger.info('应用初始化完成')

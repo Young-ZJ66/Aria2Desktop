@@ -70,6 +70,18 @@
       </button>
     </template>
 
+    <!-- 打开文件按钮 - 已完成任务且能定位到实际文件时显示 -->
+    <button
+      v-if="showOpenFile"
+      :title="t('task.openFile')"
+      :aria-label="t('task.openFile')"
+      class="task-action-btn"
+      :disabled="operating"
+      @click.stop="$emit('open-file', task)"
+    >
+      <n-icon class="action-icon"><DocumentOutline /></n-icon>
+    </button>
+
     <!-- 打开位置按钮 - 仅已完成任务页面 -->
     <button
       v-if="showOpenLocation"
@@ -117,6 +129,7 @@ import {
   FolderOpenOutline,
   TrashOutline,
   EyeOutline,
+  DocumentOutline,
   ArrowUpOutline,
   ArrowDownOutline,
   ChevronUpCircleOutline
@@ -128,6 +141,8 @@ interface Props {
   status: string
   operating: boolean
   showOpenLocation: boolean
+  /** 是否显示“打开文件”按钮（仅当任务有可定位的已完成文件） */
+  showOpenFile?: boolean
   /** 是否显示详情按钮（流媒体任务无 aria2 详情） */
   showDetail?: boolean
   /** 是否显示等待队列排序按钮（下载任务页显示，完成页无此概念） */
@@ -140,6 +155,7 @@ interface Emits {
   (e: 'retry', gid: string): void
   (e: 'pause', gid: string): void
   (e: 'open-location', task: Aria2Task): void
+  (e: 'open-file', task: Aria2Task): void
   (e: 'remove', gid: string): void
   (e: 'view-detail', gid: string): void
   (e: 'move-up', gid: string): void
@@ -148,7 +164,7 @@ interface Emits {
 }
 
 const { t } = useI18n()
-const props = withDefaults(defineProps<Props>(), { showDetail: true, showQueueActions: false })
+const props = withDefaults(defineProps<Props>(), { showDetail: true, showQueueActions: false, showOpenFile: false })
 defineEmits<Emits>()
 
 /** 正在做种（aria2 只对 BT 任务返回 seeder） */

@@ -48,8 +48,10 @@ export interface AppSettings {
   minimizeToTray?: boolean
   keepWindowState?: boolean
   autoLaunch?: boolean
-  /** 下载全部完成后执行的操作：none=不操作，shutdown=关机，hibernate=休眠，close=关闭应用 */
-  downloadCompleteAction?: 'none' | 'shutdown' | 'hibernate' | 'close'
+  /** 下载全部完成后执行的操作：none=不操作，shutdown=关机，hibernate=休眠，close=关闭应用，open-folder=打开所在目录，open-file=打开最近完成的文件 */
+  downloadCompleteAction?: 'none' | 'shutdown' | 'hibernate' | 'close' | 'open-folder' | 'open-file'
+  /** 是否在窗口获得焦点时检测剪贴板中的下载链接（隐私敏感，默认关闭） */
+  clipboardMonitorEnabled?: boolean
 
   // 连接设置（保留兼容，实际使用 profiles）
   aria2?: {
@@ -66,6 +68,11 @@ export interface AppSettings {
     path?: string
     autoStart?: boolean
     downloadDir?: string
+    /** 内置引擎 RPC 启动项（与 aria2.conf 同步，供下次启动使用） */
+    enableRpc?: boolean
+    rpcAllowOriginAll?: boolean
+    rpcListenAll?: boolean
+    rpcSecure?: boolean
   }
 
   // 多连接配置预设

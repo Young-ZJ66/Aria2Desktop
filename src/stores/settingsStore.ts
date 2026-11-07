@@ -82,7 +82,10 @@ export const useSettingsStore = defineStore('settings', () => {
       refreshInterval: generalSettings.refreshInterval ?? settings.value.refreshInterval,
       autoConnect: generalSettings.autoConnect ?? settings.value.autoConnect,
       minimizeToTray: generalSettings.minimizeToTray ?? settings.value.minimizeToTray,
-      autoLaunch: generalSettings.autoLaunch ?? settings.value.autoLaunch
+      keepWindowState: generalSettings.keepWindowState ?? settings.value.keepWindowState,
+      autoLaunch: generalSettings.autoLaunch ?? settings.value.autoLaunch,
+      downloadCompleteAction: generalSettings.downloadCompleteAction ?? settings.value.downloadCompleteAction,
+      clipboardMonitorEnabled: generalSettings.clipboardMonitorEnabled ?? settings.value.clipboardMonitorEnabled
     }
 
     await updateSettings(newSettings)
