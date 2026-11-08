@@ -123,9 +123,20 @@ jobs:
       - name: 构建安装包
         shell: pwsh
         env:
-          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+          WINDOWS_CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          WINDOWS_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
         run: |
+          # 未配置签名证书时绝不能把空的 CSC_LINK 传给 electron-builder：
+          # 空字符串会被当成相对路径解析到项目根目录，最终报 "not a file"。
+          if ($env:WINDOWS_CSC_LINK) {
+            $env:CSC_LINK = $env:WINDOWS_CSC_LINK
+            $env:CSC_KEY_PASSWORD = $env:WINDOWS_CSC_KEY_PASSWORD
+            Write-Host "已配置 Windows Authenticode 签名证书"
+          } else {
+            Remove-Item Env:CSC_LINK -ErrorAction SilentlyContinue
+            Remove-Item Env:CSC_KEY_PASSWORD -ErrorAction SilentlyContinue
+            Write-Host "未配置 WINDOWS_CSC_LINK，Windows 安装包保持未签名"
+          }
           npm run build
           npx electron-builder --win --publish never --${{ matrix.electron_arch }} --config.win.target=nsis --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-Setup.${ext}'
 
@@ -317,12 +328,33 @@ jobs:
 
       - name: 构建安装包
         env:
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run build && npx electron-builder --mac --publish never
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          MAC_APPLE_ID: ${{ secrets.APPLE_ID }}
+          MAC_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          MAC_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # 未配置签名证书时绝不能把空的 CSC_LINK 传给 electron-builder：
+          # 空字符串会被当成相对路径解析到项目根目录，最终报 "not a file"。
+          extra_args=""
+          if [ -n "$MAC_CSC_LINK" ]; then
+            export CSC_LINK="$MAC_CSC_LINK"
+            export CSC_KEY_PASSWORD="$MAC_CSC_KEY_PASSWORD"
+            echo "已配置 macOS 签名证书"
+          else
+            echo "未配置 MAC_CSC_LINK，macOS 产物保持未签名"
+          fi
+          if [ -n "$MAC_APPLE_ID" ] && [ -n "$MAC_APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$MAC_APPLE_TEAM_ID" ]; then
+            export APPLE_ID="$MAC_APPLE_ID"
+            export APPLE_APP_SPECIFIC_PASSWORD="$MAC_APPLE_APP_SPECIFIC_PASSWORD"
+            export APPLE_TEAM_ID="$MAC_APPLE_TEAM_ID"
+            echo "已配置 Apple 公证凭据"
+          else
+            echo "未配置 Apple 公证凭据，跳过公证"
+            extra_args="--config.mac.notarize=false"
+          fi
+          npm run build
+          npx electron-builder --mac --publish never $extra_args
 
       - name: 校验安装包产物
         run: node scripts/verify-dist.mjs mac
