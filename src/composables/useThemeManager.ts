@@ -1,7 +1,31 @@
 import { computed, ref } from 'vue'
-import { darkTheme, zhCN, enUS, type GlobalThemeOverrides } from 'naive-ui'
+import {
+  darkTheme,
+  zhCN,
+  zhTW,
+  enUS,
+  jaJP,
+  koKR,
+  deDE,
+  frFR,
+  esAR,
+  ptBR,
+  itIT,
+  ruRU,
+  arDZ,
+  thTH,
+  viVN,
+  idID,
+  trTR,
+  nlNL,
+  plPL,
+  ukUA,
+  csCZ,
+  type GlobalThemeOverrides,
+  type NLocale
+} from 'naive-ui'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { getLocale } from '@/i18n'
+import { getLocale, type AppLocale } from '@/i18n'
 import { buildThemeOverrides } from '@/styles/themeTokens'
 
 /**
@@ -34,6 +58,30 @@ function disposeSystemThemeListener(): void {
   }
 }
 
+const NAIVE_LOCALES: Record<AppLocale, NLocale> = {
+  'zh-CN': zhCN,
+  'zh-TW': zhTW,
+  'en-US': enUS,
+  'ja-JP': jaJP,
+  'ko-KR': koKR,
+  'de-DE': deDE,
+  'fr-FR': frFR,
+  'es-ES': esAR,
+  'pt-BR': ptBR,
+  'it-IT': itIT,
+  'ru-RU': ruRU,
+  'ar-SA': arDZ,
+  'hi-IN': enUS,
+  'th-TH': thTH,
+  'vi-VN': viVN,
+  'id-ID': idID,
+  'tr-TR': trTR,
+  'nl-NL': nlNL,
+  'pl-PL': plPL,
+  'uk-UA': ukUA,
+  'cs-CZ': csCZ
+}
+
 export function useThemeManager() {
   const settingsStore = useSettingsStore()
 
@@ -49,8 +97,9 @@ export function useThemeManager() {
   // 主题覆盖：主色与圆角（单一来源：src/styles/themeTokens.ts）
   const themeOverrides = computed<GlobalThemeOverrides>(() => buildThemeOverrides(isDark.value))
 
-  // Naive UI 组件语言（跟随应用当前语言设置）
-  const naiveLocale = computed(() => (getLocale() === 'zh-CN' ? zhCN : enUS))
+  // Naive UI 组件语言（跟随应用当前语言设置）。
+  // Naive UI 没有 hi-IN 语言包，印地语回退英文；阿拉伯语使用其提供的 arDZ。
+  const naiveLocale = computed(() => NAIVE_LOCALES[getLocale()] ?? enUS)
 
   return {
     systemDark,

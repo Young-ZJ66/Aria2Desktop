@@ -6,6 +6,25 @@ Aria2Desktop 插件运行在独立的 Electron `utilityProcess` 中。插件崩�
 > 安全模型：`vm` 仍然用于限制插件能直接访问的全局对象，但它不是安全边界。
 > 请把插件视为“与本机用户等权的代码”，只安装可信来源，并在启用前检查权限。
 
+## 内置示例：Auto Retry
+
+安装包自带 `plugins/auto-retry`。它实现的是**原生界面没有提供**的能力：下载失败后
+自动重试。应用本身只有手动的「重试」按钮；该插件监听 `onDownloadError`，读取失败任务
+的原始 URI 并重新加入队列，最多重试 3 次，每次重试前通过系统通知告知用户。
+
+```js
+// plugins/auto-retry/index.js（节选）
+onDownloadError(task) {
+  return aria2.getStoppedTasks().then((stopped) => {
+    const current = stopped.find(item => item.gid === task.gid)
+    const uris = current.files.flatMap(file => file.uris.map(item => item.uri))
+    return aria2.addUri(uris, { dir: current.dir })
+  })
+}
+```
+
+内置插件首次启动时默认停用，用户需要在设置 → 插件页确认权限后手动启用。
+
 ## 目录结构
 
 ```

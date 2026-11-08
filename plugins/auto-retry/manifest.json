@@ -1,0 +1,13 @@
+{
+  "id": "com.aria2desktop.auto-retry",
+  "name": "Auto Retry",
+  "version": "1.0.0",
+  "description": "Automatically retries failed downloads up to three times, with a notification before each retry.",
+  "author": "Aria2Desktop",
+  "main": "index.js",
+  "permissions": [
+    "aria2:read",
+    "aria2:write",
+    "notify"
+  ]
+}

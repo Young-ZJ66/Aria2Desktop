@@ -51,7 +51,7 @@
 
 ### 界面与系统集成
 
-- 深色/浅色主题（可跟随系统）、六种语言界面（简体中文 / English / 日本語 / 한국어 / Deutsch / Français）；内置「诊断中心」一键检查 RPC、磁盘空间、密钥、UPnP、Tracker 与历史存储并导出脱敏报告
+- 深色/浅色主题（可跟随系统）、21 种语言界面（简体中文 / 繁體中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Português / Italiano / Русский / العربية / हिन्दी / ไทย / Tiếng Việt / Bahasa Indonesia / Türkçe / Nederlands / Polski / Українська / Čeština）；内置「诊断中心」一键检查 RPC、磁盘空间、密钥、UPnP、Tracker 与历史存储并导出脱敏报告
 - 任务详情含 Peer、服务器、分片信息；实时速度曲线与连接数
 - 通知中心保留完成/失败记录与未读角标
 - 托盘常驻、任务栏进度、开机自启；下载完成后可按完成规则打开文件/目录、关机/休眠/关闭应用
@@ -65,6 +65,7 @@
 - 流媒体：集成 yt-dlp 支持 1000+ 站点，按需下载并校验 SHA-256；B 站等音视频分离的站点由 ffmpeg 合并
 - 插件系统：插件运行在独立 `utilityProcess` 中，权限声明与白名单 IPC，崩溃隔离并自动重启；入口执行有 3 秒超时保护
 - 插件市场：可配置注册表地址、SHA-256 完整性校验与 Ed25519/RSA 发布者签名验证，支持安装、更新与问题举报；开发文档见 [docs/plugin-development.md](docs/plugin-development.md)
+- 内置 Auto Retry 示例插件：下载失败后自动重试最多 3 次（原生界面仅提供手动重试），用于演示事件钩子与 `aria2:write` 权限
 
 ### 进阶
 

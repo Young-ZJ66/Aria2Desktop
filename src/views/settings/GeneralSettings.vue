@@ -254,6 +254,7 @@ import AppSwitch from '@/components/AppSwitch.vue'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUiStore } from '@/stores/uiStore'
 import { setLocale, type AppLocale } from '@/i18n'
+import { APP_LOCALES } from '@/shared/locale'
 
 const settingsStore = useSettingsStore()
 const uiStore = useUiStore()
@@ -330,14 +331,8 @@ const updateStatusText = computed(() => {
   }
 })
 
-const languageOptions = [
-  { label: '简体中文', value: 'zh-CN' },
-  { label: 'English', value: 'en-US' },
-  { label: '日本語', value: 'ja-JP' },
-  { label: '한국어', value: 'ko-KR' },
-  { label: 'Deutsch', value: 'de-DE' },
-  { label: 'Français', value: 'fr-FR' }
-]
+// 单一来源：新增语言只改 src/shared/locale.ts 的 APP_LOCALES
+const languageOptions = [...APP_LOCALES]
 
 // 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
 const themeOptions = computed(() => [

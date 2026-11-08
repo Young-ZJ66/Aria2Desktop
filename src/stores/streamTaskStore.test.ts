@@ -13,6 +13,7 @@ beforeEach(() => {
     electronAPI: {
       streamDownloadStart: vi.fn(async () => ({ success: true, id: 'sd-test-1' })),
       streamDownloadCancel: vi.fn(async () => true),
+      deleteFiles: vi.fn(async (paths: string[]) => ({ success: true, results: paths.map(path => ({ path, success: true })) })),
       onStreamDownloadEvent: vi.fn((callback: (event: StreamDownloadEvent) => void) => {
         emit = callback
         return () => { emit = null }
@@ -145,6 +146,63 @@ describe('streamTaskStore', () => {
     await store.removeTask('sd-test-1')
 
     expect(window.electronAPI!.streamDownloadCancel).not.toHaveBeenCalled()
+    expect(store.tasks).toHaveLength(0)
+  })
+
+  it('removeTask 勾选删除文件时调用 deleteFiles，并把输出目录作为白名单参数', async () => {
+    const store = useStreamTaskStore()
+    await store.startTask({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'E:/Media',
+      title: '测试视频'
+    })
+    emit?.({ type: 'completed', id: 'sd-test-1', filePath: 'E:/Media/测试视频.mp4' })
+
+    const result = await store.removeTask('sd-test-1', true)
+
+    expect(result.success).toBe(true)
+    expect(window.electronAPI!.deleteFiles).toHaveBeenCalledWith(['E:/Media/测试视频.mp4'], 'E:/Media')
+    expect(store.tasks).toHaveLength(0)
+  })
+
+  it('removeTask 删除文件失败时保留任务记录并返回错误', async () => {
+    const store = useStreamTaskStore()
+    await store.startTask({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads',
+      title: '测试视频'
+    })
+    emit?.({ type: 'completed', id: 'sd-test-1', filePath: 'D:/Downloads/测试视频.mp4' })
+    ;(window.electronAPI!.deleteFiles as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      results: [{ path: 'D:/Downloads/测试视频.mp4', success: false, error: 'Access denied' }]
+    })
+
+    const result = await store.removeTask('sd-test-1', true)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Access denied')
+    expect(store.findByGid('sd-test-1')).toBeDefined()
+  })
+
+  it('removeTask 未勾选删除文件时保留磁盘文件', async () => {
+    const store = useStreamTaskStore()
+    await store.startTask({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads',
+      title: '测试视频'
+    })
+    emit?.({ type: 'completed', id: 'sd-test-1', filePath: 'D:/Downloads/测试视频.mp4' })
+
+    await store.removeTask('sd-test-1')
+
+    expect(window.electronAPI!.deleteFiles).not.toHaveBeenCalled()
     expect(store.tasks).toHaveLength(0)
   })
 

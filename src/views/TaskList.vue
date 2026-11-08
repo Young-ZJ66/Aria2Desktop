@@ -117,6 +117,16 @@
       :loading="batchDeleting"
       @confirm="handleBatchDeleteConfirm"
     />
+
+    <!-- 流媒体任务删除对话框：与普通任务一致，可选同时删除已下载文件 -->
+    <DeleteTaskDialog
+      v-model="showStreamDeleteDialog"
+      :tasks="streamTaskToDelete ? [streamTaskToDelete] : []"
+      :task-name="streamTaskToDelete ? getTaskDisplayName(streamTaskToDelete) : undefined"
+      task-type="stopped"
+      :loading="streamDeleting"
+      @confirm="handleStreamDeleteConfirm"
+    />
   </div>
 </template>
 
@@ -178,6 +188,10 @@ const showBatchDeleteDialog = ref(false)
 const tasksToDelete = ref<Aria2Task[]>([])
 // 批量删除执行中（驱动删除对话框的 loading，删除期间保持对话框打开）
 const batchDeleting = ref(false)
+// 流媒体任务删除（单个；与普通任务共用删除对话框，可选同时删除已下载文件）
+const showStreamDeleteDialog = ref(false)
+const streamTaskToDelete = ref<Aria2Task | null>(null)
+const streamDeleting = ref(false)
 // 批量开始/暂停执行中（禁用批量操作按钮，防止重复触发）
 const batchOperating = ref(false)
 // 批量打开文件中
@@ -753,16 +767,57 @@ async function retryStreamTask(gid: string) {
 }
 
 async function removeStreamTask(gid: string) {
+  const streamTask = streamTaskStore.findByGid(gid)
+  if (!streamTask) {
+    message.error(t('task.taskNotExistShort'))
+    return
+  }
+
+  // 已完成且有最终文件时，和普通任务一样走带「同时删除文件」选项的对话框
+  const canDeleteFile = streamTask.status === 'complete' && !!streamTask.filePath && !!window.electronAPI?.deleteFiles
+  if (canDeleteFile) {
+    streamTaskToDelete.value = streamTaskStore.toAria2Task(streamTask)
+    showStreamDeleteDialog.value = true
+    return
+  }
+
   confirm({
     title: t('delete.title'),
     content: t('task.streamRemoveConfirm'),
     positiveText: t('delete.confirm'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
-      await streamTaskStore.removeTask(gid)
-      message.success(t('task.streamRemoveDone'))
+      const result = await streamTaskStore.removeTask(gid)
+      if (result.success) {
+        message.success(t('task.streamRemoveDone'))
+      } else {
+        message.error(t('task.deleteFailed', { error: getUserFriendlyError(result.error) }))
+      }
     }
   })
+}
+
+/** 流媒体任务删除确认：deleteFiles 由对话框复选框决定 */
+async function handleStreamDeleteConfirm(deleteFiles: boolean) {
+  const task = streamTaskToDelete.value
+  if (!task) return
+  streamDeleting.value = true
+  try {
+    const result = await streamTaskStore.removeTask(task.gid, deleteFiles)
+    if (result.success) {
+      message.success(
+        deleteFiles
+          ? t('task.deletedCountWithFiles', { count: 1 })
+          : t('task.streamRemoveDone')
+      )
+      showStreamDeleteDialog.value = false
+      streamTaskToDelete.value = null
+    } else {
+      message.error(t('task.deleteFailed', { error: getUserFriendlyError(result.error) }))
+    }
+  } finally {
+    streamDeleting.value = false
+  }
 }
 
 async function removeTask(gid: string) {

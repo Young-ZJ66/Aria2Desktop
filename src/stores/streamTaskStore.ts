@@ -140,13 +140,34 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
     return await window.electronAPI.streamDownloadCancel(gid)
   }
 
-  /** 从列表移除（进行中的会先取消；已下载的文件保留在磁盘上） */
-  async function removeTask(gid: string): Promise<void> {
+  /**
+   * 从列表移除。
+   * - 进行中的任务会先取消；
+   * - 已完成的任务可选择同时删除磁盘文件（与 aria2 任务共用系统回收站语义）；
+   * - 未勾选删除或任务没有 filePath 时，文件保留在磁盘上。
+   */
+  async function removeTask(gid: string, deleteFiles = false): Promise<{ success: boolean; error?: string }> {
     const task = findByGid(gid)
     if (task?.status === 'active') {
-      await cancelTask(gid)
+      const cancelled = await cancelTask(gid)
+      if (!cancelled) return { success: false, error: 'Cancel failed' }
     }
+
+    if (deleteFiles && task?.status === 'complete' && task.filePath && window.electronAPI?.deleteFiles) {
+      try {
+        // 第二个参数用于主进程放宽路径白名单：yt-dlp 的输出目录可能不是默认下载目录
+        const result = await window.electronAPI.deleteFiles([task.filePath], task.outputDir)
+        const failed = Array.isArray(result.results) ? result.results.find((item) => !item.success) : undefined
+        if (!result.success || failed) {
+          return { success: false, error: failed?.error || result.error || 'File deletion failed' }
+        }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    }
+
     tasks.value = tasks.value.filter(item => item.gid !== gid)
+    return { success: true }
   }
 
   /** 失败任务重试：沿用原 URL/格式/目录重新发起（新下载会获得新 id） */

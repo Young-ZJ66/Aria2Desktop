@@ -14,7 +14,10 @@ import path from 'node:path'
  */
 
 const ROOT = process.cwd()
-const LOCALES = ['zh-CN', 'en-US', 'ja-JP', 'ko-KR', 'de-DE', 'fr-FR']
+const LOCALES = [
+  'zh-CN', 'zh-TW', 'en-US', 'ja-JP', 'ko-KR', 'de-DE', 'fr-FR', 'es-ES', 'pt-BR', 'it-IT', 'ru-RU',
+  'ar-SA', 'hi-IN', 'th-TH', 'vi-VN', 'id-ID', 'tr-TR', 'nl-NL', 'pl-PL', 'uk-UA', 'cs-CZ'
+]
 
 const localeOf = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, `src/locales/${name}.json`), 'utf8'))
 
@@ -67,7 +70,7 @@ describe('语言包', () => {
     expect(missingInZh).toEqual([])
   })
 
-  it('同一条文案在六种语言里的占位符一致', () => {
+  it('同一条文案在 21 种语言里的占位符一致', () => {
     const mismatched = []
     for (const name of LOCALES.slice(1)) {
       const other = new Map(flatten(localeOf(name)))
@@ -82,7 +85,7 @@ describe('语言包', () => {
     expect(mismatched).toEqual([])
   })
 
-  it('六种语言的键集合完全相同', () => {
+  it('21 种语言的键集合完全相同', () => {
     const maps = LOCALES.map((name) => new Map(flatten(localeOf(name))))
     for (let index = 1; index < maps.length; index += 1) {
       const base = maps[0]

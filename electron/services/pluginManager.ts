@@ -59,6 +59,11 @@ const WORKER_API_PERMISSIONS: Record<string, string> = {
 
 const PLUGIN_DIR_NAME = 'plugins'
 
+/** 已随早期版本分发、现在被新内置插件取代的示例（仅清理确认由本应用播种的目录） */
+const LEGACY_BUILTIN_PLUGINS: Array<{ dir: string; id: string }> = [
+  { dir: 'download-notifier', id: 'com.aria2desktop.download-notifier' }
+]
+
 // 本文件日志文案自带 [PluginManager] / [Plugin:<id>] 前缀（含动态插件名，无法用固定 scope），
 // 故 scope 传空避免前缀重复
 const logger = createLogger('')
@@ -168,6 +173,25 @@ export class PluginManager {
 
       let changed = false
       const disabled = new Set(this.getDisabledList())
+
+      // 升级清理：旧版内置插件与原生通知功能重复，已被 auto-retry 取代。
+      // 只删除 seededBuiltinPlugins 里记录过的目录，避免误删用户自行安装的同名插件。
+      for (const legacy of LEGACY_BUILTIN_PLUGINS) {
+        if (!seededIds.has(legacy.id)) continue
+        const legacyDir = path.join(this.pluginDir, legacy.dir)
+        try {
+          if (fs.existsSync(legacyDir)) {
+            fs.rmSync(legacyDir, { recursive: true, force: true })
+            logger.info(`[PluginManager] Removed legacy builtin plugin: ${legacy.id}`)
+          }
+        } catch (error) {
+          logger.warn(`[PluginManager] Failed to remove legacy builtin plugin ${legacy.id}:`, error)
+        }
+        seededIds.delete(legacy.id)
+        disabled.delete(legacy.id)
+        changed = true
+      }
+
       for (const entry of fs.readdirSync(sourceRoot, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue
         const sourceDir = path.join(sourceRoot, entry.name)
