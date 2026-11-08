@@ -540,7 +540,7 @@ onMounted(async () => {
 
 .config-actions {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 12px;
   padding-top: 8px;
 }

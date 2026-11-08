@@ -131,20 +131,21 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .settings-page {
-  max-width: 720px;
+  width: 100%;
+  max-width: 860px;
   margin: 0 auto;
-  padding: 4px 0 8px;
+  padding: 2px 0 10px;
 }
 
 .settings-header {
-  margin-bottom: 20px;
-  padding-bottom: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--border-light);
 }
 
 .settings-header h2 {
-  margin: 0 0 6px 0;
-  font-size: 20px;
+  margin: 0 0 5px 0;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -161,11 +162,11 @@ onBeforeUnmount(() => {
 }
 
 .settings-actions {
-  margin-top: 28px;
-  padding-top: 20px;
+  margin-top: 24px;
+  padding-top: 18px;
   border-top: 1px solid var(--border-light);
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 /* 悬浮操作按钮栏：零高度锚点吸附在滚动区底部，按钮在锚点内绝对定位。
@@ -176,7 +177,7 @@ onBeforeUnmount(() => {
   height: 0;
   z-index: 10;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   pointer-events: none;
 }
 
@@ -207,25 +208,30 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
-/* 统一设置页控件宽度：单行输入框/数字框/选择框/文本域统一为 80%，与标签列形成均衡布局 */
+/* 设置页控件占满卡片可用宽度，避免大屏下右侧出现无意义留白；
+   数字框保留合理上限，避免单个数字输入被拉得过宽 */
 .settings-page .n-input:not(.n-input-group .n-input):not(.n-input--textarea):not(.n-input-number .n-input),
-.settings-page .n-input-number,
 .settings-page .n-select {
-  width: 80%;
+  width: 100%;
 }
 
-/* 数字输入框内部输入框填满外层容器，避免 80% × 80% 导致内部宽度缩小 */
+.settings-page .n-input-number {
+  width: 100%;
+  max-width: 260px;
+}
+
+/* 数字输入框内部输入框填满外层容器 */
 .settings-page .n-input-number .n-input {
   width: 100%;
 }
 
 .settings-page .n-input--textarea {
-  width: 80%;
+  width: 100%;
 }
 
-/* 分组输入框（文件选择按钮等）整体 80%，内部元素自动伸缩 */
+/* 分组输入框（文件选择按钮等）整体占满可用宽度，内部元素自动伸缩 */
 .settings-page .n-input-group {
-  width: 80%;
+  width: 100%;
 }
 
 .settings-page .n-input-group .n-input,

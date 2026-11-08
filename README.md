@@ -74,7 +74,7 @@
 - **多实例管理**：保存多个 RPC 连接配置，批量测试延迟与版本，一键切换当前实例
 - **SQLite 历史库**：完成历史改用 SQLite 存储，突破原 10MB JSON 上限，并自动迁移旧数据
 - **差量更新（Windows）**：只下载变化的分块，最终仍强制比对 `.sha256`
-- **无头模式**：`Aria2Desktop --headless` 隐藏主窗口，仅保留下载引擎、浏览器扩展接口与 MCP 服务，适合远程管理/常驻下载机
+- **无头模式与自动化**：`Aria2Desktop --headless` 隐藏主窗口，仅保留下载引擎、浏览器扩展接口与 MCP 服务，适合远程管理/常驻下载机；命令行与 Webhook 用法见 [docs/automation-cli-webhook.md](docs/automation-cli-webhook.md)
 
 ## 系统要求
 
@@ -92,8 +92,8 @@
 到 [Releases](../../releases) 下载对应平台的包：Windows 用 `Setup.exe`（或免安装的 `portable.zip`），
 macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 
-> 配置签名证书的构建会为 Windows 安装包签名、为 macOS 应用签名并公证；当前公开构建未配置证书，Windows 可能提示「未知发布者」，macOS 首次打开需右键 →「打开」。
-> 每个资产都附带同名 `.sha256`，可自行校验。
+> Windows 安装包已接入 **SignPath Foundation 免费开源代码签名**，通过审核后发布者显示为「SignPath Foundation」；macOS 公开构建暂未签名/公证，首次打开需右键 →「打开」。
+> 每个资产都附带同名 `.sha256`，可自行校验；签名验证方法见 [代码签名说明](docs/code-signing.md)。
 
 ### 2. 添加第一个下载
 
@@ -127,7 +127,7 @@ macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 若仍失败，从托盘菜单退出后重试。
 
 **Windows 提示未知发布者 / SmartScreen 拦截**
-安装包没有签名。点「更多信息 → 仍要运行」；需要校验时比对 Release 页的 `.sha256`。
+若该版本尚未完成 SignPath 签名（或你下载的是便携版），可点「更多信息 → 仍要运行」；需要校验时比对 Release 页的 `.sha256`。
 
 **扩展连不上 App**
 先确认 App 在运行、扩展里填的密钥与「设置 → RPC 与安全」一致。
@@ -141,6 +141,12 @@ macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 
 **卸载后有残留**
 设置文件留在 `%APPDATA%/aria2-desktop`（含配置与会话），需要彻底清理时手动删除该目录。
+
+## 代码签名政策（Code signing policy）
+
+Aria2Desktop 的 Windows 安装包通过 [SignPath Foundation](https://signpath.org/) 免费开源代码签名计划签名；免费代码签名由 [SignPath.io](https://signpath.io) 提供，证书由 SignPath Foundation 提供。签名范围、团队成员角色、审批流程与验证方式见 [Code signing policy](docs/code-signing-policy.md)，申请与配置步骤见 [代码签名说明](docs/code-signing.md)。
+
+应用不收集遥测或个人数据，详见 [隐私政策](docs/privacy.md)。
 
 ## 技术栈
 

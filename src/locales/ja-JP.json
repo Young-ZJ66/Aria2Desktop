@@ -20,6 +20,9 @@
     "rpcSecuritySettings": "RPC とセキュリティ",
     "advancedSettings": "詳細設定",
     "pluginSettings": "プラグイン",
+    "toolsPluginsGroup": "ツールとプラグイン",
+    "networkProtocolGroup": "ネットワークとプロトコル",
+    "securityMaintenanceGroup": "セキュリティとメンテナンス",
     "diagnostics": "診断",
     "queue": "キュー",
     "workflowSettings": "ワークフロー",
@@ -984,8 +987,8 @@
       "switchFailed": "操作に失敗しました。再試行してください",
       "loadFailed": "プラグインリストの読み込みに失敗しました",
       "installHint1": "インストール方法: プラグインフォルダー（manifest.json とエントリースクリプトを含む）を下のディレクトリに配置し、アプリを再起動してください:",
-      "installHint2": "プラグインはメインプロセスで Node コードとして実行されます。権限ラベルは誤操作を防ぐためのものであり、セキュリティサンドボックスではありません — 信頼できるプラグインのみ有効にしてください。",
-      "securityWarning": "プラグインはユーザーアカウントと同じ権限で実行されます。信頼できるプラグインのみ有効にしてください。権限ラベルはセキュリティ境界ではありません。",
+      "installHint2": "プラグインは独立した utilityProcess で実行され、許可された IPC 経由でのみ制限付きのダウンロード・設定 API を呼び出せます。異常や無限ループがメインアプリをフリーズさせることはありませんが、信頼できるプラグインのみをインストールしてください。",
+      "securityWarning": "プラグインは独立したプロセスで実行されますが、ダウンロードタスクと設定を読み取ることができます。信頼できる提供元のプラグインのみを有効にしてください。権限ラベルはセキュリティ境界ではありません。",
       "permissionTitle": "プラグインを有効にしますか？",
       "permissionConfirm": "プラグイン「{name}」が要求する権限: {permissions}。有効にするとローカルで実行され、アプリとともに起動します。",
       "noPermissions": "宣言された権限なし",
@@ -1020,7 +1023,9 @@
       "marketUpdateConfirm": "{name} を v{from} から v{version} に更新しますか？",
       "marketUpdateSuccess": "{name} を v{version} に更新しました",
       "marketReport": "報告",
-      "marketReportFailed": "報告ページを開けませんでした"
+      "marketReportFailed": "報告ページを開けませんでした",
+      "tabInstalled": "インストール済み",
+      "tabMarket": "プラグインマーケット"
     },
     "diagnostics": {
       "title": "診断",

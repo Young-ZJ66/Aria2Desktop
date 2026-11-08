@@ -6,172 +6,185 @@
     :connected="true"
     :show-actions="false"
   >
-    <n-card :title="t('settings.plugins.listTitle')" class="setting-group">
-      <!-- 打开插件目录与卡片标题同级：提示关闭后仍能一键进入插件目录 -->
-      <template #header-extra>
-        <n-button size="small" @click="openPluginDir">
-          <template #icon><n-icon><FolderOpenOutline /></n-icon></template>
-          {{ t('settings.plugins.openDir') }}
-        </n-button>
-      </template>
-
-      <n-alert v-if="!isDesktop" type="warning" :bordered="false" style="margin-bottom: 12px;">
-        {{ t('settings.plugins.desktopOnly') }}
-      </n-alert>
-
-      <!--
-        安全提醒 + 安装说明：可临时关闭（本次运行内保持关闭，下次启动重新出现），
-        也可「不再显示」永久关闭。
-      -->
-      <div v-if="hintVisible" class="plugin-hint">
-        <div class="plugin-hint-main">
-          <p class="plugin-hint-warning">{{ t('settings.plugins.securityWarning') }}</p>
-          <p>{{ t('settings.plugins.installHint1') }}</p>
-          <p class="mono">{{ pluginDirHint }}</p>
-          <p>{{ t('settings.plugins.installHint2') }}</p>
-        </div>
-        <div class="plugin-hint-actions">
-          <n-button text size="tiny" @click="hideHintForever">
-            {{ t('settings.plugins.dontShowAgain') }}
-          </n-button>
-          <n-button
-            quaternary
-            circle
-            size="tiny"
-            :title="t('common.close')"
-            :aria-label="t('common.close')"
-            @click="closeHintForSession"
-          >
-            <template #icon><n-icon><CloseOutline /></n-icon></template>
-          </n-button>
-        </div>
-      </div>
-
-      <n-empty v-if="!loading && plugins.length === 0" :description="t('settings.plugins.empty')" size="small" style="padding: 32px 0;" />
-      <div v-else class="plugin-list">
-        <div v-for="plugin in plugins" :key="plugin.manifest.id" class="plugin-item">
-          <div class="plugin-main">
-            <div class="plugin-name-row">
-              <span class="plugin-name">{{ plugin.manifest.name }}</span>
-              <n-tag size="tiny" :bordered="false" round :type="plugin.enabled ? 'success' : 'default'">
-                {{ plugin.enabled ? t('settings.plugins.enabled') : t('settings.plugins.disabled') }}
-              </n-tag>
-              <n-tag v-if="plugin.runtime" size="tiny" :bordered="false" round>
-                {{ plugin.runtime }}
-              </n-tag>
-              <n-tag v-if="plugin.error" size="tiny" type="error" :bordered="false" round>error</n-tag>
-              <span class="plugin-version">v{{ plugin.manifest.version }}</span>
-            </div>
-            <div class="plugin-desc">{{ plugin.manifest.description || t('settings.plugins.noDescription') }}</div>
-            <div class="plugin-meta">
-              <span>{{ plugin.manifest.author || t('settings.plugins.unknownAuthor') }}</span>
-              <span v-if="plugin.manifest.permissions?.length" class="plugin-perms">
-                {{ t('settings.plugins.permissions') }}: {{ plugin.manifest.permissions.join(', ') }}
-              </span>
-            </div>
-            <div v-if="plugin.error" class="plugin-error">{{ plugin.error }}</div>
-          </div>
-          <div class="plugin-actions">
-            <n-switch
-              :value="plugin.enabled"
-              size="small"
-              :loading="switchingId === plugin.manifest.id"
-              @update:value="(v: boolean) => togglePlugin(plugin, v)"
-            />
-            <n-button
-              size="tiny"
-              quaternary
-              type="error"
-              :loading="uninstallingId === plugin.manifest.id"
-              @click="confirmUninstall(plugin)"
-            >
-              {{ t('settings.plugins.uninstall') }}
+    <n-tabs
+      v-model:value="pluginTab"
+      type="line"
+      size="medium"
+      animated
+      class="plugin-tabs"
+      pane-style="padding: 14px 0 0;"
+    >
+      <n-tab-pane name="installed" :tab="t('settings.plugins.tabInstalled')" display-directive="show">
+        <n-card :title="t('settings.plugins.listTitle')" class="setting-group">
+          <!-- 打开插件目录与卡片标题同级：提示关闭后仍能一键进入插件目录 -->
+          <template #header-extra>
+            <n-button size="small" @click="openPluginDir">
+              <template #icon><n-icon><FolderOpenOutline /></n-icon></template>
+              {{ t('settings.plugins.openDir') }}
             </n-button>
-          </div>
-        </div>
-      </div>
-    </n-card>
+          </template>
 
-    <n-card :title="t('settings.plugins.marketTitle')" class="setting-group market-card">
-      <template #header-extra>
-        <n-button size="small" :loading="marketLoading" @click="loadMarket(true)">
-          {{ t('settings.plugins.marketRefresh') }}
-        </n-button>
-      </template>
-      <n-alert type="info" :bordered="false" style="margin-bottom: 12px;">
-        {{ t('settings.plugins.marketDesc') }}
-      </n-alert>
-      <div class="market-config">
-        <div class="market-config-row">
-          <span class="market-config-label">{{ t('settings.plugins.marketEnabled') }}</span>
-          <n-switch v-model:value="marketEnabled" size="small" />
-        </div>
-        <div class="market-config-row">
-          <span class="market-config-label">{{ t('settings.plugins.marketRegistryUrl') }}</span>
-          <n-input v-model:value="marketRegistryUrl" size="small" :placeholder="t('settings.plugins.marketRegistryPlaceholder')" />
-        </div>
-        <div class="market-config-actions">
-          <n-button size="small" :loading="savingMarketSettings" @click="saveMarketSettings">
-            {{ t('common.save') }}
-          </n-button>
-        </div>
-      </div>
-      <n-alert v-if="marketError" type="error" :bordered="false" style="margin-bottom: 12px;">
-        {{ marketError }}
-      </n-alert>
-      <n-spin :show="marketLoading">
-        <n-empty v-if="!marketLoading && marketPlugins.length === 0" :description="t('settings.plugins.marketEmpty')" size="small" style="padding: 24px 0;" />
-        <div v-else class="plugin-list">
-          <div v-for="item in marketPlugins" :key="item.id" class="plugin-item">
-            <div class="plugin-main">
-              <div class="plugin-name-row">
-                <span class="plugin-name">{{ item.name }}</span>
-                <n-tag size="tiny" :bordered="false" round>{{ 'v' + item.version }}</n-tag>
-                <n-tag v-if="item.installed" size="tiny" type="success" :bordered="false" round>
-                  {{ t('settings.plugins.marketInstalled', { version: item.installedVersion || item.version }) }}
-                </n-tag>
-              </div>
-              <div class="plugin-desc">{{ item.description || t('settings.plugins.noDescription') }}</div>
-              <div class="plugin-meta">
-                <span>{{ item.author || t('settings.plugins.unknownAuthor') }}</span>
-                <span v-if="item.publisher" class="plugin-perms">{{ t('settings.plugins.marketPublisher') }}: {{ item.publisher }}</span>
-              </div>
+          <n-alert v-if="!isDesktop" type="warning" :bordered="false" style="margin-bottom: 12px;">
+            {{ t('settings.plugins.desktopOnly') }}
+          </n-alert>
+
+          <!--
+            安全提醒 + 安装说明：可临时关闭（本次运行内保持关闭，下次启动重新出现），
+            也可「不再显示」永久关闭。
+          -->
+          <div v-if="hintVisible" class="plugin-hint">
+            <div class="plugin-hint-main">
+              <p class="plugin-hint-warning">{{ t('settings.plugins.securityWarning') }}</p>
+              <p>{{ t('settings.plugins.installHint1') }}</p>
+              <p class="mono">{{ pluginDirHint }}</p>
+              <p>{{ t('settings.plugins.installHint2') }}</p>
             </div>
-            <div class="plugin-actions">
+            <div class="plugin-hint-actions">
+              <n-button text size="tiny" @click="hideHintForever">
+                {{ t('settings.plugins.dontShowAgain') }}
+              </n-button>
               <n-button
-                v-if="!item.installed || item.installedVersion !== item.version"
+                quaternary
+                circle
                 size="tiny"
-                type="primary"
-                :loading="installingMarketId === item.id"
-                @click="installMarketPlugin(item)"
+                :title="t('common.close')"
+                :aria-label="t('common.close')"
+                @click="closeHintForSession"
               >
-                {{ item.installed ? t('settings.plugins.marketUpdate') : t('settings.plugins.marketInstall') }}
-              </n-button>
-              <n-button size="tiny" quaternary type="warning" @click="reportMarketPlugin(item)">
-                {{ t('settings.plugins.marketReport') }}
+                <template #icon><n-icon><CloseOutline /></n-icon></template>
               </n-button>
             </div>
           </div>
-        </div>
-      </n-spin>
 
-      <n-collapse style="margin-top: 16px;">
-        <n-collapse-item :title="t('settings.plugins.trustedPublishers')" name="trusted">
-          <p class="plugin-desc">{{ t('settings.plugins.trustedPublishersDesc') }}</p>
-          <n-input
-            v-model:value="publisherKeys"
-            type="textarea"
-            :rows="5"
-            :placeholder="t('settings.plugins.trustedPublishersPlaceholder')"
-          />
-          <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
-            <n-button size="small" :loading="savingPublishers" @click="savePublishers">
-              {{ t('settings.plugins.savePublishers') }}
-            </n-button>
+          <n-empty v-if="!loading && plugins.length === 0" :description="t('settings.plugins.empty')" size="small" style="padding: 32px 0;" />
+          <div v-else class="plugin-list">
+            <div v-for="plugin in plugins" :key="plugin.manifest.id" class="plugin-item">
+              <div class="plugin-main">
+                <div class="plugin-name-row">
+                  <span class="plugin-name">{{ plugin.manifest.name }}</span>
+                  <n-tag size="tiny" :bordered="false" round :type="plugin.enabled ? 'success' : 'default'">
+                    {{ plugin.enabled ? t('settings.plugins.enabled') : t('settings.plugins.disabled') }}
+                  </n-tag>
+                  <n-tag v-if="plugin.runtime" size="tiny" :bordered="false" round>
+                    {{ plugin.runtime }}
+                  </n-tag>
+                  <n-tag v-if="plugin.error" size="tiny" type="error" :bordered="false" round>error</n-tag>
+                  <span class="plugin-version">v{{ plugin.manifest.version }}</span>
+                </div>
+                <div class="plugin-desc">{{ plugin.manifest.description || t('settings.plugins.noDescription') }}</div>
+                <div class="plugin-meta">
+                  <span>{{ plugin.manifest.author || t('settings.plugins.unknownAuthor') }}</span>
+                  <span v-if="plugin.manifest.permissions?.length" class="plugin-perms">
+                    {{ t('settings.plugins.permissions') }}: {{ plugin.manifest.permissions.join(', ') }}
+                  </span>
+                </div>
+                <div v-if="plugin.error" class="plugin-error">{{ plugin.error }}</div>
+              </div>
+              <div class="plugin-actions">
+                <n-switch
+                  :value="plugin.enabled"
+                  size="small"
+                  :loading="switchingId === plugin.manifest.id"
+                  @update:value="(v: boolean) => togglePlugin(plugin, v)"
+                />
+                <n-button
+                  size="tiny"
+                  quaternary
+                  type="error"
+                  :loading="uninstallingId === plugin.manifest.id"
+                  @click="confirmUninstall(plugin)"
+                >
+                  {{ t('settings.plugins.uninstall') }}
+                </n-button>
+              </div>
+            </div>
           </div>
-        </n-collapse-item>
-      </n-collapse>
-    </n-card>
+        </n-card>
+      </n-tab-pane>
+
+      <n-tab-pane name="market" :tab="t('settings.plugins.tabMarket')" display-directive="show">
+        <n-card :title="t('settings.plugins.marketTitle')" class="setting-group market-card">
+          <template #header-extra>
+            <n-button size="small" :loading="marketLoading" @click="loadMarket(true)">
+              {{ t('settings.plugins.marketRefresh') }}
+            </n-button>
+          </template>
+          <n-alert type="info" :bordered="false" style="margin-bottom: 12px;">
+            {{ t('settings.plugins.marketDesc') }}
+          </n-alert>
+          <div class="market-config">
+            <div class="market-config-row">
+              <span class="market-config-label">{{ t('settings.plugins.marketEnabled') }}</span>
+              <n-switch v-model:value="marketEnabled" size="small" />
+            </div>
+            <div class="market-config-row">
+              <span class="market-config-label">{{ t('settings.plugins.marketRegistryUrl') }}</span>
+              <n-input v-model:value="marketRegistryUrl" size="small" :placeholder="t('settings.plugins.marketRegistryPlaceholder')" />
+            </div>
+            <div class="market-config-actions">
+              <n-button size="small" :loading="savingMarketSettings" @click="saveMarketSettings">
+                {{ t('common.save') }}
+              </n-button>
+            </div>
+          </div>
+          <n-alert v-if="marketError" type="error" :bordered="false" style="margin-bottom: 12px;">
+            {{ marketError }}
+          </n-alert>
+          <n-spin :show="marketLoading">
+            <n-empty v-if="!marketLoading && marketPlugins.length === 0" :description="t('settings.plugins.marketEmpty')" size="small" style="padding: 24px 0;" />
+            <div v-else class="plugin-list">
+              <div v-for="item in marketPlugins" :key="item.id" class="plugin-item">
+                <div class="plugin-main">
+                  <div class="plugin-name-row">
+                    <span class="plugin-name">{{ item.name }}</span>
+                    <n-tag size="tiny" :bordered="false" round>{{ 'v' + item.version }}</n-tag>
+                    <n-tag v-if="item.installed" size="tiny" type="success" :bordered="false" round>
+                      {{ t('settings.plugins.marketInstalled', { version: item.installedVersion || item.version }) }}
+                    </n-tag>
+                  </div>
+                  <div class="plugin-desc">{{ item.description || t('settings.plugins.noDescription') }}</div>
+                  <div class="plugin-meta">
+                    <span>{{ item.author || t('settings.plugins.unknownAuthor') }}</span>
+                    <span v-if="item.publisher" class="plugin-perms">{{ t('settings.plugins.marketPublisher') }}: {{ item.publisher }}</span>
+                  </div>
+                </div>
+                <div class="plugin-actions">
+                  <n-button
+                    v-if="!item.installed || item.installedVersion !== item.version"
+                    size="tiny"
+                    type="primary"
+                    :loading="installingMarketId === item.id"
+                    @click="installMarketPlugin(item)"
+                  >
+                    {{ item.installed ? t('settings.plugins.marketUpdate') : t('settings.plugins.marketInstall') }}
+                  </n-button>
+                  <n-button size="tiny" quaternary type="warning" @click="reportMarketPlugin(item)">
+                    {{ t('settings.plugins.marketReport') }}
+                  </n-button>
+                </div>
+              </div>
+            </div>
+          </n-spin>
+
+          <n-collapse style="margin-top: 16px;">
+            <n-collapse-item :title="t('settings.plugins.trustedPublishers')" name="trusted">
+              <p class="plugin-desc">{{ t('settings.plugins.trustedPublishersDesc') }}</p>
+              <n-input
+                v-model:value="publisherKeys"
+                type="textarea"
+                :rows="5"
+                :placeholder="t('settings.plugins.trustedPublishersPlaceholder')"
+              />
+              <div class="publishers-actions">
+                <n-button size="small" :loading="savingPublishers" @click="savePublishers">
+                  {{ t('settings.plugins.savePublishers') }}
+                </n-button>
+              </div>
+            </n-collapse-item>
+          </n-collapse>
+        </n-card>
+      </n-tab-pane>
+    </n-tabs>
   </SettingsPage>
 </template>
 
@@ -215,6 +228,7 @@ const { t } = useI18n()
 const settingsStore = useSettingsStore()
 const plugins = ref<PluginInfo[]>([])
 const loading = ref(false)
+const pluginTab = ref<'installed' | 'market'>('installed')
 const switchingId = ref<string | null>(null)
 const uninstallingId = ref<string | null>(null)
 const marketPlugins = ref<MarketPlugin[]>([])
@@ -305,7 +319,7 @@ function confirmPermissions(plugin: PluginInfo): Promise<boolean> {
 }
 
 async function togglePlugin(plugin: PluginInfo, enable: boolean) {
-  // 启用前先展示权限清单：插件在主进程运行，权限标签不是安全沙箱
+  // 启用前先展示权限清单：插件运行在独立 utilityProcess，权限标签不是安全沙箱
   if (enable && !(await confirmPermissions(plugin))) return
   switchingId.value = plugin.manifest.id
   try {
@@ -511,7 +525,21 @@ onMounted(() => {
 
 .market-config-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
+}
+
+.publishers-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.plugin-tabs {
+  margin-top: -2px;
+}
+
+.plugin-tabs :deep(.n-tabs-nav) {
+  margin-bottom: 2px;
 }
 
 .plugin-list {

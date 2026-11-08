@@ -20,6 +20,9 @@
     "rpcSecuritySettings": "RPC 与安全",
     "advancedSettings": "高级设置",
     "pluginSettings": "插件",
+    "toolsPluginsGroup": "工具与插件",
+    "networkProtocolGroup": "网络与协议",
+    "securityMaintenanceGroup": "安全与维护",
     "diagnostics": "诊断中心",
     "queue": "队列",
     "workflowSettings": "工作流",
@@ -984,8 +987,8 @@
       "switchFailed": "操作失败，请重试",
       "loadFailed": "插件列表加载失败",
       "installHint1": "安装插件：把插件文件夹（含 manifest.json 与入口脚本）放入以下目录后重启应用：",
-      "installHint2": "插件在主进程中以 Node 代码运行，权限声明只用于约束误操作，不构成安全沙箱；请只启用你信任的插件。",
-      "securityWarning": "插件拥有与本机用户等价的运行能力。只启用你信任来源的插件；权限标签不是安全边界。",
+      "installHint2": "插件运行在独立的 utilityProcess 中，只能通过白名单 IPC 调用受限的下载与设置接口；异常或死循环不会冻结主应用，但仍请只启用你信任的插件。",
+      "securityWarning": "插件运行在独立进程中，但仍可读取下载任务与设置。只启用你信任来源的插件；权限标签不是安全边界。",
       "permissionTitle": "启用插件？",
       "permissionConfirm": "插件「{name}」申请以下权限：{permissions}。启用后它会随应用启动并运行在本机。",
       "noPermissions": "未声明任何权限",
@@ -1020,7 +1023,9 @@
       "marketUpdateConfirm": "将 {name} 从 v{from} 更新到 v{version}？",
       "marketUpdateSuccess": "{name} 已更新到 v{version}",
       "marketReport": "举报",
-      "marketReportFailed": "无法打开举报页面"
+      "marketReportFailed": "无法打开举报页面",
+      "tabInstalled": "已安装",
+      "tabMarket": "插件市场"
     },
     "diagnostics": {
       "title": "诊断中心",

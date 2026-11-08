@@ -1067,7 +1067,7 @@ function removeDlScheduleRule(index: number) {
   align-items: center;
   gap: 8px;
   /* 与设置页其他输入框同宽（80%），下拉+按钮整体对齐 */
-  width: 80%;
+  width: 100%;
 }
 
 .category-field-label {
@@ -1081,7 +1081,7 @@ function removeDlScheduleRule(index: number) {
    与 SettingsPage 里统一为 80% 的表单控件宽度保持一致 */
 .category-filetype-box {
   box-sizing: border-box;
-  width: 80%;
+  width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--border-base);
   border-radius: 6px;

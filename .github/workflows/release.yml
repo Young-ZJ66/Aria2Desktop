@@ -10,6 +10,8 @@ on:
 
 permissions:
   contents: write
+  # SignPath GitHub Action 需要读取工作流 run / artifact 元数据；只读即可
+  actions: read
 
 jobs:
   # 打包浏览器扩展压缩包
@@ -81,6 +83,15 @@ jobs:
     needs: [package-extension, release-init]
     name: 构建 Windows (${{ matrix.suffix }})
     runs-on: windows-latest
+    # SignPath Foundation 免费 OSS 代码签名配置。全部为空时自动跳过签名步骤，
+    # 保持原有的未签名发布路径；传统 WINDOWS_CSC_LINK 优先，避免重复签名。
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_SIGNING_POLICY_SLUG: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+      SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ secrets.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+      WINDOWS_CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
     strategy:
       matrix:
         include:
@@ -143,6 +154,65 @@ jobs:
       # 仅构建 zip 便携版
       - name: 构建便携版 zip
         run: npx electron-builder --win --publish never --${{ matrix.electron_arch }} --config.win.target=zip --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-portable.${ext}'
+
+      # ---------- 可选：SignPath Foundation 免费 OSS 代码签名 ----------
+      # 仅当 5 个 SignPath secrets 都已配置、且没有 WINDOWS_CSC_LINK 时启用。
+      # SignPath 的证书签发给 SignPath Foundation，所以发布者显示为 SignPath Foundation；
+      # 每个 Release 需要 Approver 在 SignPath 控制台人工审批（最长等待 30 分钟）。
+      - name: 读取版本号（SignPath 参数）
+        if: env.SIGNPATH_API_TOKEN != '' && env.SIGNPATH_ORGANIZATION_ID != '' && env.SIGNPATH_PROJECT_SLUG != '' && env.SIGNPATH_SIGNING_POLICY_SLUG != '' && env.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG != '' && env.WINDOWS_CSC_LINK == ''
+        id: signpath-version
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      # SignPath 需要通过 GitHub Actions artifact 接收待签名文件；upload-artifact 默认
+      # 会打成 ZIP，因此 .signpath/artifact-configuration.xml 以 <zip-file> 为根。
+      - name: 上传待签名安装包
+        if: steps.signpath-version.outputs.version != ''
+        id: upload-unsigned-installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer-unsigned-${{ matrix.suffix }}
+          path: release/*-${{ matrix.suffix }}-Setup.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: 提交 SignPath 签名请求（人工审批）
+        if: steps.signpath-version.outputs.version != ''
+        id: signpath
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ env.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: ${{ runner.temp }}/signpath-signed
+          parameters: |
+            version: "${{ steps.signpath-version.outputs.version }}"
+
+      # 用已签名安装包覆盖 release 目录中的未签名文件。必须发生在生成差量块表之前：
+      # 块表/哈希/Release 资产都要对应签名后的最终字节。
+      - name: 替换为已签名安装包并校验
+        if: steps.signpath-version.outputs.version != ''
+        shell: pwsh
+        run: |
+          $signedDir = Join-Path $env:RUNNER_TEMP 'signpath-signed'
+          $signed = Get-ChildItem -LiteralPath $signedDir -Filter '*-Setup.exe' -Recurse | Select-Object -First 1
+          if (-not $signed) { throw "SignPath 未返回已签名安装包（目录：$signedDir）" }
+          $targetFilter = "*-" + '${{ matrix.suffix }}' + "-Setup.exe"
+          $target = Get-ChildItem release -Filter $targetFilter | Select-Object -First 1
+          if (-not $target) { throw "未找到待替换的 Windows 安装包" }
+          Copy-Item -LiteralPath $signed.FullName -Destination $target.FullName -Force
+          $sig = Get-AuthenticodeSignature -LiteralPath $target.FullName
+          Write-Host "签名状态: $($sig.Status)"
+          Write-Host "签名者: $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { throw "安装包签名校验失败: $($sig.Status) / $($sig.StatusMessage)" }
 
       # 为安装包生成差量块表（<Setup.exe>.blocks.json，应用端增量更新用它对照新旧分块，
       # hash 相同的块从本地旧包复制、只下载变化部分）。格式与 electron/utils/deltaBlocks.ts 对齐；

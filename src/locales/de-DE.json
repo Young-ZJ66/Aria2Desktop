@@ -20,6 +20,9 @@
     "rpcSecuritySettings": "RPC & Sicherheit",
     "advancedSettings": "Erweiterte Einstellungen",
     "pluginSettings": "Plugins",
+    "toolsPluginsGroup": "Werkzeuge & Plugins",
+    "networkProtocolGroup": "Netzwerk & Protokoll",
+    "securityMaintenanceGroup": "Sicherheit & Wartung",
     "diagnostics": "Diagnose",
     "queue": "Warteschlange",
     "workflowSettings": "Workflow",
@@ -984,8 +987,8 @@
       "switchFailed": "Vorgang fehlgeschlagen, bitte erneut versuchen",
       "loadFailed": "Plugin-Liste konnte nicht geladen werden",
       "installHint1": "Zur Installation: Legen Sie einen Plugin-Ordner (mit manifest.json und Einstiegsskript) im unten angegebenen Verzeichnis ab und starten Sie die App neu:",
-      "installHint2": "Plugins laufen als Node-Code im Hauptprozess. Berechtigungsbezeichnungen schützen nur vor Fehlern und sind keine Sicherheitssandbox — aktivieren Sie nur Plugins, denen Sie vertrauen.",
-      "securityWarning": "Plugins laufen mit denselben Berechtigungen wie Ihr Benutzerkonto. Aktivieren Sie nur vertrauenswürdige Plugins; Berechtigungsbezeichnungen sind keine Sicherheitsgrenze.",
+      "installHint2": "Plugins laufen in einem separaten utilityProcess und können nur über eine freigegebene IPC-Bridge auf eingeschränkte Download- und Einstellungs-APIs zugreifen. Abstürze oder Endlosschleifen können die Hauptanwendung nicht einfrieren, aber installiere nur Plugins, denen du vertraust.",
+      "securityWarning": "Plugins laufen in einem isolierten Prozess, können aber weiterhin Download-Aufgaben und Einstellungen lesen. Aktiviere nur Plugins aus vertrauenswürdigen Quellen; Berechtigungs-Labels sind keine Sicherheitsgrenze.",
       "permissionTitle": "Plugin aktivieren?",
       "permissionConfirm": "Plugin „{name}“ fordert: {permissions}. Nach der Aktivierung läuft es lokal und startet mit der App.",
       "noPermissions": "keine deklarierten Berechtigungen",
@@ -1020,7 +1023,9 @@
       "marketUpdateConfirm": "{name} von v{from} auf v{version} aktualisieren?",
       "marketUpdateSuccess": "{name} wurde auf v{version} aktualisiert",
       "marketReport": "Melden",
-      "marketReportFailed": "Melde-Seite konnte nicht geöffnet werden"
+      "marketReportFailed": "Melde-Seite konnte nicht geöffnet werden",
+      "tabInstalled": "Installiert",
+      "tabMarket": "Plugin-Markt"
     },
     "diagnostics": {
       "title": "Diagnose",

@@ -931,7 +931,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 80%;
+  width: 100%;
 }
 
 .tracker-source-row {

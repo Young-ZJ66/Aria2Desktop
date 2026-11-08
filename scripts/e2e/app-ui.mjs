@@ -101,6 +101,34 @@ function outsideExistingFile() {
   return '/etc/hosts'
 }
 
+/**
+ * 点击设置页的某个 Tab（正则匹配文案）。
+ * 设置页已按一级分组 + 二级子页组织，跨组跳转时先点一级分组，再点子页。
+ */
+async function clickSettingsTab(session, pattern) {
+  const clicked = await evalIn(
+    session,
+    `(() => {
+      const tabs = [...document.querySelectorAll('.settings-dialog-body .n-tabs-tab')]
+      const tab = tabs.find((el) => new RegExp(${JSON.stringify(pattern)}, 'i').test(el.textContent || ''))
+      if (!tab) return 'no-tab'
+      tab.click()
+      return 'clicked'
+    })()`
+  )
+  if (clicked === 'clicked') await sleep(300)
+  return clicked
+}
+
+/** 依次点击一级分组和二级子页；每个 pattern 都必须命中 */
+async function clickSettingsTabPath(session, patterns) {
+  for (const pattern of patterns) {
+    const result = await clickSettingsTab(session, pattern)
+    if (result !== 'clicked') return result
+  }
+  return 'clicked'
+}
+
 export async function runAppUi({ session, reporter, outDir, expectedVersion, pluginName, stamp, downloadUrl, downloadBytes, tempDownloadDir }) {
   await evalIn(session, 'document.readyState')
   await sleep(3500)
@@ -186,11 +214,17 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   reporter.check('设置页无「显示高级设置」开关', advancedToggleExists === false)
   const settingsNavText = await evalIn(
     session,
-    `(() => [...document.querySelectorAll('.settings-dialog-body .n-tabs-tab')].map((tab) => (tab.innerText || '').trim()).join('|'))()`
+    `(() => [...document.querySelectorAll('.settings-main-tabs > .n-tabs-nav .n-tabs-tab')].map((tab) => (tab.innerText || '').trim()).join('|'))()`
+  )
+  const settingsNavItems = String(settingsNavText).split('|').filter(Boolean)
+  reporter.check(
+    '设置页一级导航已整合为 8 组',
+    settingsNavItems.length === 8,
+    String(settingsNavText)
   )
   reporter.check(
-    '设置页直接显示 RPC 与高级页签',
-    /RPC/i.test(String(settingsNavText)) && /高级|Advanced/i.test(String(settingsNavText)),
+    '设置页显示安全与维护分组',
+    /安全与维护|Security & Maintenance/i.test(String(settingsNavText)),
     String(settingsNavText)
   )
 
@@ -369,16 +403,10 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
 
   // —— 工具与扩展页：浏览器扩展卡片要显示连接状态（扩展版本可见） ——
-  const clickedExtensionTab = await evalIn(
-    session,
-    `(() => {
-      const tab = [...document.querySelectorAll('.settings-dialog-body .n-tabs-tab')]
-        .find((e) => /工具与扩展|Tools|Extensions/i.test(e.textContent || ''))
-      if (!tab) return 'no-tab'
-      tab.click()
-      return 'clicked'
-    })()`
-  )
+  const clickedExtensionTab = await clickSettingsTabPath(session, [
+    '工具与插件|Tools & Plugins',
+    '^\\s*工具与扩展\\s*$|^\\s*Tools & Extension\\s*$'
+  ])
   reporter.check('切换到「工具与扩展」页', clickedExtensionTab === 'clicked', String(clickedExtensionTab))
   await sleep(1200)
   const extensionCardText = await evalIn(
@@ -397,16 +425,10 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
 
   // —— 高级设置页：应用日志目录（报障时用户得能一键找到 main.log） ——
-  const clickedAdvancedTab = await evalIn(
-    session,
-    `(() => {
-      const tab = [...document.querySelectorAll('.settings-dialog-body .n-tabs-tab')]
-        .find((e) => /高级设置|Advanced/i.test(e.textContent || ''))
-      if (!tab) return 'no-tab'
-      tab.click()
-      return 'clicked'
-    })()`
-  )
+  const clickedAdvancedTab = await clickSettingsTabPath(session, [
+    '安全与维护|Security & Maintenance',
+    '^\\s*高级设置\\s*$|^\\s*Advanced Settings\\s*$'
+  ])
   reporter.check('切换到「高级设置」页', clickedAdvancedTab === 'clicked', String(clickedAdvancedTab))
   await sleep(1200)
   const logsRow = await evalIn(
@@ -429,15 +451,10 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
 
   // —— 插件页：列表加载、启停 ——
-  const clickedPluginTab = await evalIn(
-    session,
-    `(() => {
-      const tab = [...document.querySelectorAll('.n-tabs-tab')].find((e) => /插件|Plugins/i.test(e.textContent || ''))
-      if (!tab) return 'no-tab'
-      tab.click()
-      return 'clicked'
-    })()`
-  )
+  const clickedPluginTab = await clickSettingsTabPath(session, [
+    '工具与插件|Tools & Plugins',
+    '^\\s*插件\\s*$|^\\s*Plugins\\s*$'
+  ])
   reporter.check('切换到插件设置页', clickedPluginTab === 'clicked', String(clickedPluginTab))
   await sleep(1800)
   const pluginText = await evalIn(
@@ -496,6 +513,51 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   const enabledText = await evalIn(session, readPlugin)
   reporter.check('插件可重新启用', /已启用|Enabled/.test(String(enabledText)))
   await capture(session, path.join(outDir, '03-settings-plugins.png'))
+
+  // —— 插件市场独立 tab：与已安装列表分开，切换后展示市场配置与列表 ——
+  const clickedMarketTab = await evalIn(
+    session,
+    `(() => {
+      const tab = [...document.querySelectorAll('.plugin-tabs .n-tabs-tab')]
+        .find((e) => /插件市场|Plugin market/i.test(e.textContent || ''))
+      if (!tab) return 'no-tab'
+      tab.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('插件页提供独立「插件市场」Tab', clickedMarketTab === 'clicked', String(clickedMarketTab))
+  await sleep(1200)
+  const marketTabState = await evalIn(
+    session,
+    `(() => {
+      const panes = [...document.querySelectorAll('.plugin-tabs .n-tab-pane')]
+        .filter((e) => e.offsetParent !== null)
+      const pane = panes[0]
+      return {
+        visible: !!pane,
+        hasConfig: !!pane && !!pane.querySelector('.market-config'),
+        hasMarketList: !!pane && !!pane.querySelector('.plugin-list, .n-empty')
+      }
+    })()`
+  )
+  reporter.check(
+    '插件市场 Tab 显示市场配置与列表',
+    !!marketTabState && marketTabState.visible && marketTabState.hasConfig && marketTabState.hasMarketList,
+    JSON.stringify(marketTabState)
+  )
+  await capture(session, path.join(outDir, '03b-settings-plugin-market.png'))
+  const backToInstalled = await evalIn(
+    session,
+    `(() => {
+      const tab = [...document.querySelectorAll('.plugin-tabs .n-tabs-tab')]
+        .find((e) => /已安装|Installed/i.test(e.textContent || ''))
+      if (!tab) return 'no-tab'
+      tab.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('可切回「已安装」Tab', backToInstalled === 'clicked', String(backToInstalled))
+  await sleep(500)
 
   // —— 插件页：打开目录按钮与卡片标题同级；提示可临时关闭（本次运行）或永久「不再显示」 ——
   const pluginPageState = () => evalIn(
@@ -570,14 +632,16 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     session,
     `(() => {
       const pane = [...document.querySelectorAll('.n-tab-pane')].find((e) => e.offsetParent !== null && e.querySelector('.plugin-toolbar'))
-      if (pane) return 'already'
-      const tab = [...document.querySelectorAll('.n-tabs-tab')].find((e) => /插件|Plugins/i.test(e.textContent || ''))
-      if (!tab) return 'no-tab'
-      tab.click()
-      return 'clicked'
+      return pane ? 'already' : 'missing'
     })()`
   )
-  if (reopenedTab === 'clicked') await sleep(1200)
+  if (reopenedTab !== 'already') {
+    await clickSettingsTabPath(session, [
+      '工具与插件|Tools & Plugins',
+      '^\\s*插件\\s*$|^\\s*Plugins\\s*$'
+    ])
+    await sleep(1200)
+  }
   const sessionState = await pluginPageState()
   reporter.check('本次运行内重新进入插件页仍不显示提示', !!sessionState && sessionState.hasHint === false, JSON.stringify(sessionState))
 
@@ -595,17 +659,20 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     })()`
   )
   await sleep(1400)
-  await evalIn(
+  const reopenedPluginPane = await evalIn(
     session,
     `(() => {
       const pane = [...document.querySelectorAll('.n-tab-pane')].find((e) => e.offsetParent !== null && e.querySelector('.plugin-toolbar'))
-      if (pane) return 'already'
-      const tab = [...document.querySelectorAll('.n-tabs-tab')].find((e) => /插件|Plugins/i.test(e.textContent || ''))
-      if (tab) tab.click()
-      return 'clicked'
+      return !!pane
     })()`
   )
-  await sleep(1200)
+  if (!reopenedPluginPane) {
+    await clickSettingsTabPath(session, [
+      '工具与插件|Tools & Plugins',
+      '^\\s*插件\\s*$|^\\s*Plugins\\s*$'
+    ])
+    await sleep(1200)
+  }
   const restoredState = await pluginPageState()
   reporter.check('下次启动后插件提示重新显示', !!restoredState && restoredState.hasHint === true, JSON.stringify(restoredState))
 
@@ -632,15 +699,10 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
 
 
   // —— 工具与扩展页：yt-dlp / ffmpeg 安装入口 + 浏览器扩展 ——
-  const componentsTab = await evalIn(
-    session,
-    `(() => {
-      const tab = [...document.querySelectorAll('.n-tabs-tab')].find((e) => /工具与扩展|Tools & Extension/i.test(e.textContent || ''))
-      if (!tab) return 'no-tab'
-      tab.click()
-      return 'clicked'
-    })()`
-  )
+  const componentsTab = await clickSettingsTabPath(session, [
+    '工具与插件|Tools & Plugins',
+    '^\\s*工具与扩展\\s*$|^\\s*Tools & Extension\\s*$'
+  ])
   reporter.check('切换到工具与扩展页', componentsTab === 'clicked', String(componentsTab))
   await sleep(1200)
   const componentsText = await evalIn(

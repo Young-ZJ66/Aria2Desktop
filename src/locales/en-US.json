@@ -20,6 +20,9 @@
     "rpcSecuritySettings": "RPC & Security",
     "advancedSettings": "Advanced Settings",
     "pluginSettings": "Plugins",
+    "toolsPluginsGroup": "Tools & Plugins",
+    "networkProtocolGroup": "Network & Protocol",
+    "securityMaintenanceGroup": "Security & Maintenance",
     "diagnostics": "Diagnostics",
     "queue": "Queue",
     "workflowSettings": "Workflow",
@@ -984,8 +987,8 @@
       "switchFailed": "Operation failed, please retry",
       "loadFailed": "Failed to load plugin list",
       "installHint1": "To install: put a plugin folder (with manifest.json and entry script) into the directory below, then restart the app:",
-      "installHint2": "Plugins run as Node code in the main process. Permission labels only guard against mistakes and are not a security sandbox — enable only plugins you trust.",
-      "securityWarning": "Plugins run with the same capabilities as your user account. Enable only trusted plugins; permission labels are not a security boundary.",
+      "installHint2": "Plugins run in a separate utilityProcess and can only call restricted download and settings APIs through an allowlisted IPC bridge. Crashes or infinite loops cannot freeze the main app, but only install plugins you trust.",
+      "securityWarning": "Plugins run in an isolated process but can still read download tasks and settings. Only enable plugins from sources you trust; permission labels are not a security boundary.",
       "permissionTitle": "Enable plugin?",
       "permissionConfirm": "Plugin \"{name}\" requests: {permissions}. Once enabled it runs locally and starts with the app.",
       "noPermissions": "no declared permissions",
@@ -1020,7 +1023,9 @@
       "marketUpdateConfirm": "Update {name} from v{from} to v{version}?",
       "marketUpdateSuccess": "{name} updated to v{version}",
       "marketReport": "Report",
-      "marketReportFailed": "Unable to open report page"
+      "marketReportFailed": "Unable to open report page",
+      "tabInstalled": "Installed",
+      "tabMarket": "Plugin market"
     },
     "diagnostics": {
       "title": "Diagnostics",

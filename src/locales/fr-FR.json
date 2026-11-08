@@ -20,6 +20,9 @@
     "rpcSecuritySettings": "RPC et sécurité",
     "advancedSettings": "Paramètres avancés",
     "pluginSettings": "Plugins",
+    "toolsPluginsGroup": "Outils et plugins",
+    "networkProtocolGroup": "Réseau et protocole",
+    "securityMaintenanceGroup": "Sécurité et maintenance",
     "diagnostics": "Diagnostics",
     "queue": "File d'attente",
     "workflowSettings": "Flux de travail",
@@ -984,8 +987,8 @@
       "switchFailed": "Échec de l'opération, veuillez réessayer",
       "loadFailed": "Échec du chargement de la liste des plugins",
       "installHint1": "Pour installer : placez un dossier de plugin (avec manifest.json et script d'entrée) dans le répertoire ci-dessous, puis redémarrez l'application :",
-      "installHint2": "Les plugins s'exécutent en tant que code Node dans le processus principal. Les étiquettes d'autorisation ne protègent que contre les erreurs et ne constituent pas une sandbox de sécurité — n'activez que les plugins de confiance.",
-      "securityWarning": "Les plugins s'exécutent avec les mêmes capacités que votre compte utilisateur. N'activez que des plugins de confiance ; les étiquettes d'autorisation ne constituent pas une frontière de sécurité.",
+      "installHint2": "Les plugins s'exécutent dans un utilityProcess séparé et ne peuvent appeler que des API de téléchargement et de paramètres restreintes via un pont IPC autorisé. Les plantages ou boucles infinies ne peuvent pas figer l'application principale, mais n'installez que des plugins de confiance.",
+      "securityWarning": "Les plugins s'exécutent dans un processus isolé mais peuvent toujours lire les tâches de téléchargement et les paramètres. N'activez que des plugins provenant de sources fiables ; les libellés d'autorisation ne constituent pas une frontière de sécurité.",
       "permissionTitle": "Activer le plugin ?",
       "permissionConfirm": "Le plugin « {name} » demande : {permissions}. Une fois activé, il s'exécute localement et démarre avec l'application.",
       "noPermissions": "aucune autorisation déclarée",
@@ -1020,7 +1023,9 @@
       "marketUpdateConfirm": "Mettre à jour {name} de v{from} vers v{version} ?",
       "marketUpdateSuccess": "{name} mis à jour vers v{version}",
       "marketReport": "Signaler",
-      "marketReportFailed": "Impossible d’ouvrir la page de signalement"
+      "marketReportFailed": "Impossible d’ouvrir la page de signalement",
+      "tabInstalled": "Installés",
+      "tabMarket": "Marché aux plugins"
     },
     "diagnostics": {
       "title": "Diagnostics",

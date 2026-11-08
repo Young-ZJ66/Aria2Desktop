@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SignPath artifact configuration for Aria2Desktop Windows installers.
+
+  The GitHub Actions workflow uploads the unsigned NSIS installer with
+  actions/upload-artifact, which wraps it in a ZIP archive. Therefore the
+  root element is <zip-file> and the installer is matched inside it.
+
+  Keep this file in sync with the "windows-installer" artifact
+  configuration in the SignPath project. The version parameter is supplied
+  by .github/workflows/release.yml from package.json.
+
+  Metadata restrictions intentionally enforce the values electron-builder
+  writes into the PE header:
+    ProductName    = Aria2Desktop
+    ProductVersion = <package version>
+    FileVersion    = <package version>
+    CompanyName    = Young-ZJ66
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file
+      path="Aria2Desktop-*-Setup.exe"
+      max-matches="1"
+      product-name="Aria2Desktop"
+      product-version="${version}"
+      file-version="${version}"
+      company-name="Young-ZJ66">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

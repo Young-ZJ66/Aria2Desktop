@@ -157,8 +157,8 @@ module.exports = {
 权限：`aria2:read`（读状态）、`aria2:write`（控制任务）、`settings:read`（读设置，已脱敏）、`notify`（系统通知）。
 类型定义见 `electron/types/plugin.ts`。
 
-> 权限只用于约束误操作，**不是安全边界**：插件在主进程以 Node 运行（vm 隔离挡不住恶意代码），
-> 能力等价于本机用户。只安装你信任的插件。
+> 插件运行在独立的 Electron utilityProcess 中，只能通过白名单 IPC 调用受限的 aria2/settings/notify 能力；
+> 异常或死循环会被隔离，不会冻结主进程。权限声明用于最小化插件能力，但仍应只安装你信任的插件。
 
 ## 提交与发版
 
@@ -169,3 +169,4 @@ module.exports = {
 - 发版前必须让这三处版本一致，CI 有守卫会校验：`package.json`、`extension/manifest.json`、
   `.github/release-notes.md` 首行（`# vX.Y.Z 更新日志`）。
 - 更新日志面向普通用户写：说清“以前怎样、现在怎样”，不要写内部实现细节。
+- Windows 安装包使用 SignPath Foundation 免费开源签名；申请条件、secrets 配置与验证方法见 [docs/code-signing.md](docs/code-signing.md)，对外政策见 [docs/code-signing-policy.md](docs/code-signing-policy.md)。

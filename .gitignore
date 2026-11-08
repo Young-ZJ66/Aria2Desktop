@@ -11,7 +11,13 @@ test-results
 
 # 评审报告 / 本地文档（工作产物，不入库）
 deliverables
-docs
+docs/*
+# 面向用户/维护者的正式文档需要随仓库发布，链接才可用
+!docs/automation-cli-webhook.md
+!docs/code-signing.md
+!docs/code-signing-policy.md
+!docs/plugin-development.md
+!docs/privacy.md
 
 # 运行时数据
 data

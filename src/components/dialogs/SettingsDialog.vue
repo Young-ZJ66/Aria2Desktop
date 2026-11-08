@@ -6,7 +6,7 @@
     :bordered="false"
     :mask-closable="true"
     :auto-focus="false"
-    style="width: 900px;"
+    style="width: min(1120px, calc(100vw - 48px));"
     content-style="padding: 0;"
   >
     <div ref="bodyRef" class="settings-dialog-body">
@@ -45,51 +45,155 @@
       </div>
 
       <n-tabs
-        v-model:value="activeTab"
+        v-model:value="activeGroup"
+        class="settings-main-tabs"
         type="line"
         placement="left"
         animated
-        size="medium"
-        pane-style="padding: 0 16px 0 20px;"
+        size="small"
+        pane-style="padding: 0 24px 0 24px;"
       >
-        <n-tab-pane :display-directive="paneDirective('general')" name="general" :tab="t('nav.generalSettings')">
+        <n-tab-pane
+          class="settings-main-pane settings-leaf-pane"
+          data-settings-tab="general"
+          data-settings-group="general"
+          :display-directive="paneDirective('general')"
+          name="general"
+          :tab="t('nav.generalSettings')"
+        >
           <GeneralSettings />
         </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('engine')" name="engine" :tab="t('nav.engineSettings')">
+        <n-tab-pane
+          class="settings-main-pane settings-leaf-pane"
+          data-settings-tab="engine"
+          data-settings-group="engine"
+          :display-directive="paneDirective('engine')"
+          name="engine"
+          :tab="t('nav.engineSettings')"
+        >
           <EngineSettings />
         </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('download')" name="download" :tab="t('nav.downloadSettings')">
+        <n-tab-pane
+          class="settings-main-pane settings-leaf-pane"
+          data-settings-tab="download"
+          data-settings-group="download"
+          :display-directive="paneDirective('download')"
+          name="download"
+          :tab="t('nav.downloadSettings')"
+        >
           <DownloadSettings />
         </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('workflow')" name="workflow" :tab="t('nav.workflowSettings')">
+        <n-tab-pane
+          class="settings-main-pane settings-leaf-pane"
+          data-settings-tab="workflow"
+          data-settings-group="workflow"
+          :display-directive="paneDirective('workflow')"
+          name="workflow"
+          :tab="t('nav.workflowSettings')"
+        >
           <WorkflowSettings />
         </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('network')" name="network" :tab="t('nav.networkSettings')">
-          <NetworkSettings />
+        <n-tab-pane class="settings-main-pane" :display-directive="paneDirective('network')" name="network" :tab="t('nav.networkProtocolGroup')">
+          <n-tabs v-model:value="networkSubTab" class="settings-subtabs" type="segment" size="small" pane-style="padding: 0;">
+            <n-tab-pane
+              class="settings-leaf-pane"
+              data-settings-tab="network"
+              data-settings-group="network"
+              :display-directive="paneDirective('network')"
+              name="network"
+              :tab="t('nav.networkSettings')"
+            >
+              <NetworkSettings />
+            </n-tab-pane>
+            <n-tab-pane
+              class="settings-leaf-pane"
+              data-settings-tab="protocol"
+              data-settings-group="network"
+              :display-directive="paneDirective('protocol')"
+              name="protocol"
+              :tab="t('nav.protocolSettings')"
+            >
+              <ProtocolSettings />
+            </n-tab-pane>
+            <n-tab-pane
+              class="settings-leaf-pane"
+              data-settings-tab="metalink"
+              data-settings-group="network"
+              :display-directive="paneDirective('metalink')"
+              name="metalink"
+              :tab="t('nav.metalinkSettings')"
+            >
+              <MetalinkSettings />
+            </n-tab-pane>
+          </n-tabs>
         </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('protocol')" name="protocol" :tab="t('nav.protocolSettings')">
-          <ProtocolSettings />
-        </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('bt')" name="bt" :tab="t('nav.btSettings')">
+        <n-tab-pane
+          class="settings-main-pane settings-leaf-pane"
+          data-settings-tab="bt"
+          data-settings-group="bt"
+          :display-directive="paneDirective('bt')"
+          name="bt"
+          :tab="t('nav.btSettings')"
+        >
           <BtSettings />
         </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('metalink')" name="metalink" :tab="t('nav.metalinkSettings')">
-          <MetalinkSettings />
+        <n-tab-pane class="settings-main-pane" :display-directive="paneDirective('components')" name="components" :tab="t('nav.toolsPluginsGroup')">
+          <n-tabs v-model:value="componentsSubTab" class="settings-subtabs" type="segment" size="small" pane-style="padding: 0;">
+            <n-tab-pane
+              class="settings-leaf-pane"
+              data-settings-tab="components"
+              data-settings-group="components"
+              :display-directive="paneDirective('components')"
+              name="components"
+              :tab="t('nav.componentSettings')"
+            >
+              <ComponentSettings />
+            </n-tab-pane>
+            <n-tab-pane
+              class="settings-leaf-pane"
+              data-settings-tab="plugins"
+              data-settings-group="components"
+              :display-directive="paneDirective('plugins')"
+              name="plugins"
+              :tab="t('nav.pluginSettings')"
+            >
+              <PluginSettings />
+            </n-tab-pane>
+          </n-tabs>
         </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('components')" name="components" :tab="t('nav.componentSettings')">
-          <ComponentSettings />
-        </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('plugins')" name="plugins" :tab="t('nav.pluginSettings')">
-          <PluginSettings />
-        </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('rpc-security')" name="rpc-security" :tab="t('nav.rpcSecuritySettings')">
-          <RpcSecuritySettings />
-        </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('advanced')" name="advanced" :tab="t('nav.advancedSettings')">
-          <AdvancedSettings />
-        </n-tab-pane>
-        <n-tab-pane :display-directive="paneDirective('diagnostics')" name="diagnostics" :tab="t('nav.diagnostics')">
-          <DiagnosticsSettings />
+        <n-tab-pane class="settings-main-pane" :display-directive="paneDirective('rpc-security')" name="security" :tab="t('nav.securityMaintenanceGroup')">
+          <n-tabs v-model:value="securitySubTab" class="settings-subtabs" type="segment" size="small" pane-style="padding: 0;">
+            <n-tab-pane
+              class="settings-leaf-pane"
+              data-settings-tab="rpc-security"
+              data-settings-group="security"
+              :display-directive="paneDirective('rpc-security')"
+              name="rpc-security"
+              :tab="t('nav.rpcSecuritySettings')"
+            >
+              <RpcSecuritySettings />
+            </n-tab-pane>
+            <n-tab-pane
+              class="settings-leaf-pane"
+              data-settings-tab="advanced"
+              data-settings-group="security"
+              :display-directive="paneDirective('advanced')"
+              name="advanced"
+              :tab="t('nav.advancedSettings')"
+            >
+              <AdvancedSettings />
+            </n-tab-pane>
+            <n-tab-pane
+              class="settings-leaf-pane"
+              data-settings-tab="diagnostics"
+              data-settings-group="security"
+              :display-directive="paneDirective('diagnostics')"
+              name="diagnostics"
+              :tab="t('nav.diagnostics')"
+            >
+              <DiagnosticsSettings />
+            </n-tab-pane>
+          </n-tabs>
         </n-tab-pane>
       </n-tabs>
     </div>
@@ -141,10 +245,120 @@ const uiStore = useUiStore()
 const connectionStore = useConnectionStore()
 const { t, locale } = useI18n()
 
-const activeTab = computed({
-  get: () => uiStore.settingsTab,
-  set: (value: string) => { uiStore.settingsTab = value }
+interface SettingsLeaf {
+  name: string
+  labelKey: string
+}
+
+interface SettingsGroup {
+  name: string
+  labelKey: string
+  pages: SettingsLeaf[]
+}
+
+/**
+ * 设置页分组：侧边栏只保留 8 个一级入口，互相关联的页面收进二级 Tab。
+ * 这样在 1200×800 等常见窗口下左侧导航不需要上下滚动；
+ * 每个子页面仍是独立组件，保存/重载/恢复默认按钮各管各的，互不影响。
+ */
+const SETTINGS_GROUPS: SettingsGroup[] = [
+  { name: 'general', labelKey: 'nav.generalSettings', pages: [{ name: 'general', labelKey: 'nav.generalSettings' }] },
+  { name: 'engine', labelKey: 'nav.engineSettings', pages: [{ name: 'engine', labelKey: 'nav.engineSettings' }] },
+  { name: 'download', labelKey: 'nav.downloadSettings', pages: [{ name: 'download', labelKey: 'nav.downloadSettings' }] },
+  { name: 'workflow', labelKey: 'nav.workflowSettings', pages: [{ name: 'workflow', labelKey: 'nav.workflowSettings' }] },
+  {
+    name: 'network',
+    labelKey: 'nav.networkProtocolGroup',
+    pages: [
+      { name: 'network', labelKey: 'nav.networkSettings' },
+      { name: 'protocol', labelKey: 'nav.protocolSettings' },
+      { name: 'metalink', labelKey: 'nav.metalinkSettings' }
+    ]
+  },
+  { name: 'bt', labelKey: 'nav.btSettings', pages: [{ name: 'bt', labelKey: 'nav.btSettings' }] },
+  {
+    name: 'components',
+    labelKey: 'nav.toolsPluginsGroup',
+    pages: [
+      { name: 'components', labelKey: 'nav.componentSettings' },
+      { name: 'plugins', labelKey: 'nav.pluginSettings' }
+    ]
+  },
+  {
+    name: 'security',
+    labelKey: 'nav.securityMaintenanceGroup',
+    pages: [
+      { name: 'rpc-security', labelKey: 'nav.rpcSecuritySettings' },
+      { name: 'advanced', labelKey: 'nav.advancedSettings' },
+      { name: 'diagnostics', labelKey: 'nav.diagnostics' }
+    ]
+  }
+]
+
+const SETTINGS_LEAVES = SETTINGS_GROUPS.flatMap(group => group.pages)
+
+function groupOfLeaf(name: string): SettingsGroup {
+  return SETTINGS_GROUPS.find(group => group.pages.some(page => page.name === name)) ?? SETTINGS_GROUPS[0]!
+}
+
+function leafMetaOf(name: string): SettingsLeaf | undefined {
+  return SETTINGS_LEAVES.find(page => page.name === name)
+}
+
+function groupLabelOf(name: string): string {
+  const group = SETTINGS_GROUPS.find(item => item.name === name)
+  return group ? t(group.labelKey) : ''
+}
+
+function leafLabelOf(name: string): string {
+  const page = leafMetaOf(name)
+  return page ? t(page.labelKey) : ''
+}
+
+/** 最近访问的二级页签；从外部（例如流媒体页）打开设置时也能落到正确子页 */
+const subTabState = ref<Record<string, string>>({
+  network: 'network',
+  components: 'components',
+  security: 'rpc-security'
 })
+
+function createSubTabModel(groupName: string) {
+  return computed({
+    get: () => {
+      const group = SETTINGS_GROUPS.find(item => item.name === groupName)
+      const saved = subTabState.value[groupName]
+      return saved && group?.pages.some(page => page.name === saved) ? saved : group?.pages[0]?.name ?? ''
+    },
+    set: (value: string) => {
+      subTabState.value = { ...subTabState.value, [groupName]: value }
+      uiStore.settingsTab = value
+    }
+  })
+}
+
+const networkSubTab = createSubTabModel('network')
+const componentsSubTab = createSubTabModel('components')
+const securitySubTab = createSubTabModel('security')
+
+/** 一级页签绑定到分组；uiStore 仍保存具体子页名，便于外部跳转与 E2E 定位 */
+const activeGroup = computed({
+  get: () => groupOfLeaf(uiStore.settingsTab).name,
+  set: (groupName: string) => {
+    const group = SETTINGS_GROUPS.find(item => item.name === groupName)
+    if (group) uiStore.settingsTab = subTabState.value[groupName] ?? group.pages[0]!.name
+  }
+})
+
+watch(
+  () => uiStore.settingsTab,
+  (tab) => {
+    const group = groupOfLeaf(tab)
+    if (group.pages.length > 1) {
+      subTabState.value = { ...subTabState.value, [group.name]: tab }
+    }
+  },
+  { immediate: true }
+)
 
 // ── 设置项搜索：扫描已挂载的各页 DOM（标签 + 说明），支持多关键词模糊匹配 ──
 
@@ -159,26 +373,15 @@ interface SearchEntry {
   searchText: string
 }
 
-/** 顺序必须与模板中 n-tab-pane 的声明顺序一致（搜索索引按 DOM 顺序映射页签） */
-const BASE_TABS: Array<{ name: string; labelKey: string }> = [
-  { name: 'general', labelKey: 'nav.generalSettings' },
-  { name: 'engine', labelKey: 'nav.engineSettings' },
-  { name: 'download', labelKey: 'nav.downloadSettings' },
-  { name: 'workflow', labelKey: 'nav.workflowSettings' },
-  { name: 'network', labelKey: 'nav.networkSettings' },
-  { name: 'protocol', labelKey: 'nav.protocolSettings' },
-  { name: 'bt', labelKey: 'nav.btSettings' },
-  { name: 'metalink', labelKey: 'nav.metalinkSettings' },
-  { name: 'components', labelKey: 'nav.componentSettings' },
-  { name: 'plugins', labelKey: 'nav.pluginSettings' }
-]
-const EXTRA_TABS: Array<{ name: string; labelKey: string }> = [
-  { name: 'rpc-security', labelKey: 'nav.rpcSecuritySettings' },
-  { name: 'advanced', labelKey: 'nav.advancedSettings' },
-  { name: 'diagnostics', labelKey: 'nav.diagnostics' }
-]
-
-const tabNames = computed(() => [...BASE_TABS, ...EXTRA_TABS].map(tab => tab.name))
+/** 需要挂载的页签名：一级分组 + 全部子页（搜索索引要求所有子页都在 DOM 中） */
+const tabNames = computed(() => {
+  const names: string[] = []
+  for (const group of SETTINGS_GROUPS) {
+    names.push(group.name)
+    for (const page of group.pages) names.push(page.name)
+  }
+  return [...new Set(names)]
+})
 
 /**
  * 页签按需挂载：默认 show:lazy，打开设置页时只渲染当前页签。
@@ -232,35 +435,33 @@ async function ensureSearchIndex(): Promise<void> {
 const searchEntries = ref<SearchEntry[]>([])
 const searchElementRefs = new Map<string, HTMLElement>()
 
-function tabLabelOf(name: string): string {
-  const meta = [...BASE_TABS, ...EXTRA_TABS].find(tab => tab.name === name)
-  return meta ? t(meta.labelKey) : ''
-}
-
 /**
  * 重建索引：每个 n-form-item 取标签 + 整行文本（含说明/提示），卡片标题也纳入。
  * 建索引前所有页签都已挂载（见 ensureSearchIndex），因此隐藏页的项也能被搜索到。
+ * 只遍历叶子页（.settings-leaf-pane）：分组页本身没有内容，避免重复收录。
  */
 function rebuildSearchIndex() {
   const body = bodyRef.value
   if (!body) return
-  const panes = [...body.querySelectorAll<HTMLElement>('.n-tabs .n-tab-pane')]
-  const names = tabNames.value
+  const panes = [...body.querySelectorAll<HTMLElement>('.settings-leaf-pane')]
   const entries: SearchEntry[] = []
   searchElementRefs.clear()
 
-  panes.forEach((pane, paneIndex) => {
-    const tabName = names[paneIndex]
+  panes.forEach((pane) => {
+    const tabName = pane.dataset.settingsTab
     if (!tabName) return
-    const tabLabel = tabLabelOf(tabName)
+    const groupName = pane.dataset.settingsGroup || tabName
+    const leafLabel = leafLabelOf(tabName)
+    const groupLabel = groupLabelOf(groupName)
+    const tabLabel = groupName === tabName ? leafLabel : `${groupLabel} / ${leafLabel}`
     // 页签名本身参与匹配（S1）：搜"工具与扩展"这类页签名此前会零结果，
     // 因为索引只收表单项 label 与卡片标题，不含页签名
     entries.push({
       id: `${tabName}-tab`,
-      label: tabLabel,
+      label: leafLabel,
       tabName,
       tabLabel,
-      searchText: tabLabel.toLowerCase()
+      searchText: `${groupLabel}\n${leafLabel}`.toLowerCase()
     })
     searchElementRefs.set(`${tabName}-tab`, pane)
 
@@ -332,7 +533,8 @@ const searchResults = computed(() => {
 
 function jumpTo(entry: SearchEntry) {
   const target = searchElementRefs.get(entry.id)
-  activeTab.value = entry.tabName
+  // 同时切换一级分组与二级子页，避免搜索结果落在隐藏的旧子页上
+  uiStore.settingsTab = entry.tabName
   searchQuery.value = ''
   void nextTick(() => {
     // 页签切换后再等一帧，确保目标项的滚动容器已可见
@@ -482,10 +684,10 @@ watch(visible, (show) => {
 
 <style scoped>
 .settings-dialog-body {
-  height: 70vh;
-  max-height: 70vh;
+  height: min(82vh, 900px);
+  max-height: calc(100vh - 112px);
   overflow: hidden;
-  padding: 4px 0 16px 16px;
+  padding: 2px 0 12px;
   display: flex;
   flex-direction: column;
 }
@@ -496,14 +698,14 @@ watch(visible, (show) => {
   position: relative;
   z-index: 2;
   flex: none;
-  padding: 0 16px 8px 0;
+  padding: 0 30px 10px;
 }
 
 .settings-search-panel {
   position: absolute;
   top: calc(100% - 2px);
-  left: 16px;
-  right: 16px;
+  left: 30px;
+  right: 30px;
   max-height: 300px;
   overflow-y: auto;
   padding: 4px;
@@ -558,16 +760,60 @@ watch(visible, (show) => {
 }
 
 /* 左侧标签栏固定不动，仅右侧内容区独立滚动 */
-.settings-dialog-body :deep(.n-tabs) {
+.settings-dialog-body :deep(.settings-main-tabs) {
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-.settings-dialog-body :deep(.n-tabs .n-tab-pane) {
+/* 一级导航固定宽度；分组后只有 8 项，常见窗口高度下无需上下滚动 */
+.settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav.n-tabs-nav--left) {
+  flex: 0 0 190px;
+  width: 190px;
+  padding: 6px 8px 6px 0;
+}
+
+.settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab) {
+  padding: 9px 14px;
+  font-size: 13px;
+}
+
+.settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab.n-tabs-tab--active) {
+  font-weight: 600;
+}
+
+.settings-dialog-body :deep(.settings-main-tabs > .n-tabs-pane-wrapper) {
+  padding-right: 2px;
+}
+
+.settings-dialog-body :deep(.settings-main-pane) {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* 二级分组 Tab 用胶囊样式，与左侧一级导航形成清晰层级 */
+.settings-dialog-body :deep(.settings-subtabs) {
+  margin: 0 0 12px;
+}
+
+.settings-dialog-body :deep(.settings-subtabs > .n-tabs-nav) {
+  margin-bottom: 10px;
+}
+
+.settings-dialog-body :deep(.settings-subtabs .n-tabs-tab) {
+  padding: 4px 12px;
+  font-size: 12.5px;
+}
+
+/* 设置弹窗里一级/二级页签已说明当前页面，隐藏子页面重复的大标题；
+   保留页面描述与卡片标题，减少空白层级 */
+.settings-dialog-body :deep(.settings-page .settings-header) {
+  display: none;
+}
+
+.settings-dialog-body :deep(.settings-page) {
+  max-width: 100%;
 }
 </style>
 
