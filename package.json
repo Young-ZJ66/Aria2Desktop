@@ -157,12 +157,6 @@
       "signAndEditExecutable": true,
       "artifactName": "Aria2Desktop-${version}-${arch}-Setup.${ext}",
       "requestedExecutionLevel": "asInvoker",
-      "signtoolOptions": {
-        "signingHashAlgorithms": [
-          "sha256"
-        ],
-        "rfc3161TimeStampServer": "http://timestamp.digicert.com"
-      },
       "extraResources": [
         {
           "from": "resources/aria2/win32/${arch}/aria2c.exe",
@@ -208,11 +202,6 @@
       "category": "public.app-category.utilities",
       "icon": "build/icon.png",
       "artifactName": "Aria2Desktop-${version}-${arch}.${ext}",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "notarize": true,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
       "darkModeSupport": true,
       "extraResources": [
         {

@@ -63,33 +63,9 @@ jobs:
         run: ./resources/aria2/darwin/${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}/aria2c --version
 
       - name: 构建安装包
-        env:
-          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          MAC_APPLE_ID: ${{ secrets.APPLE_ID }}
-          MAC_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          MAC_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          # 未配置证书/公证凭据时不要传入空 CSC_LINK，也不要强制公证
-          extra_args=""
-          if [ -n "$MAC_CSC_LINK" ]; then
-            export CSC_LINK="$MAC_CSC_LINK"
-            export CSC_KEY_PASSWORD="$MAC_CSC_KEY_PASSWORD"
-            echo "已配置 macOS 签名证书"
-          else
-            echo "未配置 MAC_CSC_LINK，macOS 产物保持未签名"
-          fi
-          if [ -n "$MAC_APPLE_ID" ] && [ -n "$MAC_APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$MAC_APPLE_TEAM_ID" ]; then
-            export APPLE_ID="$MAC_APPLE_ID"
-            export APPLE_APP_SPECIFIC_PASSWORD="$MAC_APPLE_APP_SPECIFIC_PASSWORD"
-            export APPLE_TEAM_ID="$MAC_APPLE_TEAM_ID"
-            echo "已配置 Apple 公证凭据"
-          else
-            echo "未配置 Apple 公证凭据，跳过公证"
-            extra_args="--config.mac.notarize=false"
-          fi
           npm run build
-          npx electron-builder --mac --publish never $extra_args
+          npx electron-builder --mac --publish never
 
       # 防止 electron-builder "命令成功但产物不全"：dmg/zip 的 x64 与 arm64 必须齐全且体积合理
       - name: 校验安装包产物

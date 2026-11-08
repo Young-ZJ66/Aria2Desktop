@@ -14,8 +14,6 @@ deliverables
 docs/*
 # 面向用户/维护者的正式文档需要随仓库发布，链接才可用
 !docs/automation-cli-webhook.md
-!docs/code-signing.md
-!docs/code-signing-policy.md
 !docs/plugin-development.md
 !docs/privacy.md
 

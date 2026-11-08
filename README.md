@@ -93,8 +93,8 @@
 到 [Releases](../../releases) 下载对应平台的包：Windows 用 `Setup.exe`（或免安装的 `portable.zip`），
 macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 
-> Windows 安装包已接入 **SignPath Foundation 免费开源代码签名**，通过审核后发布者显示为「SignPath Foundation」；macOS 公开构建暂未签名/公证，首次打开需右键 →「打开」。
-> 每个资产都附带同名 `.sha256`，可自行校验；签名验证方法见 [代码签名说明](docs/code-signing.md)。
+> Windows 安装包当前未签名，SmartScreen 可能提示「未知发布者」；macOS 公开构建未签名/未公证，首次打开需右键 →「打开」。
+> 每个资产都附带同名 `.sha256`，可自行校验。
 
 ### 2. 添加第一个下载
 
@@ -128,7 +128,7 @@ macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 若仍失败，从托盘菜单退出后重试。
 
 **Windows 提示未知发布者 / SmartScreen 拦截**
-若该版本尚未完成 SignPath 签名（或你下载的是便携版），可点「更多信息 → 仍要运行」；需要校验时比对 Release 页的 `.sha256`。
+当前 Windows 安装包未签名，可点「更多信息 → 仍要运行」；需要校验时比对 Release 页的 `.sha256`。
 
 **扩展连不上 App**
 先确认 App 在运行、扩展里填的密钥与「设置 → RPC 与安全」一致。
@@ -143,9 +143,7 @@ macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 **卸载后有残留**
 设置文件留在 `%APPDATA%/aria2-desktop`（含配置与会话），需要彻底清理时手动删除该目录。
 
-## 代码签名政策（Code signing policy）
-
-Aria2Desktop 的 Windows 安装包计划通过 [SignPath Foundation](https://signpath.org/) 免费开源代码签名计划签名；免费代码签名由 [SignPath.io](https://signpath.io) 提供，证书由 SignPath Foundation 提供。截至 2026-11-08，SignPath Foundation 申请尚未通过，Windows 安装包仍为未签名。签名范围、团队成员角色、审批流程与验证方式见 [Code signing policy](docs/code-signing-policy.md)，申请与配置步骤见 [代码签名说明](docs/code-signing.md)。
+## 隐私
 
 应用不收集遥测或个人数据，详见 [隐私政策](docs/privacy.md)。
 
@@ -157,7 +155,7 @@ Aria2Desktop 的 Windows 安装包计划通过 [SignPath Foundation](https://sig
 | 界面 | Vue 3 + Naive UI 2 + Pinia 3 |
 | 语言 / 构建 | TypeScript 6、Vite 8 |
 | 图表 | ECharts 6 |
-| 国际化 | vue-i18n 11（简体中文 / English / 日本語 / 한국어 / Deutsch / Français） |
+| 国际化 | vue-i18n 11（21 种语言，含简体/繁体中文、English、日本語、한국어、Deutsch、Français、Español、Русский、العربية 等） |
 | 下载引擎 | Aria2 1.37.0（Windows、Linux）/ 1.36.0（macOS） |
 | 测试 | Vitest 5、CDP 驱动的真实应用端到端 |
 

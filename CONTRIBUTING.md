@@ -169,4 +169,3 @@ module.exports = {
 - 发版前必须让这三处版本一致，CI 有守卫会校验：`package.json`、`extension/manifest.json`、
   `.github/release-notes.md` 首行（`# vX.Y.Z 更新日志`）。
 - 更新日志面向普通用户写：说清“以前怎样、现在怎样”，不要写内部实现细节。
-- Windows 安装包使用 SignPath Foundation 免费开源签名；申请条件、secrets 配置与验证方法见 [docs/code-signing.md](docs/code-signing.md)，对外政策见 [docs/code-signing-policy.md](docs/code-signing-policy.md)。
