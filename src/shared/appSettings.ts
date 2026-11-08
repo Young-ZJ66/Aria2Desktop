@@ -39,6 +39,73 @@ export interface SpeedScheduleRule {
   uploadLimit: number
 }
 
+/** 新建任务模板：把常用代理/请求头/保存目录等一键复用 */
+export interface TaskTemplate {
+  id: string
+  name: string
+  /** 保存目录（空表示使用默认目录） */
+  dir?: string
+  /** 代理，例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080 */
+  proxy?: string
+  userAgent?: string
+  referer?: string
+  cookie?: string
+  /** 额外请求头，每行 "Key: Value" */
+  headers?: string
+  /** 分段数（aria2 -s） */
+  split?: number
+  /** 单服务器连接数（aria2 -x） */
+  maxConnectionPerServer?: number
+}
+
+/** 完成动作规则中的单个动作 */
+export type CompletionRuleAction =
+  | { type: 'move'; targetDir: string }
+  | { type: 'rename'; pattern: string }
+  | { type: 'open' }
+  | { type: 'notify'; title?: string; body?: string }
+  | { type: 'webhook'; url: string; method?: 'POST' | 'GET' }
+  | { type: 'extract' }
+
+/** 下载完成后按条件自动执行的规则 */
+export interface CompletionRule {
+  id: string
+  name: string
+  enabled: boolean
+  /** 条件之间是 AND 关系；留空表示匹配所有完成的任务 */
+  condition?: {
+    /** 分类 id（general/video/music/images/documents/compressed/programs 或自定义） */
+    category?: string
+    /** 文件扩展名（不含点，空数组表示不限） */
+    extensions?: string[]
+    /** 仅匹配成功或失败的任务 */
+    status?: 'complete' | 'error'
+  }
+  actions: CompletionRuleAction[]
+}
+
+/** 队列 2.0 设置 */
+export interface QueueSettings {
+  /** 最大同时下载数（同步到 aria2 max-concurrent-downloads） */
+  maxConcurrent?: number
+  /** 失败自动重试 */
+  retryEnabled?: boolean
+  /** 最大重试次数 */
+  retryMaxAttempts?: number
+  /** 重试间隔（秒） */
+  retryDelaySeconds?: number
+}
+
+/** Headless Web 控制台设置 */
+export interface WebConsoleSettings {
+  enabled?: boolean
+  port?: number
+  /** 访问令牌；为空时由主进程自动生成 */
+  token?: string
+  /** 允许访问的 IP/CIDR；空数组表示仅本机 127.0.0.1/::1 */
+  allowedIps?: string[]
+}
+
 export interface AppSettings {
   // 常规设置
   language?: string
@@ -126,6 +193,28 @@ export interface AppSettings {
     /** 启用 UPnP 端口映射（BT/DHT 端口自动映射到网关，提升 BT 连通性） */
     upnpEnabled?: boolean
   }
+
+  // 队列 2.0
+  queue?: QueueSettings
+
+  // 新建任务模板
+  taskTemplates?: TaskTemplate[]
+
+  // 下载完成动作规则（按分类/扩展名/状态触发）
+  completionRules?: CompletionRule[]
+
+  // Headless Web 控制台
+  webConsole?: WebConsoleSettings
+
+  // 插件市场
+  pluginMarket?: {
+    enabled?: boolean
+    /** 市场目录 JSON 地址；留空使用官方默认地址 */
+    registryUrl?: string
+  }
+
+  /** 受信任的插件发布者公钥（PEM，Ed25519）。用于校验插件签名 */
+  trustedPluginPublishers?: string[]
 }
 
 /** 单个分类规则。id 固定为系统预定义值，dir 为子目录名，extensions 为用户可编辑的扩展名集合 */

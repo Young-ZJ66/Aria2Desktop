@@ -23,6 +23,8 @@ import {
 import {
   MCP_ERROR_CODES,
   buildInitializeResult,
+  buildPromptsListResult,
+  buildResourcesListResult,
   buildToolErrorResult,
   buildToolTextResult,
   buildToolsListResult,
@@ -382,6 +384,42 @@ export class ExtensionApiServer {
       return
     }
 
+    if (method === 'resources/list') {
+      this.send(res, 200, mcpResult(rpcId, buildResourcesListResult()))
+      return
+    }
+
+    const mcpParams = typeof body.params === 'object' && body.params !== null
+      ? (body.params as Record<string, unknown>)
+      : {}
+
+    if (method === 'resources/read') {
+      const uri = typeof mcpParams.uri === 'string' ? mcpParams.uri : ''
+      try {
+        const contents = await this.readMcpResource(uri)
+        this.send(res, 200, mcpResult(rpcId, { contents }))
+      } catch (error) {
+        this.send(res, 200, mcpError(rpcId, MCP_ERROR_CODES.invalidParams, error instanceof Error ? error.message : String(error)))
+      }
+      return
+    }
+
+    if (method === 'prompts/list') {
+      this.send(res, 200, mcpResult(rpcId, buildPromptsListResult()))
+      return
+    }
+
+    if (method === 'prompts/get') {
+      const name = typeof mcpParams.name === 'string' ? mcpParams.name : ''
+      try {
+        const result = await this.getMcpPrompt(name, mcpParams.arguments)
+        this.send(res, 200, mcpResult(rpcId, result))
+      } catch (error) {
+        this.send(res, 200, mcpError(rpcId, MCP_ERROR_CODES.invalidParams, error instanceof Error ? error.message : String(error)))
+      }
+      return
+    }
+
     if (method === 'tools/call') {
       const parsed = parseToolCallParams(body.params)
       if ('error' in parsed) {
@@ -394,6 +432,62 @@ export class ExtensionApiServer {
     }
 
     this.send(res, 200, mcpError(rpcId, MCP_ERROR_CODES.methodNotFound, `Unknown method: ${method}`))
+  }
+
+  /** 读取 MCP resource：统一返回 application/json 文本 */
+  private async readMcpResource(uri: string): Promise<Array<Record<string, unknown>>> {
+    const settings = getSettingsFresh()
+    const rpcOptions = activeRpcOptions(settings)
+    const rpc = (m: string, p: unknown[] = []) =>
+      callAria2Rpc({ ...rpcOptions, method: m, params: p, timeoutMs: ENGINE_RPC_TIMEOUT_MS })
+
+    let data: unknown
+    if (uri === 'aria2://status/global') {
+      data = await rpc('aria2.getGlobalStat')
+    } else if (uri === 'aria2://tasks/active') {
+      data = await rpc('aria2.tellActive', [['gid', 'status', 'totalLength', 'completedLength', 'downloadSpeed', 'files', 'bittorrent']])
+    } else if (uri === 'aria2://tasks/waiting') {
+      data = await rpc('aria2.tellWaiting', [0, 1000, ['gid', 'status', 'totalLength', 'completedLength', 'downloadSpeed', 'files', 'bittorrent']])
+    } else if (uri === 'aria2://tasks/stopped') {
+      data = await rpc('aria2.tellStopped', [0, 1000, ['gid', 'status', 'totalLength', 'completedLength', 'downloadSpeed', 'files', 'bittorrent', 'errorCode', 'errorMessage']])
+    } else {
+      throw new Error(`Unknown resource URI: ${uri}`)
+    }
+    return [{ uri, mimeType: 'application/json', text: JSON.stringify(data, null, 2) }]
+  }
+
+  /** 生成 MCP prompt：返回单个 user 消息，让客户端直接发起分析 */
+  private async getMcpPrompt(name: string, rawArgs: unknown): Promise<Record<string, unknown>> {
+    const args = typeof rawArgs === 'object' && rawArgs !== null ? (rawArgs as Record<string, unknown>) : {}
+    if (name === 'download_summary') {
+      const status = typeof args.status === 'string' ? args.status : 'all'
+      return {
+        description: 'Summarize current downloads, speeds and any failures',
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Use the Aria2 Desktop MCP tools to summarize the current "${status}" downloads: total count, aggregate speed, progress of each task, and any failed tasks with their error messages.`
+          }
+        }]
+      }
+    }
+    if (name === 'diagnose_downloads') {
+      const gid = typeof args.gid === 'string' ? args.gid : ''
+      return {
+        description: 'Diagnose slow or failed downloads using task and peer details',
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: gid
+              ? `Use get_task_status, get_task_peers and get_task_servers for gid ${gid}, then explain why the download is slow or failed and suggest concrete fixes.`
+              : 'List current downloads, identify any slow or failed tasks, inspect their peers and servers, then explain likely causes and concrete fixes.'
+          }
+        }]
+      }
+    }
+    throw new Error(`Unknown prompt: ${name}`)
   }
 
   /** MCP 工具实现：只覆盖下载管理，URL 走既有白名单 */
@@ -542,6 +636,104 @@ export class ExtensionApiServer {
           if (upload !== -1) options['max-overall-upload-limit'] = String(Math.floor(upload))
           await rpc('aria2.changeGlobalOption', [options])
           return buildToolTextResult(`Speed limit set: download=${options['max-overall-download-limit']} B/s${upload !== -1 ? `, upload=${options['max-overall-upload-limit']} B/s` : ''}`)
+        }
+
+        case 'get_global_stats': {
+          const stat = (await rpc('aria2.getGlobalStat')) as Record<string, unknown>
+          return buildToolTextResult(JSON.stringify(stat, null, 2))
+        }
+
+        case 'get_version': {
+          const version = await rpc('aria2.getVersion')
+          return buildToolTextResult(JSON.stringify(version, null, 2))
+        }
+
+        case 'get_session_info': {
+          const info = await rpc('aria2.getSessionInfo')
+          return buildToolTextResult(JSON.stringify(info, null, 2))
+        }
+
+        case 'get_task_peers': {
+          const gid = optString(args, 'gid')
+          if (gid === undefined) return buildToolErrorResult('gid is required')
+          if (gid === null) return buildToolErrorResult('gid must be a string')
+          const peers = await rpc('aria2.getPeers', [gid])
+          return buildToolTextResult(JSON.stringify(peers, null, 2))
+        }
+
+        case 'get_task_servers': {
+          const gid = optString(args, 'gid')
+          if (gid === undefined) return buildToolErrorResult('gid is required')
+          if (gid === null) return buildToolErrorResult('gid must be a string')
+          const servers = await rpc('aria2.getServers', [gid])
+          return buildToolTextResult(JSON.stringify(servers, null, 2))
+        }
+
+        case 'get_task_files': {
+          const gid = optString(args, 'gid')
+          if (gid === undefined) return buildToolErrorResult('gid is required')
+          if (gid === null) return buildToolErrorResult('gid must be a string')
+          const files = await rpc('aria2.tellStatus', [gid, ['gid', 'status', 'dir', 'files', 'bittorrent']])
+          return buildToolTextResult(JSON.stringify(files, null, 2))
+        }
+
+        case 'change_task_position': {
+          const gid = optString(args, 'gid')
+          if (gid === undefined) return buildToolErrorResult('gid is required')
+          if (gid === null) return buildToolErrorResult('gid must be a string')
+          const position = optNumber(args, 'position', 0)
+          if (position === null || position < 0) return buildToolErrorResult('position must be a non-negative number')
+          const how = optString(args, 'how') ?? 'POS_SET'
+          if (how !== 'POS_SET' && how !== 'POS_CUR' && how !== 'POS_END') {
+            return buildToolErrorResult('how must be POS_SET, POS_CUR or POS_END')
+          }
+          const result = await rpc('aria2.changePosition', [gid, position, how])
+          return buildToolTextResult(`Task ${gid} moved; new position=${String(result)}`)
+        }
+
+        case 'set_task_speed_limit': {
+          const gid = optString(args, 'gid')
+          if (gid === undefined) return buildToolErrorResult('gid is required')
+          if (gid === null) return buildToolErrorResult('gid must be a string')
+          const options: Record<string, string> = {}
+          if (args.download !== undefined) {
+            const download = optNumber(args, 'download', -1)
+            if (download === null || download < 0) return buildToolErrorResult('download must be a non-negative number')
+            options['max-download-limit'] = String(Math.floor(download))
+          }
+          if (args.upload !== undefined) {
+            const upload = optNumber(args, 'upload', -1)
+            if (upload === null || upload < 0) return buildToolErrorResult('upload must be a non-negative number')
+            options['max-upload-limit'] = String(Math.floor(upload))
+          }
+          if (Object.keys(options).length === 0) return buildToolErrorResult('download or upload is required')
+          await rpc('aria2.changeOption', [gid, options])
+          return buildToolTextResult(`Task ${gid} speed limit updated: ${JSON.stringify(options)}`)
+        }
+
+        case 'set_max_concurrent': {
+          const value = optNumber(args, 'value', 0)
+          if (value === null || value < 1 || value > 50) return buildToolErrorResult('value must be between 1 and 50')
+          await rpc('aria2.changeGlobalOption', [{ 'max-concurrent-downloads': String(value) }])
+          return buildToolTextResult(`Maximum concurrent downloads set to ${value}`)
+        }
+
+        case 'get_global_options': {
+          const options = await rpc('aria2.getGlobalOption')
+          return buildToolTextResult(JSON.stringify(options, null, 2))
+        }
+
+        case 'purge_download_result': {
+          const gid = optString(args, 'gid')
+          if (gid === undefined) return buildToolErrorResult('gid is required')
+          if (gid === null) return buildToolErrorResult('gid must be a string')
+          await rpc('aria2.removeDownloadResult', [gid])
+          return buildToolTextResult(`Removed result entry for ${gid}`)
+        }
+
+        case 'save_session': {
+          await rpc('aria2.saveSession')
+          return buildToolTextResult('Download session saved')
         }
 
         default:

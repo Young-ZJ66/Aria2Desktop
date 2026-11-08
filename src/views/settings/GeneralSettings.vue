@@ -269,7 +269,7 @@ const isElectronAvailable = !!window.electronAPI
 
 // 表单数据
 const form = reactive({
-  language: 'zh-CN' as 'zh-CN' | 'en-US',
+  language: 'zh-CN' as AppLocale,
   theme: 'light' as 'light' | 'dark' | 'auto',
   refreshInterval: 1000,
   autoConnect: true,
@@ -331,7 +331,11 @@ const updateStatusText = computed(() => {
 
 const languageOptions = [
   { label: '简体中文', value: 'zh-CN' },
-  { label: 'English', value: 'en-US' }
+  { label: 'English', value: 'en-US' },
+  { label: '日本語', value: 'ja-JP' },
+  { label: '한국어', value: 'ko-KR' },
+  { label: 'Deutsch', value: 'de-DE' },
+  { label: 'Français', value: 'fr-FR' }
 ]
 
 // 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新

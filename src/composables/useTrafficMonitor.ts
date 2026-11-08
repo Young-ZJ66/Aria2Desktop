@@ -8,10 +8,19 @@ export interface SpeedPoint {
   speed: number
 }
 
+/** 失败任务自动重试的标记点（叠加在速度曲线顶部，便于对照重试时刻的速率） */
+export interface RetryMarker {
+  time: string
+  speed: number
+  label: string
+}
+
 /** 模块级单例状态，不依赖任何组件挂载，连接后即开始采集 */
 const speedHistory: Ref<SpeedPoint[]> = ref([])
+const retryMarkers: Ref<RetryMarker[]> = ref([])
 // 每秒一个点，保留 10 分钟历史，让横坐标尽可能多地容纳分钟大节点
 const MAX_HISTORY = 600
+const MAX_RETRY_MARKERS = 50
 
 // 模块级缓存 store 实例（惰性初始化：首次采集时 pinia 已安装），避免每秒采集都重新创建
 let statsStore: ReturnType<typeof useStatsStore> | null = null
@@ -67,13 +76,32 @@ function stopMonitor() {
 /** 清空历史曲线：切换连接或断开时调用，避免把上一个引擎的速度画到新连接上 */
 function resetHistory() {
   speedHistory.value = []
+  retryMarkers.value = []
+}
+
+function timeLabel(date = new Date()): string {
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+  const ss = String(date.getSeconds()).padStart(2, '0')
+  return `${hh}:${mm}:${ss}`
+}
+
+/** 记录一次失败任务重试：在速度曲线上画一个标记点（由任务自动重试策略调用） */
+function recordRetryMarker(label: string) {
+  if (!statsStore) statsStore = useStatsStore()
+  retryMarkers.value = [
+    ...retryMarkers.value.slice(-(MAX_RETRY_MARKERS - 1)),
+    { time: timeLabel(), speed: statsStore.globalStat.downloadSpeed || 0, label }
+  ]
 }
 
 export function useTrafficMonitor() {
   return {
     speedHistory,
+    retryMarkers,
     startMonitor,
     stopMonitor,
-    resetHistory
+    resetHistory,
+    recordRetryMarker
   }
 }

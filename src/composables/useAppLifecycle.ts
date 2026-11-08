@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { setLocale, type AppLocale } from '@/i18n'
+import { setLocale } from '@/i18n'
+import { normalizeLocale } from '@/shared/locale'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useStatsStore } from '@/stores/statsStore'
 import { useTaskStore } from '@/stores/taskStore'
@@ -360,8 +361,9 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
 
     // 同步语言设置到 i18n
     const savedLang = settingsStore.getSetting('language') as string
-    if (savedLang === 'zh-CN' || savedLang === 'en-US') {
-      setLocale(savedLang as AppLocale)
+    const normalizedLang = normalizeLocale(savedLang)
+    if (normalizedLang) {
+      setLocale(normalizedLang)
     }
 
     // 应用主题

@@ -128,6 +128,7 @@ import { formatSize } from '@/utils/taskFormatters'
 import { parseCurlCommand } from '@/utils/curlCommand'
 import { USER_AGENT_PRESETS } from '@/shared/userAgents'
 import type { Aria2Option } from '@/types/aria2'
+import type { TaskTemplate } from '@/shared/appSettings'
 import type { CategoryOption, ComputeTargetDir } from './types'
 
 interface Props {
@@ -443,6 +444,20 @@ function askDuplicateConfirm(count: number, names: string): Promise<boolean> {
   })
 }
 
+/** 应用“任务模板”：把模板中的代理、请求头、保存目录等写入当前表单（不覆盖用户已填的 URI） */
+function applyTemplate(template: TaskTemplate) {
+  if (template.dir) form.dir = template.dir
+  if (template.proxy !== undefined) form.allProxy = template.proxy
+  if (template.userAgent !== undefined) form.userAgent = template.userAgent
+  if (template.referer !== undefined) form.referer = template.referer
+  if (template.maxConnectionPerServer !== undefined) form.maxConnectionPerServer = template.maxConnectionPerServer
+  if (template.headers !== undefined || template.cookie !== undefined) {
+    const lines = (template.headers ?? '').split('\n').map(line => line.trim()).filter(Boolean)
+    if (template.cookie) lines.unshift(`Cookie: ${template.cookie}`)
+    form.customHeaders = lines.join('\n')
+  }
+}
+
 function handleReset() {
   formRef.value?.restoreValidation()
   form.uris = ''
@@ -481,6 +496,7 @@ async function selectDir() {
 defineExpose({
   submit: handleSubmit,
   reset: handleReset,
+  applyTemplate,
   submitting,
   actionVisible: true,
   actionDisabled: false,

@@ -88,6 +88,7 @@ import { useI18n } from 'vue-i18n'
 import { NIcon, NMenu, type MenuOption } from 'naive-ui'
 import {
   DownloadOutline,
+  ListOutline,
   CheckmarkDoneOutline,
   CloudDoneOutline,
   CloudOfflineOutline,
@@ -96,7 +97,8 @@ import {
   SunnyOutline,
   MoonOutline,
   LogoGithub,
-  NotificationsOutline
+  NotificationsOutline,
+  ServerOutline
 } from '@vicons/ionicons5'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -147,9 +149,19 @@ const menuOptions = computed<MenuOption[]>(() => [
     icon: renderIcon(CheckmarkDoneOutline)
   },
   {
+    label: t('nav.queue'),
+    key: '/queue',
+    icon: renderIcon(ListOutline)
+  },
+  {
     label: t('nav.aria2Status'),
     key: '/status',
     icon: renderIcon(CloudDoneOutline)
+  },
+  {
+    label: t('nav.instances'),
+    key: '/instances',
+    icon: renderIcon(ServerOutline)
   }
 ])
 

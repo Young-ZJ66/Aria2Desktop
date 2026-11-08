@@ -11,11 +11,11 @@ resources/aria2/
 │   ├── x64/aria2c          # 已提供
 │   └── arm64/aria2c        # 已提供
 └── linux/
-    └── x64/aria2c          # 已提供
+    ├── x64/aria2c          # 已提供
+    └── arm64/aria2c        # 已提供
 ```
 
-当前未提供 `linux/arm64`、`linux/armv7l`——打包配置与 CI 只产出 Linux x64。
-需要时按下方「静态编译」自行补上即可（目录名须与 `getEngineArchDir` 一致）。
+当前未提供 `linux/armv7l`。Linux 的 x64 与 arm64 产物都会在发版 CI 中构建。
 
 ## 现有文件的来源与校验
 
@@ -23,18 +23,18 @@ resources/aria2/
 |---|---|---|---|
 | `win32/x64/aria2c.exe` | 1.37.0 | aria2 官方 Release（Windows x64） | `—` |
 | `win32/ia32/aria2c.exe` | 1.37.0 | aria2 官方 Release（Windows x86） | `—` |
-| `linux/x64/aria2c` | 1.36.0 | Motrix v1.8.19 `extra/linux/x64/engine/aria2c` | `6f50816471fbd5e91c04df6cf6f995c6279d295b70187f313e6d3b04f65769fc` |
+| `linux/x64/aria2c` | 1.37.0 | [abcfy2/aria2-static-build](https://github.com/abcfy2/aria2-static-build) release 1.37.0（x86_64 静态构建） | `80e577dc58348b96da46dd12d326bc99794b5021be395a3e890f2d67c8790c22` |
+| `linux/arm64/aria2c` | 1.37.0 | [abcfy2/aria2-static-build](https://github.com/abcfy2/aria2-static-build) release 1.37.0（aarch64 静态构建） | `99a057bd383a28f1d5fab6e8cc5f6f3ed4172f5e65c59548242e965454d654c1` |
 | `darwin/x64/aria2c` | 1.36.0 | Motrix v1.8.19 `extra/darwin/x64/engine/aria2c` | `be98b2260162b4b75c6a271a496c3fc96080e37561719381d9d883fbf7d25455` |
 | `darwin/arm64/aria2c` | 1.36.0 | Motrix v1.8.19 `extra/darwin/arm64/engine/aria2c` | `1527c4d071c16c1266880e93750e385cdd4e9d2a950d7f56cb5a21125e3bd311` |
 
 说明：
 
-- **版本不一致**：Windows 为 1.37.0（上游最新官方二进制），macOS/Linux 为 1.36.0
-  （上游不提供这两类预编译包，取自 Motrix 仓库）。两者行为差异极小，但如需完全一致，
-  可在 Mac/Linux 上按下方步骤自行编译 1.37.0 替换；
-- **完整性**：可以使用 `git hash-object` 核对——上述 Motrix 文件的 git blob SHA-1 为
-  `b1ae0b44…`（linux x64）、`f4a27406…`（darwin arm64），与 Motrix 仓库报告的一致，
-  即字节级未改动；
+- **版本说明**：Windows 为 1.37.0（aria2 官方 Release），Linux x64/arm64 为 1.37.0
+  （abcfy2/aria2-static-build 的静态构建）。macOS 仍为 1.36.0（上游无预编译，取自 Motrix
+  仓库）；如需完全一致，可在 Mac 上按下方步骤编译 1.37.0 替换并重新签名；
+- **完整性**：Linux 两枚文件可用上表 SHA-256 核对，`--version` 输出 `aria2 version 1.37.0`；
+  Motrix 的 darwin 文件 git blob SHA-1 为 `f4a27406…`，与 Motrix 仓库一致；
 - **macOS 签名**：两个 darwin 二进制的 Mach-O 均带 `LC_CODE_SIGNATURE`（至少为 ad-hoc 签名），
   能减少 Gatekeeper 直接拒绝的概率；若自行编译替换，务必重新 `codesign --force --sign -`。
 

@@ -8,6 +8,10 @@ const electronAPI = {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   // 浏览器扩展最近一次连接（设置页提示"扩展是旧版吗"用）
   getExtensionStatus: () => ipcRenderer.invoke('get-extension-status'),
+  exportTaskTorrent: (gid: string) => ipcRenderer.invoke('export-task-torrent', gid),
+  webConsoleStatus: () => ipcRenderer.invoke('web-console-status'),
+  lookupPeerLocations: (ips: string[]) => ipcRenderer.invoke('lookup-peer-locations', ips),
+  webConsoleRestart: () => ipcRenderer.invoke('web-console-restart'),
   // 应用默认下载目录（Windows 系统"下载"文件夹）
   getDefaultDownloadDir: () => ipcRenderer.invoke('get-default-download-dir'),
 
@@ -99,6 +103,7 @@ const electronAPI = {
   // 已完成任务持久化（替代 localStorage，存于 userData）
   loadPersistedTasks: () => ipcRenderer.invoke('persisted-tasks-load'),
   savePersistedTasks: (data: unknown) => ipcRenderer.invoke('persisted-tasks-save', data),
+  getPersistedTasksStats: () => ipcRenderer.invoke('persisted-tasks-stats'),
 
   // 平台信息（值而非函数：平台在进程生命周期内不变，直接暴露简化渲染层访问）
   platform: process.platform,
@@ -169,13 +174,15 @@ const electronAPI = {
   pluginsUninstall: (id: string) => ipcRenderer.invoke('plugins-uninstall', id),
   pluginsDir: () => ipcRenderer.invoke('plugins-dir'),
   pluginsOpenDir: () => ipcRenderer.invoke('plugins-open-dir'),
+  pluginsMarketList: (force?: boolean) => ipcRenderer.invoke('plugins-market-list', force === true),
+  pluginsMarketInstall: (pluginId: string) => ipcRenderer.invoke('plugins-market-install', pluginId),
 
   // 应用自身日志：报障时用户需要附上这个文件，界面提供路径与「打开目录」
   getLogsPath: () => ipcRenderer.invoke('get-logs-path'),
   openLogsDir: () => ipcRenderer.invoke('open-logs-dir'),
 
   // 下载事件转发给主进程插件系统（aria2 通知由渲染层的 WebSocket 接收，插件运行在主进程）
-  notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart', gid: string, name: string) =>
+  notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart' | 'downloadError', gid: string, name: string) =>
     ipcRenderer.send('download-event', kind, gid, name),
 
   // yt-dlp 流媒体支持（可选外部引擎，首次使用时按需下载）

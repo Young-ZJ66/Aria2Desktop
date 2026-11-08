@@ -14,7 +14,7 @@ import path from 'node:path'
  */
 
 const ROOT = process.cwd()
-const LOCALES = ['zh-CN', 'en-US']
+const LOCALES = ['zh-CN', 'en-US', 'ja-JP', 'ko-KR', 'de-DE', 'fr-FR']
 
 const localeOf = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, `src/locales/${name}.json`), 'utf8'))
 
@@ -67,12 +67,29 @@ describe('语言包', () => {
     expect(missingInZh).toEqual([])
   })
 
-  it('同一条文案在两种语言里的占位符一致', () => {
-    const mismatched = [...zh.keys()]
-      .filter((key) => en.has(key) && placeholders(zh.get(key)) !== placeholders(en.get(key)))
-      .map((key) => `${key}: zh={${placeholders(zh.get(key))}} en={${placeholders(en.get(key))}}`)
+  it('同一条文案在六种语言里的占位符一致', () => {
+    const mismatched = []
+    for (const name of LOCALES.slice(1)) {
+      const other = new Map(flatten(localeOf(name)))
+      for (const key of zh.keys()) {
+        if (!other.has(key)) continue
+        if (placeholders(zh.get(key)) !== placeholders(other.get(key))) {
+          mismatched.push(`${key}: zh={${placeholders(zh.get(key))}} ${name}={${placeholders(other.get(key))}}`)
+        }
+      }
+    }
 
     expect(mismatched).toEqual([])
+  })
+
+  it('六种语言的键集合完全相同', () => {
+    const maps = LOCALES.map((name) => new Map(flatten(localeOf(name))))
+    for (let index = 1; index < maps.length; index += 1) {
+      const base = maps[0]
+      const other = maps[index]
+      expect([...base.keys()].filter((key) => !other.has(key)), `${LOCALES[index]} 缺少键`).toEqual([])
+      expect([...other.keys()].filter((key) => !base.has(key)), `${LOCALES[index]} 多出键`).toEqual([])
+    }
   })
 
   it('代码里写死的翻译键都能在语言包里找到', () => {

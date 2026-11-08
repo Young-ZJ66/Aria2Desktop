@@ -1,11 +1,15 @@
 /**
  * vue-i18n 初始化配置
- * 支持中文和英文：首次启动按系统语言猜，之后跟随用户选择
+ * 支持中文、英文、日文、韩文、德文、法文：首次启动按系统语言猜，之后跟随用户选择
  */
 
 import { createI18n } from 'vue-i18n'
 import zhCN from '@/locales/zh-CN.json'
 import enUS from '@/locales/en-US.json'
+import jaJP from '@/locales/ja-JP.json'
+import koKR from '@/locales/ko-KR.json'
+import deDE from '@/locales/de-DE.json'
+import frFR from '@/locales/fr-FR.json'
 import { pickLocale, systemLocale, type AppLocale } from '@/shared/locale'
 
 export type { AppLocale }
@@ -34,7 +38,11 @@ const i18n = createI18n({
   fallbackLocale: 'zh-CN',
   messages: {
     'zh-CN': zhCN,
-    'en-US': enUS
+    'en-US': enUS,
+    'ja-JP': jaJP,
+    'ko-KR': koKR,
+    'de-DE': deDE,
+    'fr-FR': frFR
   }
 })
 

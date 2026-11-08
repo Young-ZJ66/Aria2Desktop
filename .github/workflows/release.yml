@@ -119,9 +119,12 @@ jobs:
           npm run verify:extension-api
 
       # 构建安装包（不发布，产物含 Setup.exe 与 blockmap，仅上传 Setup.exe）
-      # 本工作流只做打包，不对安装包做代码签名（扩展 .crx 仍用固定密钥签名，见后文）。
+      # 配置 WINDOWS_CSC_LINK / WINDOWS_CSC_KEY_PASSWORD 后自动进行 Authenticode 签名；未配置则保持未签名。
       - name: 构建安装包
         shell: pwsh
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
         run: |
           npm run build
           npx electron-builder --win --publish never --${{ matrix.electron_arch }} --config.win.target=nsis --config.win.artifactName='Aria2Desktop-${version}-${{ matrix.suffix }}-Setup.${ext}'
@@ -313,6 +316,12 @@ jobs:
           ./resources/aria2/darwin/${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}/aria2c --version
 
       - name: 构建安装包
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run build && npx electron-builder --mac --publish never
 
       - name: 校验安装包产物
@@ -329,11 +338,17 @@ jobs:
             gh release upload "$tag" "$f" "$f.sha256" --clobber
           done
 
-  # Linux 安装包：AppImage + deb（x64）
+  # Linux 安装包：AppImage + deb（x64 / arm64）
   build-linux:
     needs: [release-init]
-    name: 构建 Linux
+    name: 构建 Linux (${{ matrix.arch }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+          - arch: arm64
     steps:
       - name: 拉取代码
         uses: actions/checkout@v7
@@ -349,14 +364,14 @@ jobs:
 
       - name: 校验 aria2 引擎
         run: |
-          node scripts/verify-engine.mjs linux x64
-          ./resources/aria2/linux/x64/aria2c --version
+          node scripts/verify-engine.mjs linux ${{ matrix.arch }}
+          if [ "${{ matrix.arch }}" = "x64" ]; then ./resources/aria2/linux/x64/aria2c --version; fi
 
       - name: 构建安装包
-        run: npm run build && npx electron-builder --linux --x64 --publish never
+        run: npm run build && npx electron-builder --linux --${{ matrix.arch }} --publish never
 
       - name: 校验安装包产物
-        run: node scripts/verify-dist.mjs linux
+        run: node scripts/verify-dist.mjs linux ${{ matrix.arch }}
 
       - name: 上传到 Release
         env:

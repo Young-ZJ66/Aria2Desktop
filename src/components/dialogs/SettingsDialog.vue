@@ -61,6 +61,9 @@
         <n-tab-pane :display-directive="paneDirective('download')" name="download" :tab="t('nav.downloadSettings')">
           <DownloadSettings />
         </n-tab-pane>
+        <n-tab-pane :display-directive="paneDirective('workflow')" name="workflow" :tab="t('nav.workflowSettings')">
+          <WorkflowSettings />
+        </n-tab-pane>
         <n-tab-pane :display-directive="paneDirective('network')" name="network" :tab="t('nav.networkSettings')">
           <NetworkSettings />
         </n-tab-pane>
@@ -108,6 +111,7 @@ const settingsLoaders = {
   general: () => import('@/views/settings/GeneralSettings.vue'),
   engine: () => import('@/views/settings/EngineSettings.vue'),
   download: () => import('@/views/settings/DownloadSettings.vue'),
+  workflow: () => import('@/views/settings/WorkflowSettings.vue'),
   network: () => import('@/views/settings/NetworkSettings.vue'),
   protocol: () => import('@/views/settings/ProtocolSettings.vue'),
   bt: () => import('@/views/settings/BtSettings.vue'),
@@ -122,6 +126,7 @@ const settingsLoaders = {
 const GeneralSettings = defineAsyncComponent(settingsLoaders.general)
 const EngineSettings = defineAsyncComponent(settingsLoaders.engine)
 const DownloadSettings = defineAsyncComponent(settingsLoaders.download)
+const WorkflowSettings = defineAsyncComponent(settingsLoaders.workflow)
 const NetworkSettings = defineAsyncComponent(settingsLoaders.network)
 const ProtocolSettings = defineAsyncComponent(settingsLoaders.protocol)
 const BtSettings = defineAsyncComponent(settingsLoaders.bt)
@@ -159,6 +164,7 @@ const BASE_TABS: Array<{ name: string; labelKey: string }> = [
   { name: 'general', labelKey: 'nav.generalSettings' },
   { name: 'engine', labelKey: 'nav.engineSettings' },
   { name: 'download', labelKey: 'nav.downloadSettings' },
+  { name: 'workflow', labelKey: 'nav.workflowSettings' },
   { name: 'network', labelKey: 'nav.networkSettings' },
   { name: 'protocol', labelKey: 'nav.protocolSettings' },
   { name: 'bt', labelKey: 'nav.btSettings' },

@@ -214,7 +214,7 @@ const trafficStats = computed(() => {
 
 // ── 实时流量图（速度趋势折线图） ──
 // 数据由全局后台监控（useTrafficMonitor）采集，与状态页是否打开无关
-const { speedHistory } = useTrafficMonitor()
+const { speedHistory, retryMarkers } = useTrafficMonitor()
 const trafficChartRef = ref<HTMLDivElement>()
 let trafficChart: echarts.ECharts | null = null
 let resizeObserver: ResizeObserver | null = null
@@ -245,6 +245,10 @@ onUnmounted(() => {
 
 // 后台监控每秒推入新点，订阅变化以刷新图表
 watch(speedHistory, () => {
+  if (trafficChart) updateTrafficChart()
+})
+
+watch(retryMarkers, () => {
   if (trafficChart) updateTrafficChart()
 })
 
@@ -360,7 +364,25 @@ function updateTrafficChart() {
           ])
         },
         lineStyle: { color: primaryColor },
-        itemStyle: { color: primaryColor }
+        itemStyle: { color: primaryColor },
+        // 失败任务自动重试的断点：用红色菱形标出重试发生的时刻
+        markPoint: {
+          symbol: 'diamond',
+          symbolSize: 10,
+          itemStyle: { color: '#e88080' },
+          label: {
+            show: true,
+            formatter: (params: { name?: string }) => params.name || '',
+            color: axisTextColor,
+            fontSize: 10,
+            position: 'top'
+          },
+          data: retryMarkers.value.map(marker => ({
+            name: marker.label,
+            coord: [marker.time, marker.speed],
+            value: marker.speed
+          }))
+        }
       }
     ]
   }

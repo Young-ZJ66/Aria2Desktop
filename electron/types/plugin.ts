@@ -83,6 +83,8 @@ export interface PluginInstance {
   onDownloadComplete?: (task: { gid: string; name: string }) => void | Promise<void>
   /** 下载任务开始时调用 */
   onDownloadStart?: (task: { gid: string; name: string }) => void | Promise<void>
+  /** 下载任务失败时调用 */
+  onDownloadError?: (task: { gid: string; name: string }) => void | Promise<void>
 }
 
 /** 插件运行时信息 */
@@ -90,5 +92,11 @@ export interface PluginInfo {
   manifest: PluginManifest
   enabled: boolean
   path: string
+  /** 运行时：生产为 utilityProcess；单测/开发回退 vm；加载失败为 none */
+  runtime?: 'utilityProcess' | 'vm' | 'none'
+  /** 当前运行状态 */
+  status?: 'running' | 'stopped' | 'disabled' | 'error'
   error?: string
+  /** 崩溃重启次数 */
+  restarts?: number
 }

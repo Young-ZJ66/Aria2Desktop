@@ -94,6 +94,18 @@
       <n-icon class="action-icon"><FolderOpenOutline /></n-icon>
     </button>
 
+    <!-- 保存 .torrent - BT 任务（磁力任务需等待元数据就绪） -->
+    <button
+      v-if="showTorrentExport"
+      :title="t('task.saveTorrent')"
+      :aria-label="t('task.saveTorrent')"
+      class="task-action-btn"
+      :disabled="operating"
+      @click.stop="$emit('export-torrent', gid)"
+    >
+      <n-icon class="action-icon"><SaveOutline /></n-icon>
+    </button>
+
     <!-- 删除按钮（二次确认由父级的 DeleteTaskDialog / confirm 统一处理，此处直接触发删除入口） -->
     <button
       :title="t('task.deleteTask')"
@@ -130,6 +142,7 @@ import {
   TrashOutline,
   EyeOutline,
   DocumentOutline,
+  SaveOutline,
   ArrowUpOutline,
   ArrowDownOutline,
   ChevronUpCircleOutline
@@ -147,6 +160,8 @@ interface Props {
   showDetail?: boolean
   /** 是否显示等待队列排序按钮（下载任务页显示，完成页无此概念） */
   showQueueActions?: boolean
+  /** 是否显示“保存 .torrent”按钮（BT 任务） */
+  showTorrentExport?: boolean
   task: Aria2Task
 }
 
@@ -161,10 +176,11 @@ interface Emits {
   (e: 'move-up', gid: string): void
   (e: 'move-down', gid: string): void
   (e: 'move-top', gid: string): void
+  (e: 'export-torrent', gid: string): void
 }
 
 const { t } = useI18n()
-const props = withDefaults(defineProps<Props>(), { showDetail: true, showQueueActions: false, showOpenFile: false })
+const props = withDefaults(defineProps<Props>(), { showDetail: true, showQueueActions: false, showOpenFile: false, showTorrentExport: false })
 defineEmits<Emits>()
 
 /** 正在做种（aria2 只对 BT 任务返回 seeder） */

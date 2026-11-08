@@ -152,6 +152,75 @@
           </n-input-group>
         </n-form-item>
       </n-card>
+
+      <!-- Headless Web 控制台：应用自身功能，不依赖 aria2 连接与上方表单的保存流程 -->
+      <n-card :title="t('settings.webConsole.title')" class="setting-group">
+        <n-alert type="info" :show-icon="false" class="web-console-tip">
+          {{ t('settings.webConsole.description') }}
+        </n-alert>
+        <n-form-item :label="t('settings.webConsole.enabled')">
+          <AppSwitch v-model:value="webConsole.enabled" />
+        </n-form-item>
+        <n-form-item :label="t('settings.webConsole.port')">
+          <n-input-number v-model:value="webConsole.port" :min="1024" :max="65535" />
+        </n-form-item>
+        <n-form-item :label="t('settings.webConsole.token')">
+          <n-input
+            v-model:value="webConsole.token"
+            :placeholder="t('settings.webConsole.tokenPlaceholder')"
+            show-password-on="click"
+            type="password"
+          />
+        </n-form-item>
+        <n-form-item :label="t('settings.webConsole.allowedIps')">
+          <n-input
+            v-model:value="webConsole.allowedIps"
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+            :placeholder="t('settings.webConsole.allowedIpsPlaceholder')"
+          />
+        </n-form-item>
+        <n-space>
+          <n-button type="primary" :loading="webConsoleSaving" @click="saveWebConsole">
+            {{ t('common.save') }}
+          </n-button>
+          <n-button :loading="webConsoleLoading" @click="refreshWebConsole">
+            {{ t('settings.webConsole.refresh') }}
+          </n-button>
+        </n-space>
+        <n-descriptions v-if="webConsoleStatus" :column="1" bordered size="small" class="web-console-status">
+          <n-descriptions-item :label="t('settings.webConsole.status')">
+            {{ webConsoleStatus.running ? t('settings.webConsole.running') : t('settings.webConsole.stopped') }}
+          </n-descriptions-item>
+          <n-descriptions-item v-if="webConsoleStatus.url" :label="t('settings.webConsole.url')">
+            {{ webConsoleStatus.url }}
+          </n-descriptions-item>
+          <n-descriptions-item v-if="webConsoleStatus.token" :label="t('settings.webConsole.activeToken')">
+            {{ webConsoleStatus.token }}
+          </n-descriptions-item>
+          <n-descriptions-item v-if="webConsoleStatus.error" :label="t('settings.webConsole.error')">
+            {{ webConsoleStatus.error }}
+          </n-descriptions-item>
+        </n-descriptions>
+        <n-table v-if="webConsoleStatus?.audit?.length" :single-line="false" size="small" class="web-console-audit">
+          <thead>
+            <tr>
+              <th>{{ t('settings.webConsole.auditTime') }}</th>
+              <th>{{ t('settings.webConsole.auditIp') }}</th>
+              <th>{{ t('settings.webConsole.auditAction') }}</th>
+              <th>{{ t('settings.webConsole.auditDetail') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(entry, index) in webConsoleStatus.audit.slice(0, 20)" :key="index">
+              <td>{{ entry.time }}</td>
+              <td>{{ entry.ip }}</td>
+              <td>{{ entry.action }}</td>
+              <td>{{ entry.detail }}</td>
+            </tr>
+          </tbody>
+        </n-table>
+      </n-card>
     </n-form>
   </SettingsPage>
 </template>
@@ -163,6 +232,7 @@ import { FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import type { FormRules, FormInst } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
@@ -172,7 +242,84 @@ import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
 
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
+const settingsStore = useSettingsStore()
 const formRef = ref<FormInst | null>(null)
+
+// Headless Web 控制台（应用自身设置，独立于 aria2 表单）
+interface WebConsoleAuditEntry {
+  time: string
+  ip: string
+  action: string
+  detail: string
+  success: boolean
+}
+
+interface WebConsoleStatus {
+  running: boolean
+  port: number
+  url: string
+  token: string
+  error?: string
+  audit?: WebConsoleAuditEntry[]
+}
+
+const webConsole = reactive({
+  enabled: false,
+  port: 6802,
+  token: '',
+  allowedIps: ''
+})
+const webConsoleStatus = ref<WebConsoleStatus | null>(null)
+const webConsoleLoading = ref(false)
+const webConsoleSaving = ref(false)
+
+function syncWebConsoleFromSettings(): void {
+  const current = settingsStore.settings.webConsole
+  webConsole.enabled = current?.enabled === true
+  webConsole.port = current?.port ?? 6802
+  webConsole.token = current?.token ?? ''
+  webConsole.allowedIps = (current?.allowedIps ?? []).join('\n')
+}
+
+async function refreshWebConsole(): Promise<void> {
+  webConsoleLoading.value = true
+  try {
+    const status = await window.electronAPI?.webConsoleStatus?.()
+    if (status) webConsoleStatus.value = status
+  } catch (error) {
+    console.error('[AdvancedSettings] 读取 Web 控制台状态失败:', error)
+  } finally {
+    webConsoleLoading.value = false
+  }
+}
+
+async function saveWebConsole(): Promise<void> {
+  webConsoleSaving.value = true
+  try {
+    const allowedIps = webConsole.allowedIps
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+    await settingsStore.updateSetting('webConsole', {
+      enabled: webConsole.enabled,
+      port: Math.min(65535, Math.max(1024, Number(webConsole.port) || 6802)),
+      token: webConsole.token.trim(),
+      allowedIps
+    })
+    const result = await window.electronAPI?.webConsoleRestart?.()
+    await refreshWebConsole()
+    if (result?.error) {
+      message.error(result.error)
+    } else {
+      message.success(t('settings.webConsole.saved'))
+    }
+  } catch (error) {
+    console.error('[AdvancedSettings] 保存 Web 控制台设置失败:', error)
+    message.error(t('settings.webConsole.saveFailed'))
+  } finally {
+    webConsoleSaving.value = false
+  }
+}
 
 // 应用自身日志路径：由主进程从 electron-log 解析，渲染层只展示与打开
 const logsDir = ref('')
@@ -202,7 +349,11 @@ async function openLogsDir(): Promise<void> {
   }
 }
 
-onMounted(loadLogsPath)
+onMounted(() => {
+  syncWebConsoleFromSettings()
+  void loadLogsPath()
+  void refreshWebConsole()
+})
 
 const eventPollOptions = [
   { label: 'epoll', value: 'epoll' },

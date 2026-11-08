@@ -1,4 +1,5 @@
 import { app, BrowserWindow, shell } from 'electron'
+import { spawn } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as https from 'https'
@@ -138,8 +139,8 @@ export class UpdateController {
       }
 
       this.isDownloading = true
-      const downloadUrl = this.buildInstallerUrl(latestVersion)
-      const { checksumUnavailable } = await this.downloadInstaller(downloadUrl, latestVersion)
+      const artifact = this.buildInstallerArtifact(latestVersion)
+      const { checksumUnavailable } = await this.downloadInstaller(artifact.url, latestVersion, artifact.fileName)
       this.sendToRenderer({ state: 'downloaded', version: latestVersion })
       return { success: true, checksumUnavailable }
     } catch (error) {
@@ -150,12 +151,19 @@ export class UpdateController {
     }
   }
 
-  /** 重启更新：启动安装程序并退出应用，安装完成（runAfterFinish）后自动重启新版 */
+  /** 重启更新：按平台启动安装程序/替换 AppImage，并退出应用 */
   async restartAndInstall(): Promise<{ success: boolean; error?: string }> {
     if (!this.downloadedPath || !fs.existsSync(this.downloadedPath)) {
       return { success: false, error: 'Installer not downloaded' }
     }
     try {
+      // Linux AppImage：由脱离父进程的辅助脚本等待本进程退出后原子替换并重启。
+      // 不能直接 shell.openPath(新 AppImage)——旧进程仍占用原文件，替换必然失败。
+      if (process.platform === 'linux' && process.env.APPIMAGE) {
+        await this.installAppImageUpdate()
+        setTimeout(() => app.exit(0), 300)
+        return { success: true }
+      }
       const errMsg = await shell.openPath(this.downloadedPath)
       if (errMsg) {
         return { success: false, error: errMsg }
@@ -170,6 +178,37 @@ export class UpdateController {
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
+  }
+
+  /**
+   * 生成并启动 AppImage 自替换脚本。
+   * 脚本在应用退出后执行：把下载好的新 AppImage 复制到旧文件旁，原子 mv 覆盖，
+   * 恢复可执行位并重新启动。任一步失败则直接启动下载目录中的新文件，避免应用“消失”。
+   */
+  private async installAppImageUpdate(): Promise<void> {
+    const currentPath = process.env.APPIMAGE
+    if (!currentPath) throw new Error('APPIMAGE environment is missing')
+    await fs.promises.chmod(this.downloadedPath, 0o755)
+    const scriptPath = path.join(app.getPath('temp'), 'aria2desktop-appimage-update.sh')
+    const quote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`
+    const script = [
+      '#!/bin/sh',
+      'set -u',
+      `PID=${process.pid}`,
+      `CURRENT=${quote(currentPath)}`,
+      `NEXT=${quote(this.downloadedPath)}`,
+      'while kill -0 "$PID" 2>/dev/null; do sleep 0.5; done',
+      'if cp "$NEXT" "$CURRENT.new" 2>/dev/null && chmod +x "$CURRENT.new" 2>/dev/null && mv -f "$CURRENT.new" "$CURRENT" 2>/dev/null; then',
+      '  "$CURRENT" >/dev/null 2>&1 &',
+      'else',
+      '  rm -f "$CURRENT.new" 2>/dev/null',
+      '  "$NEXT" >/dev/null 2>&1 &',
+      'fi'
+    ].join('\n')
+    await fs.promises.writeFile(scriptPath, script, { encoding: 'utf-8', mode: 0o755 })
+    const child = spawn('/bin/sh', [scriptPath], { detached: true, stdio: 'ignore' })
+    child.unref()
+    logger.info('[UpdateController] AppImage 更新脚本已启动，等待应用退出后替换')
   }
 
   // ---------- 周期复查（P1） ----------
@@ -260,29 +299,42 @@ export class UpdateController {
     return { tag, notes }
   }
 
-  /** 按版本与当前架构构造安装包下载地址（命名规则与打包产物保持一致） */
-  private buildInstallerUrl(version: string): string {
-    const archSuffix = process.arch === 'ia32' ? 'x86' : process.arch === 'arm64' ? 'arm64' : 'x64'
-    const fileName = `Aria2Desktop-${version}-${archSuffix}-Setup.exe`
-    return `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${fileName}`
+  /** 当前平台的安装包文件名与下载地址（命名规则与 package.json 的 artifactName 一致） */
+  private buildInstallerArtifact(version: string): { fileName: string; url: string } {
+    let fileName: string
+    if (process.platform === 'darwin') {
+      const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+      fileName = `Aria2Desktop-${version}-${arch}.dmg`
+    } else if (process.platform === 'linux') {
+      const arch = process.arch === 'arm64' ? 'arm64' : 'x86_64'
+      fileName = `Aria2Desktop-${version}-${arch}.AppImage`
+    } else {
+      const arch = process.arch === 'ia32' ? 'x86' : process.arch === 'arm64' ? 'arm64' : 'x64'
+      fileName = `Aria2Desktop-${version}-${arch}-Setup.exe`
+    }
+    return {
+      fileName,
+      url: `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${encodeURIComponent(fileName)}`
+    }
   }
 
   /**
    * 是否支持"应用内下载并安装"。
    *
-   * 只有 Windows 能做闭环：NSIS 安装包可以静默替换正在运行的旧版本。
-   * macOS（dmg 需要用户拖入 /Applications，且未公证的应用需手动放行）与 Linux
-   * （AppImage 需要用户自己替换文件）都无法可靠地自动完成，硬做只会造成
-   * "下载完了却装不上"的困惑。因此这两个平台改为**检测到新版本后引导去 Release 页下载**。
+   * - Windows：NSIS 安装包静默替换旧版本后自动重启；
+   * - macOS：下载 dmg 并挂载，用户在标准安装窗口把应用拖入「应用程序」；
+   * - Linux：仅 AppImage 支持自替换（下载后由辅助脚本在旧进程退出后替换并重启）；
+   *   deb 版受系统包管理器限制，仍引导用户去 Release 页下载。
    */
-  private static readonly AUTO_INSTALL_SUPPORTED = process.platform === 'win32'
+  private static readonly AUTO_INSTALL_SUPPORTED = process.platform === 'win32' ||
+    process.platform === 'darwin' ||
+    (process.platform === 'linux' && !!process.env.APPIMAGE)
 
   /**
    * 下载安装包到临时目录（差量优先，失败回落全量），校验通过后转正。
    * 校验文件缺失时 resolve 携带 checksumUnavailable 标记（安装包保留，交由 UI 决定）。
    */
-  private async downloadInstaller(url: string, version: string): Promise<{ checksumUnavailable?: boolean }> {
-    const fileName = `Aria2Desktop-${version}-Setup.exe`
+  private async downloadInstaller(url: string, version: string, fileName: string): Promise<{ checksumUnavailable?: boolean }> {
     // 临时文件名**固定**（不再带 Date.now()）：断点续传要求跨次重试能命中同一个文件
     const filePath = path.join(app.getPath('temp'), `${fileName}.download`)
     await this.cleanStaleDownloads(fileName)
@@ -333,8 +385,10 @@ export class UpdateController {
 
       // 把本次安装包写入差量缓存，供**下次**更新做增量（约 100MB 常驻 userData/updates）。
       // 失败只记日志：缓存是纯优化，缺了下一次就走全量
-      void saveDeltaCache(finalPath, version, url).catch((e) =>
-        logger.warn('[UpdateController] 写入差量缓存失败（不影响本次更新）:', e))
+      if (process.platform === 'win32') {
+        void saveDeltaCache(finalPath, version, url).catch((e) =>
+          logger.warn('[UpdateController] 写入差量缓存失败（不影响本次更新）:', e))
+      }
 
       return checksumResult
     } catch (error) {
@@ -356,7 +410,7 @@ export class UpdateController {
       const entries = await fs.promises.readdir(dir)
       const stale = entries.filter(name =>
         name.startsWith('Aria2Desktop-') &&
-        name.endsWith('-Setup.exe.download') &&
+        name.endsWith('.download') &&
         name !== `${keepFileName}.download`)
       for (const name of stale) {
         await fs.promises.unlink(path.join(dir, name)).catch(() => { /* 清理失败不阻断下载 */ })

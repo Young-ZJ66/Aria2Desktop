@@ -10,6 +10,8 @@ import * as fs from 'fs'
 import { registerSecureHandler, registerSecureListener } from '../utils/ipcSecurity'
 import { isSecretEncryptionAvailable } from '../utils/secretCipher'
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
+import { activeRpcOptions } from '../utils/activeRpcConfig'
+import { callAria2Rpc } from '../utils/aria2Rpc'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import { isAllowedExternalUrl } from '../utils/externalUrlCore'
 import { undoDuplicatedSegment } from '../utils/pathRepair'
@@ -19,9 +21,14 @@ import { checkYtdlpAvailable, getVideoInfo, getFormatUrl, installYtdlp, checkYtd
 import { checkFfmpegAvailable, installFfmpeg, checkFfmpegUpdate } from '../services/ffmpegService'
 import { startStreamDownload, cancelStreamDownload, type StreamDownloadRequest } from '../services/streamDownloadService'
 import { extractArchive } from '../services/archiveService'
+import { applyCompletionRules } from '../services/completionRuleService'
 import { upnpService } from '../services/upnpService'
 import { getAutoLaunchEnabled, setAutoLaunchEnabled } from '../services/autoLaunch'
 import { PluginManager } from '../services/pluginManager'
+import { PluginMarketService } from '../services/pluginMarketService'
+import { HistoryDatabase } from '../services/historyDatabase'
+import { webConsoleServer } from '../services/webConsoleServer'
+import { lookupPeerLocations } from '../utils/ipGeo'
 import { createLogger, getLogFilePaths } from '../utils/logger'
 // 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import { resolveBaseDownloadDir } from '../../src/shared/fileCategories'
@@ -98,6 +105,8 @@ export class IpcController {
   private updateController: UpdateController
   private store: Store<StoreData>
   private pluginManager: PluginManager
+  private pluginMarket: PluginMarketService
+  private historyDatabase: HistoryDatabase | null = null
   /** 浏览器扩展最近连接取值器：由 main 在构造扩展接口服务后注入（见 attachExtensionStatusProvider） */
   private extensionConnectionProvider: (() => ExtensionConnection) | null = null
 
@@ -113,6 +122,7 @@ export class IpcController {
     this.updateController = new UpdateController(() => windowController.getMainWindow())
     this.store = store
     this.pluginManager = new PluginManager(store)
+    this.pluginMarket = new PluginMarketService(this.pluginManager)
   }
 
   /**
@@ -168,6 +178,22 @@ export class IpcController {
       appVersion: app.getVersion(),
       connection: this.extensionConnectionProvider?.() ?? { version: null, lastSeenAt: null }
     }), { getMainWindow: this.windowRef })
+
+    // Headless Web 控制台状态（设置页展示地址/令牌/审计记录）
+    registerSecureHandler('web-console-status', () => webConsoleServer.getStatus(), {
+      getMainWindow: this.windowRef,
+      failureValue: { running: false, port: 0, url: '', token: '', error: 'Unauthorized', audit: [] }
+    })
+    registerSecureHandler('lookup-peer-locations', async (_event, ips: unknown) => {
+      if (!Array.isArray(ips) || ips.length > 100) return {}
+      const sanitized = ips.filter((ip): ip is string => typeof ip === 'string' && /^[0-9a-fA-F:.]{2,45}$/.test(ip))
+      return await lookupPeerLocations(sanitized)
+    }, { getMainWindow: this.windowRef, failureValue: {} })
+
+    registerSecureHandler('web-console-restart', async () => {
+      const result = await webConsoleServer.apply()
+      return { ...webConsoleServer.getStatus(), ...result }
+    }, { getMainWindow: this.windowRef })
 
     // 应用默认下载目录（Windows 系统"下载"文件夹）
     registerSecureHandler('get-default-download-dir', () => ({
@@ -421,6 +447,47 @@ export class IpcController {
       }
       return { canceled: true }
     }, { getMainWindow: this.windowRef, failureValue: { canceled: true } })
+
+    // 导出 BT 任务的 .torrent：磁力任务靠 aria2 的 bt-save-metadata 在下载目录生成
+    // <infoHash>.torrent，这里按 infoHash 精确取回并另存，避免把任意文件暴露给渲染层。
+    registerSecureHandler('export-task-torrent', async (_event, gid: string) => {
+      if (typeof gid !== 'string' || !/^[0-9a-fA-F]{16}$/.test(gid)) {
+        return { success: false, error: 'invalid_gid' }
+      }
+      try {
+        const settings = getSettingsFresh()
+        const status = await callAria2Rpc({
+          ...activeRpcOptions(settings),
+          method: 'aria2.tellStatus',
+          params: [gid, ['gid', 'infoHash', 'dir', 'bittorrent']],
+          timeoutMs: 5000
+        }) as { infoHash?: string; dir?: string; bittorrent?: { info?: { name?: string } } }
+        if (!status?.infoHash) {
+          return { success: false, error: 'not_bittorrent' }
+        }
+        const sourcePath = path.join(String(status.dir || ''), `${status.infoHash}.torrent`)
+        if (!fs.existsSync(sourcePath)) {
+          return { success: false, error: 'metadata_not_saved' }
+        }
+        const window = this.windowController.getMainWindow()
+        const defaultName = status.bittorrent?.info?.name
+          ? `${status.bittorrent.info.name}.torrent`
+          : `${status.infoHash}.torrent`
+        const result = window
+          ? await dialog.showSaveDialog(window, {
+            title: 'Save .torrent',
+            defaultPath: defaultName,
+            filters: [{ name: 'BitTorrent', extensions: ['torrent'] }]
+          })
+          : { canceled: true, filePath: undefined }
+        if (result.canceled || !result.filePath) return { success: false, canceled: true }
+        await fs.promises.copyFile(sourcePath, result.filePath)
+        return { success: true, path: result.filePath }
+      } catch (error) {
+        logger.warn('[IpcController] Export torrent failed:', error)
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    }, { getMainWindow: this.windowRef })
 
     registerSecureHandler('show-open-dialog', async (event, options: Electron.OpenDialogOptions) => {
       const window = this.windowController.getMainWindow()
@@ -755,34 +822,31 @@ export class IpcController {
 
   /** 已完成任务记录持久化到 userData（替代 localStorage，规避配额限制） */
   private registerPersistedTasksHandlers() {
-    const filePath = path.join(app.getPath('userData'), 'persisted-tasks.json')
+    const jsonPath = path.join(app.getPath('userData'), 'persisted-tasks.json')
+    const dbPath = path.join(app.getPath('userData'), 'download-history.db')
+    const history = new HistoryDatabase(dbPath, jsonPath)
+    this.historyDatabase = history
 
     // 失败态为 {}（渲染层按对象消费），非默认的 Unauthorized 对象
-    registerSecureHandler('persisted-tasks-load', async () => {
-      try {
-        if (!fs.existsSync(filePath)) return {}
-        // 使用异步 IO，避免大文件（上限 10MB）读写阻塞主进程事件循环
-        const content = await fs.promises.readFile(filePath, 'utf-8')
-        return JSON.parse(content || '{}')
-      } catch (e) {
-        logger.error('[IpcController] Failed to load persisted tasks:', e)
-        return {}
-      }
-    }, { getMainWindow: this.windowRef, failureValue: {} })
+    registerSecureHandler('persisted-tasks-load', async () => history.loadAll(), {
+      getMainWindow: this.windowRef,
+      failureValue: {}
+    })
 
     registerSecureHandler('persisted-tasks-save', async (event, data: unknown) => {
-      try {
-        const serialized = JSON.stringify(data ?? {})
-        // 序列化大小上限：防止异常/恶意数据写超大文件到 userData
-        if (serialized.length > 10 * 1024 * 1024) return { success: false, error: 'Data too large' }
-        const dir = path.dirname(filePath)
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-        await fs.promises.writeFile(filePath, serialized, { encoding: 'utf-8', mode: 0o600 })
-        return { success: true }
-      } catch (e) {
-        return { success: false, error: String(e) }
+      // SQLite 按行存储，不再受原 JSON 文件 10MB 字符串上限限制。
+      // 渲染层仍以对象形式提交；非对象输入直接拒绝，避免污染数据库。
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        return { success: false, error: 'Invalid history payload' }
       }
+      return history.saveAll(data as Record<string, unknown>)
     }, { getMainWindow: this.windowRef })
+
+    // 历史统计：诊断页展示后端类型与记录数（SQLite 可用时不再有 10MB 上限）
+    registerSecureHandler('persisted-tasks-stats', async () => history.getStats(), {
+      getMainWindow: this.windowRef,
+      failureValue: { count: 0, backend: 'json' }
+    })
   }
 
   /** yt-dlp / ffmpeg 流媒体能力（按需下载） */
@@ -877,9 +941,12 @@ export class IpcController {
     // 下载事件转发：aria2 的通知由渲染层的 WebSocket 收到，这里接过来喂给插件系统。
     // 入参逐项校验（IPC 边界不信任调用方），非法值一律丢弃。
     registerSecureListener('download-event', (_event, kind: unknown, gid: unknown, name: unknown) => {
-      if (kind !== 'downloadComplete' && kind !== 'downloadStart') return
+      if (kind !== 'downloadComplete' && kind !== 'downloadStart' && kind !== 'downloadError') return
       if (typeof gid !== 'string' || !gid) return
       this.pluginManager.emit(kind, { gid, name: typeof name === 'string' ? name : '' })
+      // 完成动作规则：按 gid 反查文件列表后执行（异步，不阻塞 IPC 回调）。
+      // 失败事件也要触发，否则 condition.status='error' 的规则永远没有入口。
+      if (kind === 'downloadComplete' || kind === 'downloadError') void applyCompletionRules(gid)
     }, { getMainWindow: this.windowRef })
 
     // 失败态为 []（渲染层按数组消费）
@@ -906,6 +973,15 @@ export class IpcController {
       success: true,
       path: this.pluginManager.getPluginDir()
     }), { getMainWindow: this.windowRef })
+
+    registerSecureHandler('plugins-market-list', (_event, force?: unknown) => (
+      this.pluginMarket.list(force === true)
+    ), { getMainWindow: this.windowRef, failureValue: { success: false, plugins: [], error: 'FAILED' } })
+
+    registerSecureHandler('plugins-market-install', async (_event, pluginId: string) => {
+      if (typeof pluginId !== 'string') return { success: false, error: 'INVALID_ID' }
+      return this.pluginMarket.install(pluginId)
+    }, { getMainWindow: this.windowRef })
 
     registerSecureHandler('plugins-open-dir', async () => {
       const dir = this.pluginManager.getPluginDir()

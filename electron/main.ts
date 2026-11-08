@@ -12,6 +12,7 @@ import { SpeedScheduler } from './services/speedScheduler'
 import { DownloadScheduler } from './services/downloadScheduler'
 import { upnpService } from './services/upnpService'
 import { ExtensionApiServer } from './services/extensionApiServer'
+import { webConsoleServer } from './services/webConsoleServer'
 import { appState } from './utils/appState'
 import { bindSettingsStore, getSettings } from './utils/settingsAccessor'
 import { setupLogging, createLogger } from './utils/logger'
@@ -410,6 +411,10 @@ if (!gotTheLock) {
       void upnpService.reconcile()
       // 启动浏览器扩展本地接口（失败不影响其它功能，扩展侧会自动回落）
       extensionApiServer.start()
+      // 启动 Headless Web 控制台（设置开启时监听；端口/令牌在设置页查看）
+      void webConsoleServer.apply()
+      // 设置页修改 Web 控制台开关/端口/白名单后即时生效，无需重启应用
+      store.onDidChange('settings.webConsole', () => { void webConsoleServer.apply() })
 
       // 处理启动时的协议链接（Windows 首次启动通过 argv 传入）：
       // 此时渲染层通常尚未就绪，sendPendingUrl 会入队并在 app-ready 后补投
@@ -477,6 +482,8 @@ if (!gotTheLock) {
       upnpService.stop()
       // 关闭浏览器扩展本地接口
       extensionApiServer.stop()
+      // 关闭 Headless Web 控制台
+      await webConsoleServer.stop()
       logger.info('优雅关闭完成')
     } catch (error) {
       logger.error('优雅关闭出错:', error)

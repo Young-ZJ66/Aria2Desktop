@@ -52,6 +52,17 @@ export interface ElectronAPI {
 
   // 浏览器扩展最近一次连接（connection.version 为 null 表示还没连过或旧版扩展不带版本头）
   getExtensionStatus: () => Promise<{ appVersion: string; connection: ExtensionConnection }>
+  exportTaskTorrent: (gid: string) => Promise<{ success: boolean; path?: string; canceled?: boolean; error?: string }>
+  lookupPeerLocations: (ips: string[]) => Promise<Record<string, { country: string; countryCode: string }>>
+  webConsoleStatus: () => Promise<{
+    running: boolean
+    port: number
+    url: string
+    token: string
+    error?: string
+    audit?: { time: string; ip: string; action: string; detail: string; success: boolean }[]
+  }>
+  webConsoleRestart: () => Promise<{ running: boolean; port: number; token: string; error?: string }>
 
   // 应用默认下载目录（Windows 系统"下载"文件夹）
   getDefaultDownloadDir: () => Promise<{ success: boolean; path?: string; error?: string }>
@@ -224,6 +235,7 @@ export interface ElectronAPI {
   // 已完成任务持久化（存于 userData，替代 localStorage）
   loadPersistedTasks: () => Promise<Record<string, unknown>>
   savePersistedTasks: (data: unknown) => Promise<{ success: boolean; error?: string }>
+  getPersistedTasksStats: () => Promise<{ count: number; backend: 'sqlite' | 'json' }>
 
   // 平台信息
   platform: string
@@ -252,7 +264,7 @@ export interface ElectronAPI {
   onEngineGaveUp: (callback: (info: { attempts: number }) => void) => () => void
 
   // 插件管理
-  pluginsList: () => Promise<Array<{ manifest: { id: string; name: string; version: string; description?: string; author?: string; permissions?: string[] }; enabled: boolean; path: string; error?: string }>>
+  pluginsList: () => Promise<Array<{ manifest: { id: string; name: string; version: string; description?: string; author?: string; permissions?: string[] }; enabled: boolean; path: string; error?: string; runtime?: 'utilityProcess' | 'vm' | 'none'; status?: 'running' | 'stopped' | 'disabled' | 'error'; restarts?: number }>>
   pluginsEnable: (id: string) => Promise<{ success: boolean }>
   pluginsDisable: (id: string) => Promise<{ success: boolean }>
   pluginsUninstall: (id: string) => Promise<{ success: boolean }>
@@ -260,6 +272,10 @@ export interface ElectronAPI {
   pluginsDir: () => Promise<{ success: boolean; path?: string; error?: string }>
   /** 打开插件目录（主进程用真实路径打开，不存在时自动创建） */
   pluginsOpenDir: () => Promise<{ success: boolean; error?: string }>
+  /** 插件市场列表（强制刷新可绕过主进程 10 分钟缓存） */
+  pluginsMarketList: (force?: boolean) => Promise<{ success: boolean; plugins: Array<{ id: string; name: string; version: string; description?: string; author?: string; homepage?: string; entryUrl: string; sha256: string; signature?: string; publisher?: string; permissions?: string[]; installed?: boolean; installedVersion?: string }>; error?: string }>
+  /** 安装市场插件（主进程负责下载、校验、落盘并启用） */
+  pluginsMarketInstall: (pluginId: string) => Promise<{ success: boolean; error?: string }>
 
   /** 应用自身日志文件与所在目录（由 electron-log 解析，报障时用户附上该文件） */
   getLogsPath: () => Promise<{ success: boolean; file?: string; dir?: string }>
@@ -267,7 +283,7 @@ export interface ElectronAPI {
   openLogsDir: () => Promise<{ success: boolean; dir?: string; error?: string }>
 
   /** 把 aria2 下载事件转发给主进程插件系统（fire-and-forget，无返回值） */
-  notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart', gid: string, name: string) => void
+  notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart' | 'downloadError', gid: string, name: string) => void
 
   // yt-dlp 流媒体支持（可选外部引擎，首次使用时按需下载）
   ytdlpCheck: () => Promise<{ available: boolean; version?: string; error?: string; source?: 'downloaded' | 'bundled' | 'path'; installable: boolean; approxSizeMB?: number }>

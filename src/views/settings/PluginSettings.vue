@@ -56,6 +56,10 @@
               <n-tag size="tiny" :bordered="false" round :type="plugin.enabled ? 'success' : 'default'">
                 {{ plugin.enabled ? t('settings.plugins.enabled') : t('settings.plugins.disabled') }}
               </n-tag>
+              <n-tag v-if="plugin.runtime" size="tiny" :bordered="false" round>
+                {{ plugin.runtime }}
+              </n-tag>
+              <n-tag v-if="plugin.error" size="tiny" type="error" :bordered="false" round>error</n-tag>
               <span class="plugin-version">v{{ plugin.manifest.version }}</span>
             </div>
             <div class="plugin-desc">{{ plugin.manifest.description || t('settings.plugins.noDescription') }}</div>
@@ -87,6 +91,87 @@
         </div>
       </div>
     </n-card>
+
+    <n-card :title="t('settings.plugins.marketTitle')" class="setting-group market-card">
+      <template #header-extra>
+        <n-button size="small" :loading="marketLoading" @click="loadMarket(true)">
+          {{ t('settings.plugins.marketRefresh') }}
+        </n-button>
+      </template>
+      <n-alert type="info" :bordered="false" style="margin-bottom: 12px;">
+        {{ t('settings.plugins.marketDesc') }}
+      </n-alert>
+      <div class="market-config">
+        <div class="market-config-row">
+          <span class="market-config-label">{{ t('settings.plugins.marketEnabled') }}</span>
+          <n-switch v-model:value="marketEnabled" size="small" />
+        </div>
+        <div class="market-config-row">
+          <span class="market-config-label">{{ t('settings.plugins.marketRegistryUrl') }}</span>
+          <n-input v-model:value="marketRegistryUrl" size="small" :placeholder="t('settings.plugins.marketRegistryPlaceholder')" />
+        </div>
+        <div class="market-config-actions">
+          <n-button size="small" :loading="savingMarketSettings" @click="saveMarketSettings">
+            {{ t('common.save') }}
+          </n-button>
+        </div>
+      </div>
+      <n-alert v-if="marketError" type="error" :bordered="false" style="margin-bottom: 12px;">
+        {{ marketError }}
+      </n-alert>
+      <n-spin :show="marketLoading">
+        <n-empty v-if="!marketLoading && marketPlugins.length === 0" :description="t('settings.plugins.marketEmpty')" size="small" style="padding: 24px 0;" />
+        <div v-else class="plugin-list">
+          <div v-for="item in marketPlugins" :key="item.id" class="plugin-item">
+            <div class="plugin-main">
+              <div class="plugin-name-row">
+                <span class="plugin-name">{{ item.name }}</span>
+                <n-tag size="tiny" :bordered="false" round>{{ 'v' + item.version }}</n-tag>
+                <n-tag v-if="item.installed" size="tiny" type="success" :bordered="false" round>
+                  {{ t('settings.plugins.marketInstalled', { version: item.installedVersion || item.version }) }}
+                </n-tag>
+              </div>
+              <div class="plugin-desc">{{ item.description || t('settings.plugins.noDescription') }}</div>
+              <div class="plugin-meta">
+                <span>{{ item.author || t('settings.plugins.unknownAuthor') }}</span>
+                <span v-if="item.publisher" class="plugin-perms">{{ t('settings.plugins.marketPublisher') }}: {{ item.publisher }}</span>
+              </div>
+            </div>
+            <div class="plugin-actions">
+              <n-button
+                v-if="!item.installed || item.installedVersion !== item.version"
+                size="tiny"
+                type="primary"
+                :loading="installingMarketId === item.id"
+                @click="installMarketPlugin(item)"
+              >
+                {{ item.installed ? t('settings.plugins.marketUpdate') : t('settings.plugins.marketInstall') }}
+              </n-button>
+              <n-button size="tiny" quaternary type="warning" @click="reportMarketPlugin(item)">
+                {{ t('settings.plugins.marketReport') }}
+              </n-button>
+            </div>
+          </div>
+        </div>
+      </n-spin>
+
+      <n-collapse style="margin-top: 16px;">
+        <n-collapse-item :title="t('settings.plugins.trustedPublishers')" name="trusted">
+          <p class="plugin-desc">{{ t('settings.plugins.trustedPublishersDesc') }}</p>
+          <n-input
+            v-model:value="publisherKeys"
+            type="textarea"
+            :rows="5"
+            :placeholder="t('settings.plugins.trustedPublishersPlaceholder')"
+          />
+          <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+            <n-button size="small" :loading="savingPublishers" @click="savePublishers">
+              {{ t('settings.plugins.savePublishers') }}
+            </n-button>
+          </div>
+        </n-collapse-item>
+      </n-collapse>
+    </n-card>
   </SettingsPage>
 </template>
 
@@ -96,6 +181,7 @@ import { useI18n } from 'vue-i18n'
 import { CloseOutline, FolderOpenOutline } from '@vicons/ionicons5'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import { message, confirm } from '@/utils/feedback'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 interface PluginInfo {
   manifest: {
@@ -109,13 +195,37 @@ interface PluginInfo {
   enabled: boolean
   path: string
   error?: string
+  runtime?: 'utilityProcess' | 'vm' | 'none'
+  status?: 'running' | 'stopped' | 'disabled' | 'error'
+  restarts?: number
+}
+
+interface MarketPlugin {
+  id: string
+  name: string
+  version: string
+  description?: string
+  author?: string
+  publisher?: string
+  installed?: boolean
+  installedVersion?: string
 }
 
 const { t } = useI18n()
+const settingsStore = useSettingsStore()
 const plugins = ref<PluginInfo[]>([])
 const loading = ref(false)
 const switchingId = ref<string | null>(null)
 const uninstallingId = ref<string | null>(null)
+const marketPlugins = ref<MarketPlugin[]>([])
+const marketLoading = ref(false)
+const marketError = ref('')
+const installingMarketId = ref<string | null>(null)
+const publisherKeys = ref((settingsStore.settings.trustedPluginPublishers ?? []).join('\n\n'))
+const savingPublishers = ref(false)
+const marketEnabled = ref(settingsStore.settings.pluginMarket?.enabled !== false)
+const marketRegistryUrl = ref(settingsStore.settings.pluginMarket?.registryUrl || '')
+const savingMarketSettings = ref(false)
 
 /** 插件目录真实路径：页面挂载后向主进程查询；查询失败时退回通用提示文本 */
 const pluginDirHint = ref('%APPDATA%/aria2-desktop/plugins/')
@@ -240,6 +350,112 @@ function confirmUninstall(plugin: PluginInfo) {
   })
 }
 
+async function loadMarket(force = false) {
+  const api = window.electronAPI
+  if (!api?.pluginsMarketList) return
+  marketLoading.value = true
+  marketError.value = ''
+  try {
+    const result = await api.pluginsMarketList(force)
+    if (result?.success) {
+      marketPlugins.value = result.plugins ?? []
+    } else {
+      marketError.value = t('settings.plugins.marketLoadFailed', { error: result?.error || 'unknown' })
+    }
+  } catch (error) {
+    marketError.value = t('settings.plugins.marketLoadFailed', { error: String(error) })
+  } finally {
+    marketLoading.value = false
+  }
+}
+
+async function installMarketPlugin(item: MarketPlugin) {
+  const api = window.electronAPI
+  if (!api?.pluginsMarketInstall) return
+  const upgrading = !!item.installed
+  const confirmed = await new Promise<boolean>((resolve) => {
+    confirm({
+      title: t(upgrading ? 'settings.plugins.marketUpdateTitle' : 'settings.plugins.marketInstallTitle'),
+      content: t(upgrading ? 'settings.plugins.marketUpdateConfirm' : 'settings.plugins.marketInstallConfirm', {
+        name: item.name,
+        version: item.version,
+        from: item.installedVersion || ''
+      }),
+      positiveText: t(upgrading ? 'settings.plugins.marketUpdate' : 'settings.plugins.marketInstall'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: () => resolve(true),
+      onNegativeClick: () => resolve(false),
+      onClose: () => resolve(false),
+      onEsc: () => resolve(false)
+    })
+  })
+  if (!confirmed) return
+  installingMarketId.value = item.id
+  try {
+    const result = await api.pluginsMarketInstall(item.id)
+    if (result?.success) {
+      item.installed = true
+      item.installedVersion = item.version
+      message.success(t(upgrading ? 'settings.plugins.marketUpdateSuccess' : 'settings.plugins.marketInstallSuccess', {
+        name: item.name,
+        version: item.version
+      }))
+      await loadPlugins()
+    } else {
+      message.error(t('settings.plugins.marketInstallFailed', { error: result?.error || 'unknown' }))
+    }
+  } catch (error) {
+    message.error(t('settings.plugins.marketInstallFailed', { error: String(error) }))
+  } finally {
+    installingMarketId.value = null
+  }
+}
+
+/** 举报走公开 issue：插件市场本身不做内容审核，至少给用户一个可追踪的反馈入口。 */
+async function reportMarketPlugin(item: MarketPlugin) {
+  const title = encodeURIComponent(`[Plugin Market] ${item.name} (${item.id})`)
+  const body = encodeURIComponent([
+    `Plugin: ${item.name} (${item.id})`,
+    `Version: ${item.version}`,
+    item.publisher ? `Publisher: ${item.publisher}` : '',
+    '',
+    'Describe the problem (malicious behavior, broken install, policy violation, ...):'
+  ].filter(Boolean).join('\n'))
+  const result = await window.electronAPI?.openExternalUrl?.(
+    `https://github.com/Young-ZJ66/Aria2Desktop/issues/new?title=${title}&body=${body}`
+  )
+  if (!result?.success) message.error(result?.error || t('settings.plugins.marketReportFailed'))
+}
+
+async function saveMarketSettings() {
+  savingMarketSettings.value = true
+  try {
+    await settingsStore.updateSetting('pluginMarket', {
+      enabled: marketEnabled.value,
+      registryUrl: marketRegistryUrl.value.trim()
+    })
+    message.success(t('settings.plugins.marketSettingsSaved'))
+    await loadMarket(true)
+  } catch (error) {
+    message.error(String(error))
+  } finally {
+    savingMarketSettings.value = false
+  }
+}
+
+async function savePublishers() {
+  savingPublishers.value = true
+  try {
+    const keys = publisherKeys.value.split(/\n\s*\n/).map(value => value.trim()).filter(Boolean)
+    await settingsStore.updateSetting('trustedPluginPublishers', keys)
+    message.success(t('settings.plugins.savePublishersSuccess'))
+  } catch (error) {
+    message.error(String(error))
+  } finally {
+    savingPublishers.value = false
+  }
+}
+
 async function openPluginDir() {
   const api = window.electronAPI
   if (!api) return
@@ -266,10 +482,38 @@ async function loadPluginDir() {
 onMounted(() => {
   void loadPlugins()
   void loadPluginDir()
+  void loadMarket()
 })
 </script>
 
 <style scoped>
+.market-config {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+}
+
+.market-config-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.market-config-label {
+  flex: none;
+  width: 150px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.market-config-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .plugin-list {
   display: flex;
   flex-direction: column;

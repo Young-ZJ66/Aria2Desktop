@@ -5,7 +5,8 @@
  *   node scripts/verify-dist.mjs win x64 [--require-blocks]
  *   node scripts/verify-dist.mjs win ia32 [--require-blocks]
  *   node scripts/verify-dist.mjs mac
- *   node scripts/verify-dist.mjs linux
+ *   node scripts/verify-dist.mjs linux x64
+ *   node scripts/verify-dist.mjs linux arm64
  *
  * 为什么需要：electron-builder 在缺资源/传输失败时可能"命令成功但产物不全"，
  * 而 Release 一旦发出就无法撤回重发。这里把"该有的文件都在、体积合理、
@@ -60,11 +61,17 @@ function buildRequirements() {
   }
 
   if (platform === 'linux') {
-    // electron-builder 对 Linux 的 ${arch} 宏按目标格式映射：AppImage→x86_64、deb→amd64
-    // （见 builder-util 的 getArtifactArchName），不是 Windows 的 x64。
+    // electron-builder 对 Linux 的 ${arch} 宏按目标格式映射：x64→AppImage x86_64 / deb amd64，
+    // arm64→两者都是 arm64（见 builder-util 的 getArtifactArchName），不是 Windows 的命名。
+    const targetArch = arch || 'x64'
+    const archNames = {
+      x64: { appImage: 'x86_64', deb: 'amd64' },
+      arm64: { appImage: 'arm64', deb: 'arm64' }
+    }[targetArch]
+    if (!archNames) throw new Error('Linux 需要指定架构：x64 或 arm64')
     return [
-      { label: 'AppImage（x86_64）', test: (f) => f === `Aria2Desktop-${version}-x86_64.AppImage`, min: installerMin },
-      { label: 'deb（amd64）', test: (f) => f === `Aria2Desktop-${version}-amd64.deb`, min: installerMin }
+      { label: `AppImage（${archNames.appImage}）`, test: (f) => f === `Aria2Desktop-${version}-${archNames.appImage}.AppImage`, min: installerMin },
+      { label: `deb（${archNames.deb}）`, test: (f) => f === `Aria2Desktop-${version}-${archNames.deb}.deb`, min: installerMin }
     ]
   }
 

@@ -229,6 +229,23 @@ export const useConnectionStore = defineStore('connection', () => {
     }
   }
 
+  // 测试任意配置的连通性，不影响当前活动连接（多实例管理面板使用）
+  async function testConnection(target: Aria2Config): Promise<{ success: boolean; version?: string; latencyMs: number; error?: string }> {
+    const started = Date.now()
+    const probe = new Aria2Service({ ...DEFAULT_CONFIG, ...target })
+    try {
+      const version = await Promise.race([
+        probe.getVersion(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Connection timed out')), 6000))
+      ])
+      return { success: true, version: version.version, latencyMs: Date.now() - started }
+    } catch (error) {
+      return { success: false, latencyMs: Date.now() - started, error: error instanceof Error ? error.message : String(error) }
+    } finally {
+      try { probe.disconnect() } catch { /* 探测实例断开失败无需处理 */ }
+    }
+  }
+
   function disconnect() {
     if (service.value) {
       service.value.disconnect()
@@ -262,6 +279,7 @@ export const useConnectionStore = defineStore('connection', () => {
     setActiveProfile,
     updateActiveConfig,
     updateProfileConfig,
+    testConnection,
     connect,
     disconnect
   }

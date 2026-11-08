@@ -28,6 +28,19 @@
       </n-button>
 
       <n-button
+        v-if="hasSelection && canBatchOpen"
+        size="small"
+        type="default"
+        :disabled="operating"
+        @click="$emit('batch-open')"
+      >
+        <template #icon>
+          <n-icon><FolderOpenOutline /></n-icon>
+        </template>
+        {{ t('task.batchOpen') }}
+      </n-button>
+
+      <n-button
         v-if="hasSelection"
         size="small"
         type="default"
@@ -49,13 +62,15 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { PlayOutline, PauseOutline, TrashOutline } from '@vicons/ionicons5'
+import { PlayOutline, PauseOutline, TrashOutline, FolderOpenOutline } from '@vicons/ionicons5'
 
 interface Props {
   selectedCount: number
   hasSelection: boolean
   canBatchStart: boolean
   canBatchPause: boolean
+  /** 是否允许批量打开文件（完成页有可打开文件时） */
+  canBatchOpen?: boolean
   /** 批量开始/暂停等操作进行中：禁用全部批量按钮，防止重复触发 */
   operating?: boolean
   /** 批量删除进行中：删除按钮显示 loading 并禁用 */
@@ -65,13 +80,15 @@ interface Props {
 interface Emits {
   (e: 'batch-start'): void
   (e: 'batch-pause'): void
+  (e: 'batch-open'): void
   (e: 'batch-delete'): void
 }
 
 const { t } = useI18n()
 withDefaults(defineProps<Props>(), {
   operating: false,
-  deleting: false
+  deleting: false,
+  canBatchOpen: false
 })
 defineEmits<Emits>()
 </script>

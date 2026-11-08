@@ -1,13 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { useConnectionStore } from './connectionStore'
+import { useSettingsStore } from './settingsStore'
 import { taskTimeService } from '@/services/taskTimeService'
 import { taskPersistenceService } from '@/services/taskPersistenceService'
-import { taskSourceService } from '@/services/taskSourceService'
+import { taskSourceService, type TaskSource } from '@/services/taskSourceService'
 import { sessionManager } from '@/services/sessionManager'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
 import { getTaskName } from '@/utils/taskUtils'
 import { computeTaskListFingerprint } from '@/utils/fingerprint'
+import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
 import { findDuplicateUris, findMagnetDuplicates, normalizeUrlForCompare, type DuplicateMatch } from '@/utils/duplicateUrl'
 import type { Aria2Task, Aria2Option } from '@/types/aria2'
 import type { Aria2ClientEvent } from '@/services/aria2Client'
@@ -149,6 +151,7 @@ export const useTaskStore = defineStore('task', () => {
       await taskPersistenceService.ensureLoaded()
       const previousStopped = new Set(stoppedTasks.value.map(task => task.gid))
       const previousActive = new Set(activeTasks.value.map(task => task.gid))
+      const previousWaiting = new Set(waitingTasks.value.map(task => task.gid))
 
       // 优先用 system.multicall 把三张列表合并为一次 RPC（原实现要 3 次往返）。
       // system.multicall 的单项失败会以 { code, message } 对象占位，不会让整批抛错，
@@ -222,7 +225,9 @@ export const useTaskStore = defineStore('task', () => {
           taskPersistenceService.persistCompletedTask(task, completeTime)
         })
         // error/complete 任务统一保留在 stoppedTasks，由对应 computed 过滤
-        setStoppedIfChanged(taskPersistenceService.mergeWithAria2Tasks(stopped))
+        const mergedStopped = taskPersistenceService.mergeWithAria2Tasks(stopped)
+        setStoppedIfChanged(mergedStopped)
+        scheduleAutoRetries(mergedStopped, previousStopped, previousActive, previousWaiting)
       } else {
         console.warn('Failed to load stopped tasks:', stoppedResult.reason)
       }
@@ -352,10 +357,17 @@ export const useTaskStore = defineStore('task', () => {
   async function addUri(uris: string[], options?: Aria2Option) {
     if (!connectionStore.service) throw new Error('Not connected')
 
-    const gid = await connectionStore.service.addUri(uris, options)
+    // 磁力任务要求 aria2 把元数据另存为 <infoHash>.torrent，供「保存 .torrent」导出；
+    // 普通 HTTP 任务不受影响，不改变其它下载行为。
+    const hasMagnet = uris.some((uri) => uri.trim().toLowerCase().startsWith('magnet:'))
+    const effectiveOptions: Aria2Option | undefined = hasMagnet
+      ? { ...(options ?? {}), 'bt-save-metadata': 'true' }
+      : options
+
+    const gid = await connectionStore.service.addUri(uris, effectiveOptions)
 
     // 记录原始来源：aria2 tellStatus 不会返回 magnet 原文，失败重试(尤其应用重启后)依赖这份记录
-    taskSourceService.record(gid, { kind: 'uri', uris }, options)
+    taskSourceService.record(gid, { kind: 'uri', uris }, effectiveOptions)
 
     // 磁力 URI 不入库（见 magnetUriIndex 注释）：添加时记下规范化 magnet → gid
     for (const uri of uris) {
@@ -522,9 +534,14 @@ export const useTaskStore = defineStore('task', () => {
    * - top:  POS_SET, 0（置顶）
    * 成功返回任务的新位置；失败（任务不在队列中/已开始下载）向上抛给调用方提示。
    */
-  async function moveInQueue(gid: string, direction: 'up' | 'down' | 'top'): Promise<number> {
+  async function moveInQueue(gid: string, direction: 'up' | 'down' | 'top' | 'bottom'): Promise<number> {
     if (!connectionStore.service) throw new Error('Not connected')
-    const how = direction === 'top' ? 'POS_SET' : 'POS_CUR'
+    const how = direction === 'top' || direction === 'bottom' ? 'POS_SET' : 'POS_CUR'
+    if (direction === 'bottom') {
+      const newPos = await connectionStore.service.changePosition(gid, 0, 'POS_END')
+      await loadAllTasks()
+      return newPos
+    }
     const pos = direction === 'up' ? -1 : direction === 'down' ? 1 : 0
     const newPos = await connectionStore.service.changePosition(gid, pos, how)
     await loadAllTasks()
@@ -535,6 +552,53 @@ export const useTaskStore = defineStore('task', () => {
     if (!connectionStore.service) throw new Error('Not connected')
     await connectionStore.service.unpause(gid)
     await loadAllTasks()
+  }
+
+  // ── 队列失败自动重试策略（queue.retryEnabled）────────────────────────────
+  // 记录“同一原始来源”发起的重试次数：重试会生成新 gid，因此按新 gid 继承计数。
+  const autoRetryAttempts = new Map<string, number>()
+  const autoRetryScheduled = new Set<string>()
+
+  /**
+   * 扫描本次刷新新出现的失败任务：仅对“刚才还在下载/队列中”的任务自动重试，
+   * 启动时加载到的历史失败任务不重试。延时与次数来自设置 queue.*。
+   */
+  function scheduleAutoRetries(
+    stopped: Aria2Task[],
+    previousStopped: Set<string>,
+    previousActive: Set<string>,
+    previousWaiting: Set<string>
+  ): void {
+    const settingsStore = useSettingsStore()
+    const queue = settingsStore.settings.queue
+    if (!queue?.retryEnabled) return
+    const maxAttempts = Math.max(1, queue.retryMaxAttempts ?? 3)
+    const delayMs = Math.max(0, queue.retryDelaySeconds ?? 30) * 1000
+
+    for (const task of stopped) {
+      if (task.status !== 'error') continue
+      if (previousStopped.has(task.gid)) continue
+      if (!previousActive.has(task.gid) && !previousWaiting.has(task.gid)) continue
+      if (autoRetryScheduled.has(task.gid)) continue
+      const attempts = autoRetryAttempts.get(task.gid) ?? 0
+      if (attempts >= maxAttempts) continue
+      autoRetryScheduled.add(task.gid)
+      setTimeout(() => {
+        void (async () => {
+          try {
+            const newGid = await retryErrorTask(task.gid)
+            autoRetryAttempts.set(newGid, attempts + 1)
+            // 在状态页速度曲线上标记本次自动重试，便于对照失败/重试时刻
+            const { recordRetryMarker } = useTrafficMonitor()
+            recordRetryMarker(`${task.gid.slice(0, 6)} #${attempts + 1}`)
+          } catch (error) {
+            console.warn('Auto retry failed:', task.gid, error)
+          } finally {
+            autoRetryScheduled.delete(task.gid)
+          }
+        })()
+      }, delayMs)
+    }
   }
 
   /**
@@ -567,16 +631,21 @@ export const useTaskStore = defineStore('task', () => {
     const retryOptions = (sourceRecord?.options as Aria2Option | undefined) || originalOptions
 
     let newGid: string
+    // 重试成功后要把原始来源迁移到新 gid：否则连续重试第二次时 sourceRecord 已随旧
+    // 任务删除而丢失，BT/磁力任务又会退化成“No URIs found”。
+    let sourceToReRecord: TaskSource | null = null
     if (sourceRecord?.source.kind === 'torrent') {
       newGid = await connectionStore.service.addTorrent(
         sourceRecord.source.torrent,
         sourceRecord.source.uris,
         retryOptions
       )
+      sourceToReRecord = sourceRecord.source
     } else if (sourceRecord?.source.kind === 'metalink') {
       const gids = await connectionStore.service.addMetalink(sourceRecord.source.metalink, retryOptions)
       if (gids.length === 0) throw new Error('No GID returned')
       newGid = gids[0]!
+      sourceToReRecord = sourceRecord.source
     } else {
       let uris = sourceRecord?.source.kind === 'uri'
         ? sourceRecord.source.uris
@@ -587,7 +656,9 @@ export const useTaskStore = defineStore('task', () => {
       }
       if (uris.length === 0) throw new Error('No URIs found')
       newGid = await connectionStore.service.addUri(uris, retryOptions)
+      sourceToReRecord = { kind: 'uri', uris }
     }
+    taskSourceService.record(newGid, sourceToReRecord, retryOptions as Record<string, string | string[]>)
 
     // 新任务已成功创建，再清理旧任务；失败不影响新任务
     try { await connectionStore.service.forceRemove(gid) } catch { /* 忽略旧任务删除失败 */ }
@@ -598,6 +669,14 @@ export const useTaskStore = defineStore('task', () => {
     taskSourceService.remove(gid)
     await loadAllTasks()
     return newGid
+  }
+
+  /** 导出 BT 任务的 .torrent（磁力任务依赖添加时的 bt-save-metadata） */
+  async function exportTorrent(gid: string): Promise<{ success: boolean; path?: string; canceled?: boolean; error?: string }> {
+    if (!window.electronAPI?.exportTaskTorrent) {
+      return { success: false, error: 'not_available' }
+    }
+    return window.electronAPI.exportTaskTorrent(gid)
   }
 
   async function pauseAllTasks() {
@@ -682,7 +761,7 @@ export const useTaskStore = defineStore('task', () => {
    * 插件运行在主进程。此前主进程的 `PluginManager.emit` **没有任何调用方**，
    * 于是 README 与示例插件文档化的 onDownloadComplete / onDownloadStart 永不触发。
    */
-  function notifyPlugins(kind: 'downloadComplete' | 'downloadStart', gid: string): void {
+  function notifyPlugins(kind: 'downloadComplete' | 'downloadStart' | 'downloadError', gid: string): void {
     if (!gid) return
     try {
       const task = allTasks.value.find(t => t.gid === gid)
@@ -719,6 +798,8 @@ export const useTaskStore = defineStore('task', () => {
     for (const cb of downloadErrorCallbacks) {
       try { cb(gid) } catch { /* 忽略回调异常 */ }
     }
+    // 失败事件同样转给插件与完成动作规则（condition.status = 'error'）
+    notifyPlugins('downloadError', gid)
   }
 
   watch(() => connectionStore.service, (service, oldService) => {
@@ -772,6 +853,7 @@ export const useTaskStore = defineStore('task', () => {
     pauseTask,
     unpauseTask,
     retryErrorTask,
+    exportTorrent,
     pauseAllTasks,
     unpauseAllTasks,
     moveInQueue,

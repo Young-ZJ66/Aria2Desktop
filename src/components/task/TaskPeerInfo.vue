@@ -1,5 +1,16 @@
 <template>
   <n-card class="info-card" size="small" :bordered="false">
+    <div v-if="peers.length" class="peer-toolbar">
+      <span class="peer-count">{{ t('taskDetail.peerInfo', { count: peers.length }) }}</span>
+      <n-button size="tiny" secondary :loading="locating" @click="lookupLocations">
+        {{ t('taskPeer.lookupLocation') }}
+      </n-button>
+    </div>
+
+    <n-alert v-if="locationError" type="warning" :bordered="false" class="peer-alert">
+      {{ locationError }}
+    </n-alert>
+
     <n-data-table
       v-if="peers.length"
       :columns="columns"
@@ -16,18 +27,44 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue'
+import { computed, h, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NTag, NProgress, type DataTableColumns } from 'naive-ui'
+import { NAlert, NButton, NTag, NProgress, type DataTableColumns } from 'naive-ui'
 import type { Aria2Peer } from '@/types/aria2'
 import { formatSpeed } from '@/utils/taskFormatters'
+import { countryCodeToFlag, getPeerClientName } from '@/utils/peerClient'
 
 interface Props {
   peers: Aria2Peer[]
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 const { t } = useI18n()
+
+const locations = ref<Record<string, { country: string; countryCode: string }>>({})
+const locating = ref(false)
+const locationError = ref('')
+
+async function lookupLocations() {
+  if (locating.value) return
+  const api = window.electronAPI?.lookupPeerLocations
+  if (!api) {
+    locationError.value = t('taskPeer.locationFailed')
+    return
+  }
+  locating.value = true
+  locationError.value = ''
+  try {
+    const ips = [...new Set(props.peers.map(peer => peer.ip).filter(Boolean))]
+    const result = await api(ips)
+    locations.value = { ...locations.value, ...result }
+    if (Object.keys(result).length === 0) locationError.value = t('taskPeer.locationFailed')
+  } catch {
+    locationError.value = t('taskPeer.locationFailed')
+  } finally {
+    locating.value = false
+  }
+}
 
 const columns = computed<DataTableColumns<Aria2Peer>>(() => [
   {
@@ -51,7 +88,18 @@ const columns = computed<DataTableColumns<Aria2Peer>>(() => [
     title: t('taskPeer.client'),
     width: 200,
     ellipsis: { tooltip: true },
-    render: (row: Aria2Peer) => row.peerId || t('taskPeer.unknown')
+    render: (row: Aria2Peer) => getPeerClientName(row.peerId) || t('taskPeer.unknown')
+  },
+  {
+    key: 'location',
+    title: t('taskPeer.location'),
+    width: 150,
+    ellipsis: { tooltip: true },
+    render: (row: Aria2Peer) => {
+      const location = locations.value[row.ip]
+      if (!location) return t('taskPeer.unknown')
+      return `${countryCodeToFlag(location.countryCode)} ${location.country}`.trim()
+    }
   },
   {
     key: 'downloadSpeed',
@@ -136,5 +184,22 @@ function getPeerStatusText(amChoking: boolean, peerChoking: boolean): string {
 
 .info-card :deep(.n-data-table-th) {
   font-weight: 600;
+}
+
+.peer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px 10px;
+}
+
+.peer-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.peer-alert {
+  margin-bottom: 10px;
 }
 </style>

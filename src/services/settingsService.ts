@@ -64,7 +64,27 @@ export const defaultSettings: AppSettings = {
 
   speedSchedule: { enabled: false, rules: [] },
   downloadSchedule: { enabled: false, rules: [] },
-  bt: { upnpEnabled: false }
+  bt: { upnpEnabled: false },
+
+  queue: {
+    maxConcurrent: 5,
+    retryEnabled: false,
+    retryMaxAttempts: 3,
+    retryDelaySeconds: 30
+  },
+  taskTemplates: [],
+  completionRules: [],
+  webConsole: {
+    enabled: false,
+    port: 6802,
+    token: '',
+    allowedIps: []
+  },
+  pluginMarket: {
+    enabled: true,
+    registryUrl: 'https://raw.githubusercontent.com/Young-ZJ66/Aria2Desktop/main/plugin-registry.json'
+  },
+  trustedPluginPublishers: []
 }
 
 class SettingsService {
@@ -123,7 +143,13 @@ class SettingsService {
         ...(saved.downloadSchedule || {}),
         rules: saved.downloadSchedule?.rules ?? defaultSettings.downloadSchedule!.rules
       },
-      bt: { ...defaultSettings.bt, ...(saved.bt || {}) }
+      bt: { ...defaultSettings.bt, ...(saved.bt || {}) },
+      queue: { ...defaultSettings.queue, ...(saved.queue || {}) },
+      webConsole: { ...defaultSettings.webConsole, ...(saved.webConsole || {}) },
+      pluginMarket: { ...defaultSettings.pluginMarket, ...(saved.pluginMarket || {}) },
+      taskTemplates: saved.taskTemplates ?? defaultSettings.taskTemplates,
+      completionRules: saved.completionRules ?? defaultSettings.completionRules,
+      trustedPluginPublishers: saved.trustedPluginPublishers ?? defaultSettings.trustedPluginPublishers
     }
   }
 
@@ -160,6 +186,24 @@ class SettingsService {
     }
     if (patch.downloadSchedule) {
       merged.downloadSchedule = { ...base.downloadSchedule, ...patch.downloadSchedule }
+    }
+    if (patch.queue) {
+      merged.queue = { ...base.queue, ...patch.queue }
+    }
+    if (patch.webConsole) {
+      merged.webConsole = { ...base.webConsole, ...patch.webConsole }
+    }
+    if (patch.pluginMarket) {
+      merged.pluginMarket = { ...base.pluginMarket, ...patch.pluginMarket }
+    }
+    if (patch.taskTemplates) {
+      merged.taskTemplates = patch.taskTemplates
+    }
+    if (patch.completionRules) {
+      merged.completionRules = patch.completionRules
+    }
+    if (patch.trustedPluginPublishers) {
+      merged.trustedPluginPublishers = patch.trustedPluginPublishers
     }
     if (patch.connectionProfiles) {
       merged.connectionProfiles = patch.connectionProfiles

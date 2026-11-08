@@ -24,9 +24,19 @@ const router = createRouter({
       redirect: '/completed'
     },
     {
+      path: '/queue',
+      name: 'queue',
+      component: () => import('@/views/QueueView.vue')
+    },
+    {
       path: '/status',
       name: 'status',
       component: () => import('@/views/Status.vue')
+    },
+    {
+      path: '/instances',
+      name: 'instances',
+      component: () => import('@/views/InstancesView.vue')
     }
   ]
 })

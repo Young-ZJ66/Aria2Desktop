@@ -15,6 +15,20 @@
          所以"填了一半关掉再打开"时内容还在。内容常驻才能保持这一点。
       2) n-tabs 默认懒渲染：未激活的页在首次切换前不存在，会让预填（剪贴板 URL / 拖入文件）丢事件。
     -->
+    <!-- 任务模板：一键把常用代理/请求头/保存目录带入当前页签 -->
+    <div v-if="templateOptions.length > 0" class="template-bar">
+      <span class="template-label">{{ t('workflow.templateApply') }}</span>
+      <n-select
+        v-model:value="selectedTemplateId"
+        size="small"
+        clearable
+        :options="templateOptions"
+        :placeholder="t('workflow.templateSelect')"
+        class="template-select"
+        @update:value="handleTemplateSelect"
+      />
+    </div>
+
     <!-- 页签有固定宽度：pane 内边距必须配 border-box，否则右侧会被撑出容器导致输入框被裁切 -->
     <n-tabs
       v-model:value="activeTab"
@@ -99,6 +113,7 @@ import { message } from '@/utils/feedback'
 import { useUiStore } from '@/stores/uiStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { CATEGORY_AUTO, CATEGORY_GENERAL, resolveDownloadDir } from '@/shared/fileCategories'
+import type { TaskTemplate } from '@/shared/appSettings'
 import UriPane from '@/components/newTask/UriPane.vue'
 import TorrentPane from '@/components/newTask/TorrentPane.vue'
 import MetalinkPane from '@/components/newTask/MetalinkPane.vue'
@@ -127,6 +142,7 @@ const activeTab = ref('uri')
 interface PaneActions {
   submit: () => void | Promise<void>
   reset?: () => void
+  applyTemplate?: (template: TaskTemplate) => void
   submitting: boolean
   actionVisible: boolean
   actionDisabled: boolean
@@ -137,6 +153,23 @@ const uriPaneRef = ref<PaneActions | null>(null)
 const torrentPaneRef = ref<PaneActions | null>(null)
 const metalinkPaneRef = ref<PaneActions | null>(null)
 const streamPaneRef = ref<PaneActions | null>(null)
+
+const selectedTemplateId = ref<string | null>(null)
+const templateOptions = computed(() =>
+  (settingsStore.settings.taskTemplates ?? []).map(template => ({ label: template.name, value: template.id }))
+)
+
+function handleTemplateSelect(id: string | null): void {
+  if (!id) return
+  const template = settingsStore.settings.taskTemplates?.find(item => item.id === id)
+  if (!template) return
+  if (activePane.value?.applyTemplate) {
+    activePane.value.applyTemplate(template)
+    message.success(t('workflow.templateApplied'))
+  } else {
+    message.warning(t('workflow.templateUnsupported'))
+  }
+}
 
 const activePane = computed<PaneActions | null>(() => {
   switch (activeTab.value) {
@@ -274,6 +307,20 @@ function handleFileInputChange(event: Event) {
 </script>
 
 <style scoped>
+.template-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 8px;
+}
+.template-label {
+  font-size: 12px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+.template-select {
+  width: 260px;
+}
 .dialog-footer {
   display: flex;
   justify-content: flex-end;

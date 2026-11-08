@@ -127,6 +127,108 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       },
       required: ['download']
     }
+  },
+  {
+    name: 'get_global_stats',
+    description: 'Get global download/upload speed and active, waiting and stopped task counts.',
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'get_version',
+    description: 'Get the aria2 engine version and enabled feature list.',
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'get_session_info',
+    description: 'Get aria2 session id and the list of features supported by the engine.',
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'get_task_peers',
+    description: 'List peers (address, speed, progress) for a BitTorrent task.',
+    inputSchema: {
+      type: 'object',
+      properties: { gid: { type: 'string', description: 'Task gid shown by list_tasks' } },
+      required: ['gid']
+    }
+  },
+  {
+    name: 'get_task_servers',
+    description: 'List file servers and their download speed for a task.',
+    inputSchema: {
+      type: 'object',
+      properties: { gid: { type: 'string', description: 'Task gid shown by list_tasks' } },
+      required: ['gid']
+    }
+  },
+  {
+    name: 'get_task_files',
+    description: 'List the files belonging to a task with their size, completion and selected state.',
+    inputSchema: {
+      type: 'object',
+      properties: { gid: { type: 'string', description: 'Task gid shown by list_tasks' } },
+      required: ['gid']
+    }
+  },
+  {
+    name: 'change_task_position',
+    description:
+      'Move a waiting task in the download queue. how=POS_SET uses an absolute 0-based position; POS_CUR is relative to the current position; POS_END appends to the end.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        gid: { type: 'string', description: 'Task gid shown by list_tasks' },
+        position: { type: 'number', description: 'Target position (0-based)' },
+        how: {
+          type: 'string',
+          description: 'Position mode, default POS_SET',
+          enum: ['POS_SET', 'POS_CUR', 'POS_END']
+        }
+      },
+      required: ['gid', 'position']
+    }
+  },
+  {
+    name: 'set_task_speed_limit',
+    description:
+      'Set per-task download and/or upload speed limits in bytes per second. Use 0 to remove a limit.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        gid: { type: 'string', description: 'Task gid shown by list_tasks' },
+        download: { type: 'number', description: 'Download limit in bytes/s; 0 means unlimited' },
+        upload: { type: 'number', description: 'Optional upload limit in bytes/s; 0 means unlimited' }
+      },
+      required: ['gid']
+    }
+  },
+  {
+    name: 'set_max_concurrent',
+    description: 'Set the maximum number of simultaneous downloads (1-50).',
+    inputSchema: {
+      type: 'object',
+      properties: { value: { type: 'number', description: 'Maximum concurrent downloads, 1-50' } },
+      required: ['value']
+    }
+  },
+  {
+    name: 'get_global_options',
+    description: 'Get current aria2 global options (speed limits, concurrency, directories and more).',
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'purge_download_result',
+    description: 'Remove one stopped task result entry without deleting any downloaded file.',
+    inputSchema: {
+      type: 'object',
+      properties: { gid: { type: 'string', description: 'Stopped task gid shown by list_tasks' } },
+      required: ['gid']
+    }
+  },
+  {
+    name: 'save_session',
+    description: 'Persist the current download session so it can be restored after restart.',
+    inputSchema: { type: 'object', properties: {} }
   }
 ]
 
@@ -153,13 +255,65 @@ export const MCP_ERROR_CODES = {
   internalError: -32603
 } as const
 
+/** MCP resource 清单：AI 客户端可读取的只读数据源 */
+export const MCP_RESOURCES = [
+  {
+    uri: 'aria2://status/global',
+    name: 'Global download statistics',
+    description: 'Current global speed and task counts',
+    mimeType: 'application/json'
+  },
+  {
+    uri: 'aria2://tasks/active',
+    name: 'Active downloads',
+    description: 'All currently active download tasks',
+    mimeType: 'application/json'
+  },
+  {
+    uri: 'aria2://tasks/waiting',
+    name: 'Waiting downloads',
+    description: 'Queued and paused download tasks',
+    mimeType: 'application/json'
+  },
+  {
+    uri: 'aria2://tasks/stopped',
+    name: 'Stopped downloads',
+    description: 'Completed, failed and removed tasks',
+    mimeType: 'application/json'
+  }
+] as const
+
+/** MCP prompt 模板：让客户端一键生成常用分析请求 */
+export const MCP_PROMPTS = [
+  {
+    name: 'download_summary',
+    description: 'Summarize current downloads, speeds and any failures',
+    arguments: [{ name: 'status', description: 'Optional status filter', required: false }]
+  },
+  {
+    name: 'diagnose_downloads',
+    description: 'Diagnose slow or failed downloads using task and peer details',
+    arguments: [{ name: 'gid', description: 'Optional task gid', required: false }]
+  }
+] as const
+
 /** initialize 响应（协议协商结果） */
 export function buildInitializeResult(serverVersion: string): Record<string, unknown> {
   return {
     protocolVersion: MCP_PROTOCOL_VERSION,
-    capabilities: { tools: {} },
+    capabilities: { tools: {}, resources: {}, prompts: {} },
     serverInfo: { name: MCP_SERVER_NAME, version: serverVersion }
   }
+}
+
+/** resources/list 响应 */
+export function buildResourcesListResult(): Record<string, unknown> {
+  return { resources: MCP_RESOURCES }
+}
+
+/** prompts/list 响应 */
+export function buildPromptsListResult(): Record<string, unknown> {
+  return { prompts: MCP_PROMPTS }
 }
 
 /** tools/list 响应 */

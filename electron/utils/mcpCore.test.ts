@@ -33,11 +33,13 @@ describe('buildInitializeResult', () => {
   it('声明 tools 能力与协议版本', () => {
     const r = buildInitializeResult('1.2.3') as {
       protocolVersion: string
-      capabilities: { tools: unknown }
+      capabilities: { tools: unknown; resources: unknown; prompts: unknown }
       serverInfo: { name: string; version: string }
     }
     expect(r.protocolVersion).toBe(MCP_PROTOCOL_VERSION)
     expect(r.capabilities.tools).toEqual({})
+    expect(r.capabilities.resources).toEqual({})
+    expect(r.capabilities.prompts).toEqual({})
     expect(r.serverInfo).toEqual({ name: 'aria2-desktop', version: '1.2.3' })
   })
 })
@@ -55,7 +57,19 @@ describe('buildToolsListResult', () => {
       'remove_task',
       'pause_all',
       'resume_all',
-      'set_speed_limit'
+      'set_speed_limit',
+      'get_global_stats',
+      'get_version',
+      'get_session_info',
+      'get_task_peers',
+      'get_task_servers',
+      'get_task_files',
+      'change_task_position',
+      'set_task_speed_limit',
+      'set_max_concurrent',
+      'get_global_options',
+      'purge_download_result',
+      'save_session'
     ])
     for (const t of r.tools) expect(t.inputSchema.type).toBe('object')
   })

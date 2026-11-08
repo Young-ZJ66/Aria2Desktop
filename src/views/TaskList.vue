@@ -32,10 +32,12 @@
           :has-selection="hasSelection"
           :can-batch-start="canBatchStart"
           :can-batch-pause="canBatchPause"
-          :operating="batchOperating"
+          :can-batch-open="props.taskType === 'stopped' && selectedTasks.some(task => task.files?.some(file => file.path))"
+          :operating="batchOperating || batchOpening"
           :deleting="batchDeleting"
           @batch-start="batchStart"
           @batch-pause="batchPause"
+          @batch-open="batchOpen"
           @batch-delete="batchDelete"
         />
       </div>
@@ -179,6 +181,8 @@ const tasksToDelete = ref<Aria2Task[]>([])
 const batchDeleting = ref(false)
 // 批量开始/暂停执行中（禁用批量操作按钮，防止重复触发）
 const batchOperating = ref(false)
+// 批量打开文件中
+const batchOpening = ref(false)
 
 // 操作锁定状态
 const operatingTasks = ref<Set<string>>(new Set())
@@ -606,6 +610,8 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         showDetail: !isStreamTask,
         // 等待队列排序按钮仅在"下载任务"页显示（waiting 状态才有队列位置）
         showQueueActions: props.taskType === 'active-and-waiting',
+        // BT 任务可导出已保存的 .torrent 元数据
+        showTorrentExport: Boolean(row.bittorrent),
         task: row,
         onUnpause: unpauseTask,
         onRetry: isStreamTask ? retryStreamTask : retryTask,
@@ -616,7 +622,8 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         'onView-detail': viewTaskDetail,
         'onMove-up': (gid: string) => void moveTaskInQueue(gid, 'up'),
         'onMove-down': (gid: string) => void moveTaskInQueue(gid, 'down'),
-        'onMove-top': (gid: string) => void moveTaskInQueue(gid, 'top')
+        'onMove-top': (gid: string) => void moveTaskInQueue(gid, 'top'),
+        'onExport-torrent': (gid: string) => void exportTaskTorrent(gid)
       })
     }
   }
@@ -904,6 +911,60 @@ async function openTaskFile(task: Aria2Task) {
   } catch (error) {
     console.error('Failed to open task file:', error)
     message.error(t('task.openFileFailed', { error: getUserFriendlyError(error) }))
+  }
+}
+
+// 保存 BT 任务的 .torrent 元数据
+async function exportTaskTorrent(gid: string) {
+  if (!window.electronAPI?.exportTaskTorrent) {
+    message.warning(t('task.desktopOnly'))
+    return
+  }
+  try {
+    const result = await taskStore.exportTorrent(gid)
+    if (!result || result.canceled) return
+    if (result.success) {
+      message.success(t('task.saveTorrentSuccess', { path: result.path || '' }))
+      return
+    }
+    let key = 'task.saveTorrentFailed'
+    if (result.error === 'not_bittorrent') key = 'task.saveTorrentNotBt'
+    else if (result.error === 'metadata_not_saved') key = 'task.saveTorrentNoMetadata'
+    message.error(t(key, { error: result.error || t('common.unknown') }))
+  } catch (error) {
+    console.error('Failed to export torrent:', error)
+    message.error(t('task.saveTorrentFailed', { error: getUserFriendlyError(error) }))
+  }
+}
+
+// 批量打开所选任务的文件（仅完成页可触发）
+async function batchOpen() {
+  if (batchOpening.value) return
+  if (!window.electronAPI?.openFile) {
+    message.warning(t('task.desktopOnly'))
+    return
+  }
+  const openable = selectedTasks.value.filter(task => task.files?.some(file => file.path))
+  if (openable.length === 0) {
+    message.warning(t('task.noFileInfo'))
+    return
+  }
+  batchOpening.value = true
+  let opened = 0
+  try {
+    for (const task of openable) {
+      const firstFile = task.files?.find(file => file.path)
+      if (!firstFile?.path) continue
+      const result = await window.electronAPI.openFile(firstFile.path, task.dir)
+      if (result?.success) opened += 1
+    }
+    if (opened > 0) message.success(t('task.batchOpenSuccess', { count: opened }))
+    else message.warning(t('task.batchOpenFailed'))
+  } catch (error) {
+    console.error('Failed to batch open files:', error)
+    message.error(t('task.batchOpenFailed'))
+  } finally {
+    batchOpening.value = false
   }
 }
 

@@ -96,8 +96,18 @@ jobs:
 
   build-linux:
     if: inputs.platform != 'mac'
-    name: 构建 Linux
+    name: 构建 Linux (${{ matrix.arch }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            artifact: linux-installers-x64
+            smoke: true
+          - arch: arm64
+            artifact: linux-installers-arm64
+            smoke: false
     steps:
       - name: 拉取代码
         uses: actions/checkout@v7
@@ -121,41 +131,44 @@ jobs:
         run: npm run check:extension
 
       - name: 校验 aria2 引擎
-        run: node scripts/verify-engine.mjs linux x64
+        run: node scripts/verify-engine.mjs linux ${{ matrix.arch }}
 
       # 在真实 Linux 上冒烟：确认二进制可执行（ELF 架构匹配、未损坏）
       - name: 引擎可执行性冒烟
+        if: matrix.arch == 'x64'
         run: ./resources/aria2/linux/x64/aria2c --version
 
       - name: 构建安装包
-        run: npm run build && npx electron-builder --linux --x64 --publish never
+        run: npm run build && npx electron-builder --linux --${{ matrix.arch }} --publish never
 
       # AppImage 与 deb 必须同时存在且体积合理
       - name: 校验安装包产物
-        run: node scripts/verify-dist.mjs linux
+        run: node scripts/verify-dist.mjs linux ${{ matrix.arch }}
 
       # Linux 上是无显示环境：用 xvfb 造一块虚拟屏，再启动一次打包产物。
       # --no-sandbox 只为容器里没有 user namespace 的情况（只关渲染进程沙箱，启动路径不变）。
       - name: 上传产物
         uses: actions/upload-artifact@v7
         with:
-          name: linux-installers
+          name: ${{ matrix.artifact }}
           path: |
             release/*.AppImage
             release/*.deb
           if-no-files-found: error
 
       - name: 准备虚拟显示
+        if: matrix.smoke
         run: command -v xvfb-run >/dev/null || (sudo apt-get update && sudo apt-get install -y xvfb)
 
       - name: 冒烟打包产物（启动一次）
+        if: matrix.smoke
         run: xvfb-run -a node scripts/smoke-packaged.mjs --timeout 120000 --spawn-args="--no-sandbox --disable-gpu --disable-dev-shm-usage"
 
       - name: 冒烟失败时保存现场
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: smoke-failure-linux
+          name: smoke-failure-linux-${{ matrix.arch }}
           path: test-results/
           retention-days: 7
           if-no-files-found: ignore

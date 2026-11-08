@@ -9,7 +9,7 @@
  * 只支持两种语言，所以系统语言只按主语言标签归类，`zh-HK`/`zh-TW` 都算中文。
  */
 
-export type AppLocale = 'zh-CN' | 'en-US'
+export type AppLocale = 'zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR' | 'de-DE' | 'fr-FR'
 
 /** 系统语言无法归类时的兜底（项目以中文为主） */
 export const DEFAULT_APP_LOCALE: AppLocale = 'zh-CN'
@@ -21,9 +21,17 @@ export function normalizeLocale(value: unknown): AppLocale | null {
   if (!tag) return null
   if (tag === 'zh-cn') return 'zh-CN'
   if (tag === 'en-us') return 'en-US'
+  if (tag === 'ja-jp') return 'ja-JP'
+  if (tag === 'ko-kr') return 'ko-KR'
+  if (tag === 'de-de') return 'de-DE'
+  if (tag === 'fr-fr') return 'fr-FR'
   const primary = tag.split('-')[0]
   if (primary === 'zh') return 'zh-CN'
   if (primary === 'en') return 'en-US'
+  if (primary === 'ja') return 'ja-JP'
+  if (primary === 'ko') return 'ko-KR'
+  if (primary === 'de') return 'de-DE'
+  if (primary === 'fr') return 'fr-FR'
   return null
 }
 
