@@ -122,19 +122,21 @@ export function resolveTarCommandForTest(): string[] {
 }
 
 /**
- * 解压参数：`-x` 解压、`-k` 不覆盖已存在的文件、`-f` 指定归档。
+ * 解压参数：`-x` 解压、防覆盖选项、`-f` 指定归档。
  *
  * 归档用**相对目标目录的路径**（配合 spawn 的 `cwd = 目标目录`），不传带盘符的绝对路径
  * ——这样既不依赖 tar 实现能否正确处理盘符，也不需要 `-C`。实测 bsdtar 与 GNU tar
  * 都接受这种写法，而带盘符的绝对路径只有 bsdtar 接受。
  *
- * `-k`（keep old files）是解压链路上唯一真正的防覆盖手段：下载目录里很可能已有同名
- * 文件（重新下载同一资源、上次失败残留），tar 默认静默覆盖 = 数据丢失。实测
- * `C:\Windows\System32\tar.exe`（bsdtar 3.8）与 GNU tar 都支持，已存在的条目跳过、
- * 退出码仍为 0（不会因为冲突而报错）。
+ * 防覆盖选项必须按实现区分：
+ * - Windows / macOS 自带的是 bsdtar，使用 `-k`（keep old files）；
+ * - Linux 通常是 GNU tar，`-k` 遇到已存在文件会以退出码 2 结束（被 runTar 当成失败），
+ *   必须改用 GNU 专有的 `--skip-old-files`，它跳过冲突并保持退出码 0。
+ * 两条路径都保证“下载目录里的旧文件不被静默覆盖”，但 Linux 不会因此误报解压失败。
  */
-export function buildExtractArgs(fileName: string): string[] {
-  return ['-x', '-k', '-f', fileName]
+export function buildExtractArgs(fileName: string, platform: string = process.platform): string[] {
+  const keepOldOption = platform === 'linux' ? '--skip-old-files' : '-k'
+  return ['-x', keepOldOption, '-f', fileName]
 }
 
 /**

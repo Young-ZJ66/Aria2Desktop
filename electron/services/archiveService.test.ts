@@ -123,12 +123,13 @@ describe('pickTarCommand', () => {
 
 describe('buildExtractArgs', () => {
   it('只传文件名，不传绝对路径、不带 -C，并且要求 tar 不覆盖已有文件', () => {
-    const args = buildExtractArgs('我的 归档.zip')
+    const args = buildExtractArgs('我的 归档.zip', 'win32')
     expect(args).toEqual(['-x', '-k', '-f', '我的 归档.zip'])
-    // -k：目标目录已有同名文件时跳过而不是静默覆盖（数据丢失）
-    expect(args).toContain('-k')
+    expect(buildExtractArgs('我的 归档.zip', 'darwin')).toEqual(['-x', '-k', '-f', '我的 归档.zip'])
+    // Linux 的 GNU tar 对 -k 冲突会返回退出码 2，必须用 --skip-old-files 跳过且不报错
+    expect(buildExtractArgs('我的 归档.zip', 'linux')).toEqual(['-x', '--skip-old-files', '-f', '我的 归档.zip'])
     // 回归护栏：出现盘符或绝对路径就会踩到 GNU tar 的远程主机解析
-    for (const arg of args) {
+    for (const arg of [...args, ...buildExtractArgs('我的 归档.zip', 'linux')]) {
       expect(arg).not.toMatch(/^[A-Za-z]:/)
       expect(arg.startsWith('/')).toBe(false)
       expect(arg).not.toBe('-C')
