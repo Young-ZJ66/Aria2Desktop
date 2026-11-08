@@ -1,130 +1,136 @@
 <template>
   <div class="workflow-settings">
-    <n-card :bordered="false" class="section-card">
-      <template #header>
-        <div class="section-header">
-          <div>
-            <div class="section-title">{{ t('workflow.templatesTitle') }}</div>
-            <div class="section-desc">{{ t('workflow.templatesDesc') }}</div>
+    <n-tabs v-model:value="activeSection" type="line" animated class="workflow-tabs">
+      <n-tab-pane name="templates" :tab="templateTab">
+        <n-card :bordered="false" class="section-card">
+          <template #header>
+            <div class="section-header">
+              <div>
+                <div class="section-title">{{ t('workflow.templatesTitle') }}</div>
+                <div class="section-desc">{{ t('workflow.templatesDesc') }}</div>
+              </div>
+              <n-button size="small" @click="addTemplate">
+                {{ t('workflow.addTemplate') }}
+              </n-button>
+            </div>
+          </template>
+
+          <n-empty v-if="templates.length === 0" :description="t('workflow.noTemplates')" />
+          <div v-for="(template, index) in templates" :key="template.id" class="editor-block">
+            <div class="block-head">
+              <n-input v-model:value="template.name" size="small" :placeholder="t('workflow.templateName')" class="name-input" />
+              <n-button size="tiny" quaternary type="error" @click="removeTemplate(index)">
+                {{ t('workflow.delete') }}
+              </n-button>
+            </div>
+            <n-grid :cols="2" :x-gap="12" :y-gap="8">
+              <n-grid-item>
+                <n-form-item :label="t('workflow.dir')" :show-feedback="false">
+                  <n-input v-model:value="template.dir" size="small" :placeholder="t('workflow.dirPlaceholder')" />
+                </n-form-item>
+              </n-grid-item>
+              <n-grid-item>
+                <n-form-item :label="t('workflow.proxy')" :show-feedback="false">
+                  <n-input v-model:value="template.proxy" size="small" placeholder="http://127.0.0.1:7890" />
+                </n-form-item>
+              </n-grid-item>
+              <n-grid-item>
+                <n-form-item :label="t('workflow.userAgent')" :show-feedback="false">
+                  <n-input v-model:value="template.userAgent" size="small" />
+                </n-form-item>
+              </n-grid-item>
+              <n-grid-item>
+                <n-form-item :label="t('workflow.referer')" :show-feedback="false">
+                  <n-input v-model:value="template.referer" size="small" />
+                </n-form-item>
+              </n-grid-item>
+              <n-grid-item>
+                <n-form-item :label="t('workflow.cookie')" :show-feedback="false">
+                  <n-input v-model:value="template.cookie" size="small" />
+                </n-form-item>
+              </n-grid-item>
+              <n-grid-item>
+                <n-form-item :label="t('workflow.maxConnection')" :show-feedback="false">
+                  <n-input-number v-model:value="template.maxConnectionPerServer" size="small" :min="1" :max="16" />
+                </n-form-item>
+              </n-grid-item>
+            </n-grid>
+            <n-form-item :label="t('workflow.headers')" :show-feedback="false">
+              <n-input v-model:value="template.headers" type="textarea" :rows="2" :placeholder="t('workflow.headersPlaceholder')" />
+            </n-form-item>
           </div>
-          <n-button size="small" @click="addTemplate">
-            {{ t('workflow.addTemplate') }}
-          </n-button>
-        </div>
-      </template>
-
-      <n-empty v-if="templates.length === 0" :description="t('workflow.noTemplates')" />
-      <div v-for="(template, index) in templates" :key="template.id" class="editor-block">
-        <div class="block-head">
-          <n-input v-model:value="template.name" size="small" :placeholder="t('workflow.templateName')" class="name-input" />
-          <n-button size="tiny" quaternary type="error" @click="removeTemplate(index)">
-            {{ t('workflow.delete') }}
-          </n-button>
-        </div>
-        <n-grid :cols="2" :x-gap="12" :y-gap="8">
-          <n-grid-item>
-            <n-form-item :label="t('workflow.dir')" :show-feedback="false">
-              <n-input v-model:value="template.dir" size="small" :placeholder="t('workflow.dirPlaceholder')" />
-            </n-form-item>
-          </n-grid-item>
-          <n-grid-item>
-            <n-form-item :label="t('workflow.proxy')" :show-feedback="false">
-              <n-input v-model:value="template.proxy" size="small" placeholder="http://127.0.0.1:7890" />
-            </n-form-item>
-          </n-grid-item>
-          <n-grid-item>
-            <n-form-item :label="t('workflow.userAgent')" :show-feedback="false">
-              <n-input v-model:value="template.userAgent" size="small" />
-            </n-form-item>
-          </n-grid-item>
-          <n-grid-item>
-            <n-form-item :label="t('workflow.referer')" :show-feedback="false">
-              <n-input v-model:value="template.referer" size="small" />
-            </n-form-item>
-          </n-grid-item>
-          <n-grid-item>
-            <n-form-item :label="t('workflow.cookie')" :show-feedback="false">
-              <n-input v-model:value="template.cookie" size="small" />
-            </n-form-item>
-          </n-grid-item>
-          <n-grid-item>
-            <n-form-item :label="t('workflow.maxConnection')" :show-feedback="false">
-              <n-input-number v-model:value="template.maxConnectionPerServer" size="small" :min="1" :max="16" />
-            </n-form-item>
-          </n-grid-item>
-        </n-grid>
-        <n-form-item :label="t('workflow.headers')" :show-feedback="false">
-          <n-input v-model:value="template.headers" type="textarea" :rows="2" :placeholder="t('workflow.headersPlaceholder')" />
-        </n-form-item>
-      </div>
-      <div v-if="templates.length > 0" class="section-actions">
-        <n-button type="primary" :loading="saving" @click="saveTemplates">{{ t('workflow.saveTemplates') }}</n-button>
-      </div>
-    </n-card>
-
-    <n-card :bordered="false" class="section-card">
-      <template #header>
-        <div class="section-header">
-          <div>
-            <div class="section-title">{{ t('workflow.rulesTitle') }}</div>
-            <div class="section-desc">{{ t('workflow.rulesDesc') }}</div>
+          <div v-if="templates.length > 0" class="section-actions">
+            <n-button type="primary" :loading="saving" @click="saveTemplates">{{ t('workflow.saveTemplates') }}</n-button>
           </div>
-          <n-button size="small" @click="addRule">
-            {{ t('workflow.addRule') }}
-          </n-button>
-        </div>
-      </template>
+        </n-card>
+      </n-tab-pane>
 
-      <n-empty v-if="rules.length === 0" :description="t('workflow.noRules')" />
-      <div v-for="(rule, index) in rules" :key="rule.id" class="editor-block">
-        <div class="block-head">
-          <div class="block-title-row">
-            <n-switch v-model:value="rule.enabled" size="small" />
-            <n-input v-model:value="rule.name" size="small" :placeholder="t('workflow.ruleName')" class="name-input" />
+      <n-tab-pane name="rules" :tab="ruleTab">
+        <n-card :bordered="false" class="section-card">
+          <template #header>
+            <div class="section-header">
+              <div>
+                <div class="section-title">{{ t('workflow.rulesTitle') }}</div>
+                <div class="section-desc">{{ t('workflow.rulesDesc') }}</div>
+              </div>
+              <n-button size="small" @click="addRule">
+                {{ t('workflow.addRule') }}
+              </n-button>
+            </div>
+          </template>
+
+          <n-empty v-if="rules.length === 0" :description="t('workflow.noRules')" />
+          <div v-for="(rule, index) in rules" :key="rule.id" class="editor-block">
+            <div class="block-head">
+              <div class="block-title-row">
+                <n-switch v-model:value="rule.enabled" size="small" />
+                <n-input v-model:value="rule.name" size="small" :placeholder="t('workflow.ruleName')" class="name-input" />
+              </div>
+              <n-button size="tiny" quaternary type="error" @click="removeRule(index)">
+                {{ t('workflow.delete') }}
+              </n-button>
+            </div>
+
+            <div class="sub-title">{{ t('workflow.conditions') }}</div>
+            <n-grid :cols="3" :x-gap="12" :y-gap="8">
+              <n-grid-item>
+                <n-form-item :label="t('workflow.conditionCategory')" :show-feedback="false">
+                  <n-input v-model:value="rule.conditionCategory" size="small" :placeholder="t('workflow.anyCategory')" />
+                </n-form-item>
+              </n-grid-item>
+              <n-grid-item>
+                <n-form-item :label="t('workflow.conditionExtensions')" :show-feedback="false">
+                  <n-input v-model:value="rule.conditionExtensions" size="small" placeholder="mp4, mkv" />
+                </n-form-item>
+              </n-grid-item>
+              <n-grid-item>
+                <n-form-item :label="t('workflow.conditionStatus')" :show-feedback="false">
+                  <n-select v-model:value="rule.conditionStatus" size="small" :options="statusOptions" :placeholder="t('workflow.anyStatus')" clearable />
+                </n-form-item>
+              </n-grid-item>
+            </n-grid>
+
+            <div class="sub-title">{{ t('workflow.actions') }}</div>
+            <div v-for="(action, actionIndex) in rule.actions" :key="actionIndex" class="action-row">
+              <n-select v-model:value="action.type" size="small" :options="actionTypeOptions" class="action-type" />
+              <n-input v-if="action.type === 'move'" v-model:value="action.targetDir" size="small" :placeholder="t('workflow.targetDir')" />
+              <n-input v-if="action.type === 'rename'" v-model:value="action.pattern" size="small" :placeholder="t('workflow.renamePattern')" />
+              <n-input v-if="action.type === 'webhook'" v-model:value="action.url" size="small" :placeholder="t('workflow.webhookUrl')" />
+              <n-select v-if="action.type === 'webhook'" v-model:value="action.method" size="small" :options="methodOptions" class="method-select" />
+              <n-input v-if="action.type === 'notify'" v-model:value="action.title" size="small" :placeholder="t('workflow.notifyTitle')" />
+              <n-input v-if="action.type === 'notify'" v-model:value="action.body" size="small" :placeholder="t('workflow.notifyBody')" />
+              <n-button size="tiny" quaternary type="error" @click="rule.actions.splice(actionIndex, 1)">
+                {{ t('workflow.delete') }}
+              </n-button>
+            </div>
+            <n-button size="tiny" dashed @click="addAction(rule)">{{ t('workflow.addAction') }}</n-button>
           </div>
-          <n-button size="tiny" quaternary type="error" @click="removeRule(index)">
-            {{ t('workflow.delete') }}
-          </n-button>
-        </div>
-
-        <div class="sub-title">{{ t('workflow.conditions') }}</div>
-        <n-grid :cols="3" :x-gap="12" :y-gap="8">
-          <n-grid-item>
-            <n-form-item :label="t('workflow.conditionCategory')" :show-feedback="false">
-              <n-input v-model:value="rule.conditionCategory" size="small" :placeholder="t('workflow.anyCategory')" />
-            </n-form-item>
-          </n-grid-item>
-          <n-grid-item>
-            <n-form-item :label="t('workflow.conditionExtensions')" :show-feedback="false">
-              <n-input v-model:value="rule.conditionExtensions" size="small" placeholder="mp4, mkv" />
-            </n-form-item>
-          </n-grid-item>
-          <n-grid-item>
-            <n-form-item :label="t('workflow.conditionStatus')" :show-feedback="false">
-              <n-select v-model:value="rule.conditionStatus" size="small" :options="statusOptions" :placeholder="t('workflow.anyStatus')" clearable />
-            </n-form-item>
-          </n-grid-item>
-        </n-grid>
-
-        <div class="sub-title">{{ t('workflow.actions') }}</div>
-        <div v-for="(action, actionIndex) in rule.actions" :key="actionIndex" class="action-row">
-          <n-select v-model:value="action.type" size="small" :options="actionTypeOptions" class="action-type" />
-          <n-input v-if="action.type === 'move'" v-model:value="action.targetDir" size="small" :placeholder="t('workflow.targetDir')" />
-          <n-input v-if="action.type === 'rename'" v-model:value="action.pattern" size="small" :placeholder="t('workflow.renamePattern')" />
-          <n-input v-if="action.type === 'webhook'" v-model:value="action.url" size="small" :placeholder="t('workflow.webhookUrl')" />
-          <n-select v-if="action.type === 'webhook'" v-model:value="action.method" size="small" :options="methodOptions" class="method-select" />
-          <n-input v-if="action.type === 'notify'" v-model:value="action.title" size="small" :placeholder="t('workflow.notifyTitle')" />
-          <n-input v-if="action.type === 'notify'" v-model:value="action.body" size="small" :placeholder="t('workflow.notifyBody')" />
-          <n-button size="tiny" quaternary type="error" @click="rule.actions.splice(actionIndex, 1)">
-            {{ t('workflow.delete') }}
-          </n-button>
-        </div>
-        <n-button size="tiny" dashed @click="addAction(rule)">{{ t('workflow.addAction') }}</n-button>
-      </div>
-      <div v-if="rules.length > 0" class="section-actions">
-        <n-button type="primary" :loading="saving" @click="saveRules">{{ t('workflow.saveRules') }}</n-button>
-      </div>
-    </n-card>
+          <div v-if="rules.length > 0" class="section-actions">
+            <n-button type="primary" :loading="saving" @click="saveRules">{{ t('workflow.saveRules') }}</n-button>
+          </div>
+        </n-card>
+      </n-tab-pane>
+    </n-tabs>
   </div>
 </template>
 
@@ -161,6 +167,9 @@ const settingsStore = useSettingsStore()
 const saving = ref(false)
 const templates = ref<TaskTemplate[]>([])
 const rules = ref<RuleDraft[]>([])
+const activeSection = ref<'templates' | 'rules'>('templates')
+const templateTab = computed(() => `${t('workflow.templatesTitle')} (${templates.value.length})`)
+const ruleTab = computed(() => `${t('workflow.rulesTitle')} (${rules.value.length})`)
 
 // 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
 const statusOptions = computed(() => [
@@ -287,6 +296,12 @@ onMounted(load)
 .workflow-settings {
   display: flex;
   flex-direction: column;
+}
+.workflow-tabs {
+  margin-top: -2px;
+}
+.workflow-tabs :deep(.n-tabs-nav) {
+  margin-bottom: 2px;
 }
 .section-card {
   border-radius: 10px;

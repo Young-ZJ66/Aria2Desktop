@@ -6,7 +6,7 @@
  * 开关还藏在设置里——这是最容易被卸载劝退的一步。
  *
  * 规则：用户显式选过的语言 > 系统语言 > 中文。
- * 只支持两种语言，所以系统语言只按主语言标签归类，`zh-HK`/`zh-TW` 都算中文。
+ * 支持六种语言；系统语言按主语言标签归类，`zh-HK`/`zh-TW` 都算中文。
  */
 
 export type AppLocale = 'zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR' | 'de-DE' | 'fr-FR'
@@ -14,7 +14,7 @@ export type AppLocale = 'zh-CN' | 'en-US' | 'ja-JP' | 'ko-KR' | 'de-DE' | 'fr-FR
 /** 系统语言无法归类时的兜底（项目以中文为主） */
 export const DEFAULT_APP_LOCALE: AppLocale = 'zh-CN'
 
-/** 严格判定：只认这两个值，其它一律返回 null，由调用方回退 */
+/** 严格判定：只认六种支持的语言值，其它一律返回 null，由调用方回退 */
 export function normalizeLocale(value: unknown): AppLocale | null {
   if (typeof value !== 'string') return null
   const tag = value.trim().replace(/_/g, '-').toLowerCase()

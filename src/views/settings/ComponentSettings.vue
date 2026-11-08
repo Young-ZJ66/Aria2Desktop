@@ -150,7 +150,7 @@
       <!-- 连接状态：扩展每次调用都带版本头，据此判断"商店里是不是已经出了新版" -->
       <p class="extension-status" :class="`is-${extensionStatusTone}`">
         <span class="extension-status-text">{{ extensionStatusText }}</span>
-        <n-button text size="tiny" :loading="extensionStatusLoading" @click="refreshExtensionStatus">
+        <n-button text size="tiny" class="extension-status-refresh" :loading="extensionStatusLoading" @click="refreshExtensionStatus">
           {{ t('settings.rpc.extensionStatusRefresh') }}
         </n-button>
       </p>
@@ -179,15 +179,24 @@
         </n-button>
       </div>
       <p class="extension-desc mcp-hint">{{ t('settings.rpc.mcpAuthHint') }}</p>
+      <div class="mcp-config-toolbar">
+        <n-radio-group v-model:value="mcpConfigMode" size="small" class="mcp-config-switch">
+          <n-radio-button value="sample">{{ t('settings.rpc.mcpSampleTab') }}</n-radio-button>
+          <n-radio-button value="current">{{ t('settings.rpc.mcpCurrentTab') }}</n-radio-button>
+        </n-radio-group>
+        <span v-if="mcpConfigMode === 'current' && !currentRpcSecret" class="mcp-config-note">
+          {{ t('settings.rpc.mcpSecretMissing') }}
+        </span>
+      </div>
       <div class="mcp-code-wrap mcp-json-wrap">
-        <pre class="mcp-json">{{ mcpConfigSample }}</pre>
+        <pre class="mcp-json">{{ mcpConfigText }}</pre>
         <n-button
           class="mcp-copy-btn"
           size="tiny"
           quaternary
           :circle="copiedTarget !== 'config'"
           :aria-label="t('settings.rpc.mcpCopyConfig')"
-          @click="copyText(mcpConfigSample, 'config')"
+          @click="copyText(mcpConfigText, 'config')"
         >
           <template #icon>
             <n-icon>
@@ -209,6 +218,7 @@ import { CheckmarkOutline, CopyOutline, ExtensionPuzzleOutline } from '@vicons/i
 import { message } from '@/utils/feedback'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import { useComponentStore, type ComponentStatus } from '@/stores/componentStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { withMinimumDuration } from '@/composables/useMinimumLoading'
 import { EXTENSION_STORE_URL, isExtensionStoreAvailable } from '@/shared/extensionStore'
 import {
@@ -220,6 +230,7 @@ import { classifyUpdateError, COMPONENT_ERROR_MESSAGE_KEYS } from '@/shared/upda
 
 const { t } = useI18n()
 const componentStore = useComponentStore()
+const settingsStore = useSettingsStore()
 
 /**
  * 组件下载失败的提示：先认清是不是"连不上 GitHub / 被限流 / 这个标签没有该平台的包"，
@@ -240,17 +251,27 @@ const storeUrlReady = isExtensionStoreAvailable()
 
 // ---------- MCP（AI 助手接入）----------
 // 端点固定在扩展本地接口（端口与 electron/utils/extensionApiCore 一致），
-// Bearer 鉴权用当前 RPC 密钥；示例配置写给用户复制，不包含真实密钥值。
+// Bearer 鉴权用当前 RPC 密钥；示例保留占位符，当前配置自动填入真实密钥。
 const mcpEndpoint = 'http://localhost:6801/api/mcp'
-const mcpConfigSample = computed(() => `{
+const currentRpcSecret = computed(() => (settingsStore.settings?.aria2?.secret ?? '').trim())
+const mcpConfigMode = ref<'sample' | 'current'>('current')
+function buildMcpConfig(secret: string): string {
+  return `{
   "mcpServers": {
     "aria2-desktop": {
       "type": "http",
       "url": "${mcpEndpoint}",
-      "headers": { "Authorization": "Bearer <${t('settings.rpc.mcpSecretPlaceholder')}>" }
+      "headers": { "Authorization": "Bearer ${secret}" }
     }
   }
-}`)
+}`
+}
+const mcpConfigText = computed(() => {
+  const secret = mcpConfigMode.value === 'current' && currentRpcSecret.value
+    ? currentRpcSecret.value
+    : `<${t('settings.rpc.mcpSecretPlaceholder')}>`
+  return buildMcpConfig(secret)
+})
 
 /** 最近一次复制目标：按钮内显示「已复制」约 1.8 秒，不使用全局消息横幅 */
 const copiedTarget = ref<'endpoint' | 'config' | null>(null)
@@ -558,5 +579,32 @@ async function openExtensionStore() {
 
 .extension-status.is-ok .extension-status-text {
   color: var(--color-success);
+}
+
+/* loading 时固定按钮高度，避免整行与后续卡片边框上下跳动 */
+.extension-status-refresh {
+  height: 20px;
+  line-height: 20px;
+}
+
+.extension-status-refresh :deep(.n-button__content) {
+  line-height: 20px;
+}
+
+/* MCP 配置：示例 / 当前配置切换 */
+.mcp-config-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 8px;
+}
+
+.mcp-config-switch {
+  flex: none;
+}
+
+.mcp-config-note {
+  color: var(--color-warning);
+  font-size: 12px;
 }
 </style>
