@@ -29,6 +29,7 @@
 <script setup lang="ts">
 import { computed, h, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { withMinimumDuration } from '@/composables/useMinimumLoading'
 import { NAlert, NButton, NTag, NProgress, type DataTableColumns } from 'naive-ui'
 import type { Aria2Peer } from '@/types/aria2'
 import { formatSpeed } from '@/utils/taskFormatters'
@@ -56,7 +57,7 @@ async function lookupLocations() {
   locationError.value = ''
   try {
     const ips = [...new Set(props.peers.map(peer => peer.ip).filter(Boolean))]
-    const result = await api(ips)
+    const result = await withMinimumDuration(() => api(ips))
     locations.value = { ...locations.value, ...result }
     if (Object.keys(result).length === 0) locationError.value = t('taskPeer.locationFailed')
   } catch {

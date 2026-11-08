@@ -6,6 +6,7 @@
  * 插件和主进程之间仍然隔着 utilityProcess。
  */
 
+import { DEFAULT_PLUGIN_REGISTRY_URL } from '../../src/shared/appSettings'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { createLogger } from '../utils/logger'
 import type { PluginManager, RegistryPluginEntry } from './pluginManager'
@@ -51,7 +52,8 @@ export class PluginMarketService {
     if (market?.enabled === false) {
       return { success: false, plugins: [], error: 'MARKET_DISABLED' }
     }
-    const registryUrl = (market?.registryUrl || '').trim()
+    // 留空表示使用官方默认注册表；只有用户显式填写了非 https 地址才视为配置错误
+    const registryUrl = (market?.registryUrl || '').trim() || DEFAULT_PLUGIN_REGISTRY_URL
     if (!/^https:\/\//i.test(registryUrl)) {
       return { success: false, plugins: [], error: 'INVALID_REGISTRY_URL' }
     }
@@ -78,7 +80,12 @@ export class PluginMarketService {
       const buffer = await response.arrayBuffer()
       if (buffer.byteLength > MAX_REGISTRY_BYTES) return { success: false, plugins: [], error: 'REGISTRY_TOO_LARGE' }
       const text = new TextDecoder().decode(buffer)
-      const parsed = JSON.parse(text) as unknown
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text) as unknown
+      } catch {
+        return { success: false, plugins: [], error: 'INVALID_REGISTRY' }
+      }
       const rawPlugins = Array.isArray(parsed)
         ? parsed
         : (parsed && typeof parsed === 'object' && Array.isArray((parsed as { plugins?: unknown }).plugins)
@@ -99,7 +106,7 @@ export class PluginMarketService {
       return { success: true, plugins: this.mergeInstalled(plugins) }
     } catch (error) {
       logger.warn('Failed to fetch plugin registry:', error)
-      return { success: false, plugins: [], error: error instanceof Error ? error.message : 'NETWORK_ERROR' }
+      return { success: false, plugins: [], error: 'NETWORK_ERROR' }
     }
   }
 

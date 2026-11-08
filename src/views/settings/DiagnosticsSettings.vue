@@ -4,6 +4,7 @@
       <div>
         <h3 class="diagnostics-title">{{ t('settings.diagnostics.title') }}</h3>
         <p class="diagnostics-desc">{{ t('settings.diagnostics.description') }}</p>
+        <p v-if="lastRun" class="diagnostics-time">{{ t('settings.diagnostics.generatedAt', { time: lastRun }) }}</p>
       </div>
       <div class="diagnostics-actions">
         <n-button size="small" :loading="running" @click="runDiagnostics">
@@ -33,7 +34,6 @@
       </div>
     </div>
 
-    <p v-if="lastRun" class="diagnostics-time">{{ t('settings.diagnostics.generatedAt', { time: lastRun }) }}</p>
   </div>
 </template>
 
@@ -44,6 +44,7 @@ import { NAlert, NButton, NTag, useMessage } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { taskPersistenceService } from '@/services/taskPersistenceService'
+import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 
 type CheckStatus = 'pass' | 'warn' | 'fail' | 'info'
 
@@ -119,6 +120,7 @@ async function safe<T>(fn: () => Promise<T>): Promise<{ ok: true; value: T } | {
 
 async function runDiagnostics() {
   running.value = true
+  const startedAt = Date.now()
   const result: DiagnosticCheck[] = []
   try {
     // 应用信息
@@ -302,6 +304,7 @@ async function runDiagnostics() {
     checks.value = result
     lastRun.value = new Date().toLocaleString()
   } finally {
+    await ensureMinimumDuration(startedAt)
     running.value = false
   }
 }
@@ -404,8 +407,7 @@ onMounted(runDiagnostics)
   color: var(--text-color-3);
 }
 .diagnostics-time {
-  margin: 0;
-  text-align: right;
+  margin: 4px 0 0;
   font-size: 12px;
   color: var(--text-color-3);
 }

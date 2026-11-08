@@ -108,6 +108,12 @@
       "dist/vue/**/*",
       "build/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "plugins/download-notifier",
+        "to": "plugins/download-notifier"
+      }
+    ],
     "protocols": [
       {
         "name": "Magnet",

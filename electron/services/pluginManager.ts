@@ -131,6 +131,7 @@ export class PluginManager {
     this.store = store
     this.pluginDir = path.join(app.getPath('userData'), PLUGIN_DIR_NAME)
     this.ensurePluginDir()
+    this.seedBuiltinPlugins()
   }
 
   /** 单测的 electron mock 可能没有 utilityProcess；访问不存在导出会抛错，故集中兜底。 */
@@ -145,6 +146,57 @@ export class PluginManager {
   private ensurePluginDir(): void {
     if (!fs.existsSync(this.pluginDir)) {
       fs.mkdirSync(this.pluginDir, { recursive: true })
+    }
+  }
+
+  /**
+   * 播种随应用分发的内置示例插件。
+   * - 从安装包 resources/plugins（开发环境为仓库 plugins/）复制到用户插件目录；
+   * - 仅首次播种时写入 disabledPlugins，让用户按需启用并确认权限；
+   * - 把插件 id 记入 seededBuiltinPlugins，用户卸载后不会在下次启动时被重新装回；
+   * - 单测/无 Electron 路径 API 的环境静默跳过，不影响既有插件加载。
+   */
+  private seedBuiltinPlugins(): void {
+    try {
+      const seeded = this.store.get('seededBuiltinPlugins') as string[] | undefined
+      const seededIds = new Set(Array.isArray(seeded) ? seeded : [])
+      const appPath = typeof app.getAppPath === 'function' ? app.getAppPath() : ''
+      const sourceRoot = app.isPackaged
+        ? path.join(process.resourcesPath, PLUGIN_DIR_NAME)
+        : (appPath ? path.join(appPath, PLUGIN_DIR_NAME) : '')
+      if (!sourceRoot || !fs.existsSync(sourceRoot)) return
+
+      let changed = false
+      const disabled = new Set(this.getDisabledList())
+      for (const entry of fs.readdirSync(sourceRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        const sourceDir = path.join(sourceRoot, entry.name)
+        const manifestPath = path.join(sourceDir, 'manifest.json')
+        if (!fs.existsSync(manifestPath)) continue
+        let manifest: { id?: string }
+        try {
+          manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as { id?: string }
+        } catch {
+          continue
+        }
+        const pluginId = (manifest.id || '').trim()
+        if (!pluginId || seededIds.has(pluginId)) continue
+
+        const targetDir = path.join(this.pluginDir, entry.name)
+        if (!fs.existsSync(targetDir)) {
+          fs.cpSync(sourceDir, targetDir, { recursive: true })
+          // 内置示例默认禁用：给用户一个可选扩展，同时避免悄悄开始发通知
+          disabled.add(pluginId)
+        }
+        seededIds.add(pluginId)
+        changed = true
+      }
+      if (changed) {
+        this.store.set('seededBuiltinPlugins', [...seededIds])
+        this.store.set('disabledPlugins', [...disabled])
+      }
+    } catch (error) {
+      logger.warn('[PluginManager] Failed to seed builtin plugins:', error)
     }
   }
 

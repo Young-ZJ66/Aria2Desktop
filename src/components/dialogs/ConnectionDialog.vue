@@ -202,6 +202,7 @@ import { ArrowBackOutline, AddOutline, CreateOutline, TrashOutline } from '@vico
 import { useConnectionStore } from '@/stores/connectionStore'
 import type { Aria2Config, ConnectionProfile } from '@/types/aria2'
 import { isReservedSecretPrefix } from '@/shared/secretPrefix'
+import { withMinimumDuration } from '@/composables/useMinimumLoading'
 
 interface Props {
   modelValue: boolean
@@ -359,7 +360,7 @@ async function handleConnect() {
     connecting.value = true
 
     connectionStore.setActiveProfile(selectedProfileId.value)
-    await connectionStore.connect({ ...form })
+    await withMinimumDuration(() => connectionStore.connect({ ...form }))
 
     message.success(t('connection.connectSuccess'))
     visible.value = false

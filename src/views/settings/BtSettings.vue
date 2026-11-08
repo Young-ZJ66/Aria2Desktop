@@ -485,6 +485,7 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
+import { withMinimumDuration } from '@/composables/useMinimumLoading'
 import { formatSizeWithUnit } from '@/utils/size'
 import type { SettingSchema } from '@/types/settingSchema'
 import { useSettingSchema } from '@/composables/useSettingSchema'
@@ -747,7 +748,7 @@ async function updateTrackersNow() {
   if (trackerUpdating.value || !trackerSupported.value) return
   trackerUpdating.value = true
   try {
-    const result = await window.electronAPI!.tracker.updateNow(getAllEnabledSources())
+    const result = await withMinimumDuration(() => window.electronAPI!.tracker.updateNow(getAllEnabledSources()))
     if (result.success) {
       if (result.csv) settings.btTracker = result.csv
       trackerLastUpdate.value = result.lastUpdate ?? null
@@ -805,7 +806,7 @@ onMounted(async () => {
     if (result.customSources?.length) customTrackerSources.value = result.customSources
   }
   unsubscribeTracker = window.electronAPI!.tracker.onUpdated((res) => {
-    trackerUpdating.value = false
+    // loading 由 updateTrackersNow 的 finally 统一结束，避免事件先到导致按钮动画提前消失
     if (res.success) {
       if (res.csv) settings.btTracker = res.csv
       trackerLastUpdate.value = res.lastUpdate ?? null

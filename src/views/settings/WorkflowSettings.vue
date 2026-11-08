@@ -287,10 +287,14 @@ onMounted(load)
 .workflow-settings {
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 .section-card {
   border-radius: 10px;
+}
+.section-card + .section-card {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-light);
 }
 .section-header {
   display: flex;

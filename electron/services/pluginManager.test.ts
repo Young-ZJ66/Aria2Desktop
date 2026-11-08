@@ -10,10 +10,14 @@ import path from 'node:path'
  * 它的逃逸风险属于已知设计取舍，不做断言。
  */
 
-const holder = vi.hoisted(() => ({ userData: '' }))
+const holder = vi.hoisted(() => ({ userData: '', appPath: '' }))
 
 vi.mock('electron', () => ({
-  app: { getPath: () => holder.userData },
+  app: {
+    getPath: () => holder.userData,
+    getAppPath: () => holder.appPath,
+    isPackaged: false
+  },
   Notification: { isSupported: () => false, show: () => {} }
 }))
 
@@ -61,11 +65,14 @@ function disabledList(store: StoreLike): string[] {
 }
 
 let userData: string
+let builtinRoot: string
 let store: StoreLike
 
 beforeEach(() => {
   userData = fs.mkdtempSync(path.join(os.tmpdir(), 'plugin-manager-test-'))
+  builtinRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'plugin-manager-builtin-'))
   holder.userData = userData
+  holder.appPath = builtinRoot
   writePlugin(userData)
   store = new (class {
     private data = new Map<string, unknown>()
@@ -80,6 +87,7 @@ beforeEach(() => {
 
 afterEach(() => {
   fs.rmSync(userData, { recursive: true, force: true })
+  fs.rmSync(builtinRoot, { recursive: true, force: true })
 })
 
 describe('PluginManager 启用状态', () => {
@@ -95,6 +103,33 @@ describe('PluginManager 启用状态', () => {
 
     expect(manager.enable('demo')).toBe(true)
     expect(disabledList(store)).not.toContain('demo')
+  })
+
+  it('内置示例插件首次启动播种、默认停用，卸载后不再自动重装', () => {
+    const sourceDir = path.join(builtinRoot, 'plugins', 'example')
+    fs.mkdirSync(sourceDir, { recursive: true })
+    fs.writeFileSync(path.join(sourceDir, 'manifest.json'), JSON.stringify({
+      id: 'builtin-demo',
+      name: 'Builtin Demo',
+      version: '1.0.0',
+      main: 'index.js',
+      permissions: ['notify']
+    }), 'utf8')
+    fs.writeFileSync(path.join(sourceDir, 'index.js'), 'module.exports = { onActivate() {} }\n', 'utf8')
+
+    const manager = new PluginManager(store)
+    manager.loadAll()
+
+    const seeded = manager.getPlugins().find(plugin => plugin.manifest.id === 'builtin-demo')
+    expect(seeded).toBeDefined()
+    expect(seeded?.enabled).toBe(false)
+    expect(disabledList(store)).toContain('builtin-demo')
+    expect((store.get('seededBuiltinPlugins') as string[] | undefined) ?? []).toContain('builtin-demo')
+
+    expect(manager.uninstall('builtin-demo')).toBe(true)
+    const reloaded = new PluginManager(store)
+    reloaded.loadAll()
+    expect(reloaded.getPlugins().some(plugin => plugin.manifest.id === 'builtin-demo')).toBe(false)
   })
 
   it('卸载后不再残留停用记录，重装同 id 的插件是新装状态', () => {

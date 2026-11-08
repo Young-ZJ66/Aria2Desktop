@@ -369,6 +369,7 @@ import { useConnectionStore } from '@/stores/connectionStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
+import { withMinimumDuration } from '@/composables/useMinimumLoading'
 import type { SettingSchema } from '@/types/settingSchema'
 import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
@@ -425,7 +426,7 @@ async function detectSystemProxy() {
   detectingProxy.value = true
   try {
     if (window.electronAPI?.detectSystemProxy) {
-      const result = await window.electronAPI.detectSystemProxy()
+      const result = await withMinimumDuration(() => window.electronAPI!.detectSystemProxy())
       if (result.success && result.proxy) {
         form.allProxy = result.proxy
         message.success(t('settings.network.systemProxyDetected', { proxy: result.proxy }))

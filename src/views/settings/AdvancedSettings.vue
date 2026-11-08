@@ -236,6 +236,7 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
+import { withMinimumDuration } from '@/composables/useMinimumLoading'
 import type { SettingSchema } from '@/types/settingSchema'
 import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
@@ -284,7 +285,7 @@ function syncWebConsoleFromSettings(): void {
 async function refreshWebConsole(): Promise<void> {
   webConsoleLoading.value = true
   try {
-    const status = await window.electronAPI?.webConsoleStatus?.()
+    const status = await withMinimumDuration(async () => window.electronAPI?.webConsoleStatus?.())
     if (status) webConsoleStatus.value = status
   } catch (error) {
     console.error('[AdvancedSettings] 读取 Web 控制台状态失败:', error)

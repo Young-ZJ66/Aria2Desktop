@@ -112,26 +112,53 @@
           <n-alert type="info" :bordered="false" style="margin-bottom: 12px;">
             {{ t('settings.plugins.marketDesc') }}
           </n-alert>
-          <div class="market-config">
-            <div class="market-config-row">
-              <span class="market-config-label">{{ t('settings.plugins.marketEnabled') }}</span>
-              <n-switch v-model:value="marketEnabled" size="small" />
-            </div>
-            <div class="market-config-row">
-              <span class="market-config-label">{{ t('settings.plugins.marketRegistryUrl') }}</span>
-              <n-input v-model:value="marketRegistryUrl" size="small" :placeholder="t('settings.plugins.marketRegistryPlaceholder')" />
-            </div>
-            <div class="market-config-actions">
-              <n-button size="small" :loading="savingMarketSettings" @click="saveMarketSettings">
-                {{ t('common.save') }}
-              </n-button>
-            </div>
-          </div>
-          <n-alert v-if="marketError" type="error" :bordered="false" style="margin-bottom: 12px;">
-            {{ marketError }}
+          <n-collapse class="market-settings">
+            <n-collapse-item name="market-settings" :title="t('settings.plugins.marketSettings')">
+              <div class="market-config">
+                <div class="market-config-row">
+                  <span class="market-config-label">{{ t('settings.plugins.marketEnabled') }}</span>
+                  <n-switch v-model:value="marketEnabled" size="small" />
+                </div>
+                <div class="market-config-row">
+                  <span class="market-config-label">{{ t('settings.plugins.marketRegistryUrl') }}</span>
+                  <n-input v-model:value="marketRegistryUrl" size="small" :placeholder="t('settings.plugins.marketRegistryPlaceholder')" />
+                </div>
+                <div class="market-config-actions">
+                  <n-button size="small" :loading="savingMarketSettings" @click="saveMarketSettings">
+                    {{ t('common.save') }}
+                  </n-button>
+                </div>
+              </div>
+
+              <n-divider class="market-settings-divider" />
+
+              <div class="market-publishers">
+                <div class="market-publishers-title">{{ t('settings.plugins.trustedPublishers') }}</div>
+                <p class="plugin-desc">{{ t('settings.plugins.trustedPublishersDesc') }}</p>
+                <n-input
+                  v-model:value="publisherKeys"
+                  type="textarea"
+                  :rows="5"
+                  :placeholder="t('settings.plugins.trustedPublishersPlaceholder')"
+                />
+                <div class="publishers-actions">
+                  <n-button size="small" :loading="savingPublishers" @click="savePublishers">
+                    {{ t('settings.plugins.savePublishers') }}
+                  </n-button>
+                </div>
+              </div>
+            </n-collapse-item>
+          </n-collapse>
+          <n-alert v-if="marketError && marketError !== 'MARKET_DISABLED'" type="error" :bordered="false" style="margin: 12px 0;">
+            {{ marketErrorText }}
           </n-alert>
           <n-spin :show="marketLoading">
-            <n-empty v-if="!marketLoading && marketPlugins.length === 0" :description="t('settings.plugins.marketEmpty')" size="small" style="padding: 24px 0;" />
+            <n-empty
+              v-if="!marketLoading && marketPlugins.length === 0"
+              :description="marketError === 'MARKET_DISABLED' ? t('settings.plugins.marketDisabledEmpty') : t('settings.plugins.marketEmpty')"
+              size="small"
+              style="padding: 24px 0;"
+            />
             <div v-else class="plugin-list">
               <div v-for="item in marketPlugins" :key="item.id" class="plugin-item">
                 <div class="plugin-main">
@@ -166,22 +193,6 @@
             </div>
           </n-spin>
 
-          <n-collapse style="margin-top: 16px;">
-            <n-collapse-item :title="t('settings.plugins.trustedPublishers')" name="trusted">
-              <p class="plugin-desc">{{ t('settings.plugins.trustedPublishersDesc') }}</p>
-              <n-input
-                v-model:value="publisherKeys"
-                type="textarea"
-                :rows="5"
-                :placeholder="t('settings.plugins.trustedPublishersPlaceholder')"
-              />
-              <div class="publishers-actions">
-                <n-button size="small" :loading="savingPublishers" @click="savePublishers">
-                  {{ t('settings.plugins.savePublishers') }}
-                </n-button>
-              </div>
-            </n-collapse-item>
-          </n-collapse>
         </n-card>
       </n-tab-pane>
     </n-tabs>
@@ -195,6 +206,7 @@ import { CloseOutline, FolderOpenOutline } from '@vicons/ionicons5'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import { message, confirm } from '@/utils/feedback'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { runWithMinimumLoading } from '@/composables/useMinimumLoading'
 
 interface PluginInfo {
   manifest: {
@@ -240,6 +252,28 @@ const savingPublishers = ref(false)
 const marketEnabled = ref(settingsStore.settings.pluginMarket?.enabled !== false)
 const marketRegistryUrl = ref(settingsStore.settings.pluginMarket?.registryUrl || '')
 const savingMarketSettings = ref(false)
+
+/** 把插件市场的技术错误码映射为用户能理解的原因，而不是直接暴露 INVALID_REGISTRY_URL 之类的字符串 */
+const marketErrorText = computed(() => {
+  const code = marketError.value
+  if (!code) return ''
+  const httpMatch = /^HTTP_(\d+)$/.exec(code)
+  if (httpMatch) return t('settings.plugins.marketErrorHttp', { status: httpMatch[1] })
+  switch (code) {
+    case 'MARKET_DISABLED':
+      return t('settings.plugins.marketErrorDisabled')
+    case 'INVALID_REGISTRY_URL':
+      return t('settings.plugins.marketErrorInvalidUrl')
+    case 'REGISTRY_TOO_LARGE':
+      return t('settings.plugins.marketErrorTooLarge')
+    case 'INVALID_REGISTRY':
+      return t('settings.plugins.marketErrorInvalidRegistry')
+    case 'NETWORK_ERROR':
+      return t('settings.plugins.marketErrorNetwork')
+    default:
+      return t('settings.plugins.marketLoadFailed', { error: code })
+  }
+})
 
 /** 插件目录真实路径：页面挂载后向主进程查询；查询失败时退回通用提示文本 */
 const pluginDirHint = ref('%APPDATA%/aria2-desktop/plugins/')
@@ -367,20 +401,19 @@ function confirmUninstall(plugin: PluginInfo) {
 async function loadMarket(force = false) {
   const api = window.electronAPI
   if (!api?.pluginsMarketList) return
-  marketLoading.value = true
-  marketError.value = ''
-  try {
-    const result = await api.pluginsMarketList(force)
-    if (result?.success) {
-      marketPlugins.value = result.plugins ?? []
-    } else {
-      marketError.value = t('settings.plugins.marketLoadFailed', { error: result?.error || 'unknown' })
+  await runWithMinimumLoading(marketLoading, async () => {
+    marketError.value = ''
+    try {
+      const result = await api.pluginsMarketList(force)
+      if (result?.success) {
+        marketPlugins.value = result.plugins ?? []
+      } else {
+        marketError.value = result?.error || 'unknown'
+      }
+    } catch {
+      marketError.value = 'NETWORK_ERROR'
     }
-  } catch (error) {
-    marketError.value = t('settings.plugins.marketLoadFailed', { error: String(error) })
-  } finally {
-    marketLoading.value = false
-  }
+  })
 }
 
 async function installMarketPlugin(item: MarketPlugin) {
@@ -501,8 +534,28 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.market-config {
+.market-settings {
   margin-bottom: 14px;
+}
+
+.market-settings :deep(.n-collapse-item__header) {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.market-settings-divider {
+  margin: 14px 0 12px;
+}
+
+.market-publishers-title {
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.market-config {
+  margin-bottom: 0;
   padding: 12px 14px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);

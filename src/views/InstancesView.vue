@@ -43,7 +43,7 @@
           >
             {{ profile.id === connectionStore.activeProfileId && connectionStore.isConnected ? t('instances.connected') : t('instances.connect') }}
           </n-button>
-          <n-button size="tiny" quaternary @click="edit(profile)">{{ t('instances.edit') }}</n-button>
+          <n-button size="tiny" @click="edit(profile)">{{ t('instances.edit') }}</n-button>
         </div>
       </n-card>
     </div>
@@ -58,6 +58,7 @@ import { useI18n } from 'vue-i18n'
 import { NCard, NButton, NTag, NEmpty, NAlert } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import PageHeader from '@/components/layout/PageHeader.vue'
+import { withMinimumDuration } from '@/composables/useMinimumLoading'
 
 import { message } from '@/utils/feedback'
 import { getUserFriendlyError } from '@/utils/errorMessages'
@@ -98,7 +99,7 @@ function statusLabel(id: string): string {
 async function test(profile: ConnectionProfile) {
   testing[profile.id] = true
   try {
-    probes[profile.id] = await connectionStore.testConnection(profile.config)
+    probes[profile.id] = await withMinimumDuration(() => connectionStore.testConnection(profile.config))
   } finally {
     testing[profile.id] = false
   }
@@ -117,7 +118,7 @@ async function activate(profile: ConnectionProfile) {
   connectingId.value = profile.id
   try {
     connectionStore.setActiveProfile(profile.id)
-    await connectionStore.connect({ ...profile.config })
+    await withMinimumDuration(() => connectionStore.connect({ ...profile.config }))
     message.success(t('instances.connectSuccess', { name: profile.name || t('connection.defaultProfileName') }))
   } catch (error) {
     message.error(t('instances.connectFailed', { error: getUserFriendlyError(error) }))

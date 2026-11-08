@@ -2,7 +2,7 @@
   <div class="queue-view">
     <PageHeader :title="t('queue.title')" :description="t('queue.description')">
       <template #actions>
-        <n-button size="small" :loading="taskStore.isLoading" @click="refresh">
+        <n-button size="small" :loading="refreshing" @click="refresh">
           {{ t('queue.refresh') }}
         </n-button>
       </template>
@@ -109,6 +109,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import PageHeader from '@/components/layout/PageHeader.vue'
+import { runWithMinimumLoading } from '@/composables/useMinimumLoading'
 import { getTaskName } from '@/utils/taskUtils'
 import { formatSize, formatSpeed } from '@/utils/taskFormatters'
 
@@ -146,9 +147,11 @@ const totalDownloadSpeed = computed(() =>
   taskStore.activeTasks.reduce((sum, task) => sum + Number(task.downloadSpeed || 0), 0)
 )
 
+const refreshing = ref(false)
+
 async function refresh(): Promise<void> {
   try {
-    await taskStore.loadAllTasks()
+    await runWithMinimumLoading(refreshing, () => taskStore.loadAllTasks())
   } catch (error) {
     message.error(String(error))
   }

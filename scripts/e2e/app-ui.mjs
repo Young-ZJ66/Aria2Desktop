@@ -533,17 +533,55 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
       const panes = [...document.querySelectorAll('.plugin-tabs .n-tab-pane')]
         .filter((e) => e.offsetParent !== null)
       const pane = panes[0]
+      const collapse = pane?.querySelector('.market-settings .n-collapse-item')
+      const header = collapse?.querySelector('.n-collapse-item__header')
+      const config = pane?.querySelector('.market-config')
       return {
         visible: !!pane,
-        hasConfig: !!pane && !!pane.querySelector('.market-config'),
-        hasMarketList: !!pane && !!pane.querySelector('.plugin-list, .n-empty')
+        hasMarketList: !!pane && !!pane.querySelector('.plugin-list, .n-empty'),
+        hasCollapse: !!header,
+        collapseText: header ? (header.innerText || '').trim() : '',
+        collapsed: !!collapse && !collapse.classList.contains('n-collapse-item--active'),
+        hasConfig: !!config,
+        configVisible: !!config && config.offsetParent !== null
       }
     })()`
   )
   reporter.check(
-    '插件市场 Tab 显示市场配置与列表',
-    !!marketTabState && marketTabState.visible && marketTabState.hasConfig && marketTabState.hasMarketList,
+    '插件市场 Tab 显示市场列表与折叠设置',
+    !!marketTabState && marketTabState.visible && marketTabState.hasMarketList && marketTabState.hasCollapse,
     JSON.stringify(marketTabState)
+  )
+  reporter.check(
+    '插件市场配置默认折叠',
+    !!marketTabState && marketTabState.collapsed === true && marketTabState.configVisible === false,
+    JSON.stringify(marketTabState)
+  )
+  const expandedMarketConfig = await evalIn(
+    session,
+    `(() => {
+      const pane = [...document.querySelectorAll('.plugin-tabs .n-tab-pane')]
+        .filter((e) => e.offsetParent !== null)[0]
+      const header = pane?.querySelector('.market-settings .n-collapse-item__header-main')
+      if (!header) return 'no-header'
+      header.click()
+      return 'clicked'
+    })()`
+  )
+  await sleep(700)
+  const marketConfigVisible = await evalIn(
+    session,
+    `(() => {
+      const pane = [...document.querySelectorAll('.plugin-tabs .n-tab-pane')]
+        .filter((e) => e.offsetParent !== null)[0]
+      const config = pane?.querySelector('.market-config')
+      return !!config && config.offsetParent !== null && config.getBoundingClientRect().height > 0
+    })()`
+  )
+  reporter.check(
+    '展开折叠后显示插件市场配置',
+    expandedMarketConfig === 'clicked' && marketConfigVisible === true,
+    JSON.stringify({ expandedMarketConfig, marketConfigVisible })
   )
   await capture(session, path.join(outDir, '03b-settings-plugin-market.png'))
   const backToInstalled = await evalIn(

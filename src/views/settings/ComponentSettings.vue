@@ -36,7 +36,6 @@
         <div class="component-actions">
           <n-button
             v-if="!componentStore.ytdlp.available && componentStore.ytdlp.installable"
-            type="primary"
             :loading="componentStore.ytdlp.installing"
             :disabled="componentStore.ytdlp.installing"
             @click="installYtdlp"
@@ -48,7 +47,6 @@
           <n-space v-else-if="componentStore.ytdlp.available" :size="8">
             <n-button
               v-if="updateState.ytdlp.available"
-              type="primary"
               size="small"
               :loading="componentStore.ytdlp.installing"
               :disabled="componentStore.ytdlp.installing"
@@ -64,7 +62,7 @@
             >
               {{ t('settings.components.checkUpdate') }}
             </n-button>
-            <n-button size="small" @click="componentStore.checkYtdlp(true)">
+            <n-button size="small" :loading="componentStore.ytdlp.checking" @click="componentStore.checkYtdlp(true)">
               {{ t('settings.components.recheck') }}
             </n-button>
           </n-space>
@@ -103,7 +101,6 @@
         <div class="component-actions">
           <n-button
             v-if="!componentStore.ffmpeg.available && componentStore.ffmpeg.installable"
-            type="primary"
             :loading="componentStore.ffmpeg.installing"
             :disabled="componentStore.ffmpeg.installing"
             @click="installFfmpeg"
@@ -115,7 +112,6 @@
           <n-space v-else-if="componentStore.ffmpeg.available" :size="8">
             <n-button
               v-if="updateState.ffmpeg.available"
-              type="primary"
               size="small"
               :loading="componentStore.ffmpeg.installing"
               :disabled="componentStore.ffmpeg.installing"
@@ -131,7 +127,7 @@
             >
               {{ t('settings.components.checkUpdate') }}
             </n-button>
-            <n-button size="small" @click="componentStore.checkFfmpeg(true)">
+            <n-button size="small" :loading="componentStore.ffmpeg.checking" @click="componentStore.checkFfmpeg(true)">
               {{ t('settings.components.recheck') }}
             </n-button>
           </n-space>
@@ -143,7 +139,7 @@
     <n-card :title="t('settings.rpc.groupExtension')" class="setting-group">
       <p class="extension-desc">{{ t('settings.rpc.extensionDesc') }}</p>
       <n-space align="center" :size="12">
-        <n-button type="primary" :disabled="!storeUrlReady" @click="openExtensionStore">
+        <n-button :disabled="!storeUrlReady" @click="openExtensionStore">
           <template #icon>
             <n-icon><ExtensionPuzzleOutline /></n-icon>
           </template>
@@ -168,8 +164,26 @@
         <n-button size="small" @click="copyText(mcpEndpoint)">{{ t('settings.rpc.mcpCopyEndpoint') }}</n-button>
       </n-space>
       <p class="extension-desc mcp-hint">{{ t('settings.rpc.mcpAuthHint') }}</p>
-      <pre class="mcp-json">{{ mcpConfigSample }}</pre>
-      <n-button size="small" text @click="copyText(mcpConfigSample)">{{ t('settings.rpc.mcpCopyConfig') }}</n-button>
+      <div class="mcp-json-wrap">
+        <pre class="mcp-json">{{ mcpConfigSample }}</pre>
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button
+              class="mcp-copy-btn"
+              size="tiny"
+              quaternary
+              circle
+              :aria-label="t('settings.rpc.mcpCopyConfig')"
+              @click="copyText(mcpConfigSample)"
+            >
+              <template #icon>
+                <n-icon><CopyOutline /></n-icon>
+              </template>
+            </n-button>
+          </template>
+          {{ t('settings.rpc.mcpCopyConfig') }}
+        </n-tooltip>
+      </div>
     </n-card>
   </SettingsPage>
 </template>
@@ -177,10 +191,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ExtensionPuzzleOutline } from '@vicons/ionicons5'
+import { CopyOutline, ExtensionPuzzleOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import { useComponentStore, type ComponentStatus } from '@/stores/componentStore'
+import { withMinimumDuration } from '@/composables/useMinimumLoading'
 import { EXTENSION_STORE_URL, isExtensionStoreAvailable } from '@/shared/extensionStore'
 import {
   MIN_SUPPORTED_EXTENSION_VERSION,
@@ -280,7 +295,7 @@ async function refreshExtensionStatus() {
   if (typeof api?.getExtensionStatus !== 'function') return
   extensionStatusLoading.value = true
   try {
-    extensionStatus.value = await api.getExtensionStatus()
+    extensionStatus.value = await withMinimumDuration(() => api.getExtensionStatus())
   } catch {
     // 取不到就保留上一次显示：这只是辅助信息，不值得弹错误打断用户
   } finally {
@@ -311,9 +326,9 @@ async function checkUpdate(kind: 'ytdlp' | 'ffmpeg') {
   const state = updateState[kind]
   state.checking = true
   try {
-    const result = kind === 'ytdlp'
-      ? await api.ytdlpCheckUpdate()
-      : await api.ffmpegCheckUpdate()
+    const result = await withMinimumDuration(() => (
+      kind === 'ytdlp' ? api.ytdlpCheckUpdate() : api.ffmpegCheckUpdate()
+    ))
     if (!result?.success) {
       state.available = false
       message.error(describeComponentFailure('settings.components.updateCheckFailed', result?.error))
@@ -470,9 +485,13 @@ async function openExtensionStore() {
   margin: 10px 0 6px;
 }
 
+.mcp-json-wrap {
+  position: relative;
+}
+
 .mcp-json {
-  margin: 0 0 8px;
-  padding: 10px 12px;
+  margin: 0;
+  padding: 10px 40px 10px 12px;
   border-radius: 6px;
   background: var(--bg-secondary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -481,6 +500,12 @@ async function openExtensionStore() {
   color: var(--text-regular);
   overflow-x: auto;
   white-space: pre;
+}
+
+.mcp-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
 }
 
 /* 扩展连接状态：中性信息在左，重新检测在右，整行不抢按钮视觉重量 */

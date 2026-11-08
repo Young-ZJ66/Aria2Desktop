@@ -8,6 +8,7 @@
 
 import { defineStore } from 'pinia'
 import { reactive } from 'vue'
+import { withMinimumDuration } from '@/composables/useMinimumLoading'
 
 export interface ComponentStatus {
   /** 是否已检测过：false 时界面显示"检测中"而不是"未安装" */
@@ -65,7 +66,8 @@ export const useComponentStore = defineStore('components', () => {
     }
     ytdlp.checking = true
     try {
-      const result = await window.electronAPI.ytdlpCheck()
+      const check = window.electronAPI.ytdlpCheck
+      const result = await withMinimumDuration(() => check())
       ytdlp.available = result.available
       ytdlp.version = result.version ?? ''
       ytdlp.installable = result.installable === true
@@ -86,7 +88,8 @@ export const useComponentStore = defineStore('components', () => {
     }
     ffmpeg.checking = true
     try {
-      const result = await window.electronAPI.ffmpegCheck()
+      const check = window.electronAPI.ffmpegCheck
+      const result = await withMinimumDuration(() => check())
       ffmpeg.available = result.available
       ffmpeg.version = result.version ?? ''
       ffmpeg.installable = result.installable === true

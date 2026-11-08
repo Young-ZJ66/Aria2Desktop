@@ -4,7 +4,7 @@
 // 与渲染层共用同一份定义，修改数据结构时只改共享文件。
 
 export type { AppSettings } from '@/shared/appSettings'
-import type { AppSettings } from '@/shared/appSettings'
+import { DEFAULT_PLUGIN_REGISTRY_URL, type AppSettings } from '@/shared/appSettings'
 import { mergeCategoryRules } from '@/shared/fileCategories'
 import { pickLocale, systemLocale } from '@/shared/locale'
 
@@ -82,7 +82,7 @@ export const defaultSettings: AppSettings = {
   },
   pluginMarket: {
     enabled: true,
-    registryUrl: 'https://raw.githubusercontent.com/Young-ZJ66/Aria2Desktop/main/plugin-registry.json'
+    registryUrl: DEFAULT_PLUGIN_REGISTRY_URL
   },
   trustedPluginPublishers: []
 }

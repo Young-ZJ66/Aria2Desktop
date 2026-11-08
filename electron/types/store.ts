@@ -36,5 +36,7 @@ export interface StoreData {
   windowState: WindowState
   trackerSubscription?: TrackerSubscriptionState
   disabledPlugins?: string[]
+  /** 已播过的内置示例插件 id（用户卸载后不再自动重装） */
+  seededBuiltinPlugins?: string[]
   [key: string]: unknown
 }

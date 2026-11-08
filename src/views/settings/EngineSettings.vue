@@ -4,7 +4,7 @@
     :description="t('localService.description')"
   >
     <!-- 服务状态 -->
-    <n-card :title="t('localService.serviceStatus')" class="section-card">
+    <n-card :title="t('localService.serviceStatus')" class="setting-group">
       <template #header-extra>
         <n-button
           size="small"
@@ -93,7 +93,7 @@
     </n-card>
 
     <!-- 服务配置 -->
-    <n-card :title="t('localService.serviceConfig')" class="section-card">
+    <n-card :title="t('localService.serviceConfig')" class="setting-group">
       <n-form
         ref="configFormRef"
         :model="localConfig"
@@ -177,7 +177,7 @@
     </n-card>
 
     <!-- 内置 Aria2 不可用提示 -->
-    <n-card v-if="isElectronAvailable && processInfo.isAria2Available === false" class="section-card">
+    <n-card v-if="isElectronAvailable && processInfo.isAria2Available === false" class="setting-group">
       <n-alert :title="t('localService.aria2Unavailable')" type="warning" :bordered="false">
         <p>{{ t('localService.aria2NotFoundDesc1') }}</p>
         <p><strong>{{ t('localService.solution') }}</strong></p>
@@ -194,7 +194,7 @@
     </n-card>
 
     <!-- 桌面版提示 -->
-    <n-card v-if="!isElectronAvailable" class="section-card">
+    <n-card v-if="!isElectronAvailable" class="setting-group">
       <n-alert :title="t('localService.desktopOnlyTitle')" type="info" :bordered="false">
         <p>{{ t('localService.desktopOnlyDesc1') }}</p>
         <p>{{ t('localService.desktopOnlyDesc2') }}</p>
@@ -220,6 +220,7 @@ import SettingsPage from '@/components/settings/SettingsPage.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { useAria2LocalService, type Aria2LocalConfig } from '@/composables/useAria2LocalService'
+import { withMinimumDuration } from '@/composables/useMinimumLoading'
 
 const { t } = useI18n()
 const {
@@ -276,7 +277,7 @@ const configRules = computed<FormRules>(() => ({
 async function refreshStatus() {
   isRefreshing.value = true
   try {
-    await getStatus()
+    await withMinimumDuration(() => getStatus())
     loadCurrentConfig()
     message.success(t('localService.statusRefreshed'))
   } catch (_error) {
@@ -503,10 +504,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.section-card {
-  margin-bottom: 16px;
-}
-
 .status-content {
   margin-bottom: 16px;
 }

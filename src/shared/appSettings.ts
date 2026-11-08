@@ -9,6 +9,11 @@
  * 所有字段为可选，主进程按 Partial 语义读取（settings.aria2 || {}），
  * 渲染层通过 defaultSettings / mergeWithDefaults 提供缺省值。
  */
+
+/** 官方插件市场注册表默认地址（pluginMarket.registryUrl 留空时使用） */
+export const DEFAULT_PLUGIN_REGISTRY_URL =
+  'https://raw.githubusercontent.com/Young-ZJ66/Aria2Desktop/main/plugin-registry.json'
+
 export interface ConnectionProfileConfig {
   host: string
   port: number
