@@ -64,6 +64,7 @@ function initI18n() {
   $('saveBtn').textContent = i18n('saveSettings')
   $('testBtn').textContent = i18n('testConnection')
   $('footerHint').textContent = i18n('rightClickHint')
+  $('grabTitle').textContent = i18n('tabGrab')
   $('grabBtn').textContent = i18n('grabBtn')
   $('grabFilter').placeholder = i18n('grabFilterPlaceholder')
   $('sendSelectedBtn').textContent = i18n('sendSelected')
@@ -124,12 +125,12 @@ function applyPairingUi(paired) {
 }
 
 /**
- * 两种模式：`send`（日常发送）/ `connect`（配对与设置）。
+ * 两种模式：`send`（日常发送与批量抓取）/ `connect`（配对与设置）。
  * 拆开的原因：发送是每次都用的一步操作，配对与连接/开关配置是装好后只做一次的设置，
  * 混在一页会让日常操作被配置项淹没。首次未配对时自动停在 connect，配好即跳回 send。
  */
 function switchTab(name) {
-  for (const tab of ['send', 'grab', 'connect']) {
+  for (const tab of ['send', 'connect']) {
     const active = tab === name
     const cap = tab.charAt(0).toUpperCase() + tab.slice(1)
     $('pane' + cap).classList.toggle('active', active)
@@ -724,7 +725,6 @@ $('quickUrl').addEventListener('keydown', (event) => {
 })
 $('pasteBtn').addEventListener('click', pasteFromClipboard)
 $('tabSend').addEventListener('click', () => switchTab('send'))
-$('tabGrab').addEventListener('click', () => switchTab('grab'))
 $('grabBtn').addEventListener('click', grabPageLinks)
 $('grabFilter').addEventListener('input', (event) => renderGrabList(event.target.value))
 $('sendSelectedBtn').addEventListener('click', sendGrabbed)

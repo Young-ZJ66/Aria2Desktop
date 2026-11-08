@@ -19,9 +19,9 @@
       </div>
     </div>
 
-    <n-alert v-if="summary" :type="summaryType" :show-icon="true" class="diagnostics-summary">
+    <DismissibleAlert v-if="summary" storage-key="settings.diagnostics.summary" :type="summaryType" :show-icon="true" class="diagnostics-summary">
       {{ summary }}
-    </n-alert>
+    </DismissibleAlert>
 
     <div class="diagnostics-list">
       <div v-for="check in checks" :key="check.id" class="diagnostic-row" :class="['diagnostic-row', 'diagnostic-' + check.status]">
@@ -40,7 +40,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NAlert, NButton, NTag, useMessage } from 'naive-ui'
+import { NButton, NTag, useMessage } from 'naive-ui'
+import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { taskPersistenceService } from '@/services/taskPersistenceService'

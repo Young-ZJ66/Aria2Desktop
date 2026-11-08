@@ -138,9 +138,9 @@
       </template>
 
       <!-- 没有任何做种者时速度通常极慢甚至停滞：直接说出来，比让用户盯着 0 KB/s 猜原因强 -->
-      <n-alert v-if="btHealthWarning" type="warning" :bordered="false" class="bt-health-alert">
+      <DismissibleAlert v-if="btHealthWarning" storage-key="task.btHealth" type="warning" class="bt-health-alert">
         {{ btHealthWarning }}
-      </n-alert>
+      </DismissibleAlert>
 
       <n-descriptions :column="2" label-placement="left" class="task-descriptions">
         <n-descriptions-item :label="t('taskDetail.seeders')">{{ seederCount }}</n-descriptions-item>
@@ -189,6 +189,7 @@ import { classifyAria2Error } from '@/shared/aria2Error'
 import { CopyOutline, FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import { useUiStore } from '@/stores/uiStore'
+import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import type { Aria2Task, Aria2Uri } from '@/types/aria2'
 import {
   formatSize,

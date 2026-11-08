@@ -159,30 +159,44 @@
     <!-- MCP：让 AI 助手（Claude Desktop / Cursor 等）直接驱动下载 -->
     <n-card :title="t('settings.rpc.groupMcp')" class="setting-group">
       <p class="extension-desc">{{ t('settings.rpc.mcpDesc') }}</p>
-      <n-space align="center" :size="12" wrap>
+      <div class="mcp-code-wrap">
         <code class="mcp-endpoint">{{ mcpEndpoint }}</code>
-        <n-button size="small" @click="copyText(mcpEndpoint)">{{ t('settings.rpc.mcpCopyEndpoint') }}</n-button>
-      </n-space>
-      <p class="extension-desc mcp-hint">{{ t('settings.rpc.mcpAuthHint') }}</p>
-      <div class="mcp-json-wrap">
-        <pre class="mcp-json">{{ mcpConfigSample }}</pre>
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button
-              class="mcp-copy-btn"
-              size="tiny"
-              quaternary
-              circle
-              :aria-label="t('settings.rpc.mcpCopyConfig')"
-              @click="copyText(mcpConfigSample)"
-            >
-              <template #icon>
-                <n-icon><CopyOutline /></n-icon>
-              </template>
-            </n-button>
+        <n-button
+          class="mcp-copy-btn"
+          size="tiny"
+          quaternary
+          :circle="copiedTarget !== 'endpoint'"
+          :aria-label="t('settings.rpc.mcpCopyEndpoint')"
+          @click="copyText(mcpEndpoint, 'endpoint')"
+        >
+          <template #icon>
+            <n-icon>
+              <CheckmarkOutline v-if="copiedTarget === 'endpoint'" />
+              <CopyOutline v-else />
+            </n-icon>
           </template>
-          {{ t('settings.rpc.mcpCopyConfig') }}
-        </n-tooltip>
+          <template v-if="copiedTarget === 'endpoint'">{{ t('settings.rpc.mcpCopied') }}</template>
+        </n-button>
+      </div>
+      <p class="extension-desc mcp-hint">{{ t('settings.rpc.mcpAuthHint') }}</p>
+      <div class="mcp-code-wrap mcp-json-wrap">
+        <pre class="mcp-json">{{ mcpConfigSample }}</pre>
+        <n-button
+          class="mcp-copy-btn"
+          size="tiny"
+          quaternary
+          :circle="copiedTarget !== 'config'"
+          :aria-label="t('settings.rpc.mcpCopyConfig')"
+          @click="copyText(mcpConfigSample, 'config')"
+        >
+          <template #icon>
+            <n-icon>
+              <CheckmarkOutline v-if="copiedTarget === 'config'" />
+              <CopyOutline v-else />
+            </n-icon>
+          </template>
+          <template v-if="copiedTarget === 'config'">{{ t('settings.rpc.mcpCopied') }}</template>
+        </n-button>
       </div>
     </n-card>
   </SettingsPage>
@@ -191,7 +205,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { CopyOutline, ExtensionPuzzleOutline } from '@vicons/ionicons5'
+import { CheckmarkOutline, CopyOutline, ExtensionPuzzleOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import { useComponentStore, type ComponentStatus } from '@/stores/componentStore'
@@ -238,16 +252,24 @@ const mcpConfigSample = computed(() => `{
   }
 }`)
 
-async function copyText(text: string): Promise<void> {
+/** 最近一次复制目标：按钮内显示「已复制」约 1.8 秒，不使用全局消息横幅 */
+const copiedTarget = ref<'endpoint' | 'config' | null>(null)
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
+
+async function copyText(text: string, target: 'endpoint' | 'config'): Promise<void> {
   try {
     const api = window.electronAPI
     if (api?.writeClipboard) {
       await api.writeClipboard(text)
-      message.success(t('settings.rpc.mcpCopied'))
-      return
+    } else {
+      await navigator.clipboard.writeText(text)
     }
-    await navigator.clipboard.writeText(text)
-    message.success(t('settings.rpc.mcpCopied'))
+    copiedTarget.value = target
+    if (copiedTimer) clearTimeout(copiedTimer)
+    copiedTimer = setTimeout(() => {
+      copiedTarget.value = null
+      copiedTimer = null
+    }, 1800)
   } catch {
     message.error(t('settings.unknownError'))
   }
@@ -473,20 +495,25 @@ async function openExtensionStore() {
 }
 
 /* MCP 接入信息：端点与示例配置用等宽字体，便于肉眼核对/复制 */
+.mcp-code-wrap {
+  position: relative;
+}
+
 .mcp-endpoint {
-  padding: 4px 8px;
+  display: block;
+  padding: 10px 40px 10px 12px;
   border-radius: 6px;
   background: var(--bg-secondary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-regular);
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
 .mcp-hint {
   margin: 10px 0 6px;
-}
-
-.mcp-json-wrap {
-  position: relative;
 }
 
 .mcp-json {
@@ -504,8 +531,9 @@ async function openExtensionStore() {
 
 .mcp-copy-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: 6px;
+  background: var(--bg-primary);
 }
 
 /* 扩展连接状态：中性信息在左，重新检测在右，整行不抢按钮视觉重量 */

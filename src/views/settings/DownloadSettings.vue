@@ -163,12 +163,10 @@
 
       <!-- 速度调度 -->
       <n-card :title="t('settings.download.speedSchedule')" class="setting-group">
-        <n-alert type="info" :bordered="false" style="margin-bottom: 12px;">
-          {{ t('settings.download.speedScheduleTip') }}
-        </n-alert>
-
         <n-form-item>
-          <template #label>{{ t('settings.download.speedScheduleEnabled') }}</template>
+          <template #label>
+            <TipLabel :label="t('settings.download.speedScheduleEnabled')" :tip="t('settings.download.speedScheduleTip')" />
+          </template>
           <n-switch v-model:value="scheduleEnabled" />
         </n-form-item>
 
@@ -193,12 +191,10 @@
 
       <!-- 定时下载 -->
       <n-card :title="t('settings.download.downloadSchedule')" class="setting-group">
-        <n-alert type="info" :bordered="false" style="margin-bottom: 12px;">
-          {{ t('settings.download.downloadScheduleTip') }}
-        </n-alert>
-
         <n-form-item>
-          <template #label>{{ t('settings.download.downloadScheduleEnabled') }}</template>
+          <template #label>
+            <TipLabel :label="t('settings.download.downloadScheduleEnabled')" :tip="t('settings.download.downloadScheduleTip')" />
+          </template>
           <n-switch v-model:value="dlScheduleEnabled" />
         </n-form-item>
 

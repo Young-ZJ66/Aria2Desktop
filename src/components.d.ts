@@ -16,6 +16,7 @@ declare module 'vue' {
     AppSwitch: typeof import('./components/AppSwitch.vue')['default']
     ConnectionDialog: typeof import('./components/dialogs/ConnectionDialog.vue')['default']
     DeleteTaskDialog: typeof import('./components/dialogs/DeleteTaskDialog.vue')['default']
+    DismissibleAlert: typeof import('./components/common/DismissibleAlert.vue')['default']
     MetalinkPane: typeof import('./components/newTask/MetalinkPane.vue')['default']
     NAlert: typeof import('naive-ui')['NAlert']
     NBadge: typeof import('naive-ui')['NBadge']

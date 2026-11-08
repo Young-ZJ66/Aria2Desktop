@@ -58,45 +58,47 @@
         <span class="retry-hint">{{ t('queue.retryDelaySeconds') }}</span>
       </div>
 
-      <n-table :bordered="false" size="small" class="queue-table">
-        <thead>
-          <tr>
-            <th class="col-pos">{{ t('queue.position') }}</th>
-            <th>{{ t('queue.taskName') }}</th>
-            <th class="col-size">{{ t('queue.size') }}</th>
-            <th class="col-actions">{{ t('queue.actions') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(task, index) in taskStore.waitingTasks" :key="task.gid">
-            <td class="col-pos">{{ index + 1 }}</td>
-            <td class="task-name" :title="getTaskName(task)">{{ getTaskName(task) }}</td>
-            <td class="col-size">{{ formatSize(task.totalLength) }}</td>
-            <td class="col-actions">
-              <n-space :size="4" justify="end">
-                <n-button size="tiny" secondary :disabled="index === 0" @click="move(task.gid, 'top')">
-                  {{ t('queue.moveTop') }}
-                </n-button>
-                <n-button size="tiny" secondary :disabled="index === 0" @click="move(task.gid, 'up')">
-                  {{ t('queue.moveUp') }}
-                </n-button>
-                <n-button size="tiny" secondary :disabled="index === taskStore.waitingTasks.length - 1" @click="move(task.gid, 'down')">
-                  {{ t('queue.moveDown') }}
-                </n-button>
-                <n-button size="tiny" secondary :disabled="index === taskStore.waitingTasks.length - 1" @click="move(task.gid, 'bottom')">
-                  {{ t('queue.moveBottom') }}
-                </n-button>
-                <n-button size="tiny" secondary type="error" @click="remove(task.gid)">
-                  {{ t('queue.remove') }}
-                </n-button>
-              </n-space>
-            </td>
-          </tr>
-          <tr v-if="taskStore.waitingTasks.length === 0">
-            <td colspan="4" class="empty-row">{{ t('queue.empty') }}</td>
-          </tr>
-        </tbody>
-      </n-table>
+      <div class="queue-table-wrap">
+        <n-table :bordered="false" size="small" class="queue-table">
+          <thead>
+            <tr>
+              <th class="col-pos">{{ t('queue.position') }}</th>
+              <th>{{ t('queue.taskName') }}</th>
+              <th class="col-size">{{ t('queue.size') }}</th>
+              <th class="col-actions">{{ t('queue.actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(task, index) in taskStore.waitingTasks" :key="task.gid">
+              <td class="col-pos">{{ index + 1 }}</td>
+              <td class="task-name" :title="getTaskName(task)">{{ getTaskName(task) }}</td>
+              <td class="col-size">{{ formatSize(task.totalLength) }}</td>
+              <td class="col-actions">
+                <n-space :size="4" justify="end">
+                  <n-button size="tiny" secondary :disabled="index === 0" @click="move(task.gid, 'top')">
+                    {{ t('queue.moveTop') }}
+                  </n-button>
+                  <n-button size="tiny" secondary :disabled="index === 0" @click="move(task.gid, 'up')">
+                    {{ t('queue.moveUp') }}
+                  </n-button>
+                  <n-button size="tiny" secondary :disabled="index === taskStore.waitingTasks.length - 1" @click="move(task.gid, 'down')">
+                    {{ t('queue.moveDown') }}
+                  </n-button>
+                  <n-button size="tiny" secondary :disabled="index === taskStore.waitingTasks.length - 1" @click="move(task.gid, 'bottom')">
+                    {{ t('queue.moveBottom') }}
+                  </n-button>
+                  <n-button size="tiny" secondary type="error" @click="remove(task.gid)">
+                    {{ t('queue.remove') }}
+                  </n-button>
+                </n-space>
+              </td>
+            </tr>
+            <tr v-if="taskStore.waitingTasks.length === 0" class="empty-row-row">
+              <td colspan="4" class="empty-row">{{ t('queue.empty') }}</td>
+            </tr>
+          </tbody>
+        </n-table>
+      </div>
     </n-card>
   </div>
 </template>
@@ -212,10 +214,25 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.queue-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
 .queue-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   border-radius: 10px;
   border: 1px solid var(--border-light);
   box-shadow: var(--shadow-light);
+}
+.queue-card :deep(.n-card-content) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .concurrency-field {
   padding-top: 6px;
@@ -235,8 +252,17 @@ onBeforeUnmount(() => {
   font-size: 12px;
   opacity: 0.65;
 }
+.queue-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
 .queue-table {
   margin-top: 4px;
+  height: 100%;
+}
+.queue-table :deep(table) {
+  height: 100%;
 }
 .col-pos {
   width: 64px;
@@ -256,8 +282,10 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 .empty-row {
+  height: 100%;
   text-align: center;
   padding: 32px 0;
   opacity: 0.6;
+  vertical-align: middle;
 }
 </style>

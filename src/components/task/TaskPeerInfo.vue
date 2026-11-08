@@ -7,9 +7,9 @@
       </n-button>
     </div>
 
-    <n-alert v-if="locationError" type="warning" :bordered="false" class="peer-alert">
+    <DismissibleAlert v-if="locationError" storage-key="task.peerLocation" type="warning" class="peer-alert">
       {{ locationError }}
-    </n-alert>
+    </DismissibleAlert>
 
     <n-data-table
       v-if="peers.length"
@@ -30,7 +30,8 @@
 import { computed, h, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { withMinimumDuration } from '@/composables/useMinimumLoading'
-import { NAlert, NButton, NTag, NProgress, type DataTableColumns } from 'naive-ui'
+import { NButton, NTag, NProgress, type DataTableColumns } from 'naive-ui'
+import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import type { Aria2Peer } from '@/types/aria2'
 import { formatSpeed } from '@/utils/taskFormatters'
 import { countryCodeToFlag, getPeerClientName } from '@/utils/peerClient'

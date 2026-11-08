@@ -48,14 +48,15 @@
       </n-card>
     </div>
 
-    <n-alert type="info" :show-icon="false" class="instances-note">{{ t('instances.multiInstanceNote') }}</n-alert>
+    <DismissibleAlert storage-key="instances.note" type="info" :show-icon="false" class="instances-note">{{ t('instances.multiInstanceNote') }}</DismissibleAlert>
   </div>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NCard, NButton, NTag, NEmpty, NAlert } from 'naive-ui'
+import { NCard, NButton, NTag, NEmpty } from 'naive-ui'
+import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import { useConnectionStore } from '@/stores/connectionStore'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import { withMinimumDuration } from '@/composables/useMinimumLoading'

@@ -10,7 +10,8 @@
           size="small"
           quaternary
           circle
-          :loading="isRefreshing"
+          class="refresh-button"
+          :class="{ 'is-refreshing': isRefreshing }"
           @click="refreshStatus"
         >
           <n-icon><RefreshOutline /></n-icon>
@@ -178,7 +179,7 @@
 
     <!-- 内置 Aria2 不可用提示 -->
     <n-card v-if="isElectronAvailable && processInfo.isAria2Available === false" class="setting-group">
-      <n-alert :title="t('localService.aria2Unavailable')" type="warning" :bordered="false">
+      <DismissibleAlert storage-key="settings.engine.aria2Unavailable" :title="t('localService.aria2Unavailable')" type="warning">
         <p>{{ t('localService.aria2NotFoundDesc1') }}</p>
         <p><strong>{{ t('localService.solution') }}</strong></p>
         <ol>
@@ -190,15 +191,15 @@
           <strong>{{ t('localService.userDataDir') }}</strong><br />
           <code>{{ processInfo.resourceInfo.userDataPath }}</code>
         </p>
-      </n-alert>
+      </DismissibleAlert>
     </n-card>
 
     <!-- 桌面版提示 -->
     <n-card v-if="!isElectronAvailable" class="setting-group">
-      <n-alert :title="t('localService.desktopOnlyTitle')" type="info" :bordered="false">
+      <DismissibleAlert storage-key="settings.engine.desktopOnly" :title="t('localService.desktopOnlyTitle')" type="info">
         <p>{{ t('localService.desktopOnlyDesc1') }}</p>
         <p>{{ t('localService.desktopOnlyDesc2') }}</p>
-      </n-alert>
+      </DismissibleAlert>
     </n-card>
   </SettingsPage>
 </template>
@@ -217,6 +218,7 @@ import { message, confirm } from '@/utils/feedback'
 import type { FormRules, FormInst } from 'naive-ui'
 
 import SettingsPage from '@/components/settings/SettingsPage.vue'
+import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { useAria2LocalService, type Aria2LocalConfig } from '@/composables/useAria2LocalService'
@@ -540,6 +542,15 @@ onMounted(async () => {
   justify-content: flex-start;
   gap: 12px;
   padding-top: 8px;
+}
+
+.refresh-button.is-refreshing :deep(.n-icon) {
+  animation: refresh-spin 0.9s linear infinite;
+}
+
+@keyframes refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* 统一现代化操作按钮：与系统风格一致，圆角、语义色光晕、悬停轻微浮起 */

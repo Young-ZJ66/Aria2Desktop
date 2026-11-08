@@ -24,9 +24,9 @@
             </n-button>
           </template>
 
-          <n-alert v-if="!isDesktop" type="warning" :bordered="false" style="margin-bottom: 12px;">
+          <DismissibleAlert v-if="!isDesktop" storage-key="settings.plugins.desktopOnly" type="warning" style="margin-bottom: 12px;">
             {{ t('settings.plugins.desktopOnly') }}
-          </n-alert>
+          </DismissibleAlert>
 
           <!--
             安全提醒 + 安装说明：可临时关闭（本次运行内保持关闭，下次启动重新出现），
@@ -109,9 +109,9 @@
               {{ t('settings.plugins.marketRefresh') }}
             </n-button>
           </template>
-          <n-alert type="info" :bordered="false" style="margin-bottom: 12px;">
+          <DismissibleAlert storage-key="settings.plugins.marketDesc" type="info" style="margin-bottom: 12px;">
             {{ t('settings.plugins.marketDesc') }}
-          </n-alert>
+          </DismissibleAlert>
           <n-collapse class="market-settings">
             <n-collapse-item name="market-settings" :title="t('settings.plugins.marketSettings')">
               <div class="market-config">
@@ -149,9 +149,9 @@
               </div>
             </n-collapse-item>
           </n-collapse>
-          <n-alert v-if="marketError && marketError !== 'MARKET_DISABLED'" type="error" :bordered="false" style="margin: 12px 0;">
+          <DismissibleAlert v-if="marketError && marketError !== 'MARKET_DISABLED'" storage-key="settings.plugins.marketError" type="error" style="margin: 12px 0;">
             {{ marketErrorText }}
-          </n-alert>
+          </DismissibleAlert>
           <n-spin :show="marketLoading">
             <n-empty
               v-if="!marketLoading && marketPlugins.length === 0"
@@ -204,6 +204,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CloseOutline, FolderOpenOutline } from '@vicons/ionicons5'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
+import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import { message, confirm } from '@/utils/feedback'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { runWithMinimumLoading } from '@/composables/useMinimumLoading'

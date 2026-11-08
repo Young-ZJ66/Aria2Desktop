@@ -11,9 +11,9 @@
     <!-- 一级：连接配置列表 -->
     <div v-if="view === 'list'" class="profile-list-view">
       <!-- 首次使用引导 -->
-      <n-alert v-if="!connectionStore.isConnected" type="info" :bordered="false" style="margin-bottom: 12px;">
+      <DismissibleAlert v-if="!connectionStore.isConnected" storage-key="connection.firstTimeGuide" type="info" style="margin-bottom: 12px;">
         {{ t('connection.firstTimeGuide') }}
-      </n-alert>
+      </DismissibleAlert>
       <div class="list-header">
         <span class="list-title">{{ t('connection.profileList') }}</span>
         <n-button size="small" type="primary" class="app-action-btn" @click="openNameDialog('new')">
@@ -200,6 +200,7 @@ import { buildConnectionFailureMessage } from '@/shared/connectionDiagnostics'
 import type { FormInst, FormRules, SelectOption } from 'naive-ui'
 import { ArrowBackOutline, AddOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
 import { useConnectionStore } from '@/stores/connectionStore'
+import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import type { Aria2Config, ConnectionProfile } from '@/types/aria2'
 import { isReservedSecretPrefix } from '@/shared/secretPrefix'
 import { withMinimumDuration } from '@/composables/useMinimumLoading'

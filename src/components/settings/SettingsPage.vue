@@ -5,15 +5,15 @@
       <p v-if="description" class="settings-description">{{ description }}</p>
     </div>
 
-    <n-alert
+    <DismissibleAlert
       v-if="showConnectAlert && !connected"
+      storage-key="settings.connectAlert"
       :title="t('settings.notConnectedTitle')"
       type="warning"
-      :bordered="false"
       class="connect-alert"
     >
       {{ t('settings.notConnectedDesc') }}
-    </n-alert>
+    </DismissibleAlert>
 
     <n-spin :show="loading">
       <slot />
@@ -69,6 +69,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 
 const props = defineProps<{
   title: string

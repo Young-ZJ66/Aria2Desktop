@@ -155,9 +155,9 @@
 
       <!-- Headless Web 控制台：应用自身功能，不依赖 aria2 连接与上方表单的保存流程 -->
       <n-card :title="t('settings.webConsole.title')" class="setting-group">
-        <n-alert type="info" :show-icon="false" class="web-console-tip">
+        <DismissibleAlert storage-key="settings.webConsole" type="info" :show-icon="false" class="web-console-tip">
           {{ t('settings.webConsole.description') }}
-        </n-alert>
+        </DismissibleAlert>
         <n-form-item :label="t('settings.webConsole.enabled')">
           <AppSwitch v-model:value="webConsole.enabled" />
         </n-form-item>
@@ -234,6 +234,7 @@ import type { FormRules, FormInst } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
+import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { withMinimumDuration } from '@/composables/useMinimumLoading'

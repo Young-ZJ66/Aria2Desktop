@@ -399,7 +399,6 @@
 
   <div class="tabs" role="tablist">
     <button class="tab active" id="tabSend" type="button" role="tab" aria-selected="true" aria-controls="paneSend"></button>
-    <button class="tab" id="tabGrab" type="button" role="tab" aria-selected="false" aria-controls="paneGrab"></button>
     <button class="tab" id="tabConnect" type="button" role="tab" aria-selected="false" aria-controls="paneConnect"></button>
   </div>
 
@@ -426,13 +425,9 @@
       <div class="media-list" id="mediaList" hidden></div>
       <p class="hint" id="mediaHint" hidden></p>
     </div>
-    <div class="footer" id="footerHint"></div>
-  </div>
-
-  <!-- 模式二：批量抓取页面链接 -->
-  <div class="pane" id="paneGrab" role="tabpanel">
     <div class="section">
-      <button class="btn btn-primary" id="grabBtn" type="button"></button>
+      <div class="section-title" id="grabTitle"></div>
+      <button class="btn btn-secondary" id="grabBtn" type="button"></button>
       <div id="grabFilterWrap" class="input-wrap grab-filter" hidden>
         <input type="text" id="grabFilter" spellcheck="false">
       </div>
@@ -441,9 +436,10 @@
       <div id="grabList"></div>
     </div>
     <button class="btn btn-primary" id="sendSelectedBtn" type="button" hidden></button>
+    <div class="footer" id="footerHint"></div>
   </div>
 
-  <!-- 模式三：配对与设置 -->
+  <!-- 模式二：配对与设置 -->
   <div class="pane" id="paneConnect" role="tabpanel">
     <div class="section">
       <div class="section-title" id="pairingTitle"></div>

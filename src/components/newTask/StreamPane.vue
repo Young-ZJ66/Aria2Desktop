@@ -6,9 +6,9 @@
   </div>
 
   <template v-else-if="!componentStore.ytdlp.available">
-    <n-alert type="warning" :bordered="false" style="margin-bottom: 12px;">
+    <DismissibleAlert storage-key="newTask.streamTip" type="warning" style="margin-bottom: 12px;">
       {{ t('newTask.streamUrlTip') }}
-    </n-alert>
+    </DismissibleAlert>
     <n-button type="primary" @click="openComponentSettings">
       {{ t('newTask.openComponentSettings') }}
     </n-button>
@@ -67,6 +67,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from '@/utils/feedback'
+import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import { useUiStore } from '@/stores/uiStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'

@@ -67,9 +67,9 @@
 
       <!-- RPC 安全 -->
       <n-card :title="t('settings.rpc.groupSecurity')" class="setting-group">
-        <n-alert v-if="secretStorageWarning" type="warning" :bordered="false" style="margin-bottom: 12px">
+        <DismissibleAlert v-if="secretStorageWarning" storage-key="settings.rpc.secretStorage" type="warning" style="margin-bottom: 12px">
           {{ t('settings.rpc.secretStorageUnavailable') }}
-        </n-alert>
+        </DismissibleAlert>
         <n-form-item>
           <template #label>
             <TipLabel :label="t('settings.rpc.rpcSecret')" :tip="t('settings.rpc.rpcSecretTip')" />
@@ -155,6 +155,7 @@ import { message } from '@/utils/feedback'
 import type { FormRules, FormInst } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
+import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import type { SettingSchema } from '@/types/settingSchema'
