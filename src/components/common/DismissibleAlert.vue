@@ -7,6 +7,7 @@
     :title="title"
     closable
     class="dismissible-alert"
+    :class="{ 'dismissible-alert--has-forever': showForever }"
     @close="closeForSession"
   >
     <div class="dismissible-alert-content">
@@ -78,21 +79,28 @@ function hideForever() {
 </script>
 
 <style scoped>
-/* 说明文字占满剩余宽度，「不再显示」固定在右侧，与右上角关闭按钮互不遮挡 */
+/* 「不再显示」与右上角关闭按钮固定在同一条顶部操作行 */
 .dismissible-alert-content {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.dismissible-alert-message {
-  flex: 1;
   min-width: 0;
 }
 
+.dismissible-alert-message {
+  min-width: 0;
+}
+
+.dismissible-alert--has-forever :deep(.n-alert-body) {
+  padding-right: 156px;
+}
+
 .dismissible-alert-forever {
-  flex: none;
-  margin-top: 1px;
+  position: absolute;
+  top: 13px;
+  right: 40px;
+  z-index: 1;
+  height: 20px;
+  padding: 0;
+  line-height: 20px;
+  white-space: nowrap;
   color: var(--text-secondary);
 }
 

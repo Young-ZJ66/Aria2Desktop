@@ -19,9 +19,9 @@
       </div>
     </div>
 
-    <DismissibleAlert v-if="summary" storage-key="settings.diagnostics.summary" :type="summaryType" :show-icon="true" class="diagnostics-summary">
+    <n-alert v-if="summary" :type="summaryType" :show-icon="true" class="diagnostics-summary">
       {{ summary }}
-    </DismissibleAlert>
+    </n-alert>
 
     <div class="diagnostics-list">
       <div v-for="check in checks" :key="check.id" class="diagnostic-row" :class="['diagnostic-row', 'diagnostic-' + check.status]">
@@ -40,8 +40,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NTag, useMessage } from 'naive-ui'
-import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
+import { NAlert, NButton, NTag, useMessage } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { taskPersistenceService } from '@/services/taskPersistenceService'
@@ -74,7 +73,7 @@ const summary = computed(() => {
   if (!checks.value.length) return ''
   const failed = checks.value.filter(c => c.status === 'fail').length
   const warned = checks.value.filter(c => c.status === 'warn').length
-  if (failed === 0 && warned === 0) return t('settings.diagnostics.allGood')
+  if (failed === 0 && warned === 0) return ''
   return t('settings.diagnostics.issuesFound', { failed, warned })
 })
 
