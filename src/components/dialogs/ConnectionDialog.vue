@@ -111,6 +111,7 @@
         :rules="rules"
         label-placement="left"
         :label-width="100"
+        label-align="left"
       >
         <n-form-item :label="t('connection.protocol')" path="protocol">
           <n-select v-model:value="form.protocol" :options="protocolOptions" style="width: 100%" />
