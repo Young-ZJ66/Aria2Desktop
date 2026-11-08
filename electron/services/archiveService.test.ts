@@ -83,16 +83,22 @@ describe('pickTarCommand', () => {
 
   it('Windows 优先用 System32 自带的 bsdtar，绕开 PATH 里的 GNU tar', () => {
     expect(pickTarCommand('win32', ['C:\\Windows\\System32\\tar.exe'], always)).toBe(
-      path.join('C:\\Windows', 'System32', 'tar.exe')
+      path.win32.join('C:\\Windows', 'System32', 'tar.exe')
     )
   })
 
   it('回归：resolveTarCommand 候选必须含 WINDOWS 路径段（曾因拼成 C:\\System32\\tar.exe 全部 miss 而静默回退 GNU tar，zip 解压报 not a tar archive）', () => {
-    for (const candidate of resolveTarCommandForTest()) {
+    const candidates = resolveTarCommandForTest()
+    if (process.platform !== 'win32') {
+      // 非 Windows 平台不构造盘符候选，直接使用 PATH 里的 tar
+      expect(candidates).toEqual([])
+      return
+    }
+    for (const candidate of candidates) {
       expect(candidate).toMatch(/^[A-Z]:\\Windows\\System32\\tar\.exe$/i)
     }
     // 默认候选至少含 C: 与 D: 两个常见盘
-    expect(resolveTarCommandForTest().length).toBeGreaterThanOrEqual(2)
+    expect(candidates.length).toBeGreaterThanOrEqual(2)
   })
 
   it('多个候选按顺序取第一个存在的', () => {
