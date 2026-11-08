@@ -359,6 +359,20 @@ jobs:
       - name: 校验安装包产物
         run: node scripts/verify-dist.mjs mac
 
+      # 静态校验只能证明文件齐全、体积合理，证明不了“装完能起来”。
+      # 发布前在真实 macOS 运行器启动一次 .app，避免再次把起不来的 dmg 发出去。
+      - name: 冒烟打包产物（启动一次）
+        run: node scripts/smoke-packaged.mjs --timeout 120000 --spawn-args=--disable-gpu
+
+      - name: 冒烟失败时保存现场
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-failure-mac
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: 上传到 Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -404,6 +418,25 @@ jobs:
 
       - name: 校验安装包产物
         run: node scripts/verify-dist.mjs linux ${{ matrix.arch }}
+
+      # Linux 无显示环境：xvfb 造虚拟屏后启动一次打包产物（与 build-unix.yml 同一口径）。
+      # arm64 运行器不能直接执行 x64 产物，故只对 x64 做启动冒烟；arm64 由静态校验兜底。
+      - name: 准备虚拟显示
+        if: matrix.arch == 'x64'
+        run: command -v xvfb-run >/dev/null || (sudo apt-get update && sudo apt-get install -y xvfb)
+
+      - name: 冒烟打包产物（启动一次）
+        if: matrix.arch == 'x64'
+        run: xvfb-run -a node scripts/smoke-packaged.mjs --timeout 120000 --spawn-args="--no-sandbox --disable-gpu --disable-dev-shm-usage"
+
+      - name: 冒烟失败时保存现场
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-failure-linux-${{ matrix.arch }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: 上传到 Release
         env:

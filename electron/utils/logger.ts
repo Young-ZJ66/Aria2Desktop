@@ -40,10 +40,15 @@ export function setupLogging(): void {
   // 口径统一走 appEnv（Electron 43 下 app.isPackaged 在开发态也可能为 true，见该模块注释）
   const isDev = isDevMode
 
-  // 文件：保留 info 及以上；路径使用 electron-log 默认（<userData>/logs/main.log），
+  // 文件：保留 info 及以上；固定写到 <userData>/logs/main.log，
   // 与项目其它数据（config/aria2/persisted-tasks）同处 userData，便于整体收集
   log.transports.file.level = 'info'
   log.transports.file.maxSize = 5 * 1024 * 1024
+  // electron-log 在 macOS 默认写到 ~/Library/Logs/<appName>，而 Windows/Linux 写到
+  // <userData>/logs。统一固定到 userData：打包冒烟、用户“打开日志目录”和问题排查
+  // 才能跨平台依赖同一个路径，也避免 ARIA2_E2E_USER_DATA 隔离目录漏掉日志。
+  log.transports.file.resolvePathFn = (variables) =>
+    path.join(variables.userData, 'logs', variables.fileName ?? 'main.log')
 
   // 控制台：开发 debug、生产 warn
   log.transports.console.level = isDev ? 'debug' : 'warn'

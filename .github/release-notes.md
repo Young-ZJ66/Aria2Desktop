@@ -1,68 +1,21 @@
-# v1.3.0 更新日志
+# v1.3.1 更新日志
 
-这是把原计划 v1.3.0–v1.6.0 方向合并落地的一次大版本更新：安全与分发底座、下载工作流 2.0、远程与 AI 2.0、插件生态全部进入 1.3.x。
+v1.3.1 是 v1.3.0 的跨平台补丁版：修复 macOS 打包产物日志路径导致的发布冒烟误判，补齐 v1.3.0 缺失的 macOS 安装包，并让发布流水线在每次发版前真正启动一次打包产物。v1.3.0 的完整功能清单见 [v1.3.0](https://github.com/Young-ZJ66/Aria2Desktop/releases/tag/v1.3.0)。
 
-## 🔐 安全与分发底座
+## 🍎 macOS 构建与发布
 
-- **插件运行时迁移**：插件从主进程 `vm` 迁移到独立 Electron `utilityProcess`，通过白名单 IPC 暴露 Aria2 / 设置 / 通知能力；插件崩溃不影响主界面，异常退出最多自动重启 3 次。
-- **插件权限模型**：manifest 权限声明（`aria2:read`、`aria2:write`、`settings:read`、`notify`）与调用白名单校验，未授权调用会被拒绝。
-- **跨平台应用内更新**：除了 Windows 差量更新外，macOS（dmg）与 Linux（AppImage）也支持应用内检查、下载、校验与安装；Linux AppImage 更新通过独立脚本完成替换。
-- **签名构建配置**：Windows 增加 Authenticode / RFC 3161 时间戳配置，macOS 启用 Hardened Runtime、entitlements 与公证（notarize）；配置对应 CI secrets 后即可产出签名安装包。
-- **Linux arm64**：新增 arm64 打包脚本、CI 构建矩阵与 aria2 arm64 二进制，AppImage / deb 均可产出。
-- **引擎统一**：Linux x64 / arm64 升级到 aria2 1.37.0；Windows 保持 1.37.0，macOS 因上游缺少免依赖 1.37 预编译暂留 1.36.0。
-- **六语言界面**：新增 日本語、한국어、Deutsch、Français，和简体中文 / English 共六种语言，所有键与占位符保持一致。
+- **补齐 macOS 安装包**：提供 Intel（x64）与 Apple Silicon（arm64）的 dmg 与 zip，和 Windows、Linux、浏览器扩展一起构成完整跨平台发布。
+- **日志路径跨平台统一**：修复 macOS 上 electron-log 默认写入 `~/Library/Logs/Aria2Desktop`、而打包冒烟与应用内“打开日志目录”读取 `<userData>/logs/main.log` 导致日志为空的问题；现在 Windows / macOS / Linux 统一写入 `<userData>/logs/main.log`，`ARIA2_E2E_USER_DATA` 隔离目录同样生效。
+- **发布前启动冒烟**：macOS 与 Linux x64 在打包后实际启动一次应用，验证内置 aria2 进程、扩展本地接口与窗口渲染；失败时会保存 `test-results/` 现场 artifact，避免把“能打包但起不来”的产物发出去。
+- **签名环境变量修复**：Windows / macOS 构建仅在对应 secrets 存在时注入 `CSC_LINK` / `CSC_KEY_PASSWORD` 与 Apple 公证凭据；未配置证书时不再因为空 `CSC_LINK` 被 electron-builder 解析成项目根目录而构建失败。
 
-## 📥 下载工作流 2.0
+## 🛠️ 其他修复
 
-- **队列面板**：新增独立队列页，展示等待/活动任务、总速度与最大并发；支持置顶、上移、下移、置底与移除，操作后立即刷新真实队列顺序。
-- **最大并发与自动重试**：可设置最大同时下载数；失败任务可按“最大重试次数 + 重试间隔”自动重试，只重试本轮从活动/等待转入失败的任务，避免启动时重复重试历史错误。
-- **任务模板**：保存代理、User-Agent、Referer、Cookie、自定义请求头、保存目录与最大连接数，新建下载时一键套用。
-- **完成规则编排**：按分类、扩展名、成功/失败状态触发移动、重命名、解压、打开文件/目录、通知与 Webhook；动作参数在保存前校验。
-- **速度历史与重试断点**：状态页速度曲线保留历史样本，自动重试时以菱形标记叠加显示重试时间与任务 GID。
-- **SQLite 历史库**：完成任务历史从 10MB JSON 文件迁移到 SQLite（WAL），自动导入旧 `persisted-tasks.json`，历史容量与写入可靠性大幅提升。
-- **失败任务来源迁移**：BT / 磁力 / 种子任务重试时把原始来源记录迁移到新 GID，连续重试不会丢失来源。
-- **失败事件补全**：下载失败现在会触发完成规则中的失败分支（通知 / Webhook）和插件 `onDownloadError` 事件；完成规则对 arrive 早于状态切换的通知增加最多 6 次短轮询。
-- **完成页批量打开**：已选多个完成任务时可一次打开所有文件。
-- **磁力另存 .torrent**：磁力任务下载元数据后可直接导出 `.torrent` 文件。
-
-## 🌐 远程与 AI 2.0
-
-- **Headless Web 控制台**：内置离线单页控制台，可查看统计、任务列表、暂停/继续/删除、新建下载与审计日志；支持 Bearer Token、IP / IPv4 CIDR 白名单、1MB 请求体上限与操作审计（最近 500 条）。
-- **多实例管理**：新增实例页面，保存多个 RPC 连接配置，批量测试在线状态、引擎版本与延迟，一键切换当前连接。
-- **MCP 扩展**：工具从 10 个扩展到 22 个，新增全局统计、版本、会话信息、Peer / 服务器 / 文件查询、队列位置调整、单任务限速、最大并发、全局选项、清除下载结果、保存会话等；同时提供 4 个 resources 与 2 个 prompts。
-- **CLI 与 Webhook**：新增 `scripts/aria2-desktop-cli.mjs` 命令行工具与 [docs/automation-cli-webhook.md](docs/automation-cli-webhook.md)，覆盖 MCP 配置、22 个工具、curl、CLI 与完成 Webhook payload。
-- **审计与访问控制**：Web 控制台的每次鉴权、添加、暂停、继续、删除与错误都会记录来源 IP 与结果，便于排查。
-
-## 🧩 插件生态
-
-- **插件市场**：设置页可配置注册表地址、刷新市场列表、安装与更新插件；注册表支持顶层数组或 `{ plugins: [] }` 格式，默认指向本仓库 `plugin-registry.json`。
-- **完整性与签名**：安装强制 HTTPS、SHA-256 校验（2MB 注册表/下载上限），支持 Ed25519 与 RSA/ECDSA 发布者签名；可配置可信发布者公钥，升级时保留原启用状态。
-- **安装与升级**：支持同 ID 升级、版本比较、旧版本目录安全替换；安装后避免重复激活，旧 worker 会先终止再替换。
-- **举报入口**：市场条目可直接跳转 GitHub Issue 模板提交举报信息。
-- **开发者文档**：新增 [docs/plugin-development.md](docs/plugin-development.md)，覆盖目录结构、manifest、权限、生命周期、调试、注册表格式与签名流程。
-
-## 🖥️ 体验与系统集成
-
-- **BT Peer 信息增强**：Peer 面板显示客户端名称（Azureus 风格 Peer ID 解析）与 IP 归属地旗帜/国家，可手动查询地理位置。
-- **任务详情与状态**：状态页保留速度历史；任务列表、完成页与队列页的交互保持一致。
-- **系统集成修复**：文件关联、剪贴板监控开关、通知中心、托盘与快捷键保持可用；完成动作统一走规则引擎。
-- **文档更新**：README 更新六语言、Linux arm64、插件 utilityProcess、队列/模板/完成规则、Web 控制台、多实例、MCP 22 工具、SQLite 历史、磁力导出、Peer 地理与批量打开说明。
-
-## 🛠️ 修复与稳定性
-
-- 修复完成规则在 `downloadComplete` / `downloadError` 通知早于 Aria2 状态切换时漏触发的问题。
-- 修复队列“置底”操作后不刷新列表的问题。
-- 修复失败任务重试后原始来源丢失、连续重试 BT/磁力失败的问题。
-- 修复插件升级时重复激活、旧 worker 泄漏与停用状态丢失的问题。
-- 修复插件注册表大小按字符数判断、UTF-8 内容可绕过 2MB 限制的问题。
-- 修复未配置可信发布者时把普通发布者名称误当公钥导致签名校验失败的问题。
-- 修复 Web 控制台令牌过短、未启用时状态残留、绑定地址与局域网 URL 展示问题。
-- 修复工作流规则缺少动作参数校验、队列最大并发输入频繁触发 RPC 的问题。
-- 清理 lint 告警，补齐六语言缺失键与本地化测试。
+- 发布工作流补强 macOS / Linux 启动冒烟与失败现场留存。
+- 浏览器扩展 manifest 版本同步为 1.3.1。
 
 ## ⚠️ 已知限制
 
-- Windows / macOS 代码签名需要配置 CI secrets（`CSC_LINK`、`CSC_KEY_PASSWORD`，macOS 还需公证凭据）；未配置证书的公开构建仍会提示未知发布者。
+- Windows / macOS 代码签名需要配置 CI secrets（`CSC_LINK`、`CSC_KEY_PASSWORD`，macOS 还需 Apple 公证凭据）；未配置证书的公开构建仍会提示未知发布者。
 - macOS 内置 aria2 仍为 1.36.0（上游暂无免依赖 1.37 预编译）。
 - 插件市场审核目前通过 GitHub Issue 举报入口完成，尚无独立审核后台。
-- Linux 提供 x64 与 arm64；macOS 提供 Intel 与 Apple Silicon。
