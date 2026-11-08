@@ -177,6 +177,10 @@ npm run dist:linux:arm64  # 打包 Linux arm64 安装包
 
 项目结构、开发约定（日志、类型检查、依赖归类、平台差异、发版流程）见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
+## 路线图
+
+v1.3.x 的迭代方向、交付范围与验收标准见 [docs/roadmap.md](docs/roadmap.md)。
+
 ## 贡献
 
 欢迎 Issue 与 PR。提交前请跑 `npm run typecheck && npm run test:run`；
