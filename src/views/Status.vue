@@ -1,13 +1,10 @@
 <template>
   <div class="status-page">
-    <div class="status-header">
-      <h2>{{ t('statusPage.title') }}</h2>
-      <p class="status-subtitle">{{ t('statusPage.subtitle') }}</p>
-    </div>
+    <PageHeader :title="t('statusPage.title')" :description="t('statusPage.subtitle')" />
 
     <!-- 服务信息 -->
     <n-card class="info-card" :bordered="false">
-      <n-grid :cols="1" :x-gap="24" :y-gap="8" item-responsive>
+      <n-grid cols="1 s:2 m:3 l:3" :x-gap="24" :y-gap="8" item-responsive>
         <n-grid-item v-for="info in serverInfos" :key="info.label">
           <div class="info-item">
             <span class="info-label">{{ info.label }}</span>
@@ -89,6 +86,7 @@ import { useStatsStore } from '@/stores/statsStore'
 import { useDownloadHistoryStore } from '@/stores/downloadHistoryStore'
 import { formatSpeed, formatSize } from '@/utils/taskFormatters'
 import { getTaskStats } from '@/utils/taskUtils'
+import PageHeader from '@/components/layout/PageHeader.vue'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
 import { useThemeManager } from '@/composables/useThemeManager'
 import {
@@ -392,7 +390,6 @@ function updateTrafficChart() {
 
 <style scoped>
 .status-page {
-  padding: 20px;
   /* 流量统计图标的语义色：浅/暗色下分别取值，配合 color-mix 生成半透明背景 */
   --stat-download: #2080f0;
   --stat-upload: #18a058;
@@ -404,23 +401,6 @@ function updateTrafficChart() {
   --stat-download: #6ea8ff;
   --stat-upload: #34c98a;
   --stat-warning: #f5b63f;
-}
-
-.status-header {
-  margin-bottom: 20px;
-}
-
-.status-header h2 {
-  margin: 0 0 6px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.status-subtitle {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-secondary);
 }
 
 .info-card {

@@ -169,7 +169,7 @@ function onDrop(event: DragEvent) {
 }
 
 .app-container.windows-titlebar .content-container {
-  padding-right: 20px;
+  padding-right: 28px;
 }
 
 .main-container {
@@ -190,7 +190,7 @@ function onDrop(event: DragEvent) {
 .content-container {
   flex: 1;
   overflow: auto;
-  padding: 16px;
+  padding: 20px 24px 24px;
   background-color: var(--bg-secondary);
 }
 

@@ -1,114 +1,112 @@
 <template>
   <div class="task-list">
-    <div class="task-list-header">
-      <h2>{{ title }}</h2>
-      <div class="task-stats">
-        <n-space size="small">
+    <PageHeader :title="title" :description="pageDescription">
+      <template #actions>
+        <div class="task-stats">
           <span>{{ t('task.totalTasks', { count: allTasks.length }) }}</span>
           <span v-if="filteredTasks.length !== allTasks.length">
             {{ t('task.showingTasks', { count: filteredTasks.length }) }}
           </span>
-          <n-tag v-if="taskStats.totalSpeed > 0" type="primary" size="small">
-            {{ t('task.totalSpeed') }}: {{ formatSpeed(taskStats.totalSpeed) }}
+          <n-tag v-if="taskStats.totalSpeed > 0" type="primary" size="small" :bordered="false">
+            {{ t('task.totalSpeed') }} {{ formatSpeed(taskStats.totalSpeed) }}
           </n-tag>
-        </n-space>
-      </div>
-    </div>
-
-    <!-- 操作栏 -->
-    <div class="task-actions">
-      <div class="action-left">
+        </div>
         <n-button type="primary" class="app-action-btn" @click="uiStore.openNewTask()">
           <template #icon>
             <n-icon><AddOutline /></n-icon>
           </template>
           {{ t('task.newDownload') }}
         </n-button>
+      </template>
+    </PageHeader>
 
-        <n-divider vertical class="action-divider" />
+    <section class="task-surface">
+      <!-- 操作栏与任务表同处一个表面，减少空白卡片堆叠 -->
+      <div class="task-actions">
+        <div class="action-left">
+          <TaskBatchActions
+            :selected-count="selectedCount"
+            :has-selection="hasSelection"
+            :can-batch-start="canBatchStart"
+            :can-batch-pause="canBatchPause"
+            :can-batch-open="props.taskType === 'stopped' && selectedTasks.some(task => task.files?.some(file => file.path))"
+            :operating="batchOperating || batchOpening"
+            :deleting="batchDeleting"
+            @batch-start="batchStart"
+            @batch-pause="batchPause"
+            @batch-open="batchOpen"
+            @batch-delete="batchDelete"
+          />
+        </div>
 
-        <TaskBatchActions
-          :selected-count="selectedCount"
-          :has-selection="hasSelection"
-          :can-batch-start="canBatchStart"
-          :can-batch-pause="canBatchPause"
-          :can-batch-open="props.taskType === 'stopped' && selectedTasks.some(task => task.files?.some(file => file.path))"
-          :operating="batchOperating || batchOpening"
-          :deleting="batchDeleting"
-          @batch-start="batchStart"
-          @batch-pause="batchPause"
-          @batch-open="batchOpen"
-          @batch-delete="batchDelete"
-        />
+        <div class="action-right">
+          <!-- 任务导出/导入 -->
+          <n-button size="small" quaternary @click="exportTasks" :title="t('task.exportTasks')">
+            <template #icon><n-icon><ExportIcon /></n-icon></template>
+          </n-button>
+          <n-button size="small" quaternary @click="importTasks" :title="t('task.importTasks')">
+            <template #icon><n-icon><ImportIcon /></n-icon></template>
+          </n-button>
+          <!-- 分类 / 来源类型筛选：与现有表格页共用，不额外拆路由 -->
+          <n-select
+            v-model:value="selectedCategory"
+            :options="categoryOptions"
+            :placeholder="t('task.allCategories')"
+            size="small"
+            clearable
+            style="width: 110px;"
+          />
+          <n-select
+            v-model:value="selectedKind"
+            :options="kindOptions"
+            :placeholder="t('task.allTypes')"
+            size="small"
+            clearable
+            style="width: 104px;"
+          />
+          <n-input
+            v-model:value="searchText"
+            :placeholder="t('task.searchPlaceholder')"
+            clearable
+            style="flex: 0 0 200px; width: 200px;"
+          >
+            <template #prefix>
+              <n-icon><SearchOutline /></n-icon>
+            </template>
+          </n-input>
+        </div>
       </div>
 
-      <div class="action-right">
-        <!-- 任务导出/导入 -->
-        <n-button size="small" quaternary @click="exportTasks" :title="t('task.exportTasks')">
-          <template #icon><n-icon><ExportIcon /></n-icon></template>
-        </n-button>
-        <n-button size="small" quaternary @click="importTasks" :title="t('task.importTasks')">
-          <template #icon><n-icon><ImportIcon /></n-icon></template>
-        </n-button>
-        <!-- 分类 / 来源类型筛选：与现有表格页共用，不额外拆路由 -->
-        <n-select
-          v-model:value="selectedCategory"
-          :options="categoryOptions"
-          :placeholder="t('task.allCategories')"
-          size="small"
-          clearable
-          style="width: 110px;"
-        />
-        <n-select
-          v-model:value="selectedKind"
-          :options="kindOptions"
-          :placeholder="t('task.allTypes')"
-          size="small"
-          clearable
-          style="width: 104px;"
-        />
-        <n-input
-          v-model:value="searchText"
-          :placeholder="t('task.searchPlaceholder')"
-          clearable
-          style="flex: 0 0 200px; width: 200px;"
+      <div class="task-list-content">
+        <n-data-table
+          :loading="loading"
+          :columns="columns"
+          :data="filteredTasks"
+          :row-key="(row: Aria2Task) => row.gid"
+          :row-props="rowProps"
+          :scroll-x="920"
+          :min-row-height="60"
+          flex-height
+          virtual-scroll
+          table-layout="fixed"
+          :bordered="false"
+          class="task-table"
+          :sort-order="controlledSorter ?? undefined"
+          @sorter-change="handleSorterChange"
         >
-          <template #prefix>
-            <n-icon><SearchOutline /></n-icon>
+          <template #empty>
+            <!-- 空状态出现时淡入（避免搜索结果/空列表切换时生硬闪出） -->
+            <transition name="fade-in">
+              <n-empty :description="t('task.noTasks')" size="small">
+                <template #extra>
+                  <span class="empty-hint">{{ t('task.emptyHint') }}</span>
+                </template>
+              </n-empty>
+            </transition>
           </template>
-        </n-input>
+        </n-data-table>
       </div>
-    </div>
-
-    <div class="task-list-content">
-      <n-data-table
-        :loading="loading"
-        :columns="columns"
-        :data="filteredTasks"
-        :row-key="(row: Aria2Task) => row.gid"
-        :row-props="rowProps"
-        :scroll-x="920"
-        :min-row-height="60"
-        flex-height
-        virtual-scroll
-        table-layout="fixed"
-        :bordered="false"
-        class="task-table"
-        :sort-order="controlledSorter ?? undefined"
-        @sorter-change="handleSorterChange"
-      >
-        <template #empty>
-          <!-- 空状态出现时淡入（避免搜索结果/空列表切换时生硬闪出） -->
-          <transition name="fade-in">
-            <n-empty :description="t('task.noTasks')" size="small">
-              <template #extra>
-                <span class="empty-hint">{{ t('task.emptyHint') }}</span>
-              </template>
-            </n-empty>
-          </transition>
-        </template>
-      </n-data-table>
-    </div>
+    </section>
 
     <!-- 批量删除对话框（带文件删除选项） -->
     <DeleteTaskDialog
@@ -141,6 +139,7 @@ import { taskPersistenceService } from '@/services/taskPersistenceService'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
 import TaskCheckbox from '@/components/TaskCheckbox.vue'
 import DeleteTaskDialog from '@/components/dialogs/DeleteTaskDialog.vue'
+import PageHeader from '@/components/layout/PageHeader.vue'
 import TaskBatchActions from '@/components/task/TaskBatchActions.vue'
 import TaskRowActions from '@/components/task/TaskRowActions.vue'
 import type { Aria2Task } from '@/types/aria2'
@@ -264,6 +263,10 @@ const title = computed(() => {
     default: return t('task.activeAndWaiting')
   }
 })
+
+const pageDescription = computed(() =>
+  props.taskType === 'stopped' ? t('task.pageCompleted') : t('task.pageDownloading')
+)
 
 const allTasks = computed(() => {
   let tasks: Aria2Task[] = []
@@ -1369,22 +1372,26 @@ watch(
   flex-direction: column;
 }
 
-.task-list-header {
+.task-surface {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.task-list-header h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  box-shadow: var(--shadow-light);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .task-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .task-list-content {
@@ -1393,11 +1400,6 @@ watch(
   min-height: 0;
   /* flex-height 模式下表格内部自己处理滚动，外层无需滚动，避免双重滚动容器冲突 */
   overflow: hidden;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
-  box-shadow: var(--shadow-light);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 /* 让表格填满容器高度（配合 flex-height），横向滚动条固定在列表底部 */
@@ -1414,18 +1416,17 @@ watch(
 }
 
 .task-actions {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  margin: 16px 0;
-  padding: 16px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
-  box-shadow: var(--shadow-light);
+  margin: 0;
+  padding: 12px 16px;
+  background: transparent;
+  border-bottom: 1px solid var(--border-light);
   gap: 12px;
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: border-color 0.3s ease;
 }
 
 .action-left {

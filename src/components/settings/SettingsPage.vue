@@ -166,7 +166,7 @@ onBeforeUnmount(() => {
   padding-top: 18px;
   border-top: 1px solid var(--border-light);
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 /* 悬浮操作按钮栏：零高度锚点吸附在滚动区底部，按钮在锚点内绝对定位。
@@ -177,13 +177,17 @@ onBeforeUnmount(() => {
   height: 0;
   z-index: 10;
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
   pointer-events: none;
 }
 
 .float-actions-bar {
   position: absolute;
   bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 48px);
   pointer-events: auto;
   padding: 12px 0 2px;
 }
@@ -194,6 +198,15 @@ onBeforeUnmount(() => {
   background: var(--bg-primary);
   border: 1px solid var(--border-light);
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+}
+
+.float-actions-bar__inner :deep(.n-space) {
+  flex-wrap: nowrap;
+}
+
+.float-actions-bar__inner :deep(.n-button) {
+  white-space: nowrap;
 }
 
 .float-actions-enter-active,
@@ -208,16 +221,12 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
-/* 设置页控件占满卡片可用宽度，避免大屏下右侧出现无意义留白；
-   数字框保留合理上限，避免单个数字输入被拉得过宽 */
+/* 设置页控件统一占满卡片可用宽度：输入框、选择框和数字框的左右边缘保持一致，
+   避免同一表单里短数字框和长文本框参差排布 */
 .settings-page .n-input:not(.n-input-group .n-input):not(.n-input--textarea):not(.n-input-number .n-input),
-.settings-page .n-select {
-  width: 100%;
-}
-
+.settings-page .n-select,
 .settings-page .n-input-number {
   width: 100%;
-  max-width: 260px;
 }
 
 /* 数字输入框内部输入框填满外层容器 */
@@ -245,6 +254,36 @@ onBeforeUnmount(() => {
 /* 统一设置项之间的垂直间距，保证输入框/选择框行之间不紧贴 */
 .settings-page .n-form-item {
   margin-bottom: 24px;
+}
+
+/* 设置分组改为扁平小节：去掉一层层白卡边框/阴影，用标题与分隔线建立层级。
+   弹窗本身已是白色表面，卡片套卡片会产生过多边框和无效留白。 */
+.settings-page .setting-group.n-card {
+  margin-bottom: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.settings-page .setting-group.n-card + .setting-group.n-card {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-light);
+}
+
+.settings-page .setting-group .n-card-header {
+  padding: 0 0 10px;
+}
+
+.settings-page .setting-group .n-card-header__main {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-page .setting-group .n-card__content {
+  padding: 0;
 }
 
 .settings-page .n-form-item:last-child {

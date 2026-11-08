@@ -1,17 +1,14 @@
 <template>
   <div class="queue-view">
-    <n-card :bordered="false" class="queue-card">
-      <template #header>
-        <div class="queue-header">
-          <div>
-            <div class="queue-title">{{ t('queue.title') }}</div>
-            <div class="queue-subtitle">{{ t('queue.description') }}</div>
-          </div>
-          <n-button size="small" secondary :loading="taskStore.isLoading" @click="refresh">
-            {{ t('queue.refresh') }}
-          </n-button>
-        </div>
+    <PageHeader :title="t('queue.title')" :description="t('queue.description')">
+      <template #actions>
+        <n-button size="small" :loading="taskStore.isLoading" @click="refresh">
+          {{ t('queue.refresh') }}
+        </n-button>
       </template>
+    </PageHeader>
+
+    <n-card :bordered="false" class="queue-card">
 
       <n-grid :cols="4" :x-gap="12" :y-gap="12" responsive="screen" item-responsive>
         <n-grid-item span="1 s:1 m:1 l:1">
@@ -111,6 +108,7 @@ import { useMessage } from 'naive-ui'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useConnectionStore } from '@/stores/connectionStore'
+import PageHeader from '@/components/layout/PageHeader.vue'
 import { getTaskName } from '@/utils/taskUtils'
 import { formatSize, formatSpeed } from '@/utils/taskFormatters'
 
@@ -211,28 +209,10 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.queue-view {
-  padding: 16px;
-  height: 100%;
-  overflow: auto;
-}
 .queue-card {
-  border-radius: 12px;
-}
-.queue-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-.queue-title {
-  font-size: 18px;
-  font-weight: 600;
-}
-.queue-subtitle {
-  margin-top: 4px;
-  font-size: 12px;
-  opacity: 0.65;
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-light);
 }
 .concurrency-field {
   padding-top: 6px;

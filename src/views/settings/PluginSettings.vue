@@ -68,7 +68,7 @@
                   <n-tag v-if="plugin.runtime" size="tiny" :bordered="false" round>
                     {{ plugin.runtime }}
                   </n-tag>
-                  <n-tag v-if="plugin.error" size="tiny" type="error" :bordered="false" round>error</n-tag>
+                  <n-tag v-if="plugin.error" size="tiny" type="error" :bordered="false" round>{{ t('status.error') }}</n-tag>
                   <span class="plugin-version">v{{ plugin.manifest.version }}</span>
                 </div>
                 <div class="plugin-desc">{{ plugin.manifest.description || t('settings.plugins.noDescription') }}</div>

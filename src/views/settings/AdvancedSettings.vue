@@ -469,4 +469,17 @@ async function selectLogFile() {
 .setting-group {
   margin-bottom: 16px;
 }
+
+/* 远程 Web 控制台的保存/刷新按钮与下方运行状态之间留出呼吸空间 */
+.web-console-tip {
+  margin-bottom: 16px;
+}
+
+.web-console-status {
+  margin-top: 16px;
+}
+
+.web-console-audit {
+  margin-top: 12px;
+}
 </style>

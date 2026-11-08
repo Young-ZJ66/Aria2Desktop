@@ -63,6 +63,7 @@ declare module 'vue' {
     NText: typeof import('naive-ui')['NText']
     NTimePicker: typeof import('naive-ui')['NTimePicker']
     NTooltip: typeof import('naive-ui')['NTooltip']
+    PageHeader: typeof import('./components/layout/PageHeader.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SettingsDialog: typeof import('./components/dialogs/SettingsDialog.vue')['default']

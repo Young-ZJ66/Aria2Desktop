@@ -282,14 +282,15 @@ const form = reactive({
   clipboardMonitorEnabled: false
 })
 
-const downloadCompleteActionOptions = [
+// 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
+const downloadCompleteActionOptions = computed(() => [
   { label: t('generalSettings.actionNone'), value: 'none' },
   { label: t('generalSettings.actionOpenFolder'), value: 'open-folder' },
   { label: t('generalSettings.actionOpenFile'), value: 'open-file' },
   { label: t('generalSettings.actionShutdown'), value: 'shutdown' },
   { label: t('generalSettings.actionHibernate'), value: 'hibernate' },
   { label: t('generalSettings.actionClose'), value: 'close' }
-]
+])
 
 // 自动更新状态
 const updating = ref(false)

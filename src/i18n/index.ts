@@ -32,6 +32,13 @@ function getDefaultLocale(): AppLocale {
   return pickLocale(stored, systemLocale())
 }
 
+/** 同步 <html lang>，保证辅助技术、拼写检查与字体回退拿到正确语言 */
+function syncDocumentLang(locale: AppLocale): void {
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = locale
+  }
+}
+
 const i18n = createI18n({
   legacy: false,
   locale: getDefaultLocale(),
@@ -46,11 +53,14 @@ const i18n = createI18n({
   }
 })
 
+syncDocumentLang(i18n.global.locale.value as AppLocale)
+
 /**
  * 切换语言并持久化
  */
 export function setLocale(locale: AppLocale): void {
   i18n.global.locale.value = locale
+  syncDocumentLang(locale)
   try {
     localStorage.setItem(STORAGE_KEY, locale)
   } catch (error) {

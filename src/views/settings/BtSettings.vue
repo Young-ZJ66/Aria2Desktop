@@ -649,12 +649,12 @@ const trackerLastCount = ref(0)
 const trackerUpdating = ref(false)
 const trackerSyncInterval = ref(24) // 默认每天同步一次
 
-// 同步频率选项
-const syncIntervalOptions = [
-  { label: '12 小时', value: 12 },
-  { label: '每天', value: 24 },
-  { label: '每周', value: 168 }
-]
+// 同步频率选项：标签跟随界面语言
+const syncIntervalOptions = computed(() => [
+  { label: t('settings.bt.trackerSyncInterval12h'), value: 12 },
+  { label: t('settings.bt.trackerSyncIntervalDaily'), value: 24 },
+  { label: t('settings.bt.trackerSyncIntervalWeekly'), value: 168 }
+])
 
 // 官方来源（带启用状态）
 const officialSources = ref([
@@ -947,13 +947,13 @@ onMounted(async () => {
 .tracker-expand-btn {
   align-self: flex-start;
   font-size: 12px;
-  color: inherit;
+  color: var(--color-primary);
 }
 
 .tracker-expand-btn:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
-  color: inherit;
+  color: var(--color-primary);
 }
 
 .tracker-source-actions {

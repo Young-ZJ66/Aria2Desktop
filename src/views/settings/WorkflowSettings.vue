@@ -7,7 +7,7 @@
             <div class="section-title">{{ t('workflow.templatesTitle') }}</div>
             <div class="section-desc">{{ t('workflow.templatesDesc') }}</div>
           </div>
-          <n-button size="small" type="primary" secondary @click="addTemplate">
+          <n-button size="small" @click="addTemplate">
             {{ t('workflow.addTemplate') }}
           </n-button>
         </div>
@@ -57,7 +57,7 @@
           <n-input v-model:value="template.headers" type="textarea" :rows="2" :placeholder="t('workflow.headersPlaceholder')" />
         </n-form-item>
       </div>
-      <div class="section-actions">
+      <div v-if="templates.length > 0" class="section-actions">
         <n-button type="primary" :loading="saving" @click="saveTemplates">{{ t('workflow.saveTemplates') }}</n-button>
       </div>
     </n-card>
@@ -69,7 +69,7 @@
             <div class="section-title">{{ t('workflow.rulesTitle') }}</div>
             <div class="section-desc">{{ t('workflow.rulesDesc') }}</div>
           </div>
-          <n-button size="small" type="primary" secondary @click="addRule">
+          <n-button size="small" @click="addRule">
             {{ t('workflow.addRule') }}
           </n-button>
         </div>
@@ -121,7 +121,7 @@
         </div>
         <n-button size="tiny" dashed @click="addAction(rule)">{{ t('workflow.addAction') }}</n-button>
       </div>
-      <div class="section-actions">
+      <div v-if="rules.length > 0" class="section-actions">
         <n-button type="primary" :loading="saving" @click="saveRules">{{ t('workflow.saveRules') }}</n-button>
       </div>
     </n-card>
@@ -129,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMessage } from 'naive-ui'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -162,18 +162,19 @@ const saving = ref(false)
 const templates = ref<TaskTemplate[]>([])
 const rules = ref<RuleDraft[]>([])
 
-const statusOptions = [
+// 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
+const statusOptions = computed(() => [
   { label: t('workflow.statusComplete'), value: 'complete' },
   { label: t('workflow.statusError'), value: 'error' }
-]
-const actionTypeOptions = [
+])
+const actionTypeOptions = computed(() => [
   { label: t('workflow.actionMove'), value: 'move' },
   { label: t('workflow.actionRename'), value: 'rename' },
   { label: t('workflow.actionOpen'), value: 'open' },
   { label: t('workflow.actionNotify'), value: 'notify' },
   { label: t('workflow.actionWebhook'), value: 'webhook' },
   { label: t('workflow.actionExtract'), value: 'extract' }
-]
+])
 const methodOptions = [
   { label: 'POST', value: 'POST' },
   { label: 'GET', value: 'GET' }

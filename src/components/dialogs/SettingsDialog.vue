@@ -6,7 +6,7 @@
     :bordered="false"
     :mask-closable="true"
     :auto-focus="false"
-    style="width: min(1120px, calc(100vw - 48px));"
+    style="width: min(1040px, calc(100vw - 48px));"
     content-style="padding: 0;"
   >
     <div ref="bodyRef" class="settings-dialog-body">
@@ -692,20 +692,23 @@ watch(visible, (show) => {
   flex-direction: column;
 }
 
-/* 搜索框固定在页签上方，结果面板浮在内容之上。
-   左内边距为 0：滚动容器本身已有 16px 左内边距，再加会左右不对称 */
+/* 搜索框固定在页签上方，和内容区同宽通栏排布 */
 .settings-search {
   position: relative;
   z-index: 2;
   flex: none;
-  padding: 0 30px 10px;
+  padding: 0 24px 10px;
+}
+
+.settings-search .n-input {
+  width: 100%;
 }
 
 .settings-search-panel {
   position: absolute;
   top: calc(100% - 2px);
-  left: 30px;
-  right: 30px;
+  left: 24px;
+  right: 24px;
   max-height: 300px;
   overflow-y: auto;
   padding: 4px;
@@ -814,6 +817,7 @@ watch(visible, (show) => {
 
 .settings-dialog-body :deep(.settings-page) {
   max-width: 100%;
+  padding-bottom: 4px;
 }
 </style>
 

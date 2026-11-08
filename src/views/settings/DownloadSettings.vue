@@ -921,7 +921,8 @@ interface ScheduleRuleUI {
 const scheduleEnabled = ref(false)
 const scheduleRules = reactive<ScheduleRuleUI[]>([])
 
-const dayOptions = [
+// 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
+const dayOptions = computed(() => [
   { label: t('settings.download.mon'), value: 1 },
   { label: t('settings.download.tue'), value: 2 },
   { label: t('settings.download.wed'), value: 3 },
@@ -929,7 +930,7 @@ const dayOptions = [
   { label: t('settings.download.fri'), value: 5 },
   { label: t('settings.download.sat'), value: 6 },
   { label: t('settings.download.sun'), value: 0 }
-]
+])
 
 function timestampToHHmm(ts: number): string {
   const d = new Date(ts)

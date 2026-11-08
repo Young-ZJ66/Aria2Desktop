@@ -213,15 +213,15 @@ const storeUrlReady = isExtensionStoreAvailable()
 // 端点固定在扩展本地接口（端口与 electron/utils/extensionApiCore 一致），
 // Bearer 鉴权用当前 RPC 密钥；示例配置写给用户复制，不包含真实密钥值。
 const mcpEndpoint = 'http://localhost:6801/api/mcp'
-const mcpConfigSample = `{
+const mcpConfigSample = computed(() => `{
   "mcpServers": {
     "aria2-desktop": {
       "type": "http",
       "url": "${mcpEndpoint}",
-      "headers": { "Authorization": "Bearer <你的 RPC 密钥>" }
+      "headers": { "Authorization": "Bearer <${t('settings.rpc.mcpSecretPlaceholder')}>" }
     }
   }
-}`
+}`)
 
 async function copyText(text: string): Promise<void> {
   try {

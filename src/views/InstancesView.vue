@@ -1,15 +1,11 @@
 <template>
   <div class="instances-view">
-    <div class="instances-header">
-      <div>
-        <h2>{{ t('instances.title') }}</h2>
-        <p class="instances-desc">{{ t('instances.description') }}</p>
-      </div>
-      <div class="instances-actions">
+    <PageHeader :title="t('instances.title')" :description="t('instances.description')">
+      <template #actions>
         <n-button size="small" :loading="testingAll" @click="testAll">{{ t('instances.testAll') }}</n-button>
         <n-button size="small" type="primary" @click="openConnectionDialog">{{ t('instances.manage') }}</n-button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <n-empty v-if="connectionStore.profiles.length === 0" :description="t('instances.empty')" />
 
@@ -61,6 +57,7 @@ import { reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NCard, NButton, NTag, NEmpty, NAlert } from 'naive-ui'
 import { useConnectionStore } from '@/stores/connectionStore'
+import PageHeader from '@/components/layout/PageHeader.vue'
 
 import { message } from '@/utils/feedback'
 import { getUserFriendlyError } from '@/utils/errorMessages'
@@ -140,11 +137,6 @@ function openConnectionDialog() {
 </script>
 
 <style scoped>
-.instances-view { padding: 20px 24px; }
-.instances-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-.instances-header h2 { margin: 0 0 4px; font-size: 20px; }
-.instances-desc { margin: 0; color: var(--text-secondary); font-size: 13px; }
-.instances-actions { display: flex; gap: 10px; }
 .instance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
 .instance-card { border-radius: 12px; border: 1px solid var(--border-light); }
 .instance-card.active { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary) inset; }
