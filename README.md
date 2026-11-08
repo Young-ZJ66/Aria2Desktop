@@ -144,7 +144,7 @@ macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 
 ## 代码签名政策（Code signing policy）
 
-Aria2Desktop 的 Windows 安装包通过 [SignPath Foundation](https://signpath.org/) 免费开源代码签名计划签名；免费代码签名由 [SignPath.io](https://signpath.io) 提供，证书由 SignPath Foundation 提供。签名范围、团队成员角色、审批流程与验证方式见 [Code signing policy](docs/code-signing-policy.md)，申请与配置步骤见 [代码签名说明](docs/code-signing.md)。
+Aria2Desktop 的 Windows 安装包计划通过 [SignPath Foundation](https://signpath.org/) 免费开源代码签名计划签名；免费代码签名由 [SignPath.io](https://signpath.io) 提供，证书由 SignPath Foundation 提供。截至 2026-11-08，SignPath Foundation 申请尚未通过，Windows 安装包仍为未签名。签名范围、团队成员角色、审批流程与验证方式见 [Code signing policy](docs/code-signing-policy.md)，申请与配置步骤见 [代码签名说明](docs/code-signing.md)。
 
 应用不收集遥测或个人数据，详见 [隐私政策](docs/privacy.md)。
 

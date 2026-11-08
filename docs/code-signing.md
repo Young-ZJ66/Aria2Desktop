@@ -28,35 +28,67 @@
 - 每个 release 的签名请求需要 Approver 人工审批。
 - 所有被签名的 PE 文件必须设置并强制 product-name、product-version 等元数据。
 
-Aria2Desktop 使用 MIT 许可证，公开仓库为 <https://github.com/Young-ZJ66/Aria2Desktop>，符合申请条件。**申请必须由项目所有者本人完成**（需要登录、MFA 和接受条款），自动化代理不能代为注册。
+Aria2Desktop 使用 MIT 许可证，公开仓库为 <https://github.com/Young-ZJ66/Aria2Desktop>，符合申请条件。**申请必须由项目所有者本人完成**（需要填写本人姓名、邮箱并接受条款），自动化代理不能代为提交。
+
+### 实际申请页面
+
+<https://signpath.org/apply> 目前是一个 **HubSpot 申请表**，不是 GitHub 登录页，也没有“选择许可证”“填写代码签名政策 URL”字段。页面收集项目信息、维护者信息和联系方式，提交后由 SignPath 人工审核；审核通过后才会用填写的邮箱创建 SignPath 账号，再进入项目/签名策略配置。
+
+申请表的字段和建议填写值如下（带 `*` 的为必填）：
+
+| 表单字段 | 建议填写 |
+|---|---|
+| Project Name * | `Aria2Desktop` |
+| Repository URL * | `https://github.com/Young-ZJ66/Aria2Desktop` |
+| Homepage URL * | `https://github.com/Young-ZJ66/Aria2Desktop` |
+| Download URL | `https://github.com/Young-ZJ66/Aria2Desktop/releases`（该页面必须写明项目使用 SignPath Foundation 签名；v1.3.2 更新日志已写明） |
+| Privacy Policy URL | `https://github.com/Young-ZJ66/Aria2Desktop/blob/main/docs/privacy.md` |
+| Wikipedia URL | 留空 |
+| Tagline * | `A modern, cross-platform aria2 download manager with a polished desktop UI.` |
+| Category * | `Developer Tools` |
+| Description * | 见下方“申请信息模板” |
+| Reputation * | 见下方“申请信息模板” |
+| Maintainer Type | `Individual maintainer(s)` |
+| Build System * | `GitHub Actions` |
+| First Name * / Last Name * | 你的真实姓名（将用于创建 SignPath 账号） |
+| Email * | 你的常用邮箱（接收审核结果和账号邀请） |
+| Company Name | 留空即可 |
+| Primary Discovery Channel * | 按实际情况选择；如果是通过 AI 助手了解到 SignPath，可选 `AI / LLM tools` |
+| Please specify the exact source | 可填 `ChatGPT`、`DeepSeek`、`GitHub` 等实际来源 |
+| Code of Conduct 复选框 * | 勾选，确认证书以 SignPath Foundation 名义签发 |
+| 数据存储/隐私复选框 * | 勾选，同意 SignPath 处理申请数据 |
+
+> 表单没有 License 字段。请在 Description 或 Reputation 中写明项目使用 **MIT License**，审核人员会同时查看仓库的 LICENSE 文件。
 
 ### 维护者操作步骤
 
-1. **注册并申请**
-   - 打开 <https://signpath.org/apply>，用 GitHub 账号登录并启用 MFA。
-   - 项目名称填 `Aria2Desktop`，仓库填 `https://github.com/Young-ZJ66/Aria2Desktop`，许可证选 MIT，下载页填 GitHub Releases。
-   - 代码签名政策填 `https://github.com/Young-ZJ66/Aria2Desktop/blob/main/docs/code-signing-policy.md`。
+1. **填写申请表单**
+   - 打开 <https://signpath.org/apply>，按上表填写并提交；此步骤不需要 GitHub 登录。
    - 申请材料可直接使用下方“申请信息模板”。
 
-2. **创建 SignPath 项目**
-   - 审批通过后，在 SignPath 控制台创建项目，项目 slug 建议 `aria2desktop`。
+2. **等待审核并激活账号**
+   - SignPath 会人工审核项目资格，并通过你填写的邮箱联系。
+   - 审核通过后，使用邮件中的邀请激活 SignPath 账号，并立即启用 MFA。
+
+3. **创建 SignPath 项目**
+   - 在 SignPath 控制台创建项目，项目 slug 建议 `aria2desktop`。
    - 在组织的 **Trusted Build Systems** 中添加 **GitHub.com**，并安装 [SignPath GitHub App](https://github.com/apps/signpath) 到本仓库。
    - 记录 **Organization ID**（组织设置页）和项目 slug。
 
-3. **创建签名策略**
+4. **创建签名策略**
    - 新建 signing policy，slug 建议 `release-signing`。
    - 选择 **Open Source Code Signing**，开启人工审批（每个 release 都需 Approver 批准）。
 
-4. **创建 artifact configuration**
+5. **创建 artifact configuration**
    - 在项目中新建 artifact configuration，slug 填 `windows-installer`。
    - 把仓库内 [`.signpath/artifact-configuration.xml`](../.signpath/artifact-configuration.xml) 的完整内容粘贴进去并保存。
    - 该配置只签名 GitHub Actions 上传的 `Aria2Desktop-<version>-<arch>-Setup.exe`，并强制校验 ProductName、ProductVersion、FileVersion、CompanyName。
 
-5. **生成 API token**
+6. **生成 API token**
    - 在 SignPath 用户设置中创建 API token，给提交者（Submitter）权限，只授予本项目使用。
    - 不要把 token 写进仓库或日志。
 
-6. **配置 GitHub Actions secrets**
+7. **配置 GitHub Actions secrets**
    在仓库 **Settings → Secrets and variables → Actions** 添加：
 
    | Secret | 说明 |
@@ -69,7 +101,7 @@ Aria2Desktop 使用 MIT 许可证，公开仓库为 <https://github.com/Young-ZJ
 
    > 如果以后购买了传统 Authenticode 证书，也可配置 `WINDOWS_CSC_LINK` / `WINDOWS_CSC_KEY_PASSWORD`。流水线会优先使用传统证书并跳过 SignPath，避免重复签名。
 
-7. **发版并审批**
+8. **发版并审批**
    - 推送 `v*` tag 触发 [release.yml](../.github/workflows/release.yml)。
    - 质量闸门、E2E、打包完成后，Windows job 会把 `Setup.exe` 作为 GitHub Actions artifact 上传给 SignPath。
    - 在 SignPath 控制台审批签名请求（工作流最长等待 30 分钟）。
@@ -77,16 +109,27 @@ Aria2Desktop 使用 MIT 许可证，公开仓库为 <https://github.com/Young-ZJ
 
 ### 申请信息模板
 
-可直接复制到 SignPath 申请表：
+以下内容按当前申请表的字段组织，可直接复制填写：
 
 ```text
-Project name: Aria2Desktop
-Repository: https://github.com/Young-ZJ66/Aria2Desktop
-License: MIT
-Description: A modern desktop download manager built on Electron, Vue 3 and the Aria2 engine. Supports HTTP/FTP/BitTorrent/Metalink, download scheduling, speed limits, browser extension integration, plugin system, and cross-platform builds.
-Download page: https://github.com/Young-ZJ66/Aria2Desktop/releases
-Code signing policy: https://github.com/Young-ZJ66/Aria2Desktop/blob/main/docs/code-signing-policy.md
-Signed artifact: Windows NSIS installer (Aria2Desktop-<version>-<arch>-Setup.exe), built by GitHub Actions on GitHub-hosted runners.
+Project Name: Aria2Desktop
+Repository URL: https://github.com/Young-ZJ66/Aria2Desktop
+Homepage URL: https://github.com/Young-ZJ66/Aria2Desktop
+Download URL: https://github.com/Young-ZJ66/Aria2Desktop/releases
+Privacy Policy URL: https://github.com/Young-ZJ66/Aria2Desktop/blob/main/docs/privacy.md
+Wikipedia URL:
+Tagline: A modern, cross-platform aria2 download manager with a polished desktop UI.
+Category: Developer Tools
+Description: Aria2Desktop is an open-source desktop download manager that integrates the aria2 engine with an Electron and Vue 3 interface. It supports HTTP, FTP, BitTorrent and Metalink downloads, download scheduling, speed limits, browser extension integration, a plugin system, and builds for Windows, macOS and Linux. The project is released under the MIT License.
+Reputation: Public repository at https://github.com/Young-ZJ66/Aria2Desktop. Active since August 2025 with 20 public releases (v1.0.0 through v1.3.2), 592 downloads across GitHub Releases, and 10 GitHub stars. The project publishes release notes for every version, maintains automated CI for type checking, unit tests, E2E tests and packaging, and provides Windows, macOS and Linux builds.
+Maintainer Type: Individual maintainer(s)
+Build System: GitHub Actions
+First Name: <你的名字>
+Last Name: <你的姓氏>
+Email: <你的邮箱>
+Company Name:
+Primary Discovery Channel: AI / LLM tools
+Please specify the exact source: ChatGPT / DeepSeek
 ```
 
 ## 验证签名
