@@ -773,12 +773,13 @@ watch(visible, (show) => {
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav.n-tabs-nav--left) {
   flex: 0 0 190px;
   width: 190px;
-  padding: 6px 8px 6px 0;
+  padding: 6px 8px 6px 10px;
 }
 
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab) {
   padding: 9px 14px;
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 22px;
 }
 
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab.n-tabs-tab--active) {

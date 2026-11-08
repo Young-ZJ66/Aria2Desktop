@@ -110,7 +110,7 @@
         :model="form"
         :rules="rules"
         label-placement="left"
-        :label-width="100"
+        label-width="auto"
         label-align="left"
       >
         <n-form-item :label="t('connection.protocol')" path="protocol">
