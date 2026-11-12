@@ -2,6 +2,8 @@
 
 <div align="center">
 
+**简体中文** · [English](README.en.md)
+
 [![Release](https://img.shields.io/github/v/release/Young-ZJ66/Aria2Desktop?style=flat-square&label=release&color=3b82f6)](https://github.com/Young-ZJ66/Aria2Desktop/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Young-ZJ66/Aria2Desktop/total?style=flat-square&label=downloads&color=3b82f6)](https://github.com/Young-ZJ66/Aria2Desktop/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-4B5563?style=flat-square)](#系统要求)
