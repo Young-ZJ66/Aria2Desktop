@@ -63,13 +63,16 @@ if (process.platform === 'win32') {
 }
 
 // Linux AppImage：Chromium 的 setuid 沙箱依赖 `chrome-sandbox` 具备 root:4755 权限，
-// 而 AppImage 以只读镜像挂载，安装时无法设置该权限位，启动即报
-// "The SUID sandbox helper binary was found, but is not configured correctly"。
-// 因此**仅在 AppImage 运行时**关闭沙箱；deb/rpm 安装包由 electron-builder 正确设置权限位，
-// 保持沙箱开启（不无条件 --no-sandbox，避免把整个 Linux 平台的安全性一起降级）。
-if (process.platform === 'linux' && process.env.APPIMAGE) {
-  app.commandLine.appendSwitch('no-sandbox')
-}
+// 而 AppImage 以只读镜像挂载，安装时无法设置该权限位。electron-builder 生成的 AppRun
+// 已内置探测：当 `unshare -Ur true` 失败（用户命名空间不可用）时会自动追加
+// `--no-sandbox`；deb/rpm 安装包则由 electron-builder 正确设置权限位，保持沙箱开启。
+//
+// 这里刻意不再调用 `app.commandLine.appendSwitch('no-sandbox')`：主进程代码执行时
+// Chromium 沙箱已经完成初始化，此时追加开关不会真正关闭沙箱，反而会在 AppImageHub /
+// Firejail 等环境中触发 Chromium 共享内存分配失败（platform_shared_memory_region_posix
+// 报 "No such process"），最终渲染进程 ERR_FAILED、主窗口空白只剩托盘图标。
+// 需要关闭沙箱的场景必须由 AppRun 在 exec 前通过 argv 传入，而不是在 main.ts 里追加。
+
 
 // ==========================================
 // 配置和路径设置
