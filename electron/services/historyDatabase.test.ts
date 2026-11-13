@@ -96,13 +96,17 @@ describe('增量写入与删除（SQLite 后端）', () => {
     expect(Object.keys(db.loadAll()).sort()).toEqual(['a', 'c'])
   })
 
-  it('deleteMany 一次删 1500 条（分批 IN），全部生效', () => {
+  // 1500 条种子数据用 saveAll 单事务灌入：逐条 saveOne 每行一次 fsync，CI 的慢磁盘要 10 秒以上。
+  // 本测试焦点是 deleteMany 的分批 IN 删除，种子怎么来的无关紧要。
+  it('deleteMany 一次删 1500 条（分批 IN），全部生效', { timeout: 30_000 }, () => {
     const db = openDb(dbPath)
+    const seed: Record<string, unknown> = {}
     const gids: string[] = []
     for (let i = 0; i < 1500; i++) {
       gids.push('g' + i)
-      db.saveOne('g' + i, makeTask('g' + i, i))
+      seed['g' + i] = makeTask('g' + i, i)
     }
+    expect(db.saveAll(seed).success).toBe(true)
     expect(db.getStats().count).toBe(1500)
 
     expect(db.deleteMany(gids).success).toBe(true)

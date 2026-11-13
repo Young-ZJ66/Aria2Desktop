@@ -63,6 +63,7 @@ export class HistoryDatabase {
       if (!this.db) return
       this.db.exec(`
         PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
         CREATE TABLE IF NOT EXISTS download_history (
           gid TEXT PRIMARY KEY,
           task_json TEXT NOT NULL,
