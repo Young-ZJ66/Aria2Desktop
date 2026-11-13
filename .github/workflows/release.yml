@@ -368,6 +368,9 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
+      - name: 安装 zsync（AppImage 增量更新元数据工具）
+        run: sudo apt-get update && sudo apt-get install -y zsync
+
       - name: 校验 aria2 引擎
         run: |
           node scripts/verify-engine.mjs linux ${{ matrix.arch }}
@@ -376,8 +379,15 @@ jobs:
       - name: 构建安装包
         run: npm run build && npx electron-builder --linux --${{ matrix.arch }} --publish never
 
+      # electron-builder 不走 appimagetool 路径，构建后补写 .upd_info 节区并生成 .zsync，
+      # 让 AppImageUpdate/appimageupdatetool 能识别并增量更新（AppImageHub 测试也据此消除 no update information 警告）。
+      - name: 嵌入 AppImage 更新信息并生成 .zsync
+        run: |
+          appimage=$(ls release/Aria2Desktop-*-${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}.AppImage)
+          node scripts/embed-appimage-update-info.mjs "$appimage" Young-ZJ66 Aria2Desktop --channel=latest
+
       - name: 校验安装包产物
-        run: node scripts/verify-dist.mjs linux ${{ matrix.arch }}
+        run: node scripts/verify-dist.mjs linux ${{ matrix.arch }} --require-zsync
 
       # Linux 无显示环境：xvfb 造虚拟屏后启动一次打包产物（与 build-unix.yml 同一口径）。
       # arm64 运行器不能直接执行 x64 产物，故只对 x64 做启动冒烟；arm64 由静态校验兜底。
@@ -403,7 +413,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF_NAME}"
-          for f in release/*.AppImage release/*.deb; do
+          for f in release/*.AppImage release/*.AppImage.zsync release/*.deb; do
             [ -e "$f" ] || continue
             sha256sum "$f" | awk '{print $1}' > "$f.sha256"
             gh release upload "$tag" "$f" "$f.sha256" --clobber

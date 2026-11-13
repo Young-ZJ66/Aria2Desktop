@@ -5,8 +5,8 @@
  *   node scripts/verify-dist.mjs win x64 [--require-blocks]
  *   node scripts/verify-dist.mjs win ia32 [--require-blocks]
  *   node scripts/verify-dist.mjs mac
- *   node scripts/verify-dist.mjs linux x64
- *   node scripts/verify-dist.mjs linux arm64
+ *   node scripts/verify-dist.mjs linux x64 [--require-zsync]
+ *   node scripts/verify-dist.mjs linux arm64 [--require-zsync]
  *
  * 为什么需要：electron-builder 在缺资源/传输失败时可能"命令成功但产物不全"，
  * 而 Release 一旦发出就无法撤回重发。这里把"该有的文件都在、体积合理、
@@ -24,6 +24,8 @@ const version = pkg.version
 
 const [, , platform, arch, ...flags] = process.argv
 const requireBlocks = flags.includes('--require-blocks')
+// Linux：release 构建会为 AppImage 嵌入更新信息并生成 .zsync，发布前用 --require-zsync 断言它存在
+const requireZsync = flags.includes('--require-zsync')
 
 /** 每个平台的必需产物：{ label, test(fileName), minBytes } */
 const installerMin = 5 * 1024 * 1024
@@ -69,10 +71,18 @@ function buildRequirements() {
       arm64: { appImage: 'arm64', deb: 'arm64' }
     }[targetArch]
     if (!archNames) throw new Error('Linux 需要指定架构：x64 或 arm64')
-    return [
+    const requirements = [
       { label: `AppImage（${archNames.appImage}）`, test: (f) => f === `Aria2Desktop-${version}-${archNames.appImage}.AppImage`, min: installerMin },
       { label: `deb（${archNames.deb}）`, test: (f) => f === `Aria2Desktop-${version}-${archNames.deb}.deb`, min: installerMin }
     ]
+    if (requireZsync) {
+      requirements.push({
+        label: `zsync（${archNames.appImage}）`,
+        test: (f) => f === `Aria2Desktop-${version}-${archNames.appImage}.AppImage.zsync`,
+        min: blocksMin
+      })
+    }
+    return requirements
   }
 
   throw new Error(`未知平台「${platform}」，可选：win / mac / linux`)
