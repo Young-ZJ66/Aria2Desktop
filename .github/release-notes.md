@@ -1,25 +1,39 @@
-# v1.3.4 更新日志
+# Aria2Desktop v1.3.5 Release Notes
 
-v1.3.4 是一个兼容性修复版本：解决 Linux AppImage 在部分沙箱与容器环境中无法创建窗口、只剩托盘图标的问题，并补充英文 README。
+v1.3.5 is a feature release: AppImages now ship embedded update information with zsync delta updates, task history moves to a SQLite database with incremental writes, and a new BT Insights page gives real-time visibility into peers and trackers.
 
-## 🐧 Linux AppImage 启动修复
+## 🔄 AppImage Update Information & zsync
 
-- **修复空白窗口**：移除主进程在 AppImage 运行时调用 `app.commandLine.appendSwitch('no-sandbox')` 的做法。该调用发生时 Chromium 沙箱已完成初始化，无法真正关闭沙箱，反而会在 AppImageHub、Firejail 等环境中触发共享内存分配失败，渲染进程报 `ERR_FAILED`，主窗口空白且只剩托盘图标。
-- **交由 AppRun 处理**：electron-builder 生成的 AppRun 会在 exec 前探测用户命名空间；`unshare -Ur true` 不可用时自动追加 `--no-sandbox`，可用时保持 Chromium 沙箱开启。
-- **实机验证**：已在 AppImageHub 同款 Firejail 测试环境中验证，应用可正常显示主窗口并完成页面加载。
-- **不影响 deb/rpm**：deb/rpm 安装包由 electron-builder 在安装时设置 `chrome-sandbox` 权限位，Chromium 沙箱保持开启。
+- **Embedded update information**: Linux AppImages now embed the standard `gh-releases-zsync` update string in the runtime's `.upd_info` section, so AppImageUpdate / `appimageupdatetool` can discover and install updates.
+- **zsync delta files**: Each release now ships a `.AppImage.zsync` file next to the AppImage, enabling bandwidth-saving delta updates instead of full re-downloads.
+- **CI integration**: The release workflow embeds update info and generates the zsync file right after the Linux build, verifies both artifacts with `verify-dist`, and uploads them together with SHA-256 checksums. PR builds use the same pipeline, so the artifacts CI tests are exactly what users get.
+- **AppImageHub warning resolved**: The AppImage directory test previously flagged "AppImage contains no update information"; this release addresses it.
 
-## 🌍 文档
+## 🗄️ SQLite Task History
 
-- **新增英文 README**：新增 `README.en.md` 并在中文 README 顶部添加语言切换入口，方便非中文用户了解安装、功能与开发方式。
+- **SQLite backend**: Completed task history now lives in a proper SQLite database (`tasks-history.db`, WAL mode) via Node's built-in `node:sqlite` — no new native dependencies. The old JSON file is migrated automatically on first launch, with a backup kept as `persisted-tasks.json.migrated`.
+- **Incremental writes**: Completing a task writes a single row; deleting a task removes its row. The previous approach re-serialized the entire history on every change, which meant re-writing tens of thousands of rows for each completion.
+- **Capacity management**: History is capped at 50,000 records; the oldest records are trimmed first. The silent 24-hour timer that deleted records older than 180 days has been removed — pruning by age was data loss nobody asked for. `cleanupExpiredTasks` remains as an explicit API for a future settings action.
+- **JSON fallback**: Environments without `node:sqlite` automatically fall back to the previous JSON storage, so older Electron/Node combinations keep working.
+- **Diagnostics**: The stats channel now reports which backend is active (`sqlite` / `json`).
 
-## 🛠️ 其他
+## 📡 New: BT Insights Page
 
-- 应用、浏览器扩展与安装包版本号同步升级至 1.3.4。
-- 发布工作流、更新检查与下载校验逻辑保持不变。
+- A new **BT Insights** entry in the sidebar opens a live view for BitTorrent / magnet tasks.
+- **Task picker** lists only BT and magnet tasks (including magnet metadata stages before torrent info attaches).
+- **Summary cards**: peer count, seeder count, aggregate download/upload speed, BT mode, and info hash.
+- **Peers table**: address, client identification, download/upload speed, seeder flag, and progress — with the existing IP geolocation lookup.
+- **Trackers table**: full announce list grouped by tier, deduplicated.
+- **Smart polling**: refreshes every 5 seconds while the page is visible and connected; pauses when the tab is hidden or the connection drops, and keeps the last good frame on RPC errors.
+- **All 21 languages** fully translated for every new string.
 
-## ⚠️ 已知限制
+## 🛠️ Other
 
-- Windows 安装包未签名，SmartScreen 可能提示未知发布者；可用 Release 页的 `.sha256` 校验下载文件。
-- macOS 公开构建未签名、未公证，首次打开需右键 →「打开」；消除 Gatekeeper 提示需要 Apple Developer Program。
-- AppImage 暂未包含内置更新信息（update information / zsync），应用内自动更新仍以 Windows 安装包为主。
+- Application and browser extension versions are now 1.3.5.
+- Task history testing expanded: 691 unit tests pass, covering the SQLite history database, the incremental persistence service, and the BT insights polling logic.
+
+## ⚠️ Known Limitations
+
+- Windows installers are unsigned; SmartScreen may warn about an unknown publisher. Use the `.sha256` files on the Release page to verify downloads.
+- macOS builds are unsigned and un-notarized; right-click → "Open" on first launch. Removing the Gatekeeper prompt requires an Apple Developer Program membership.
+- In-app auto-update is still primarily for Windows installers; Linux users can update via AppImageUpdate / `appimageupdatetool` using the new update information.
