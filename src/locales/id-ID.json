@@ -26,7 +26,8 @@
     "diagnostics": "Diagnostik",
     "queue": "Antrean",
     "workflowSettings": "Alur Kerja",
-    "instances": "Instans"
+    "instances": "Instans",
+    "btInsights": "Wawasan BT"
   },
   "task": {
     "downloading": "Mengunduh",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "Terhubung ke {name}",
     "connectFailed": "Koneksi gagal: {error}",
     "multiInstanceNote": "Semua instans berbagi antarmuka yang sama. Tugas, antrean, dan statistik dimuat ulang setelah beralih."
+  },
+  "btInsights": {
+    "title": "Wawasan BT",
+    "description": "Peer dan tracker real-time untuk tugas BitTorrent",
+    "selectTask": "Pilih tugas BT",
+    "noBtTasks": "Belum ada tugas BitTorrent. Tambahkan .torrent atau tautan magnet terlebih dahulu.",
+    "pollError": "Pembaruan langsung gagal: {error}. Menampilkan data terakhir.",
+    "peerCount": "Peer",
+    "seederCount": "Seeder",
+    "totalDownload": "Unduhan peer",
+    "totalUpload": "Unggahan peer",
+    "mode": "Mode",
+    "infoHash": "Info hash",
+    "unknown": "Tidak diketahui",
+    "trackers": "Tracker",
+    "tier": "Tingkat",
+    "trackerUrl": "URL tracker",
+    "noTrackers": "Tidak ada tracker",
+    "loading": "Memuat…"
   }
 }

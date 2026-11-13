@@ -26,7 +26,8 @@
     "diagnostics": "Diagnostics",
     "queue": "Queue",
     "workflowSettings": "Workflow",
-    "instances": "Instances"
+    "instances": "Instances",
+    "btInsights": "BT Insights"
   },
   "task": {
     "downloading": "Downloading",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "Connected to {name}",
     "connectFailed": "Connection failed: {error}",
     "multiInstanceNote": "All instances share the same interface. Tasks, queue and statistics reload after switching."
+  },
+  "btInsights": {
+    "title": "BT Insights",
+    "description": "Live peers and trackers for BitTorrent tasks",
+    "selectTask": "Select a BT task",
+    "noBtTasks": "No BitTorrent tasks yet. Add a .torrent or magnet link first.",
+    "pollError": "Live update failed: {error}. Showing the last known data.",
+    "peerCount": "Peers",
+    "seederCount": "Seeders",
+    "totalDownload": "Peer download",
+    "totalUpload": "Peer upload",
+    "mode": "Mode",
+    "infoHash": "Info hash",
+    "unknown": "Unknown",
+    "trackers": "Trackers",
+    "tier": "Tier",
+    "trackerUrl": "Tracker URL",
+    "noTrackers": "No trackers",
+    "loading": "Loading…"
   }
 }

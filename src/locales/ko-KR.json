@@ -26,7 +26,8 @@
     "diagnostics": "진단",
     "queue": "대기열",
     "workflowSettings": "워크플로",
-    "instances": "인스턴스"
+    "instances": "인스턴스",
+    "btInsights": "BT 인사이트"
   },
   "task": {
     "downloading": "다운로드 중",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "{name}에 연결되었습니다",
     "connectFailed": "연결 실패: {error}",
     "multiInstanceNote": "모든 인스턴스는 동일한 인터페이스를 공유합니다. 전환 후 작업, 대기열, 통계가 다시 로드됩니다."
+  },
+  "btInsights": {
+    "title": "BT 인사이트",
+    "description": "BitTorrent 작업의 실시간 피어 및 Tracker 정보",
+    "selectTask": "BT 작업 선택",
+    "noBtTasks": "BitTorrent 작업이 없습니다. .torrent 또는 마그넷 링크를 먼저 추가하세요.",
+    "pollError": "실시간 업데이트 실패: {error}. 마지막 데이터를 표시합니다.",
+    "peerCount": "피어 수",
+    "seederCount": "시더 수",
+    "totalDownload": "피어 다운로드",
+    "totalUpload": "피어 업로드",
+    "mode": "모드",
+    "infoHash": "Info Hash",
+    "unknown": "알 수 없음",
+    "trackers": "Tracker 목록",
+    "tier": "계층",
+    "trackerUrl": "Tracker URL",
+    "noTrackers": "Tracker 없음",
+    "loading": "불러오는 중…"
   }
 }

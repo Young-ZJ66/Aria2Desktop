@@ -26,7 +26,8 @@
     "diagnostics": "डायग्नोस्टिक्स",
     "queue": "कतार",
     "workflowSettings": "वर्कफ़्लो",
-    "instances": "इंस्टेंस"
+    "instances": "इंस्टेंस",
+    "btInsights": "BT इनसाइट्स"
   },
   "task": {
     "downloading": "डाउनलोड हो रहा है",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "{name} से कनेक्ट हुआ",
     "connectFailed": "कनेक्शन विफल: {error}",
     "multiInstanceNote": "सभी इंस्टेंस एक ही इंटरफ़ेस साझा करते हैं। स्विच करने के बाद टास्क, कतार और आँकड़े पुनः लोड होते हैं।"
+  },
+  "btInsights": {
+    "title": "BT इनसाइट्स",
+    "description": "BitTorrent कार्यों के लिए रीयल-टाइम पीयर और ट्रैकर",
+    "selectTask": "BT कार्य चुनें",
+    "noBtTasks": "कोई BitTorrent कार्य नहीं। पहले .torrent या मैग्नेट लिंक जोड़ें।",
+    "pollError": "लाइव अपडेट विफल: {error}। अंतिम डेटा दिखाया जा रहा है।",
+    "peerCount": "पीयर",
+    "seederCount": "सीडर",
+    "totalDownload": "पीयर डाउनलोड",
+    "totalUpload": "पीयर अपलोड",
+    "mode": "मोड",
+    "infoHash": "इन्फो हैश",
+    "unknown": "अज्ञात",
+    "trackers": "ट्रैकर",
+    "tier": "स्तर",
+    "trackerUrl": "ट्रैकर URL",
+    "noTrackers": "कोई ट्रैकर नहीं",
+    "loading": "लोड हो रहा है…"
   }
 }

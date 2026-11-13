@@ -26,7 +26,8 @@
     "diagnostics": "診断",
     "queue": "キュー",
     "workflowSettings": "ワークフロー",
-    "instances": "インスタンス"
+    "instances": "インスタンス",
+    "btInsights": "BT インサイト"
   },
   "task": {
     "downloading": "ダウンロード中",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "{name} に接続しました",
     "connectFailed": "接続に失敗しました：{error}",
     "multiInstanceNote": "すべてのインスタンスは同じ画面を共有します。切り替え後にタスク、キュー、統計が再読み込みされます。"
+  },
+  "btInsights": {
+    "title": "BT インサイト",
+    "description": "BitTorrent タスクのピアと Tracker のリアルタイム情報",
+    "selectTask": "BT タスクを選択",
+    "noBtTasks": "BitTorrent タスクがありません。.torrent またはマグネットリンクを追加してください。",
+    "pollError": "リアルタイム更新に失敗しました：{error}。最新のデータを表示しています。",
+    "peerCount": "ピア数",
+    "seederCount": "シーダー数",
+    "totalDownload": "ピア受信",
+    "totalUpload": "ピア送信",
+    "mode": "モード",
+    "infoHash": "Info Hash",
+    "unknown": "不明",
+    "trackers": "Tracker 一覧",
+    "tier": "階層",
+    "trackerUrl": "Tracker URL",
+    "noTrackers": "Tracker なし",
+    "loading": "読み込み中…"
   }
 }

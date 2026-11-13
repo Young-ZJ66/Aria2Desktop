@@ -26,7 +26,8 @@
     "diagnostics": "Tanılama",
     "queue": "Kuyruk",
     "workflowSettings": "İş Akışı",
-    "instances": "Örnekler"
+    "instances": "Örnekler",
+    "btInsights": "BT Görüşleri"
   },
   "task": {
     "downloading": "İndiriliyor",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "{name} sunucusuna bağlandı",
     "connectFailed": "Bağlantı başarısız: {error}",
     "multiInstanceNote": "Tüm örnekler aynı arayüzü paylaşır. Geçiş yaptıktan sonra görevler, kuyruk ve istatistikler yeniden yüklenir."
+  },
+  "btInsights": {
+    "title": "BT Görüşleri",
+    "description": "BitTorrent görevleri için canlı eş ve tracker bilgileri",
+    "selectTask": "BT görevi seç",
+    "noBtTasks": "Henüz BitTorrent görevi yok. Önce bir .torrent veya magnet bağlantısı ekleyin.",
+    "pollError": "Canlı güncelleme başarısız: {error}. Son veriler gösteriliyor.",
+    "peerCount": "Eşler",
+    "seederCount": "Gönderenler",
+    "totalDownload": "Eş indirmesi",
+    "totalUpload": "Eş gönderimi",
+    "mode": "Mod",
+    "infoHash": "Info hash",
+    "unknown": "Bilinmiyor",
+    "trackers": "Tracker'lar",
+    "tier": "Katman",
+    "trackerUrl": "Tracker URL",
+    "noTrackers": "Tracker yok",
+    "loading": "Yükleniyor…"
   }
 }

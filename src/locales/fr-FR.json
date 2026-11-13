@@ -26,7 +26,8 @@
     "diagnostics": "Diagnostics",
     "queue": "File d'attente",
     "workflowSettings": "Flux de travail",
-    "instances": "Instances"
+    "instances": "Instances",
+    "btInsights": "Analyses BT"
   },
   "task": {
     "downloading": "Téléchargement",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "Connecté à {name}",
     "connectFailed": "Échec de la connexion : {error}",
     "multiInstanceNote": "Toutes les instances partagent la même interface. Les tâches, la file et les statistiques sont rechargées après le basculement."
+  },
+  "btInsights": {
+    "title": "Analyses BT",
+    "description": "Pairs et trackers en temps réel pour les tâches BitTorrent",
+    "selectTask": "Choisir une tâche BT",
+    "noBtTasks": "Aucune tâche BitTorrent. Ajoutez d’abord un .torrent ou un lien magnet.",
+    "pollError": "Échec de l’actualisation : {error}. Dernières données affichées.",
+    "peerCount": "Pairs",
+    "seederCount": "Seeders",
+    "totalDownload": "Réception des pairs",
+    "totalUpload": "Émission des pairs",
+    "mode": "Mode",
+    "infoHash": "Info hash",
+    "unknown": "Inconnu",
+    "trackers": "Trackers",
+    "tier": "Niveau",
+    "trackerUrl": "URL du tracker",
+    "noTrackers": "Aucun tracker",
+    "loading": "Chargement…"
   }
 }

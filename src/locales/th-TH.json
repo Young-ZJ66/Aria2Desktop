@@ -26,7 +26,8 @@
     "diagnostics": "การวินิจฉัย",
     "queue": "คิว",
     "workflowSettings": "เวิร์กโฟลว์",
-    "instances": "อินสแตนซ์"
+    "instances": "อินสแตนซ์",
+    "btInsights": "ข้อมูลเชิงลึก BT"
   },
   "task": {
     "downloading": "กำลังดาวน์โหลด",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "เชื่อมต่อกับ {name} แล้ว",
     "connectFailed": "การเชื่อมต่อล้มเหลว: {error}",
     "multiInstanceNote": "อินสแตนซ์ทั้งหมดใช้ส่วนติดต่อเดียวกัน งาน คิว และสถิติจะโหลดใหม่หลังสลับ"
+  },
+  "btInsights": {
+    "title": "ข้อมูลเชิงลึก BT",
+    "description": "พีร์และ Tracker แบบเรียลไทม์สำหรับงาน BitTorrent",
+    "selectTask": "เลือกงาน BT",
+    "noBtTasks": "ยังไม่มีงาน BitTorrent กรุณาเพิ่มไฟล์ .torrent หรือลิงก์แม่เหล็กก่อน",
+    "pollError": "อัปเดตแบบเรียลไทม์ล้มเหลว: {error} กำลังแสดงข้อมูลล่าสุด",
+    "peerCount": "พีร์",
+    "seederCount": "ซีดเดอร์",
+    "totalDownload": "ดาวน์โหลดจากพีร์",
+    "totalUpload": "อัปโหลดไปยังพีร์",
+    "mode": "โหมด",
+    "infoHash": "Info Hash",
+    "unknown": "ไม่ทราบ",
+    "trackers": "Tracker",
+    "tier": "ชั้น",
+    "trackerUrl": "URL ของ Tracker",
+    "noTrackers": "ไม่มี Tracker",
+    "loading": "กำลังโหลด…"
   }
 }

@@ -26,7 +26,8 @@
     "diagnostics": "Діагностика",
     "queue": "Черга",
     "workflowSettings": "Робочі процеси",
-    "instances": "Екземпляри"
+    "instances": "Екземпляри",
+    "btInsights": "BT-аналітика"
   },
   "task": {
     "downloading": "Завантажується",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "Підключено до {name}",
     "connectFailed": "Помилка підключення: {error}",
     "multiInstanceNote": "Усі екземпляри використовують однаковий інтерфейс. Завдання, черга та статистика перезавантажуються після перемикання."
+  },
+  "btInsights": {
+    "title": "BT-аналітика",
+    "description": "Піри та трекери BitTorrent-завдань у реальному часі",
+    "selectTask": "Виберіть BT-завдання",
+    "noBtTasks": "Немає BitTorrent-завдань. Спочатку додайте .torrent або magnet-посилання.",
+    "pollError": "Не вдалося оновити: {error}. Показано останні дані.",
+    "peerCount": "Піри",
+    "seederCount": "Сідери",
+    "totalDownload": "Завантаження з пірів",
+    "totalUpload": "Віддача пірам",
+    "mode": "Режим",
+    "infoHash": "Info hash",
+    "unknown": "Невідомо",
+    "trackers": "Трекери",
+    "tier": "Рівень",
+    "trackerUrl": "URL трекера",
+    "noTrackers": "Немає трекерів",
+    "loading": "Завантаження…"
   }
 }

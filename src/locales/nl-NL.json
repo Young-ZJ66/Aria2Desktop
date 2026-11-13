@@ -26,7 +26,8 @@
     "diagnostics": "Diagnostiek",
     "queue": "Wachtrij",
     "workflowSettings": "Workflow",
-    "instances": "Instanties"
+    "instances": "Instanties",
+    "btInsights": "BT-inzichten"
   },
   "task": {
     "downloading": "Downloaden",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "Verbonden met {name}",
     "connectFailed": "Verbinding mislukt: {error}",
     "multiInstanceNote": "Alle instanties delen dezelfde interface. Taken, wachtrij en statistieken worden opnieuw geladen na het wisselen."
+  },
+  "btInsights": {
+    "title": "BT-inzichten",
+    "description": "Live peers en trackers voor BitTorrent-taken",
+    "selectTask": "Kies een BT-taak",
+    "noBtTasks": "Nog geen BitTorrent-taken. Voeg eerst een .torrent of magnetlink toe.",
+    "pollError": "Live-update mislukt: {error}. Laatst bekende gegevens worden getoond.",
+    "peerCount": "Peers",
+    "seederCount": "Seeders",
+    "totalDownload": "Peer-download",
+    "totalUpload": "Peer-upload",
+    "mode": "Modus",
+    "infoHash": "Info-hash",
+    "unknown": "Onbekend",
+    "trackers": "Trackers",
+    "tier": "Niveau",
+    "trackerUrl": "Tracker-URL",
+    "noTrackers": "Geen trackers",
+    "loading": "Laden…"
   }
 }

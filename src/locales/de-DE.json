@@ -26,7 +26,8 @@
     "diagnostics": "Diagnose",
     "queue": "Warteschlange",
     "workflowSettings": "Workflow",
-    "instances": "Instanzen"
+    "instances": "Instanzen",
+    "btInsights": "BT-Insights"
   },
   "task": {
     "downloading": "Wird heruntergeladen",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "Mit {name} verbunden",
     "connectFailed": "Verbindung fehlgeschlagen: {error}",
     "multiInstanceNote": "Alle Instanzen nutzen dieselbe Oberfläche. Nach dem Wechsel werden Aufgaben, Warteschlange und Statistiken neu geladen."
+  },
+  "btInsights": {
+    "title": "BT-Insights",
+    "description": "Echtzeit-Peers und Tracker für BitTorrent-Aufgaben",
+    "selectTask": "BT-Auftrag wählen",
+    "noBtTasks": "Noch keine BitTorrent-Aufträge. Fügen Sie zuerst eine .torrent- oder Magnet-Datei hinzu.",
+    "pollError": "Live-Aktualisierung fehlgeschlagen: {error}. Zeige letzte bekannte Daten.",
+    "peerCount": "Peers",
+    "seederCount": "Seeder",
+    "totalDownload": "Peer-Download",
+    "totalUpload": "Peer-Upload",
+    "mode": "Modus",
+    "infoHash": "Info-Hash",
+    "unknown": "Unbekannt",
+    "trackers": "Tracker",
+    "tier": "Stufe",
+    "trackerUrl": "Tracker-URL",
+    "noTrackers": "Keine Tracker",
+    "loading": "Lädt…"
   }
 }

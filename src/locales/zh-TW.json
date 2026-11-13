@@ -26,7 +26,8 @@
     "diagnostics": "診斷",
     "queue": "佇列",
     "workflowSettings": "工作流程",
-    "instances": "執行個體"
+    "instances": "執行個體",
+    "btInsights": "BT 洞察"
   },
   "task": {
     "downloading": "下載中",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "已連線至 {name}",
     "connectFailed": "連線失敗：{error}",
     "multiInstanceNote": "所有執行個體共用相同介面。切換後會重新載入任務、佇列與統計資料。"
+  },
+  "btInsights": {
+    "title": "BT 洞察",
+    "description": "BitTorrent 任務的即時節點與 Tracker 資訊",
+    "selectTask": "選擇 BT 任務",
+    "noBtTasks": "尚無 BitTorrent 任務。請先新增 .torrent 或磁力連結。",
+    "pollError": "即時更新失敗：{error}。正在顯示最近一次資料。",
+    "peerCount": "節點數",
+    "seederCount": "做種數",
+    "totalDownload": "節點下載",
+    "totalUpload": "節點上傳",
+    "mode": "模式",
+    "infoHash": "Info Hash",
+    "unknown": "未知",
+    "trackers": "Tracker 清單",
+    "tier": "層級",
+    "trackerUrl": "Tracker 位址",
+    "noTrackers": "無 Tracker",
+    "loading": "載入中…"
   }
 }

@@ -62,6 +62,8 @@ export interface Aria2Uri {
 }
 
 export interface Aria2BitTorrent {
+  /** info hash（aria2 在磁力元数据就绪后返回） */
+  infoHash?: string
   announceList?: string[][]
   comment?: string
   createdBy?: string

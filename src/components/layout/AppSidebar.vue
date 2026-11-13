@@ -98,7 +98,8 @@ import {
   MoonOutline,
   LogoGithub,
   NotificationsOutline,
-  ServerOutline
+  ServerOutline,
+  GlobeOutline
 } from '@vicons/ionicons5'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -162,6 +163,11 @@ const menuOptions = computed<MenuOption[]>(() => [
     label: t('nav.instances'),
     key: '/instances',
     icon: renderIcon(ServerOutline)
+  },
+  {
+    label: t('nav.btInsights'),
+    key: '/bt-insights',
+    icon: renderIcon(GlobeOutline)
   }
 ])
 

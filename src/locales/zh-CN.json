@@ -26,7 +26,8 @@
     "diagnostics": "诊断中心",
     "queue": "队列",
     "workflowSettings": "工作流",
-    "instances": "实例"
+    "instances": "实例",
+    "btInsights": "BT 洞察"
   },
   "task": {
     "downloading": "正在下载",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "已连接到 {name}",
     "connectFailed": "连接失败：{error}",
     "multiInstanceNote": "所有实例共享同一套界面，切换后任务、队列与统计会重新加载。"
+  },
+  "btInsights": {
+    "title": "BT 洞察",
+    "description": "BitTorrent 任务的实时节点与 Tracker 信息",
+    "selectTask": "选择 BT 任务",
+    "noBtTasks": "暂无 BitTorrent 任务。请先添加 .torrent 或磁力链接。",
+    "pollError": "实时刷新失败：{error}。正在显示最近一次数据。",
+    "peerCount": "节点数",
+    "seederCount": "做种数",
+    "totalDownload": "节点下载",
+    "totalUpload": "节点上传",
+    "mode": "模式",
+    "infoHash": "Info Hash",
+    "unknown": "未知",
+    "trackers": "Tracker 列表",
+    "tier": "层级",
+    "trackerUrl": "Tracker 地址",
+    "noTrackers": "无 Tracker",
+    "loading": "加载中…"
   }
 }

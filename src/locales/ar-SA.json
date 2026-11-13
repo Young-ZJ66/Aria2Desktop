@@ -26,7 +26,8 @@
     "diagnostics": "التشخيص",
     "queue": "قائمة الانتظار",
     "workflowSettings": "سير العمل",
-    "instances": "المثيلات"
+    "instances": "المثيلات",
+    "btInsights": "رؤى BT"
   },
   "task": {
     "downloading": "جارٍ التنزيل",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "تم الاتصال بـ {name}",
     "connectFailed": "فشل الاتصال: {error}",
     "multiInstanceNote": "تشترك جميع النسخ في الواجهة نفسها. تُعاد المهام وقائمة الانتظار والإحصاءات بعد التبديل."
+  },
+  "btInsights": {
+    "title": "رؤى BT",
+    "description": "الأقران والمتتبعات المباشرة لمهام BitTorrent",
+    "selectTask": "اختر مهمة BT",
+    "noBtTasks": "لا توجد مهام BitTorrent. أضف ملف .torrent أو رابط magnet أولاً.",
+    "pollError": "فشل التحديث المباشر: {error}. تُعرض آخر البيانات.",
+    "peerCount": "الأقران",
+    "seederCount": "البازرعون",
+    "totalDownload": "تنزيل الأقران",
+    "totalUpload": "رفع الأقران",
+    "mode": "الوضع",
+    "infoHash": "بصمة المعلومات",
+    "unknown": "غير معروف",
+    "trackers": "المتتبعات",
+    "tier": "المستوى",
+    "trackerUrl": "رابط المتتبع",
+    "noTrackers": "لا متتبعات",
+    "loading": "جارٍ التحميل…"
   }
 }

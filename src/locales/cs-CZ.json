@@ -26,7 +26,8 @@
     "diagnostics": "Diagnostika",
     "queue": "Fronta",
     "workflowSettings": "Pracovní postup",
-    "instances": "Instance"
+    "instances": "Instance",
+    "btInsights": "Přehled BT"
   },
   "task": {
     "downloading": "Stahování",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "Připojeno k {name}",
     "connectFailed": "Připojení se nezdařilo: {error}",
     "multiInstanceNote": "Všechny instance sdílejí stejné rozhraní. Úlohy, fronta a statistiky se po přepnutí znovu načtou."
+  },
+  "btInsights": {
+    "title": "Přehled BT",
+    "description": "Peery a trackery v reálném čase pro úlohy BitTorrent",
+    "selectTask": "Vyberte BT úlohu",
+    "noBtTasks": "Žádné BitTorrent úlohy. Nejprve přidejte .torrent nebo magnet odkaz.",
+    "pollError": "Živá aktualizace selhala: {error}. Zobrazují se poslední data.",
+    "peerCount": "Peery",
+    "seederCount": "Seedeři",
+    "totalDownload": "Stahování od peerů",
+    "totalUpload": "Odesílání peerům",
+    "mode": "Režim",
+    "infoHash": "Info hash",
+    "unknown": "Neznámé",
+    "trackers": "Trackery",
+    "tier": "Úroveň",
+    "trackerUrl": "URL trackeru",
+    "noTrackers": "Žádné trackery",
+    "loading": "Načítání…"
   }
 }

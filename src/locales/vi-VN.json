@@ -26,7 +26,8 @@
     "diagnostics": "Chẩn đoán",
     "queue": "Hàng đợi",
     "workflowSettings": "Quy trình",
-    "instances": "Các phiên bản"
+    "instances": "Các phiên bản",
+    "btInsights": "Phân tích BT"
   },
   "task": {
     "downloading": "Đang tải xuống",
@@ -1490,5 +1491,24 @@
     "connectSuccess": "Đã kết nối tới {name}",
     "connectFailed": "Kết nối thất bại: {error}",
     "multiInstanceNote": "Mọi phiên bản dùng chung giao diện. Tác vụ, hàng đợi và thống kê được tải lại sau khi chuyển đổi."
+  },
+  "btInsights": {
+    "title": "Phân tích BT",
+    "description": "Peer và tracker theo thời gian thực cho tác vụ BitTorrent",
+    "selectTask": "Chọn tác vụ BT",
+    "noBtTasks": "Chưa có tác vụ BitTorrent. Hãy thêm .torrent hoặc liên kết magnet trước.",
+    "pollError": "Cập nhật trực tiếp thất bại: {error}. Đang hiển thị dữ liệu gần nhất.",
+    "peerCount": "Peer",
+    "seederCount": "Seeder",
+    "totalDownload": "Tải từ peer",
+    "totalUpload": "Tải lên cho peer",
+    "mode": "Chế độ",
+    "infoHash": "Info hash",
+    "unknown": "Không rõ",
+    "trackers": "Tracker",
+    "tier": "Bậc",
+    "trackerUrl": "URL tracker",
+    "noTrackers": "Không có tracker",
+    "loading": "Đang tải…"
   }
 }
