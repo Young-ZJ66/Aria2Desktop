@@ -49,6 +49,26 @@ export interface YtdlpFormat {
   note: string
 }
 
+/** 播放列表条目（--flat-playlist 解析结果：只有 id/标题/时长，无逐条格式信息） */
+export interface YtdlpPlaylistEntry {
+  id: string
+  title: string
+  url: string
+  /** 条目时长（秒）；flat 模式下部分站点不返回 */
+  duration?: number
+  /** 条目在列表中的 1 起序号（yt-dlp 的 playlist_index）：--playlist-items 按它选择条目 */
+  index?: number
+}
+
+export interface YtdlpPlaylistInfo {
+  title: string
+  /** 返回的条目数（已按上限截断），即界面实际展示的数量 */
+  count: number
+  entries: YtdlpPlaylistEntry[]
+  /** 存在无法还原直链的条目（url 用 id 占位）：界面据此提示将按序号下载 */
+  hasPlaceholderUrls?: boolean
+}
+
 /** yt-dlp 可用性 + 自动安装能力（供流媒体页决定显示表单还是下载按钮） */
 export interface YtdlpCheckResult {
   available: boolean
@@ -345,6 +365,99 @@ export async function getFormatUrl(url: string, formatId: string): Promise<{ suc
   }
 }
 
+/** 播放列表条目上限：与界面滚动列表同量级；更大的列表（如"收藏夹全量"）截断后再展示 */
+export const PLAYLIST_ENTRIES_LIMIT = 500
+
+/**
+ * 把 yt-dlp --flat-playlist -J 输出的 JSON 收敛为播放列表信息。
+ * 纯函数（不依赖 spawn/fs），单独导出便于单测。
+ *
+ * 条目 URL 的还原顺序（flat 模式下很多站点只返回 id，不返回可访问链接）：
+ * 1. entry.url 本身是完整 http(s) 链接 → 直接用；
+ * 2. YouTube 列表 → 用 watch 页 URL 拼 id（yt-dlp 对 YT flat entry 常不给 url 字段）；
+ * 3. 非 YouTube 站点保留 flat entry 的 url 字段原样（相对路径等，交给 yt-dlp 自己解析）；
+ * 4. 全部缺失 → 用 id 占位并置 hasPlaceholderUrls，界面提示该列表只能按序号下载。
+ */
+export function mapPlaylistEntries(raw: unknown, playlistUrl: string): YtdlpPlaylistInfo | null {
+  if (!raw || typeof raw !== 'object') return null
+  const rawEntries = (raw as { entries?: unknown }).entries
+  if (!Array.isArray(rawEntries)) return null
+
+  // 只有 YouTube 需要（也才可靠）用 watch?v=<id> 拼直链；其他站点的 id 形状各异
+  let isYouTube = false
+  try {
+    const host = new URL(playlistUrl).hostname.toLowerCase()
+    isYouTube = host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com'
+      || host === 'music.youtube.com' || host === 'youtu.be'
+  } catch {
+    isYouTube = false
+  }
+
+  const entries: YtdlpPlaylistEntry[] = []
+  let hasPlaceholderUrls = false
+  for (const item of rawEntries.slice(0, PLAYLIST_ENTRIES_LIMIT)) {
+    if (!item || typeof item !== 'object') continue
+    const entry = item as Record<string, unknown>
+    // id 是 --playlist-items 选择与 URL 还原的唯一依据，缺失的条目无法下载，直接跳过
+    const id = typeof entry.id === 'string' || typeof entry.id === 'number' ? String(entry.id) : ''
+    if (!id) continue
+    const title = typeof entry.title === 'string' && entry.title ? entry.title : id
+    const rawUrl = typeof entry.url === 'string' && entry.url ? entry.url : ''
+    const duration = typeof entry.duration === 'number' && Number.isFinite(entry.duration)
+      ? entry.duration
+      : undefined
+    // 序号优先取 yt-dlp 的 playlist_index（过滤掉无效条目后数组位置会漂移，不能反推）
+    const index = typeof entry.playlist_index === 'number' && Number.isFinite(entry.playlist_index)
+      ? entry.playlist_index
+      : undefined
+
+    let url: string
+    if (/^https?:\/\//i.test(rawUrl)) {
+      url = rawUrl
+    } else if (isYouTube) {
+      url = `https://www.youtube.com/watch?v=${id}`
+    } else if (rawUrl) {
+      url = rawUrl
+    } else {
+      url = id
+      hasPlaceholderUrls = true
+    }
+    entries.push({
+      id,
+      title,
+      url,
+      ...(duration !== undefined ? { duration } : {}),
+      ...(index !== undefined ? { index } : {})
+    })
+  }
+
+  if (entries.length === 0) return null
+  const rawTitle = (raw as { title?: unknown }).title
+  const title = typeof rawTitle === 'string' && rawTitle ? rawTitle : 'Unknown'
+  return { title, count: entries.length, entries, hasPlaceholderUrls }
+}
+
+/** 获取播放列表信息（flat 模式：只拉列表元数据，不逐条解析视频详情，速度快） */
+export async function getPlaylistInfo(url: string): Promise<{ success: boolean; info?: YtdlpPlaylistInfo; error?: string }> {
+  // 与 getVideoInfo 同口径：只接受无凭据的 http(s) 链接（isSafeHttpUrl）
+  if (!isSafeHttpUrl(url)) {
+    return { success: false, error: 'Invalid URL' }
+  }
+  try {
+    // -J 隐含 --simulate，不会真的开始下载；--flat-playlist 避免逐条解析（大列表能快一个量级）
+    const args = ['--flat-playlist', '-J', '--no-warnings', url]
+    // 大列表（YouTube 翻页）比单视频慢得多：60s 超时，与单视频 30s 区分
+    const output = await execYtdlp(args, undefined, 60000)
+    const info = mapPlaylistEntries(JSON.parse(output), url)
+    if (!info) {
+      return { success: false, error: '未解析到播放列表条目（该链接可能不是播放列表）' }
+    }
+    return { success: true, info }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 /**
  * 收敛 yt-dlp 的 http_headers 为字符串字典。
  * 非字符串值一律丢弃（RPC/aria2 只接受 `Header: value` 形式的字符串）。
@@ -362,18 +475,19 @@ function normalizeHttpHeaders(raw: unknown): Record<string, string> {
  * 执行 yt-dlp 命令并返回 stdout
  * 默认使用解析出的可执行文件（下载版/内置版/PATH），安装后校验可显式指定路径。
  */
-function execYtdlp(args: string[], command = resolveExecutable().command): Promise<string> {
+function execYtdlp(args: string[], command = resolveExecutable().command, timeoutMs = 30000): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
 
-    // 30 秒超时看门狗（进程退出/报错时清理，避免正常完成后计时器残留）
+    // 超时看门狗（进程退出/报错时清理，避免正常完成后计时器残留）。
+    // 默认 30s；播放列表解析涉及站点翻页，由调用方放宽（见 getPlaylistInfo）
     const watchdog = setTimeout(() => {
       proc.kill('SIGKILL')
       reject(new Error('yt-dlp 执行超时'))
-    }, 30000)
+    }, timeoutMs)
     const clearWatchdog = () => clearTimeout(watchdog)
 
     let stdout = ''

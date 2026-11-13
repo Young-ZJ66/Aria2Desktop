@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Aria2UpdateConfig } from '../src/shared/electronBridge'
 import type { UpdateStatus } from '../src/types/electron'
+// 自动导入（RSS 订阅 / 监听文件夹）的载荷结构：主进程与渲染层共用一份契约
+import type { RssSubscription, WatchFolderConfig } from '../src/shared/autoImport'
 
 // 暴露给渲染进程的API
 const electronAPI = {
@@ -99,6 +101,18 @@ const electronAPI = {
       }
     }
   },
+
+  // RSS/Atom 订阅 + 监听文件夹自动导入（通道由 rssSubscriptionService /
+  // watchFolderService 注册；主进程无主动推送，渲染层靠轮询与手动刷新拿最新状态）
+  rssSubsList: () => ipcRenderer.invoke('rss-subs-list'),
+  rssSubsSave: (subscription: RssSubscription) => ipcRenderer.invoke('rss-subs-save', subscription),
+  rssSubsDelete: (id: string) => ipcRenderer.invoke('rss-subs-delete', id),
+  rssSubsFetchNow: (id: string) => ipcRenderer.invoke('rss-subs-fetch-now', id),
+  watchFoldersList: () => ipcRenderer.invoke('watch-folders-list'),
+  watchFoldersSave: (folder: WatchFolderConfig) => ipcRenderer.invoke('watch-folders-save', folder),
+  watchFoldersDelete: (id: string) => ipcRenderer.invoke('watch-folders-delete', id),
+  watchFoldersScanNow: (id: string) => ipcRenderer.invoke('watch-folders-scan-now', id),
+  autoImportLogList: () => ipcRenderer.invoke('auto-import-log-list'),
 
   // 已完成任务持久化（替代 localStorage，存于 userData）
   loadPersistedTasks: () => ipcRenderer.invoke('persisted-tasks-load'),
@@ -199,6 +213,7 @@ const electronAPI = {
     return () => { ipcRenderer.removeListener('ytdlp-install-progress', handler) }
   },
   ytdlpVideoInfo: (url: string) => ipcRenderer.invoke('ytdlp-video-info', url),
+  ytdlpPlaylistInfo: (url: string) => ipcRenderer.invoke('ytdlp-playlist-info', url),
   ytdlpFormatUrl: (url: string, formatId: string) => ipcRenderer.invoke('ytdlp-format-url', url, formatId),
 
   // ffmpeg：合并音视频时按需下载
@@ -212,7 +227,18 @@ const electronAPI = {
   },
 
   // yt-dlp 下载模式（分离音视频站点：由 yt-dlp 下载并合并）
-  streamDownloadStart: (request: { url: string; formatId?: string; merge?: boolean; title?: string; outputDir: string }) =>
+  // playlist/subtitle/cookieFile/extractAudio 为流媒体页新增能力，全部可选（旧调用方不受影响）
+  streamDownloadStart: (request: {
+    url: string
+    formatId?: string
+    merge?: boolean
+    title?: string
+    outputDir: string
+    playlist?: { ids: string[] }
+    subtitle?: { enabled: boolean; languages: string[]; includeAuto?: boolean }
+    cookieFile?: string
+    extractAudio?: boolean
+  }) =>
     ipcRenderer.invoke('stream-download-start', request),
   streamDownloadCancel: (id: string) => ipcRenderer.invoke('stream-download-cancel', id),
   onStreamDownloadEvent: (callback: (event: unknown) => void) => {

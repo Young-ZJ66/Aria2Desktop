@@ -8,6 +8,8 @@ import { Aria2Controller } from './controllers/Aria2Controller'
 import { IpcController } from './controllers/IpcController'
 import { AppLifecycle } from './controllers/AppLifecycle'
 import { TrackerSubscriptionService } from './services/trackerSubscriptionService'
+import { RssSubscriptionService } from './services/rssSubscriptionService'
+import { WatchFolderService } from './services/watchFolderService'
 import { SpeedScheduler } from './services/speedScheduler'
 import { DownloadScheduler } from './services/downloadScheduler'
 import { upnpService } from './services/upnpService'
@@ -180,6 +182,8 @@ const trayController = new TrayController(windowController)
 const aria2Controller = new Aria2Controller(windowController)
 const ipcController = new IpcController(windowController, trayController, aria2Controller, store)
 const trackerSubscriptionService = new TrackerSubscriptionService(store, aria2Controller, windowController)
+const rssSubscriptionService = new RssSubscriptionService(store, windowController)
+const watchFolderService = new WatchFolderService(store, windowController)
 const speedScheduler = new SpeedScheduler()
 const downloadScheduler = new DownloadScheduler()
 // 引擎每次（重新）启动后，aria2 的全局选项都回到配置文件里的值：
@@ -401,10 +405,17 @@ if (!gotTheLock) {
     try {
       // 注册 Tracker 订阅相关的 IPC（独立于 settings 页面的连接状态，随时可用）
       trackerSubscriptionService.registerIpcHandlers()
+      // 注册 RSS 订阅/监听文件夹自动导入的 IPC（设置页"自动导入"两块面板使用）
+      rssSubscriptionService.registerIpcHandlers()
+      watchFolderService.registerIpcHandlers()
       // 通过 AppLifecycle 初始化所有子系统
       await appLifecycle.initialize()
       // App 就绪后启动 Tracker 每日订阅（含开机补拉 + 定时更新）
       trackerSubscriptionService.initialize()
+      // 启动 RSS 订阅拉取（60 秒 ticker，订阅各自到期才真正拉取）与
+      // 监听文件夹扫描（15 秒 ticker；首跳只学习文件大小，稳定后才导入）
+      rssSubscriptionService.initialize()
+      watchFolderService.initialize()
       // 启动速度调度器（每分钟检查是否需要切换限速）
       speedScheduler.start()
       // 启动定时下载调度器（每分钟检查是否需要暂停/恢复全部任务）
@@ -480,6 +491,9 @@ if (!gotTheLock) {
       await appLifecycle.shutdown()
       // 关闭 Tracker 订阅定时器，避免退出阻塞
       trackerSubscriptionService.shutdown()
+      // 关闭 RSS 订阅/监听文件夹的定时器（都是纯 clearInterval，不阻塞退出）
+      rssSubscriptionService.shutdown()
+      watchFolderService.shutdown()
       speedScheduler.stop()
       downloadScheduler.stop()
       upnpService.stop()

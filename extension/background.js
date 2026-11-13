@@ -736,7 +736,19 @@ function markRedownloaded(url) {
   }
 }
 
-chrome.downloads.onDeterminingFilename.addListener((downloadItem) => {
+// Firefox 兼容：downloads API 未实现 onDeterminingFilename（该事件为 Chromium 专属，
+// Firefox 侧长期未实现，见 bugzilla 1245652）。在 Firefox 里 chrome.downloads 的这个属性是
+// undefined，不加检测直接 addListener 会在脚本顶层抛 TypeError、炸掉整个 background
+// （右键菜单、消息路由、配对全部失效）。特性检测后仅在事件存在时注册：Firefox 侧
+// "拦截全部下载"功能因此不可用（没有该事件即无从拦截，也无替代 API），其余功能不受
+// 影响；Chromium 行为不变。
+const downloadsFilenameEvent = chrome.downloads?.onDeterminingFilename
+if (downloadsFilenameEvent?.addListener) {
+  downloadsFilenameEvent.addListener(onDeterminingFilename)
+}
+
+/** 下载拦截监听体（注册处的 Firefox 兼容说明见上方） */
+function onDeterminingFilename(downloadItem) {
   // 竞态防御（A2）：本监听器必须**同步**返回 true（表示"异步给决策"），
   // Chrome 才会等我们；此前是 async 函数——第一个 await 期间 Chrome 已按默认
   // 文件名继续下载，小文件在 cancel 落地前就完成了，cancel 对已完成的下载
@@ -790,7 +802,7 @@ chrome.downloads.onDeterminingFilename.addListener((downloadItem) => {
 
   // 告知 Chrome：决策异步给出（取消成功后本次下载即终止，无需 suggest）
   return true
-})
+}
 
 // Handle messages from popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

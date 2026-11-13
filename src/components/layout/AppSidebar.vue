@@ -99,7 +99,8 @@ import {
   LogoGithub,
   NotificationsOutline,
   ServerOutline,
-  GlobeOutline
+  GlobeOutline,
+  FlashOutline
 } from '@vicons/ionicons5'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -168,6 +169,12 @@ const menuOptions = computed<MenuOption[]>(() => [
     label: t('nav.btInsights'),
     key: '/bt-insights',
     icon: renderIcon(GlobeOutline)
+  },
+  {
+    label: t('nav.automation'),
+    key: '/automation',
+    // 闪电图标贴合"自动导入"的即时语义；ionicons5 没有 RSS 专属图标
+    icon: renderIcon(FlashOutline)
   }
 ])
 

@@ -1,6 +1,6 @@
 {
   "name": "aria2-desktop",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "description": "集成 Aria2 引擎的现代化桌面下载管理器",
   "main": "dist/electron/electron/main.js",
   "author": "Young-ZJ66",
@@ -30,6 +30,7 @@
     "dist:linux:arm64": "npm run build && node scripts/verify-engine.mjs linux arm64 && electron-builder --linux --arm64",
     "pack:extension": "node scripts/pack-extension-crx.mjs",
     "pack:extension-zip": "node scripts/pack-extension-zip.mjs",
+    "pack:extension-firefox": "node scripts/pack-extension-firefox.mjs",
     "check:extension": "node scripts/check-extension.mjs",
     "verify:extension-api": "node scripts/verify-extension-api.mjs",
     "verify:dist": "node scripts/verify-dist.mjs",

@@ -8,6 +8,8 @@
  * 2) manifest 引用的文件缺失（service_worker / popup / 图标），同样表现为"无法加载扩展"。
  * 此外还校验：JS 语法、权限与 host_permissions 是否符合预期、语言键一致性、
  * 代码用到的 i18n key 是否存在、扩展与主进程的接口端口是否一致。
+ * Firefox 上架口径：manifest 变换（buildFirefoxManifest）产出合法、
+ * 以及源码不得使用 Firefox 不支持的 SW 专属用法。
  *
  * 用法：node scripts/check-extension.mjs（失败时退出码 1，可直接接进 CI）
  */
@@ -15,6 +17,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
+// Firefox 变换与打包脚本共用同一模块：校验口径与上架产物不会漂移
+import { buildFirefoxManifest } from './extension-firefox-manifest.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const extensionDir = path.join(root, 'extension')
@@ -124,7 +128,54 @@ if (manifest) {
   }
   if (missingApiPerms.length) fail('API 与权限声明不一致: ' + missingApiPerms.join('; '))
   else ok(`代码使用的 chrome API 均有对应权限声明（${Object.keys(API_PERMISSION).length} 类）`)
+
+  // ---- Firefox MV3 变体（AMO 上架口径）----
+  // 为什么加：同一份 extension/ 源码要打 Chromium 与 Firefox 两套包，Firefox 侧的坑
+  // （background.service_worker 不被支持、gecko.id 缺失会被 AMO 拒收）在 Chromium
+  // 口径的检查里全绿，只有在这里拦得住。buildFirefoxManifest 内部自带字段校验，
+  // 先跑通变换（即打包前的 dry-run，不产 zip），再逐项复核关键字段，失败定位更精确。
+  let firefoxManifest = null
+  try {
+    firefoxManifest = buildFirefoxManifest(manifest)
+    ok('Firefox manifest 变换可产出（buildFirefoxManifest 校验通过）')
+  } catch (error) {
+    fail(`Firefox manifest 变换失败: ${error.message}`)
+  }
+  if (firefoxManifest) {
+    const scripts = firefoxManifest.background?.scripts
+    if (Array.isArray(scripts) && scripts.includes('background.js') && !('service_worker' in firefoxManifest.background)) {
+      ok('Firefox background.scripts 含 background.js（service_worker 已替换为事件页）')
+    } else {
+      fail('Firefox background.scripts 应含 background.js 且不得残留 service_worker')
+    }
+    const geckoId = firefoxManifest.browser_specific_settings?.gecko?.id
+    if (geckoId && (/^[\w.-]+@[\w.-]+$/.test(geckoId) || /^\{[0-9a-fA-F-]{36}\}$/.test(geckoId))) {
+      ok(`Firefox gecko.id 合法: ${geckoId}`)
+    } else {
+      fail(`Firefox gecko.id 为空或格式非法: ${geckoId}`)
+    }
+    const minVersion = String(firefoxManifest.browser_specific_settings?.gecko?.strict_min_version ?? '')
+    const minMajor = parseInt(minVersion.split('.')[0], 10)
+    if (Number.isInteger(minMajor) && minMajor >= 109) {
+      ok(`Firefox strict_min_version >= 109: ${minVersion}`)
+    } else {
+      fail(`Firefox strict_min_version 应 >= 109（MV3 事件页基线），实际: ${minVersion}`)
+    }
+  }
 }
+
+// ---- Firefox 不支持的 SW 专属用法扫描 ----
+// Firefox MV3 的后台是事件页（background.scripts），没有 SW 全局对象：
+// 任何 serviceWorker 形态的访问（navigator.serviceWorker / chrome.serviceWorker 等）
+// 在 Firefox 里必然是 undefined 或抛错。静态扫描命中即 fail，防止未来改动引入。
+const swHits = []
+for (const file of ['background.js', 'popup.js']) {
+  const code = fs.readFileSync(path.join(extensionDir, file), 'utf8')
+  const match = code.match(/serviceWorker/i)
+  if (match) swHits.push(`${file} 出现 ${match[0]}（Firefox 后台为事件页，无此 API）`)
+}
+if (swHits.length) fail('源码含 Firefox 不支持的 SW 专属用法: ' + swHits.join('; '))
+else ok('background.js/popup.js 无 SW 专属用法（serviceWorker 扫描通过）')
 
 // ---- 语言包结构（最容易导致"扩展无法加载"的一类） ----
 for (const [name, locale] of Object.entries(locales)) {

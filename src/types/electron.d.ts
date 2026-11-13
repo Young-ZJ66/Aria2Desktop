@@ -1,4 +1,6 @@
 import type { ExtensionConnection } from '../shared/extensionVersion'
+// 自动导入（RSS 订阅 / 监听文件夹）的载荷契约：渲染层与主进程共用（见 src/shared/autoImport.ts）
+import type { AutoImportLogEntry, RssFeedItemPreview, RssSubscription, WatchFolderConfig } from '@/shared/autoImport'
 
 // 自动更新状态推送类型
 export interface UpdateStatus {
@@ -41,6 +43,10 @@ export type StreamDownloadEvent =
     totalBytes?: number
     /** 速度原始值（字节/秒） */
     speedBytes?: number
+    /** 播放列表模式：当前条目标题/序号（1 起）/总条目数；单视频下载不携带 */
+    entryTitle?: string
+    entryIndex?: number
+    entryCount?: number
   }
   | { type: 'completed'; id: string; filePath: string }
   | { type: 'failed'; id: string; error: string }
@@ -232,6 +238,24 @@ export interface ElectronAPI {
     }) => void) => () => void
   }
 
+  // RSS/Atom 订阅 + 监听文件夹自动导入（引擎无主动推送事件，UI 轮询刷新）
+  /** 订阅列表（含上次抓取状态字段） */
+  rssSubsList: () => Promise<{ subscriptions: RssSubscription[] }>
+  /** 按 id upsert 订阅；失败返回校验错误文本（名称/URL/正则/区间钳制） */
+  rssSubsSave: (subscription: RssSubscription) => Promise<{ success: boolean; subscription?: RssSubscription; error?: string }>
+  rssSubsDelete: (id: string) => Promise<{ success: boolean }>
+  /** 立即拉取：items 为本次匹配条目预览（≤20 条，title/link） */
+  rssSubsFetchNow: (id: string) => Promise<{ success: boolean; added: number; error?: string; items?: RssFeedItemPreview[] }>
+  /** 监听文件夹列表 */
+  watchFoldersList: () => Promise<{ folders: WatchFolderConfig[] }>
+  /** 按 id upsert 文件夹（path 须真实存在；extensions 归一带点小写） */
+  watchFoldersSave: (folder: WatchFolderConfig) => Promise<{ success: boolean; folder?: WatchFolderConfig; error?: string }>
+  watchFoldersDelete: (id: string) => Promise<{ success: boolean }>
+  /** 立即扫描：imported 为本次成功导入的文件数 */
+  watchFoldersScanNow: (id: string) => Promise<{ success: boolean; imported: number; error?: string }>
+  /** 自动导入日志（新→旧，上限 200 条，RSS 与监听文件夹共用） */
+  autoImportLogList: () => Promise<{ entries: AutoImportLogEntry[] }>
+
   // 已完成任务持久化（存于 userData，替代 localStorage）
   loadPersistedTasks: () => Promise<Record<string, unknown>>
   savePersistedTasks: (data: unknown) => Promise<{ success: boolean; error?: string }>
@@ -301,6 +325,8 @@ export interface ElectronAPI {
   onYtdlpInstallProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
   ytdlpVideoInfo: (url: string) => Promise<{ success: boolean; info?: { title: string; url: string; ext: string; filesize: number | null; format: string; formats: Array<{ formatId: string; ext: string; resolution: string; fps: number | null; filesize: number | null; vcodec: string; acodec: string; note: string }>; httpHeaders?: Record<string, string> }; error?: string }>
   ytdlpFormatUrl: (url: string, formatId: string) => Promise<{ success: boolean; downloadUrl?: string; title?: string; ext?: string; httpHeaders?: Record<string, string>; error?: string }>
+  /** 解析播放列表（flat 模式，只拉条目元数据不逐条解析详情） */
+  ytdlpPlaylistInfo: (url: string) => Promise<{ success: boolean; info?: { title: string; count: number; entries: Array<{ id: string; title: string; url: string; duration?: number; index?: number }>; hasPlaceholderUrls?: boolean }; error?: string }>
 
   // ffmpeg：合并音视频时按需下载
   ffmpegCheck: () => Promise<{ available: boolean; version?: string; error?: string; source?: 'downloaded' | 'path'; installable: boolean; approxSizeMB?: number }>
@@ -310,7 +336,18 @@ export interface ElectronAPI {
   onFfmpegInstallProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void
 
   // yt-dlp 下载模式（分离音视频站点：由 yt-dlp 下载并合并音轨）
-  streamDownloadStart: (request: { url: string; formatId?: string; merge?: boolean; title?: string; outputDir: string }) => Promise<{ success: boolean; id?: string; code?: 'ffmpeg_missing' | 'invalid_request'; error?: string }>
+  // playlist/subtitle/cookieFile/extractAudio 为播放列表/字幕/Cookie/预设能力新增，全部可选
+  streamDownloadStart: (request: {
+    url: string
+    formatId?: string
+    merge?: boolean
+    title?: string
+    outputDir: string
+    playlist?: { ids: string[] }
+    subtitle?: { enabled: boolean; languages: string[]; includeAuto?: boolean }
+    cookieFile?: string
+    extractAudio?: boolean
+  }) => Promise<{ success: boolean; id?: string; code?: 'ffmpeg_missing' | 'invalid_request'; error?: string }>
   streamDownloadCancel: (id: string) => Promise<boolean>
   onStreamDownloadEvent: (callback: (event: StreamDownloadEvent) => void) => () => void
 

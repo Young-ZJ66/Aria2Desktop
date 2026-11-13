@@ -227,6 +227,8 @@ describe('streamTaskStore', () => {
       url: 'https://example.com/video',
       formatId: '30080',
       merge: true,
+      // title 现在随请求透传给主进程（started 事件要靠它命名列表记录）
+      title: '测试视频',
       outputDir: 'D:/Downloads'
     })
     expect(store.findByGid('sd-test-1')).toBeUndefined()

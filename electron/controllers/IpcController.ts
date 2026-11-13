@@ -17,7 +17,7 @@ import { isAllowedExternalUrl } from '../utils/externalUrlCore'
 import { undoDuplicatedSegment } from '../utils/pathRepair'
 import { isPathInside } from '../utils/pathContainment'
 import { sanitizeSettingsInput, sanitizeTaskSourcesInput, sanitizeWindowStateInput } from '../utils/ipcInputValidation'
-import { checkYtdlpAvailable, getVideoInfo, getFormatUrl, installYtdlp, checkYtdlpUpdate } from '../services/ytdlpService'
+import { checkYtdlpAvailable, getVideoInfo, getPlaylistInfo, getFormatUrl, installYtdlp, checkYtdlpUpdate } from '../services/ytdlpService'
 import { checkFfmpegAvailable, installFfmpeg, checkFfmpegUpdate } from '../services/ffmpegService'
 import { startStreamDownload, cancelStreamDownload, type StreamDownloadRequest } from '../services/streamDownloadService'
 import { extractArchive } from '../services/archiveService'
@@ -936,11 +936,35 @@ export class IpcController {
         || (input.merge !== undefined && typeof input.merge !== 'boolean')
         || (input.title !== undefined && typeof input.title !== 'string')
         || typeof input.outputDir !== 'string'
+        || (input.cookieFile !== undefined && typeof input.cookieFile !== 'string')
+        || (input.extractAudio !== undefined && typeof input.extractAudio !== 'boolean')
+      ) {
+        return { success: false, code: 'invalid_request', error: 'Invalid request' }
+      }
+      // playlist/subtitle 是嵌套结构，这里只查顶层形状（对象/数组），逐项校验在服务内完成：
+      // 校验规则（id/语言/数量上限等）只存在于服务一处，避免 handler 与服务双份漂移
+      if (
+        (input.playlist !== undefined
+          && (typeof input.playlist !== 'object' || !Array.isArray(input.playlist.ids)))
+        || (input.subtitle !== undefined
+          && (typeof input.subtitle !== 'object'
+            || typeof input.subtitle.enabled !== 'boolean'
+            || !Array.isArray(input.subtitle.languages)))
       ) {
         return { success: false, code: 'invalid_request', error: 'Invalid request' }
       }
       return await startStreamDownload(
-        { url: input.url, formatId: input.formatId, merge: input.merge, title: input.title, outputDir: input.outputDir },
+        {
+          url: input.url,
+          formatId: input.formatId,
+          merge: input.merge,
+          title: input.title,
+          outputDir: input.outputDir,
+          playlist: input.playlist,
+          subtitle: input.subtitle,
+          cookieFile: input.cookieFile,
+          extractAudio: input.extractAudio
+        },
         (streamEvent) => {
           if (!event.sender.isDestroyed()) {
             event.sender.send('stream-download-event', streamEvent)
@@ -966,6 +990,10 @@ export class IpcController {
 
     registerSecureHandler('ytdlp-format-url', async (event, url: string, formatId: string) =>
       await getFormatUrl(url, formatId), { getMainWindow: this.windowRef })
+
+    // 播放列表解析（flat 模式）：URL 合法性在服务内校验（与 ytdlp-video-info 同口径）
+    registerSecureHandler('ytdlp-playlist-info', async (event, url: string) =>
+      await getPlaylistInfo(url), { getMainWindow: this.windowRef })
   }
 
   /** 插件管理 */

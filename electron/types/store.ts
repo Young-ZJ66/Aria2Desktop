@@ -6,6 +6,9 @@
  */
 export type { AppSettings, SpeedScheduleRule } from '../../src/shared/appSettings'
 import type { AppSettings } from '../../src/shared/appSettings'
+// RSS/监听文件夹自动导入的契约类型同样源自 src/shared（主进程与渲染层共用，理由同上）
+export type { RssSubscription, WatchFolderConfig, AutoImportLogEntry } from '../../src/shared/autoImport'
+import type { RssSubscription, WatchFolderConfig, AutoImportLogEntry } from '../../src/shared/autoImport'
 
 /** 窗口状态 */
 export interface WindowState {
@@ -38,5 +41,17 @@ export interface StoreData {
   disabledPlugins?: string[]
   /** 已播过的内置示例插件 id（用户卸载后不再自动重装） */
   seededBuiltinPlugins?: string[]
+  // ── RSS/Atom 订阅自动下载 + 监听文件夹自动导入（见 services/rssSubscriptionService.ts / watchFolderService.ts）──
+  // 全部可选键：旧版本磁盘上没有这些数据，服务读取时以空值兜底。
+  /** RSS/Atom 订阅列表 */
+  rssSubscriptions?: RssSubscription[]
+  /** 每条订阅已见过的条目键（guid/enclosureUrl/link），数组上限 500 FIFO */
+  rssSeenItems?: Record<string, string[]>
+  /** 监听文件夹列表 */
+  watchFolders?: WatchFolderConfig[]
+  /** 已导入文件的内容哈希（sha256 hex），上限 1000 FIFO */
+  watchSeenHashes?: string[]
+  /** 自动导入日志（新→旧），上限 200 条 */
+  autoImportLog?: AutoImportLogEntry[]
   [key: string]: unknown
 }

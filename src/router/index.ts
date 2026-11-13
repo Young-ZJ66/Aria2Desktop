@@ -42,6 +42,11 @@ const router = createRouter({
       path: '/bt-insights',
       name: 'bt-insights',
       component: () => import('@/views/BtInsights.vue')
+    },
+    {
+      path: '/automation',
+      name: 'automation',
+      component: () => import('@/views/AutomationView.vue')
     }
   ]
 })

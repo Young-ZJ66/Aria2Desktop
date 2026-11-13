@@ -27,6 +27,19 @@ jobs:
             manifest.json background.js popup.html popup.js \
             icons/ _locales/ README.md
 
+      # Firefox AMO 上架变体：manifest 换成 background.scripts 事件页 + gecko 设置，
+      # 其余文件与 Chromium 包一致（见 scripts/extension-firefox-manifest.mjs）。
+      # 零依赖脚本只需 Node 本身；产物移到根目录，让下面的通配把两种 zip 一起收进 artifact。
+      - name: 安装 Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: 打包 Firefox 扩展（AMO 变体）
+        run: |
+          node scripts/pack-extension-firefox.mjs
+          mv release/Aria2Desktop-Extension-Firefox-*.zip .
+
       - name: 上传扩展产物
         uses: actions/upload-artifact@v7
         with:

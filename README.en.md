@@ -42,6 +42,7 @@
 - **Completion rules**: trigger move, rename, extract, open, notification and webhook actions based on category, extension or success/failure status
 - **Speed scheduler**: automatically switch between speed limits by weekday and time range (for example, limit bandwidth during weekday daytime)
 - **Scheduled downloads**: automatically pause and resume all tasks during chosen time windows, ideal for overnight downloads; tasks you paused manually are left untouched
+- **Automation page**: RSS/Atom subscriptions are fetched on a schedule, filtered by include/exclude patterns and added as downloads automatically (entry deduplication, per-fetch cap, optional save directory); watched folders auto-import new <code>.torrent</code> / <code>.metalink</code> / magnet-link text files, deleting or moving them into an <code>imported/</code> subfolder after import, with SHA-256 content deduplication
 - Category-based folders for video, music, images, documents, archives and programs; filter the task list by category and source (HTTP/BT/magnet/streaming)
 - BitTorrent: choose files and filter by type before downloading; stop and re-seed directly from the list; subscribe to trackers and aggregate the latest lists
 - **BT Insights page**: a dedicated page with live peer details (client, IP geolocation, speeds, seeder flags) and tier-grouped trackers, plus summary cards for seeder count, aggregate speeds and info hash; refreshes every 5 seconds while visible
@@ -62,9 +63,9 @@
 
 ### Extensions and streaming
 
-- Install directly from the Edge Add-ons store; Chrome can be side-loaded (see [extension/README.md](extension/README.md))
+- Install directly from the Edge Add-ons store; Chrome can be side-loaded (see [extension/README.md](extension/README.md)); releases also carry a Firefox (AMO) variant zip
 - Send a link from the context menu, send the current page from the popup, or batch-scrape links from a page; optionally take over browser downloads
-- Streaming: yt-dlp integration supports 1000+ sites, downloaded on demand with SHA-256 verification; ffmpeg merges separate audio/video streams for sites such as Bilibili
+- Streaming: yt-dlp integration supports 1000+ sites, downloaded on demand with SHA-256 verification; playlist entry picking, subtitles (including auto-generated, converted to <code>srt</code>), cookie files and quality presets (best/1080p/720p/480p/MP3 extract) are supported, with playlist progress showing the current entry title and index; ffmpeg merges separate audio/video streams for sites such as Bilibili
 - Plugin system: plugins run in a separate <code>utilityProcess</code> with declared permissions, a whitelisted IPC bridge, crash isolation and automatic restart; plugin entry execution has a 3-second timeout
 - Plugin marketplace: configurable registry URL, SHA-256 integrity checks and Ed25519/RSA publisher signature verification, with install, update and report actions; see [docs/plugin-development.md](docs/plugin-development.md)
 - Built-in Auto Retry sample plugin: retries failed downloads up to three times (the native UI only offers manual retry), demonstrating event hooks and the <code>aria2:write</code> permission

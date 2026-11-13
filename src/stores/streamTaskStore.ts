@@ -19,6 +19,14 @@ export interface StartStreamTaskInput {
   merge: boolean
   outputDir: string
   title: string
+  /** 播放列表选中条目 id（--playlist-items 语义） */
+  playlist?: { ids: string[] }
+  /** 字幕设置（enabled 时写字幕并转 srt） */
+  subtitle?: { enabled: boolean; languages: string[]; includeAuto?: boolean }
+  /** Cookie 文件绝对路径（会员视频等登录态场景） */
+  cookieFile?: string
+  /** 提取音频并转 MP3 */
+  extractAudio?: boolean
 }
 
 function baseName(filePath: string): string {
@@ -52,7 +60,14 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
       url: input.url,
       formatId: input.formatId,
       merge: input.merge,
-      outputDir: input.outputDir
+      // title 必须随请求传给主进程：started 事件要靠它给扩展发起之外的列表记录命名
+      title: input.title,
+      outputDir: input.outputDir,
+      // 新能力字段只在调用方提供时携带，请求形状与旧版本保持一致
+      ...(input.playlist ? { playlist: input.playlist } : {}),
+      ...(input.subtitle ? { subtitle: input.subtitle } : {}),
+      ...(input.cookieFile ? { cookieFile: input.cookieFile } : {}),
+      ...(input.extractAudio ? { extractAudio: input.extractAudio } : {})
     })
     if (result.success && result.id && !findByGid(result.id)) {
       // 正常情况下 started 事件已经建立了记录；这里兜底（事件与 invoke 回包存在时序差）
@@ -105,6 +120,13 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
       task.eta = event.eta ?? ''
       if (event.totalBytes) task.totalBytes = event.totalBytes
       if (event.downloadedBytes) task.downloadedBytes = event.downloadedBytes
+      // 播放列表模式：用「条目标题 (n/m)」覆盖列表展示名，用户能看到当前在下哪一条
+      if (event.entryTitle) {
+        const suffix = event.entryIndex && event.entryCount
+          ? ' (' + event.entryIndex + '/' + event.entryCount + ')'
+          : ''
+        task.title = event.entryTitle + suffix
+      }
       return
     }
 
