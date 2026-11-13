@@ -11,8 +11,13 @@ export interface PersistedTask extends Aria2Task {
   completedAt?: number // 完成时间戳
 }
 
-/** 已完成任务保留上限（按完成时间淘汰最旧）。导出给测试断言，避免两边各写一个数字。 */
-export const MAX_PERSISTED_TASKS = 5000
+/**
+ * 已完成任务保留上限（按完成时间淘汰最旧）。导出给测试断言，避免两边各写一个数字。
+ * SQLite 后端（v1.3.5 起默认）按行存储，与主进程 HISTORY_MAX_ROWS 同为 5 万；
+ * localStorage 回退环境下这个上限同样生效，但配额（约 5MB）通常先到——那条路径
+ * 本来就是无 Electron 后端的开发态兜底。
+ */
+export const MAX_PERSISTED_TASKS = 50_000
 
 class TaskPersistenceService {
   private readonly STORAGE_KEY = 'aria2_persisted_tasks'
@@ -153,7 +158,7 @@ class TaskPersistenceService {
   /**
    * 持久化已完成任务
    */
-  persistCompletedTask(task: Aria2Task, completedAt?: number) {
+  async persistCompletedTask(task: Aria2Task, completedAt?: number) {
     const existing = this.persistedTasks.get(task.gid)
 
     // 如果任务已经持久化，不要覆盖完成时间
@@ -173,6 +178,27 @@ class TaskPersistenceService {
     // 如果超过最大数量，删除最旧的任务
     if (this.persistedTasks.size > this.MAX_TASKS) {
       this.cleanupOldTasks()
+    }
+
+    // SQLite 增量通道：完成一条写一条，不再把整张 Map 全量序列化。
+    // 历史 5 万条时全量重写既是渲染线程的开销（JSON.stringify 整表），
+    // 也是主进程的写放大（一次事务重写所有行）。
+    if (window.electronAPI?.savePersistedTask) {
+      try {
+        const result = await window.electronAPI.savePersistedTask(task.gid, persistedTask)
+        if (result?.success === false) {
+          // 增量通道失败（JSON 回退后端也可能在这里失败）：记录错误并退回合批全量路径重试
+          this.lastPersistError = result.error || '保存失败'
+          this.schedulePersist()
+        } else {
+          this.lastPersistError = null
+        }
+      } catch (error) {
+        this.lastPersistError = error instanceof Error ? error.message : String(error)
+        this.schedulePersist()
+      }
+      devLog(`Persisted completed task: ${task.gid} at ${new Date(persistedTask.completedAt!)}`)
+      return
     }
 
     this.schedulePersist()
@@ -205,7 +231,7 @@ class TaskPersistenceService {
    */
   removePersistedTask(gid: string) {
     this.persistedTasks.delete(gid)
-    this.schedulePersist()
+    this.deleteIncremental([gid])
     devLog(`Removed persisted task: ${gid}`)
   }
 
@@ -214,8 +240,34 @@ class TaskPersistenceService {
    */
   removePersistedTasks(gids: string[]) {
     gids.forEach(gid => this.persistedTasks.delete(gid))
-    this.schedulePersist()
+    this.deleteIncremental(gids)
     devLog(`Removed ${gids.length} persisted tasks`)
+  }
+
+  /**
+   * 增量删除通道：Electron 后端可用时直接按 gid 删行，不再全量重写。
+   * JSON 回退后端不支持增量（返回 fallback:true），此时退回合批全量保存——
+   * 全量保存会把已从内存 Map 删除的 gid 一并从后端清除。
+   */
+  private async deleteIncremental(gids: string[]): Promise<void> {
+    const api = window.electronAPI?.deletePersistedTasks
+    if (!api) {
+      this.schedulePersist()
+      return
+    }
+    try {
+      const result = await api(gids)
+      if (result?.success === false && result.fallback) {
+        this.schedulePersist()
+      } else if (result?.success === false) {
+        this.lastPersistError = result.error || '删除失败'
+      } else {
+        this.lastPersistError = null
+      }
+    } catch (error) {
+      this.lastPersistError = error instanceof Error ? error.message : String(error)
+      this.schedulePersist()
+    }
   }
 
   /**
@@ -241,7 +293,7 @@ class TaskPersistenceService {
   /**
    * 清理过期任务（超过指定天数）
    */
-  cleanupExpiredTasks(days: number = 30) {
+  cleanupExpiredTasks(days: number) {
     const expireTime = Date.now() - (days * 24 * 60 * 60 * 1000)
     let cleaned = 0
 
@@ -304,7 +356,26 @@ class TaskPersistenceService {
   async clearAllPersistedTasks(): Promise<boolean> {
     this.persistedTasks.clear()
     localStorage.removeItem(this.STORAGE_KEY)
-    // 同步清空后端文件（Electron IPC 写文件），避免主进程残留旧记录
+    // Electron 后端：直接清空整个后端存储，避免主进程残留旧记录
+    if (window.electronAPI?.clearPersistedTasks) {
+      try {
+        const result = await window.electronAPI.clearPersistedTasks()
+        if (result?.success === false) {
+          this.lastPersistError = result.error || '清空失败'
+        } else {
+          this.lastPersistError = null
+        }
+        devLog('Cleared all persisted tasks')
+        return result?.success !== false
+      } catch (error) {
+        this.lastPersistError = error instanceof Error ? error.message : String(error)
+        // 清空通道失败时退回全量保存（空表全量保存即清空）
+        const ok = await this.flush()
+        devLog('Cleared all persisted tasks (fallback)')
+        return ok
+      }
+    }
+    // 无 Electron 后端：localStorage 回退
     const ok = await this.flush()
     devLog('Cleared all persisted tasks')
     return ok
@@ -314,12 +385,7 @@ class TaskPersistenceService {
 // 创建单例实例
 export const taskPersistenceService = new TaskPersistenceService()
 
-// 定期清理过期任务（保存引用，可通过 stopCleanupTimer 停止）
-const cleanupTimer = setInterval(() => {
-  // 保留 180 天；清理是有意的低频维护，不再使用 30 天静默删除用户历史
-  taskPersistenceService.cleanupExpiredTasks(180)
-}, 24 * 60 * 60 * 1000) // 每24小时执行一次
-
-export function stopCleanupTimer() {
-  clearInterval(cleanupTimer)
-}
+// v1.3.5 起**不再**挂 24 小时定时器按天龄静默删除历史：
+// SQLite 后端的容量管理是超 5 万行裁最旧（HISTORY_MAX_ROWS），与记录新旧无关；
+// 按天龄清理会无声删掉用户的历史，属于用户没有要求过的数据丢失。
+// cleanupExpiredTasks 保留为显式 API，供将来设置页“清理 N 天前的记录”按钮直接调用。

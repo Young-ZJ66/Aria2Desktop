@@ -103,6 +103,10 @@ const electronAPI = {
   // 已完成任务持久化（替代 localStorage，存于 userData）
   loadPersistedTasks: () => ipcRenderer.invoke('persisted-tasks-load'),
   savePersistedTasks: (data: unknown) => ipcRenderer.invoke('persisted-tasks-save', data),
+  // 增量通道：完成一条写一条、删哪条删哪条（SQLite 后端；JSON 回退时返回 fallback:true）
+  savePersistedTask: (gid: string, task: unknown) => ipcRenderer.invoke('persisted-tasks-save-one', gid, task),
+  deletePersistedTasks: (gids: string[]) => ipcRenderer.invoke('persisted-tasks-delete', gids),
+  clearPersistedTasks: () => ipcRenderer.invoke('persisted-tasks-clear'),
   getPersistedTasksStats: () => ipcRenderer.invoke('persisted-tasks-stats'),
 
   // 平台信息（值而非函数：平台在进程生命周期内不变，直接暴露简化渲染层访问）

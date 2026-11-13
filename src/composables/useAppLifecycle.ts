@@ -17,7 +17,7 @@ import { initLocalService, stopStatusCheck } from '@/composables/useAria2LocalSe
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useClipboardMonitor } from '@/composables/useClipboardMonitor'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
-import { stopCleanupTimer, taskPersistenceService } from '@/services/taskPersistenceService'
+import { taskPersistenceService } from '@/services/taskPersistenceService'
 import { stopTimeCleanupTimer, taskTimeService } from '@/services/taskTimeService'
 import type { useThemeManager } from '@/composables/useThemeManager'
 
@@ -482,7 +482,6 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   onUnmounted(() => {
     stopAllRefresh()
     stopStatusCheck()
-    stopCleanupTimer()
     stopTimeCleanupTimer()
     keyboardShortcuts.stop()
     unsubscribeConfig?.()

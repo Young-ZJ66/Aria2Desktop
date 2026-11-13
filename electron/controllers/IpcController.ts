@@ -842,6 +842,38 @@ export class IpcController {
       return history.saveAll(data as Record<string, unknown>)
     }, { getMainWindow: this.windowRef })
 
+    // —— 增量通道（SQLite 后端）：完成一条写一条、删哪条删哪条，不再全量重写 ——
+    // save 全量通道仍保留：localStorage 回退环境（node:sqlite 不可用）与首次全量同步还在用。
+
+    // 单条写入（每完成一个任务一次）
+    registerSecureHandler('persisted-tasks-save-one', async (_event, gid: unknown, task: unknown) => {
+      if (typeof gid !== 'string' || !gid) return { success: false, error: 'Invalid gid' }
+      if (!task || typeof task !== 'object' || Array.isArray(task)) {
+        return { success: false, error: 'Invalid history task' }
+      }
+      return history.saveOne(gid, task)
+    }, { getMainWindow: this.windowRef })
+
+    // 批量增量删除（单条删除也走这里）
+    registerSecureHandler('persisted-tasks-delete', async (_event, gids: unknown) => {
+      if (!Array.isArray(gids)) return { success: false, error: 'Invalid gids' }
+      // 上限防滥用：一次请求最多删 1000 条（与主进程分批删除上限同口径）
+      const normalized = gids
+        .filter((g): g is string => typeof g === 'string' && g.length > 0)
+        .slice(0, 1000)
+      if (!history.enabled) {
+        // JSON 回退后端没有增量删除：主进程返回提示，渲染层据此改走全量保存
+        return { success: false, error: 'unsupported', fallback: true }
+      }
+      return history.deleteMany(normalized)
+    }, { getMainWindow: this.windowRef })
+
+    // 清空全部历史
+    registerSecureHandler('persisted-tasks-clear', async () => history.deleteAll(), {
+      getMainWindow: this.windowRef,
+      failureValue: { success: false, error: 'Unauthorized' }
+    })
+
     // 历史统计：诊断页展示后端类型与记录数（SQLite 可用时不再有 10MB 上限）
     registerSecureHandler('persisted-tasks-stats', async () => history.getStats(), {
       getMainWindow: this.windowRef,

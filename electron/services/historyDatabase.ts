@@ -23,6 +23,12 @@ interface SqliteStatement {
   all(...params: unknown[]): unknown[]
 }
 
+/** 历史记录上限：SQLite 后端按行裁剪最旧记录（按 completed_at 排序），不再按天龄清理。 */
+export const HISTORY_MAX_ROWS = 50_000
+
+/** 单次增量删除的 gid 数量上限：与渲染层单次批量删除的规模一致，防止超大 IN 列表拖垮 SQLite。 */
+const MAX_DELETE_BATCH = 1_000
+
 interface SqliteDatabase {
   exec(sql: string): void
   prepare(sql: string): SqliteStatement
@@ -147,6 +153,98 @@ export class HistoryDatabase {
     } catch (error) {
       logger.error('[HistoryDatabase] Failed to save history:', error)
       return { success: false, error: String(error) }
+    }
+  }
+
+  /**
+   * 增量写入单条记录（INSERT OR REPLACE）。
+   *
+   * 渲染层每完成一个任务就有一条记录，此前渲染层把整张 Map 全量序列化后整体落盘，
+   * 历史越大每次完成事件的写放大越严重。SQLite 后端下单条写入是 O(1)；JSON 回退后端
+   * 仍走全量（读改写整个文件），但只在 node:sqlite 不可用的环境出现。
+   */
+  saveOne(gid: string, task: unknown): { success: boolean; error?: string } {
+    if (!gid || typeof gid !== 'string') return { success: false, error: 'Invalid gid' }
+    if (!this.db) return this.saveAll({ [gid]: task })
+    try {
+      const record = task as { completedAt?: number; persistedAt?: number } | null
+      this.db.prepare(
+        'INSERT OR REPLACE INTO download_history (gid, task_json, completed_at, persisted_at) VALUES (?, ?, ?, ?)'
+      ).run(
+        gid,
+        JSON.stringify(task ?? {}),
+        Number(record?.completedAt ?? 0),
+        Number(record?.persistedAt ?? 0)
+      )
+      this.trimToLimit()
+      return { success: true }
+    } catch (error) {
+      logger.error('[HistoryDatabase] Failed to save one history row:', error)
+      return { success: false, error: String(error) }
+    }
+  }
+
+  /** 增量删除若干 gid（分批 IN，避免超大语句）；JSON 回退后端不支持增量，由渲染层改走全量保存 */
+  deleteMany(gids: string[]): { success: boolean; error?: string } {
+    if (!Array.isArray(gids) || gids.length === 0) return { success: true }
+    if (!this.db) return { success: false, error: 'JSON backend does not support incremental delete' }
+    try {
+      this.db.exec('BEGIN')
+      try {
+        for (let start = 0; start < gids.length; start += MAX_DELETE_BATCH) {
+          const batch = gids.slice(start, start + MAX_DELETE_BATCH).filter(g => typeof g === 'string' && g)
+          if (batch.length === 0) continue
+          const placeholders = batch.map(() => '?').join(',')
+          this.db.prepare(`DELETE FROM download_history WHERE gid IN (${placeholders})`).run(...batch)
+        }
+        this.db.exec('COMMIT')
+      } catch (error) {
+        this.db.exec('ROLLBACK')
+        throw error
+      }
+      return { success: true }
+    } catch (error) {
+      logger.error('[HistoryDatabase] Failed to delete history rows:', error)
+      return { success: false, error: String(error) }
+    }
+  }
+
+  /** 清空全部历史（保留数据库结构与迁移标记） */
+  deleteAll(): { success: boolean; error?: string } {
+    if (!this.db) {
+      try {
+        if (this.legacyPath && fs.existsSync(this.legacyPath)) {
+          fs.writeFileSync(this.legacyPath, '{}', { encoding: 'utf-8', mode: 0o600 })
+        }
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: String(error) }
+      }
+    }
+    try {
+      this.db.exec('DELETE FROM download_history')
+      return { success: true }
+    } catch (error) {
+      logger.error('[HistoryDatabase] Failed to clear history:', error)
+      return { success: false, error: String(error) }
+    }
+  }
+
+  /** 超过行数上限时裁掉完成时间最旧的记录（SQLite 后端的容量管理，替代按天龄清理） */
+  private trimToLimit(): void {
+    if (!this.db) return
+    try {
+      const rows = this.db.prepare(
+        'SELECT COUNT(*) AS count FROM download_history'
+      ).all() as { count: number }[]
+      const count = rows[0]?.count ?? 0
+      if (count <= HISTORY_MAX_ROWS) return
+      this.db.prepare(
+        `DELETE FROM download_history WHERE gid IN (SELECT gid FROM download_history ORDER BY completed_at ASC, persisted_at ASC LIMIT ?)`
+      ).run(count - HISTORY_MAX_ROWS)
+      logger.info(`[HistoryDatabase] Trimmed ${count - HISTORY_MAX_ROWS} history rows to fit limit`)
+    } catch (error) {
+      logger.warn('[HistoryDatabase] Failed to trim history rows:', error)
     }
   }
 

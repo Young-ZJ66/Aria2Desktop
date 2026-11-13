@@ -235,6 +235,12 @@ export interface ElectronAPI {
   // 已完成任务持久化（存于 userData，替代 localStorage）
   loadPersistedTasks: () => Promise<Record<string, unknown>>
   savePersistedTasks: (data: unknown) => Promise<{ success: boolean; error?: string }>
+  /** 增量写入单条历史记录（SQLite 后端）；JSON 回退后端按全量语义处理 */
+  savePersistedTask: (gid: string, task: unknown) => Promise<{ success: boolean; error?: string }>
+  /** 增量删除历史记录；JSON 回退后端返回 { success:false, error:'unsupported', fallback:true } */
+  deletePersistedTasks: (gids: string[]) => Promise<{ success: boolean; error?: string; fallback?: boolean }>
+  /** 清空全部历史记录 */
+  clearPersistedTasks: () => Promise<{ success: boolean; error?: string }>
   getPersistedTasksStats: () => Promise<{ count: number; backend: 'sqlite' | 'json' }>
 
   // 平台信息

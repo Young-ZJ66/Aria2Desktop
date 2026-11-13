@@ -39,6 +39,8 @@ function createLocalStorage(corruptValue?: string): FakeStorage {
 interface LoadOptions {
   backend?: Record<string, unknown> | unknown[]
   withBackend?: boolean
+  /** false = 模拟旧 preload（无增量 API），服务应退回全量合批路径 */
+  incremental?: boolean
   corruptStorage?: string
 }
 
@@ -48,10 +50,18 @@ async function loadService(options: LoadOptions = {}) {
   const localStorage = createLocalStorage(options.corruptStorage)
   const savePersistedTasks = vi.fn().mockResolvedValue(undefined)
   const loadPersistedTasks = vi.fn().mockResolvedValue(options.backend ?? {})
+  // v1.3.5 增量通道：withBackend 默认同时挂上；incremental:false 时模拟旧 preload（无增量 API），服务应退回全量合批
+  const savePersistedTask = vi.fn().mockResolvedValue({ success: true })
+  const deletePersistedTasks = vi.fn().mockResolvedValue({ success: true })
+  const clearPersistedTasks = vi.fn().mockResolvedValue({ success: true })
 
   vi.stubGlobal('localStorage', localStorage)
   vi.stubGlobal('window', {
-    electronAPI: options.withBackend === false ? undefined : { savePersistedTasks, loadPersistedTasks }
+    electronAPI: options.withBackend === false
+      ? undefined
+      : options.incremental === false
+        ? { savePersistedTasks, loadPersistedTasks }
+        : { savePersistedTasks, loadPersistedTasks, savePersistedTask, deletePersistedTasks, clearPersistedTasks }
   })
 
   const mod = await import('./taskPersistenceService')
@@ -60,6 +70,9 @@ async function loadService(options: LoadOptions = {}) {
     maxTasks: mod.MAX_PERSISTED_TASKS,
     savePersistedTasks,
     loadPersistedTasks,
+    savePersistedTask,
+    deletePersistedTasks,
+    clearPersistedTasks,
     localStorage
   }
 }
@@ -105,8 +118,8 @@ describe('persistCompletedTask（重复与合批）', () => {
     expect(service.getPersistedTask('g1')?.completedAt).toBe(1_000)
   })
 
-  it('同一窗口内的多次写入合并为一次落盘', async () => {
-    const { service, savePersistedTasks } = await loadService()
+  it('同一窗口内的多次写入合并为一次落盘（旧 preload 无增量通道时的回退路径）', async () => {
+    const { service, savePersistedTasks } = await loadService({ incremental: false })
 
     service.persistCompletedTask(makeTask('a'))
     service.persistCompletedTask(makeTask('b'))
@@ -119,8 +132,36 @@ describe('persistCompletedTask（重复与合批）', () => {
     expect(Object.keys(firstPayload(savePersistedTasks) ?? {}).sort()).toEqual(['a', 'b', 'c'])
   })
 
+  it('增量通道可用时每条记录直接单条写入，不再全量合批', async () => {
+    const { service, savePersistedTasks, savePersistedTask } = await loadService()
+
+    service.persistCompletedTask(makeTask('a'), 1_000)
+    service.persistCompletedTask(makeTask('b'), 2_000)
+    await Promise.resolve() // persistCompletedTask 是 async：让 microtask 队列跑完
+
+    expect(savePersistedTask).toHaveBeenCalledTimes(2)
+    expect(savePersistedTask.mock.calls[0]?.[0]).toBe('a')
+    expect(savePersistedTask).not.toHaveBeenCalledWith('a', expect.objectContaining({ gid: 'b' }))
+    // 全量通道不应被触碰
+    expect(savePersistedTasks).not.toHaveBeenCalled()
+  })
+
+  it('增量单条写入失败时记录错误并退回全量合批重试', async () => {
+    const { service, savePersistedTask, savePersistedTasks } = await loadService()
+    savePersistedTask.mockResolvedValue({ success: false, error: 'disk full' })
+
+    service.persistCompletedTask(makeTask('a'), 1_000)
+    await Promise.resolve()
+
+    expect(service.getLastPersistError()).toBe('disk full')
+    // 失败后应有合批全量兜底（300ms 窗口）
+    await vi.advanceTimersByTimeAsync(300)
+    expect(savePersistedTasks).toHaveBeenCalledTimes(1)
+    expect(Object.keys(firstPayload(savePersistedTasks) ?? {})).toEqual(['a'])
+  })
+
   it('flush 立即落盘，并取消排队中的那次写入', async () => {
-    const { service, savePersistedTasks } = await loadService()
+    const { service, savePersistedTasks } = await loadService({ incremental: false })
 
     service.persistCompletedTask(makeTask('a'))
     await service.flush()
@@ -133,33 +174,76 @@ describe('persistCompletedTask（重复与合批）', () => {
 
 describe('上限淘汰（超过上限时保留最新的）', () => {
   it('挤掉完成时间最早的那条，条数收敛到上限', async () => {
-    const { service, maxTasks } = await loadService()
+    // 上限本身是 5 万（见下方常量断言），单测不可能真插 5 万条再等淘汰——
+    // 这里在运行时把实例的裁剪阈值改小（readonly 只是 TS 层约束），验证裁剪方向。
+    // 真正的行级裁剪在主进程 HistoryDatabase.trimToLimit（有自己的单测）。
+    const { service } = await loadService()
+    const smallLimit = 3
+    Object.defineProperty(service, 'MAX_TASKS', { value: smallLimit, writable: false })
 
-    for (let index = 0; index < maxTasks + 1; index++) {
-      service.persistCompletedTask(makeTask(`task-${index}`), 1_000 + index)
+    for (let index = 0; index < smallLimit + 2; index++) {
+      await service.persistCompletedTask(makeTask(`task-${index}`), 1_000 + index)
     }
 
-    expect(service.getStorageStats().totalTasks).toBe(maxTasks)
+    expect(service.getStorageStats().maxTasks).toBe(smallLimit)
+    expect(service.getStorageStats().totalTasks).toBe(smallLimit)
+    // completedAt 最早的两条被裁掉
     expect(service.getPersistedTask('task-0')).toBeUndefined()
-    expect(service.getPersistedTask('task-1')).toBeDefined()
-    expect(service.getPersistedTask(`task-${maxTasks}`)).toBeDefined()
+    expect(service.getPersistedTask('task-1')).toBeUndefined()
+    expect(service.getPersistedTask('task-2')).toBeDefined()
+    expect(service.getPersistedTask(`task-${smallLimit + 1}`)).toBeDefined()
+  })
+
+  it('上限常量与主进程 SQLite 行上限一致（5 万）', async () => {
+    const { maxTasks } = await loadService()
+    expect(maxTasks).toBe(50_000)
   })
 })
 
 describe('删除与清理', () => {
-  it('批量删除后按合批规则落盘', async () => {
-    const { service, savePersistedTasks } = await loadService()
-
-    service.persistCompletedTask(makeTask('a'), 1_000)
-    service.persistCompletedTask(makeTask('b'), 2_000)
-    await vi.advanceTimersByTimeAsync(300)
-    savePersistedTasks.mockClear()
+  it('增量通道下批量删除按 gid 直删，不再全量落盘', async () => {
+    const { service, deletePersistedTasks, savePersistedTasks } = await loadService()
 
     service.removePersistedTasks(['a', 'b'])
+    await Promise.resolve()
+
+    expect(deletePersistedTasks).toHaveBeenCalledTimes(1)
+    expect(deletePersistedTasks.mock.calls[0]?.[0]).toEqual(['a', 'b'])
+    expect(savePersistedTasks).not.toHaveBeenCalled()
+  })
+
+  it('单条删除也走增量通道', async () => {
+    const { service, deletePersistedTasks } = await loadService()
+
+    service.removePersistedTask('only-one')
+    await Promise.resolve()
+
+    expect(deletePersistedTasks).toHaveBeenCalledWith(['only-one'])
+  })
+
+  it('JSON 回退后端（fallback:true）时退回全量合批删除', async () => {
+    const { service, deletePersistedTasks, savePersistedTasks } = await loadService()
+    deletePersistedTasks.mockResolvedValue({ success: false, error: 'unsupported', fallback: true })
+
+    service.persistCompletedTask(makeTask('a'), 1_000)
+    await Promise.resolve()
+    savePersistedTasks.mockClear()
+
+    service.removePersistedTask('a')
     await vi.advanceTimersByTimeAsync(300)
 
     expect(savePersistedTasks).toHaveBeenCalledTimes(1)
     expect(firstPayload(savePersistedTasks)).toEqual({})
+  })
+
+  it('清空历史走 clear 通道而非全量保存', async () => {
+    const { service, clearPersistedTasks, savePersistedTasks } = await loadService()
+
+    const ok = await service.clearAllPersistedTasks()
+
+    expect(ok).toBe(true)
+    expect(clearPersistedTasks).toHaveBeenCalledTimes(1)
+    expect(savePersistedTasks).not.toHaveBeenCalled()
   })
 })
 
