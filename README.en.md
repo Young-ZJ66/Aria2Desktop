@@ -44,6 +44,7 @@
 - **Scheduled downloads**: automatically pause and resume all tasks during chosen time windows, ideal for overnight downloads; tasks you paused manually are left untouched
 - Category-based folders for video, music, images, documents, archives and programs; filter the task list by category and source (HTTP/BT/magnet/streaming)
 - BitTorrent: choose files and filter by type before downloading; stop and re-seed directly from the list; subscribe to trackers and aggregate the latest lists
+- **BT Insights page**: a dedicated page with live peer details (client, IP geolocation, speeds, seeder flags) and tier-grouped trackers, plus summary cards for seeder count, aggregate speeds and info hash; refreshes every 5 seconds while visible
 - Magnet links and <code>.torrent</code> / <code>.metalink</code> files registered as system handlers; save a magnet task as a <code>.torrent</code> file; duplicate magnet links are detected and reported
 - Paste a browser "Copy as cURL" command to extract the URL, Referer, User-Agent and Cookie automatically; batch paste, drag-and-drop URLs or <code>.torrent</code>/<code>.metalink</code> files
 - Failed tasks can be rebuilt and retried from their original source (URL, torrent or magnet info hash); unfinished tasks and download history support redacted export and validated import for easy migration
@@ -57,7 +58,7 @@
 - Notification center with completed/failed records and unread badges
 - Tray icon, taskbar progress and launch-at-login; after download completion, apply completion rules to open files/folders, shut down, sleep or close the app
 - Copy a download link and return to the app to be prompted with a new-task window (clipboard monitoring can be disabled in Settings); global shortcuts (<code>Ctrl+N</code> new task, <code>Ctrl+F</code> search, <code>Ctrl+Shift+P</code> pause all, and more)
-- One-click system proxy detection and autofill; in-app update checks (delta updates on Windows, full packages on macOS/Linux)
+- One-click system proxy detection and autofill; in-app update checks (delta updates on Windows, full packages on macOS/Linux); Linux AppImages embed update information and ship `.zsync` files for delta upgrades via AppImageUpdate / <code>appimageupdatetool</code>
 
 ### Extensions and streaming
 
