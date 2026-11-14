@@ -13,6 +13,7 @@ import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { createLogger } from '../utils/logger'
 import { extractArchive } from './archiveService'
+import { getWebhookDispatchService } from './webhookDispatchService'
 import { getFileExtension, resolveCategory } from '../../src/shared/fileCategories'
 import type { CompletionRule, CompletionRuleAction } from '../../src/shared/appSettings'
 
@@ -140,20 +141,14 @@ async function executeAction(action: CompletionRuleAction, status: Aria2TaskStat
       dir: status.dir || '',
       timestamp: new Date().toISOString()
     }
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 10_000)
-    try {
-      await fetch(action.url, {
-        method: action.method || 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: action.method === 'GET' ? undefined : JSON.stringify(payload),
-        signal: controller.signal
-      })
-    } catch (error) {
-      logger.warn(`Webhook 调用失败: ${action.url}`, error)
-    } finally {
-      clearTimeout(timer)
+    // 投递交给队列（失败指数退避重试 + HMAC 签名 + 失败队列可在设置页手动重试）；
+    // 这里不再内联 fetch：对端一次 502 就永久丢事件的旧行为正是本轮要修的问题。
+    const dispatcher = getWebhookDispatchService()
+    if (!dispatcher) {
+      logger.warn(`Webhook 投递服务未就绪，已跳过: ${action.url}`)
+      return
     }
+    dispatcher.enqueue(action, payload)
     return
   }
   if (action.type === 'extract') {

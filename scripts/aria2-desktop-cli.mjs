@@ -94,10 +94,19 @@ async function main() {
 
   if (command === "add") {
     if (args.length === 0) throw new Error("add 需要至少一个 URL")
-    const toolArgs = { urls: args }
+    // add_download 只接受单个 url（分类目录、重名处理都由应用侧决定），
+    // 多 URL 逐个下发；早先传 { urls: [...] } 与工具 schema 不符，必定失败。
     const dir = takeOption("--dir", "-d")
-    if (dir) toolArgs.dir = dir
-    await callTool("add_download", toolArgs)
+    if (dir) {
+      throw new Error(
+        "add 不支持 --dir：目标目录由应用内的分类规则决定（设置 → 下载 → 分类目录），" +
+          "需要指定目录请改用 call add_download 配合应用内设置"
+      )
+    }
+    const fileName = takeOption("--fileName", "-n")
+    for (const url of args) {
+      await callTool("add_download", fileName ? { url, fileName } : { url })
+    }
     return
   }
 

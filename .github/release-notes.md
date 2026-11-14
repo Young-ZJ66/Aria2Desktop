@@ -1,47 +1,48 @@
-# Aria2Desktop v1.3.6 Release Notes
+# Aria2Desktop v1.3.7 Release Notes
 
-v1.3.6 is an automation release: a new **Automation** page adds RSS/Atom subscriptions and watched folders that create download tasks by themselves, the yt-dlp integration gains playlist, subtitle, cookie and format-preset support, and the browser extension now ships a Firefox variant.
+v1.3.7 is a remote-access release. The built-in **Web Console** becomes an installable PWA with scoped API tokens and an OpenAPI document, webhooks gain retries, a failed-delivery queue and HMAC signatures, settings can be exported/imported between machines, and a new headless guide shows how to run the app as a system service.
 
-## 📡 New: RSS / Atom Subscriptions
+## 📱 Web Console: PWA, scoped tokens, OpenAPI
 
-- A new **Automation** entry in the sidebar manages subscriptions and watched folders, plus a log of the last 200 auto-import records.
-- Subscribe to any **RSS 2.0 / Atom** feed and let matching entries become downloads automatically — no external dependency, the parser is built in.
-- **Filters & limits**: include/exclude regular expressions, a per-fetch cap (1–50 entries), an optional save directory, and a fetch interval from 5 minutes to 7 days.
-- **No duplicates**: each subscription remembers up to 500 seen entries keyed by guid / enclosure URL / link, so nothing is added twice.
-- **Entry types**: magnet links are added directly; `.torrent` enclosures are downloaded and added via `aria2.addTorrent`; plain http(s) links are added as normal downloads.
-- **Fetch Now** shows a preview of the matching entries, and the list displays each subscription's last fetch time and status.
-- Works against the **active connection profile**, so subscriptions can fill a remote instance too.
+- The Web Console is now an **installable PWA** — open it on a phone, choose "Add to Home Screen", and it launches full-screen with its own icon, offline shell and automatic update prompt.
+- **Scoped API tokens**: besides the master token, create named tokens limited to `tasks:read`, `tasks:write`, `tasks:control`, `audit:read` or `admin`. A read-only token can browse the queue but cannot add, pause or delete anything.
+- Each token shows its scopes, creation time and last-used time in **Settings → Advanced → API Tokens**, and can be revoked at any time.
+- **OpenAPI 3.0.3 document** served at `/openapi.json`, covering every console endpoint, the bearer auth scheme and the scope semantics — import it into Postman, Insomnia or any generator.
+- Unauthorized and insufficient-scope requests are rejected with `401` / `403 { error: "insufficient_scope", required }` and recorded in the audit log.
 
-## 📁 New: Watched Folders
+## 🔁 Webhooks: retries, queue and HMAC
 
-- Point Aria2Desktop at a folder and every new **`.torrent` / `.metalink` / `.txt`** file (one magnet link per line) is imported automatically.
-- Choose what happens to the source file after a successful import: **delete it** or **move it into an `imported/` subfolder**.
-- A file is imported only after it is **stable** (unchanged size across scans and at least 3 seconds old), so partially written files are never picked up.
-- **SHA-256 content deduplication**: the same file content is never imported twice, even under a different name.
-- Failed imports are retried on the next scan; nothing is lost while the engine is offline.
+- Webhook actions in completion rules now **retry automatically** with exponential backoff (default 4 attempts, 60 s base delay, capped at 6 h).
+- Failed deliveries are kept in a **delivery queue** shown under Settings → Workflow, with attempts, next attempt time and the last error; retry any entry by hand or clear the queue.
+- **HMAC-SHA256 signatures**: set a secret per webhook and each request carries `X-Aria2-Timestamp` and `X-Aria2-Signature: sha256=<hex>` over `<timestamp>.<body>`, so receivers can verify authenticity and reject replays.
+- Queue contents are persisted, so pending deliveries survive an app restart.
+- New per-rule fields: `secret`, `maxRetries` (0–10) and `retryDelaySeconds` (5–3600).
 
-## 🎬 yt-dlp: Playlists, Subtitles, Cookies & Format Presets
+## 💾 Settings export / import
 
-- **Playlist downloads**: paste a playlist URL to load its entries (up to 500) with titles and durations, then pick the ones you want.
-- **Quality presets**: Best / 1080p / 720p / 480p / Best audio / Extract MP3 — one click instead of reading format tables; a custom expression field remains for power users.
-- **Subtitles**: download subtitles in the languages you choose, optionally including auto-generated ones, converted to `srt`.
-- **Cookie file support** for sites that require a login.
-- Playlist progress now shows the **entry title and index (n/m)** so batch downloads are easy to follow.
+- **Export** all settings to a JSON file — optionally including secrets, which requires an explicit confirmation first.
+- **Import** with a **dry-run preview** showing how many keys will be applied, skipped or rejected, plus which secrets stay local instead of being overwritten.
+- Secrets (engine RPC secret, web console tokens, webhook secrets) are preserved from the local machine when the imported file is redacted.
+- Useful for moving a setup between machines or keeping a known-good configuration around.
 
-## 🦊 Firefox Extension
+## 🖥️ Headless service guide
 
-- Every release now ships **`Aria2Desktop-Extension-Firefox-v1.3.6.zip`**, a Firefox-specific build (event-page background + `browser_specific_settings.gecko`) ready for AMO submission.
-- The background script now feature-detects `chrome.downloads.onDeterminingFilename`; since Firefox never implemented it, the "take over browser downloads" option applies to Chromium browsers only for now.
-- `npm run check:extension` grew from 16 to **21 checks**, validating the Firefox manifest variant on every CI run.
+- New `docs/headless.md`: run Aria2Desktop with `--headless` as a **systemd user service** on Linux (including `loginctl enable-linger` and the `APPIMAGE_EXTRACT_AND_RUN` note) or as a **Windows scheduled task**.
+- Covers SSH port forwarding for the Web Console (`6802`) and the extension API (`6801`), plus the `allowedIps` / strong-token / firewall checklist before exposing either port.
+- MCP, CLI and Webhook entry points are documented together with working examples.
 
-## 🛠️ Other
+## 🛠️ Other changes
 
-- All **21 languages** fully translated for every new string (96 new keys, plus the yt-dlp keys propagated to every locale).
-- The test suite grew from 691 to **795 unit tests**, covering the feed parser, both auto-import services, playlist mapping, and stream argument construction; E2E remains at 137 passing checks.
+- The CLI `add` command now matches the MCP tool schema (`--fileName/-n` supported; `--dir` reports a clear error because the target directory is decided by in-app category rules).
+- 21 languages updated with all new strings (80 new keys per locale).
+- Web Console layout is now mobile-first: the task table collapses into cards on narrow screens, with safe-area padding for notched devices.
 
-## ⚠️ Known Limitations
+## ⚠️ Known limitations
 
-- Auto-import results are not pushed to the UI; the Automation page refreshes its data every 30 seconds while it is open.
-- Windows installers are unsigned; SmartScreen may warn about an unknown publisher. Use the `.sha256` files on the Release page to verify downloads.
-- macOS builds are unsigned and un-notarized; right-click → "Open" on first launch.
-- In-app auto-update is still primarily for Windows installers; Linux users can update via AppImageUpdate / `appimageupdatetool`.
+- Push notifications for the Web Console are not implemented; the page polls every 3 seconds while open.
+- The PWA offline shell caches only the console UI, not task data — without a connection the last rendered state is shown.
+- Webhook signatures cover the raw body only; receivers must tolerate clock skew when validating `X-Aria2-Timestamp`.
+
+---
+
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.3.6...v1.3.7

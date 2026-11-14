@@ -39,7 +39,7 @@
 - Multi-threaded downloads with resume support; global and per-task speed limits, switchable from the status bar
 - **Download Queue 2.0**: a visible waiting queue with move-to-top, move-up, move-down and move-to-bottom actions, plus maximum concurrency and automatic retry policies
 - **Task templates**: save proxy, User-Agent, Referer, Cookie, request headers and destination folder as a template, then reuse them when creating a task
-- **Completion rules**: trigger move, rename, extract, open, notification and webhook actions based on category, extension or success/failure status
+- **Completion rules**: trigger move, rename, extract, open, notification and webhook actions based on category, extension or success/failure status; webhooks support HMAC-SHA256 signatures, exponential-backoff retries and a persisted failed-delivery queue that can be retried or cleared from Settings
 - **Speed scheduler**: automatically switch between speed limits by weekday and time range (for example, limit bandwidth during weekday daytime)
 - **Scheduled downloads**: automatically pause and resume all tasks during chosen time windows, ideal for overnight downloads; tasks you paused manually are left untouched
 - **Automation page**: RSS/Atom subscriptions are fetched on a schedule, filtered by include/exclude patterns and added as downloads automatically (entry deduplication, per-fetch cap, optional save directory); watched folders auto-import new <code>.torrent</code> / <code>.metalink</code> / magnet-link text files, deleting or moving them into an <code>imported/</code> subfolder after import, with SHA-256 content deduplication
@@ -74,11 +74,12 @@
 
 - **UPnP port mapping**: automatically request BT/DHT port mappings from your router so other peers can connect to you (better seeding)
 - **AI assistant access (MCP)**: MCP-capable clients (Claude Desktop, Cursor, etc.) can manage tasks, queues, global settings and diagnostics through the local interface, with 22 tools, 4 resources and 2 prompt templates
-- **Web console**: when enabled in Settings, access tasks, queues, statistics and audit logs from a browser or phone; supports Bearer tokens, IP/CIDR allowlists and operation auditing
+- **Web console**: when enabled in Settings, access tasks, queues, statistics and audit logs from a browser or phone; installable PWA with scoped API tokens (read/write/control/audit/admin), an OpenAPI 3.0.3 document at <code>/openapi.json</code>, IP/CIDR allowlists and operation auditing
+- **Settings backup**: export all settings to JSON (secrets optional and behind a confirmation), and import with a dry-run preview of applied/skipped/rejected keys while local secrets are preserved
 - **Multi-instance management**: save multiple RPC connection profiles, batch-test latency and versions, and switch the active instance with one click
 - **SQLite history**: download history is stored in SQLite, removing the old 10 MB JSON limit, with automatic migration of legacy data
 - **Delta updates (Windows)**: download only changed blocks, then verify the final file against its <code>.sha256</code>
-- **Headless mode and automation**: <code>Aria2Desktop --headless</code> hides the main window and keeps only the download engine, browser extension API and MCP server running, ideal for remote management or an always-on download machine; see [docs/automation-cli-webhook.md](docs/automation-cli-webhook.md) for CLI and webhook usage
+- **Headless mode and automation**: <code>Aria2Desktop --headless</code> hides the main window and keeps only the download engine, browser extension API and MCP server running, ideal for remote management or an always-on download machine; see [docs/automation-cli-webhook.md](docs/automation-cli-webhook.md) for CLI and webhook usage, and [docs/headless.md](docs/headless.md) for systemd / Windows scheduled-task setups
 
 ## System requirements
 

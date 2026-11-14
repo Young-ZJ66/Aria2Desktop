@@ -114,6 +114,15 @@ const electronAPI = {
   watchFoldersScanNow: (id: string) => ipcRenderer.invoke('watch-folders-scan-now', id),
   autoImportLogList: () => ipcRenderer.invoke('auto-import-log-list'),
 
+  // Webhook 投递队列（通道由 webhookDispatchService 注册：重试/指数退避/失败队列）
+  webhookQueueList: () => ipcRenderer.invoke('webhook-queue-list'),
+  webhookQueueRetry: (id: string) => ipcRenderer.invoke('webhook-queue-retry', id),
+  webhookQueueClear: () => ipcRenderer.invoke('webhook-queue-clear'),
+
+  // 设置导出/导入（配置同步；导出默认脱敏敏感字段）
+  settingsExport: (options?: { includeSecrets?: boolean }) => ipcRenderer.invoke('settings-export', options),
+  settingsImport: (data: unknown, options?: { dryRun?: boolean }) => ipcRenderer.invoke('settings-import', data, options),
+
   // 已完成任务持久化（替代 localStorage，存于 userData）
   loadPersistedTasks: () => ipcRenderer.invoke('persisted-tasks-load'),
   savePersistedTasks: (data: unknown) => ipcRenderer.invoke('persisted-tasks-save', data),

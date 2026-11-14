@@ -10,6 +10,7 @@ import * as fs from 'fs'
 import { registerSecureHandler, registerSecureListener } from '../utils/ipcSecurity'
 import { isSecretEncryptionAvailable } from '../utils/secretCipher'
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
+import { applySettingsImport, buildSettingsExport } from '../utils/settingsSync'
 import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { callAria2Rpc } from '../utils/aria2Rpc'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
@@ -182,7 +183,7 @@ export class IpcController {
     // Headless Web 控制台状态（设置页展示地址/令牌/审计记录）
     registerSecureHandler('web-console-status', () => webConsoleServer.getStatus(), {
       getMainWindow: this.windowRef,
-      failureValue: { running: false, port: 0, url: '', token: '', error: 'Unauthorized', audit: [] }
+      failureValue: { running: false, port: 0, url: '', token: '', tokensCount: 0, error: 'Unauthorized', audit: [] }
     })
     registerSecureHandler('lookup-peer-locations', async (_event, ips: unknown) => {
       if (!Array.isArray(ips) || ips.length > 100) return {}
@@ -194,6 +195,35 @@ export class IpcController {
       const result = await webConsoleServer.apply()
       return { ...webConsoleServer.getStatus(), ...result }
     }, { getMainWindow: this.windowRef })
+
+    // 设置导出：默认脱敏（可贴给他人排查），includeSecrets 时带真实密钥（等同凭据，渲染层需提示）
+    registerSecureHandler('settings-export', (_event, options?: { includeSecrets?: boolean }) => {
+      try {
+        const includeSecrets = options?.includeSecrets === true
+        const data = buildSettingsExport(getSettingsFresh(), app.getVersion(), includeSecrets)
+        return { success: true, data }
+      } catch (e) {
+        logger.error('settings-export failed:', e)
+        return { success: false, error: String(e) }
+      }
+    }, { getMainWindow: this.windowRef, failureValue: { success: false, error: 'Unauthorized' } })
+
+    // 设置导入：dryRun 只返回合并报告不落盘；落盘走与 set-store-value 相同的 saveSettings 路径，
+    // 保存后由 ConfigWatcher 监听 store 变更自动广播 config:changed，此处无需手动广播
+    registerSecureHandler('settings-import', (_event, data: unknown, options?: { dryRun?: boolean }) => {
+      try {
+        const result = applySettingsImport(getSettingsFresh(), data)
+        if (!result.ok) return { success: false, error: result.error }
+        if (options?.dryRun === true) return { success: true, report: result.report }
+        saveSettings(result.next)
+        // 与 set-store-value 保持一致：端口/UPnP 相关设置变化后重新协商映射
+        void upnpService.reconcile()
+        return { success: true, report: result.report }
+      } catch (e) {
+        logger.error('settings-import failed:', e)
+        return { success: false, error: String(e) }
+      }
+    }, { getMainWindow: this.windowRef, failureValue: { success: false, error: 'Unauthorized' } })
 
     // 应用默认下载目录（Windows 系统"下载"文件夹）
     registerSecureHandler('get-default-download-dir', () => ({

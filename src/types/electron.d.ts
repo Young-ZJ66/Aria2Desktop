@@ -1,6 +1,8 @@
 import type { ExtensionConnection } from '../shared/extensionVersion'
 // 自动导入（RSS 订阅 / 监听文件夹）的载荷契约：渲染层与主进程共用（见 src/shared/autoImport.ts）
 import type { AutoImportLogEntry, RssFeedItemPreview, RssSubscription, WatchFolderConfig } from '@/shared/autoImport'
+import type { WebhookQueueEntry } from '@/shared/webhookQueue'
+import type { SettingsExport, SettingsImportReport } from '@/shared/settingsSync'
 
 // 自动更新状态推送类型
 export interface UpdateStatus {
@@ -255,6 +257,17 @@ export interface ElectronAPI {
   watchFoldersScanNow: (id: string) => Promise<{ success: boolean; imported: number; error?: string }>
   /** 自动导入日志（新→旧，上限 200 条，RSS 与监听文件夹共用） */
   autoImportLogList: () => Promise<{ entries: AutoImportLogEntry[] }>
+
+  /** Webhook 投递队列（新→旧；含 pending/delivering/failed） */
+  webhookQueueList: () => Promise<{ entries: WebhookQueueEntry[] }>
+  /** 手动重试单条失败条目：重置为待投递并立即调度 */
+  webhookQueueRetry: (id: string) => Promise<{ success: boolean; error?: string }>
+  /** 清空投递队列（待投递与失败条目），cleared 为清除条数 */
+  webhookQueueClear: () => Promise<{ success: boolean; cleared: number }>
+  /** 导出设置：includeSecrets=false（默认）时敏感字段脱敏为空字符串 */
+  settingsExport: (options?: { includeSecrets?: boolean }) => Promise<{ success: boolean; data?: SettingsExport; error?: string }>
+  /** 导入设置：dryRun 只校验不写入；report 含 applied/skipped/rejected/preservedSecrets */
+  settingsImport: (data: unknown, options?: { dryRun?: boolean }) => Promise<{ success: boolean; report?: SettingsImportReport; error?: string }>
 
   // 已完成任务持久化（存于 userData，替代 localStorage）
   loadPersistedTasks: () => Promise<Record<string, unknown>>

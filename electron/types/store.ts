@@ -9,6 +9,9 @@ import type { AppSettings } from '../../src/shared/appSettings'
 // RSS/监听文件夹自动导入的契约类型同样源自 src/shared（主进程与渲染层共用，理由同上）
 export type { RssSubscription, WatchFolderConfig, AutoImportLogEntry } from '../../src/shared/autoImport'
 import type { RssSubscription, WatchFolderConfig, AutoImportLogEntry } from '../../src/shared/autoImport'
+// Webhook 投递队列条目同样源自 src/shared（主进程与渲染层共用）
+export type { WebhookQueueEntry } from '../../src/shared/webhookQueue'
+import type { WebhookQueueEntry } from '../../src/shared/webhookQueue'
 
 /** 窗口状态 */
 export interface WindowState {
@@ -53,5 +56,12 @@ export interface StoreData {
   watchSeenHashes?: string[]
   /** 自动导入日志（新→旧），上限 200 条 */
   autoImportLog?: AutoImportLogEntry[]
+  /**
+   * Webhook 投递队列（见 services/webhookDispatchService.ts）
+   *
+   * 独立顶层键而不是塞进 settings：队列是运行时状态，不该被"导出配置/恢复默认"
+   * 牵动，也不该在设置页的通用保存里被整体回写覆盖。
+   */
+  webhookQueue?: WebhookQueueEntry[]
   [key: string]: unknown
 }

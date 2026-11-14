@@ -69,7 +69,17 @@ export type CompletionRuleAction =
   | { type: 'rename'; pattern: string }
   | { type: 'open' }
   | { type: 'notify'; title?: string; body?: string }
-  | { type: 'webhook'; url: string; method?: 'POST' | 'GET' }
+  | {
+    type: 'webhook'
+    url: string
+    method?: 'POST' | 'GET'
+    /** HMAC-SHA256 签名密钥；设置后请求带 X-Aria2-Signature: sha256=<hex> 头 */
+    secret?: string
+    /** 失败后最大重试次数（0-10；默认 4） */
+    maxRetries?: number
+    /** 首次重试延迟秒数（指数退避基准；默认 60，上限 6 小时） */
+    retryDelaySeconds?: number
+  }
   | { type: 'extract' }
 
 /** 下载完成后按条件自动执行的规则 */
@@ -101,12 +111,30 @@ export interface QueueSettings {
   retryDelaySeconds?: number
 }
 
+/** Web 控制台 API Token 权限范围 */
+export type WebConsoleScope = 'tasks:read' | 'tasks:write' | 'tasks:control' | 'audit:read' | 'admin'
+
+/** Web 控制台 API Token（细粒度权限） */
+export interface WebConsoleToken {
+  id: string
+  /** 展示名（如 手机、Home Assistant） */
+  name: string
+  /** 令牌值（>= 16 字符） */
+  token: string
+  /** 权限范围；admin 拥有全部权限 */
+  scopes: WebConsoleScope[]
+  createdAt?: string
+  lastUsedAt?: string
+}
+
 /** Headless Web 控制台设置 */
 export interface WebConsoleSettings {
   enabled?: boolean
   port?: number
-  /** 访问令牌；为空时由主进程自动生成 */
+  /** 主令牌（兼容旧版；为空时由主进程自动生成，权限等同 admin） */
   token?: string
+  /** 细粒度 Token 列表 */
+  tokens?: WebConsoleToken[]
   /** 允许访问的 IP/CIDR；空数组表示仅本机 127.0.0.1/::1 */
   allowedIps?: string[]
 }

@@ -10,6 +10,7 @@ import { AppLifecycle } from './controllers/AppLifecycle'
 import { TrackerSubscriptionService } from './services/trackerSubscriptionService'
 import { RssSubscriptionService } from './services/rssSubscriptionService'
 import { WatchFolderService } from './services/watchFolderService'
+import { initWebhookDispatchService } from './services/webhookDispatchService'
 import { SpeedScheduler } from './services/speedScheduler'
 import { DownloadScheduler } from './services/downloadScheduler'
 import { upnpService } from './services/upnpService'
@@ -184,6 +185,9 @@ const ipcController = new IpcController(windowController, trayController, aria2C
 const trackerSubscriptionService = new TrackerSubscriptionService(store, aria2Controller, windowController)
 const rssSubscriptionService = new RssSubscriptionService(store, windowController)
 const watchFolderService = new WatchFolderService(store, windowController)
+// Webhook 投递队列：完成规则把 webhook 动作交给它，失败按指数退避重试。
+// initWebhookDispatchService 同时把实例登记为模块级单例，供 completionRuleService 取用。
+const webhookDispatchService = initWebhookDispatchService(store)
 const speedScheduler = new SpeedScheduler()
 const downloadScheduler = new DownloadScheduler()
 // 引擎每次（重新）启动后，aria2 的全局选项都回到配置文件里的值：
@@ -408,6 +412,8 @@ if (!gotTheLock) {
       // 注册 RSS 订阅/监听文件夹自动导入的 IPC（设置页"自动导入"两块面板使用）
       rssSubscriptionService.registerIpcHandlers()
       watchFolderService.registerIpcHandlers()
+      // 注册 Webhook 投递队列的 IPC（设置页"Webhook 投递队列"面板使用）
+      webhookDispatchService.registerIpcHandlers()
       // 通过 AppLifecycle 初始化所有子系统
       await appLifecycle.initialize()
       // App 就绪后启动 Tracker 每日订阅（含开机补拉 + 定时更新）
@@ -416,6 +422,8 @@ if (!gotTheLock) {
       // 监听文件夹扫描（15 秒 ticker；首跳只学习文件大小，稳定后才导入）
       rssSubscriptionService.initialize()
       watchFolderService.initialize()
+      // 启动 Webhook 队列投递（15 秒 ticker；到期条目才真正发请求，入队时另有立即投递）
+      webhookDispatchService.initialize()
       // 启动速度调度器（每分钟检查是否需要切换限速）
       speedScheduler.start()
       // 启动定时下载调度器（每分钟检查是否需要暂停/恢复全部任务）
@@ -494,6 +502,7 @@ if (!gotTheLock) {
       // 关闭 RSS 订阅/监听文件夹的定时器（都是纯 clearInterval，不阻塞退出）
       rssSubscriptionService.shutdown()
       watchFolderService.shutdown()
+      webhookDispatchService.shutdown()
       speedScheduler.stop()
       downloadScheduler.stop()
       upnpService.stop()
