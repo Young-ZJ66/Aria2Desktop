@@ -9,7 +9,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { capture, evalIn, sleep } from './lib/cdp.mjs'
+import { capture, evalIn, sleep, waitFor } from './lib/cdp.mjs'
 
 /** CRC32（ZIP 存储格式需要） */
 function crc32(buf) {
@@ -140,10 +140,19 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     '主界面包含侧边栏与任务区',
     typeof mainText === 'string' && /下载|Download|设置|Settings/.test(mainText)
   )
-  const filterText = await evalIn(
-    session,
-    `(() => [...document.querySelectorAll('.task-actions .n-select')].map((s) => (s.innerText || '').trim()).join('|'))()`
-  )
+  // 首屏渲染速度随机器差异很大（CI 上 i18n chunk 解析就要好几秒），
+  // 固定 sleep 会在慢机器上抢在任务工具栏挂载之前断言，这里轮询等待筛选控件出现
+  const filterText = await waitFor(
+    async () => {
+      const text = await evalIn(
+        session,
+        `(() => [...document.querySelectorAll('.task-actions .n-select')].map((s) => (s.innerText || '').trim()).join('|'))()`
+      )
+      const value = String(text ?? '')
+      return /全部分类|All categories/i.test(value) && /全部类型|All types/i.test(value) ? value : null
+    },
+    { timeoutMs: 30000, intervalMs: 500, label: '任务列表筛选控件' }
+  ).catch(() => '')
   reporter.check(
     '任务列表提供分类与类型筛选',
     /全部分类|All categories/i.test(String(filterText)) && /全部类型|All types/i.test(String(filterText)),
