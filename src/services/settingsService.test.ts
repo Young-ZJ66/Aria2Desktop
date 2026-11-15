@@ -15,12 +15,14 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 interface FakeElectronApi {
   getStoreValue: ReturnType<typeof vi.fn>
   setStoreValue: ReturnType<typeof vi.fn>
+  writeLog: ReturnType<typeof vi.fn>
 }
 
 function installElectronApi(stored: unknown = null): FakeElectronApi {
   const api: FakeElectronApi = {
     getStoreValue: vi.fn(async () => stored),
-    setStoreValue: vi.fn(async () => undefined)
+    setStoreValue: vi.fn(async () => undefined),
+    writeLog: vi.fn(async () => undefined)
   }
   vi.stubGlobal('window', { electronAPI: api })
   return api
@@ -267,6 +269,33 @@ describe('导出与导入', () => {
 
     expect(({} as Record<string, unknown>).polluted).toBeUndefined()
     expect(service.getSettings().theme).toBe('dark')
+  })
+})
+
+describe('设置变更日志', () => {
+  it('只记录变更的字段名，不记录用户填写的值', async () => {
+    const { service, api } = await loadService()
+
+    await service.saveSettings({ theme: 'dark', download: { defaultDir: 'E:/private-dir' } })
+
+    const calls = api!.writeLog.mock.calls
+    expect(calls).toHaveLength(1)
+    const [level, message] = calls[0] ?? []
+    expect(level).toBe('info')
+    expect(String(message)).toContain('[Settings] 设置已更新:')
+    expect(String(message)).toContain('theme')
+    expect(String(message)).toContain('download(defaultDir)')
+    // 安全红线：日志里只能出现字段名，绝不能出现值
+    expect(String(message)).not.toContain('E:/private-dir')
+    expect(String(message)).not.toContain('dark')
+  })
+
+  it('没有实际变化时不写日志', async () => {
+    const { service, api } = await loadService()
+
+    await service.saveSettings({})
+
+    expect(api!.writeLog).not.toHaveBeenCalled()
   })
 })
 

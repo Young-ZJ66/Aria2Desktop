@@ -227,8 +227,8 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
   const settingsNavItems = String(settingsNavText).split('|').filter(Boolean)
   reporter.check(
-    '设置页一级导航已整合为 8 组',
-    settingsNavItems.length === 8,
+    '设置页一级导航包含 10 个分组',
+    settingsNavItems.length === 10,
     String(settingsNavText)
   )
   reporter.check(
@@ -236,8 +236,16 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     /安全与维护|Security & Maintenance/i.test(String(settingsNavText)),
     String(settingsNavText)
   )
+  // 远程访问 / 日志 / 重置与备份 已从「高级设置」独立为顶层页签
+  reporter.check(
+    '设置页包含远程访问、日志、重置与备份独立页签',
+    /远程访问|Remote Access/i.test(String(settingsNavText)) &&
+      /(^|\|)\s*日志\s*(\||$)|(^|\|)\s*Logs?\s*(\||$)/i.test(String(settingsNavText)) &&
+      /重置与备份|Reset & Backup/i.test(String(settingsNavText)),
+    String(settingsNavText)
+  )
 
-  // 首次打开只挂载当前页签：避免一次性渲染 11 个设置页导致打开卡顿
+  // 首次打开只挂载当前页签：避免一次性渲染全部设置页导致打开卡顿
   const lazyPaneState = await evalIn(
     session,
     `(() => {
@@ -283,12 +291,12 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
         return { total: panes.length, mounted: panes.filter((p) => !!p.querySelector('.settings-page')).length }
       })()`
     )
-    if (mountedPanesState && mountedPanesState.total >= 11 && mountedPanesState.mounted >= 11) break
+    if (mountedPanesState && mountedPanesState.total >= 12 && mountedPanesState.mounted >= 12) break
     await sleep(100)
   }
   reporter.check(
     '搜索时按需挂载全部页签',
-    !!mountedPanesState && mountedPanesState.total >= 11 && mountedPanesState.mounted >= 11,
+    !!mountedPanesState && mountedPanesState.total >= 12 && mountedPanesState.mounted >= 12,
     JSON.stringify(mountedPanesState)
   )
   // 设置页（下载设置）提供默认 User-Agent 选项（需在全部页签挂载后检查）
@@ -433,29 +441,26 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     String(extensionCardText).replace(/\n/g, '|').slice(0, 140)
   )
 
-  // —— 高级设置页：应用日志目录（报障时用户得能一键找到 main.log） ——
-  const clickedAdvancedTab = await clickSettingsTabPath(session, [
-    '安全与维护|Security & Maintenance',
-    '^\\s*高级设置\\s*$|^\\s*Advanced Settings\\s*$'
-  ])
-  reporter.check('切换到「高级设置」页', clickedAdvancedTab === 'clicked', String(clickedAdvancedTab))
+  // —— 日志页：应用日志目录（报障时用户得能一键找到 main.log） ——
+  // 注：日志页已从「安全与维护 → 高级设置」独立为顶层页签，断言随之迁移。
+  const clickedLogsTab = await clickSettingsTabPath(session, ['^\\s*日志\\s*$|^\\s*Logs?\\s*$'])
+  reporter.check('切换到「日志」页', clickedLogsTab === 'clicked', String(clickedLogsTab))
   await sleep(1200)
   const logsRow = await evalIn(
     session,
     `(() => {
       const body = document.querySelector('.settings-dialog-body')
-      if (!body) return { label: false, path: '' }
-      const labels = [...body.querySelectorAll('.n-form-item-label')].map((e) => (e.textContent || '').trim())
-      const inputs = [...body.querySelectorAll('input')].map((i) => i.value || '')
-      return {
-        label: labels.some((l) => /应用日志目录|Application Log Directory/i.test(l)),
-        path: inputs.find((v) => /logs[\\\\/]?$/i.test(v)) || ''
-      }
+      if (!body) return { path: '', hasOpenBtn: false }
+      const pathEl = body.querySelector('.log-path')
+      const hasOpenBtn = [...body.querySelectorAll('.n-button')].some((b) =>
+        /打开日志目录|Open Log Directory/i.test(b.textContent || '')
+      )
+      return { path: pathEl ? (pathEl.textContent || '').trim() : '', hasOpenBtn }
     })()`
   )
   reporter.check(
-    '高级设置显示应用日志目录',
-    logsRow?.label === true && !!logsRow?.path,
+    '日志页显示应用日志目录',
+    !!logsRow?.path && logsRow.path !== '—' && logsRow?.hasOpenBtn === true,
     JSON.stringify(logsRow).slice(0, 160)
   )
 
