@@ -49,14 +49,14 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      padding: 12px 12px 10px;
+      padding: 12px 12px 8px;
     }
 
     .header {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
     .header img { width: 24px; height: 24px; border-radius: 5px; }
     .header h1 { flex: none; font-size: 14px; font-weight: 600; letter-spacing: 0.2px; white-space: nowrap; }
@@ -79,9 +79,11 @@
       color: var(--text-dim);
     }
     .status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    /* 状态详情：整行宽度折行显示，长文案不再被截断 */
+    /* 状态详情：整行宽度折行显示，长文案不再被截断。
+       上下留白都收到最小：这行只在出错时出现，而弹窗高度有 400px 的紧凑预算
+       （scripts/e2e/extension.mjs 的断言），两行文案不能把内容顶出预算。 */
     .status-detail {
-      margin: -4px 0 10px;
+      margin: -8px 0 4px;
       font-size: 11.5px;
       line-height: 1.5;
       color: var(--danger);
@@ -104,7 +106,7 @@
     .tabs {
       display: flex;
       gap: 2px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       padding: 2px;
       background: var(--panel);
       border: 1px solid var(--border);
@@ -158,7 +160,7 @@
       justify-content: space-between;
       gap: 8px;
       padding: 7px 10px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       border-radius: 7px;
       background: var(--warn-bg);
       font-size: 11.5px;
@@ -180,7 +182,7 @@
     }
     .banner button:hover { background: var(--primary-hover); }
 
-    .section { margin-bottom: 10px; }
+    .section { margin-bottom: 8px; }
     .section-title {
       font-size: 10.5px;
       color: var(--text-dim);
@@ -323,7 +325,7 @@
 
     .feedback {
       min-height: 16px;
-      margin-top: 6px;
+      margin-top: 4px;
       font-size: 11.5px;
       line-height: 1.5;
       word-break: break-word;
