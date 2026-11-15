@@ -70,7 +70,7 @@
               class="speed-line"
               :points="speedSparklinePoints"
               fill="none"
-              stroke="var(--color-primary, #4f6ef2)"
+              stroke="var(--color-primary, #4560e0)"
               stroke-width="1.5"
               stroke-linejoin="round"
               stroke-linecap="round"

@@ -605,11 +605,11 @@ function handleDeleteProfile() {
 
 /* 断开按钮：灰边框+红字，悬浮时边框与字体变红 */
 :deep(.disconnect-btn) {
-  color: var(--color-danger) !important;
+  color: var(--color-danger-text) !important;
 }
 
 :deep(.disconnect-btn:hover:not([disabled])) {
-  color: var(--color-danger) !important;
+  color: var(--color-danger-text) !important;
 }
 
 :deep(.disconnect-btn:hover:not([disabled]) .n-button__state-border) {

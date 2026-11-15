@@ -19,12 +19,32 @@ function clamp(value: number, min?: number, max?: number): number {
   return value
 }
 
+/**
+ * 把 aria2 的数值型选项解析成表单里的单个数字。
+ *
+ * 为什么不能直接 Number()：aria2 有一批选项返回的是**范围**或**列表**，
+ * 例如 `dht-listen-port` / `listen-port` 默认返回 `"6881-6999"`，
+ * 直接 Number('6881-6999') 得到 NaN。NaN 一旦进入表单，
+ * 用户随手保存就会把 `dht-listen-port=NaN` 写进 aria2.conf，
+ * 下次启动 aria2 直接报 `errorCode=1 Bad range NaN` 拒绝启动。
+ *
+ * 规则：取第一个逗号分隔项，再取范围的下界；解析不出有限数就回退默认值。
+ * 这样范围型选项在表单里展示为下界端口，保存时写回单端口，语义不丢且安全。
+ */
+function parseNumericOption(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw === '') return fallback
+  const first = raw.split(',')[0]?.trim() ?? ''
+  const lowerBound = first.split('-')[0]?.trim() ?? ''
+  const parsed = Number(lowerBound)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
 function defaultOptionToValue(field: SettingField, raw: string | undefined): unknown {
   switch (field.type) {
     case 'boolean':
       return field.default !== false ? raw !== 'false' : raw === 'true'
     case 'number':
-      return clamp(Number(raw ?? field.default ?? 0), field.min, field.max)
+      return clamp(parseNumericOption(raw, Number(field.default ?? 0)), field.min, field.max)
     case 'size':
       // 未返回时直接采用表单默认值（数字）；返回时解析为指定单位下的数值
       return clamp(raw === undefined ? Number(field.default ?? 0) : parseSizeToUnit(raw, field.unit ?? 'M'), field.min, field.max)
@@ -45,8 +65,13 @@ function defaultValueToOption(field: SettingField, value: unknown): string | und
   switch (field.type) {
     case 'boolean':
       return value ? 'true' : 'false'
-    case 'number':
-      return String(value)
+    case 'number': {
+      // 兜底：非有限数（NaN / Infinity）绝不写入 aria2 配置，
+      // 否则会在 aria2.conf 里留下 `dht-listen-port=NaN` 之类的坏值，
+      // 让引擎下次启动直接失败（errorCode=1 Bad range NaN）。
+      const num = Number(value)
+      return Number.isFinite(num) ? String(num) : undefined
+    }
     case 'size':
       return formatSizeWithUnit(Number(value), field.unit ?? 'M')
     case 'string':

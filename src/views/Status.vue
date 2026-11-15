@@ -308,7 +308,7 @@ function updateTrafficChart() {
   if (!trafficChart) return
 
   // 按当前主题取色：图表主色跟随 --color-primary，轴文字/网格线跟随文本与边框色
-  const primaryColor = getCssVar('--color-primary', isDark.value ? '#6c86f5' : '#4f6ef2')
+  const primaryColor = getCssVar('--color-primary', isDark.value ? '#6c86f5' : '#4560e0')
   const axisTextColor = getCssVar('--text-secondary', isDark.value ? '#7d8597' : '#8a93a6')
   const splitLineColor = getCssVar('--border-light', isDark.value ? '#2c323e' : '#ececf1')
   const tooltipBgColor = getCssVar('--bg-secondary', isDark.value ? '#1e222b' : '#f6f7f9')

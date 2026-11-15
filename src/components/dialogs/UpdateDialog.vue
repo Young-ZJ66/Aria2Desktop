@@ -302,7 +302,7 @@ function restartToUpdate() {
 }
 
 .update-notes-body :deep(a) {
-  color: var(--primary-color, #4f6ef2);
+  color: var(--color-primary, #4560e0);
 }
 
 .update-notes-body :deep(code) {

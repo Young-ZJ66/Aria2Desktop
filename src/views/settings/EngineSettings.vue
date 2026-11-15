@@ -572,11 +572,11 @@ onMounted(async () => {
 }
 
 .control-buttons :deep(.status-btn-stop) {
-  color: var(--color-danger) !important;
+  color: var(--color-danger-text) !important;
 }
 
 .control-buttons :deep(.status-btn-stop:hover:not([disabled])) {
-  color: var(--color-danger) !important;
+  color: var(--color-danger-text) !important;
 }
 
 /* 停止按钮悬浮时边框同步变红 */

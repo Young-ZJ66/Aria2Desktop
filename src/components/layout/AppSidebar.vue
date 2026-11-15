@@ -277,7 +277,7 @@ const connectionStatusText = computed(() => {
 
 :deep(.n-menu-item-content.is-active) {
   background: var(--color-primary);
-  /* 项目未定义 --text-on-primary 变量：菜单激活项背景为主色（浅色 #4f6ef2 / 暗色 #6c86f5），
+  /* 项目未定义 --text-on-primary 变量：菜单激活项背景为主色（浅色 #4560e0 / 暗色 #6c86f5），
      白色文字与两种背景的对比度均 ≥ 4.5:1（浅色 5.1:1，暗色 4.8:1），满足 WCAG AA 要求，故保留 #fff */
   color: #fff;
 }
@@ -369,7 +369,9 @@ const connectionStatusText = computed(() => {
 }
 
 .status-connected {
-  color: var(--color-success);
+  /* 图标用鲜艳绿，文字用深绿：#22c55e 作文字白底只有 2.28:1，
+     而 #15803d 是 5.02:1。文字必须过 AA，图标不受此限。 */
+  color: var(--color-success-text);
 }
 
 .status-disconnected {
@@ -377,7 +379,8 @@ const connectionStatusText = computed(() => {
 }
 
 .status-connecting {
-  color: var(--color-warning);
+  /* 文字同样要过 AA：#d97706 白底 3.19:1，改用 #b45309（5.02:1） */
+  color: var(--color-warning-text);
   /* 连接中：仅图标旋转提供状态反馈（文字不参与旋转） */
 }
 
@@ -385,6 +388,15 @@ const connectionStatusText = computed(() => {
    会把"连接中"文字也一并旋转 */
 .footer-btn-connection :deep(.n-icon.status-connecting) {
   animation: sidebar-spin 1s linear infinite;
+}
+
+/* 状态图标保持鲜艳语义色（不受上面「文字用深色版」的影响） */
+.footer-btn-connection :deep(.n-icon.status-connected) {
+  color: var(--color-success);
+}
+
+.footer-btn-connection :deep(.n-icon.status-connecting) {
+  color: var(--color-warning);
 }
 
 @keyframes sidebar-spin {

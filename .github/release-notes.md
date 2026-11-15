@@ -26,6 +26,10 @@ v1.3.8 聚焦设置页与日常操作体验：设置页重新整理为更清晰�
 - **实时延迟**：已连接的实例在后台每 5 秒静默刷新延迟，列表始终保持最新。
 - **连接切换竞态安全**：第一个实例还在连接时去连第二个实例，现在会干净地接管第一次尝试——不再同时弹出成功与失败提示，也不会残留错误的「当前」标记。
 
+## 🩹 重要修复
+
+- **修复 BitTorrent 设置页端口显示 `NaN`、保存后导致引擎无法启动**：aria2 对 `dht-listen-port` / `listen-port` 返回的是范围值（如 `6881-6999`），旧实现直接转数字得到 `NaN`，保存后会把 `dht-listen-port=NaN` 写进 `aria2.conf`，下次启动 aria2 直接以 `Bad range NaN` 拒绝启动。现在范围值取下界展示，非有限数一律不写入；主进程写入侧也加了兜底拦截。**该问题同样存在于 v1.3.7，升级后建议检查一次 BT 设置页并保存。**
+
 ## 🎛️ 设置项微调
 
 - 移除了一眼就能看出功能的设置项上的问号提示（如「最小化到托盘」「检查更新」「自动启动」等），只保留带额外信息的说明。
@@ -40,6 +44,7 @@ v1.3.8 聚焦设置页与日常操作体验：设置页重新整理为更清晰�
 - **按钮加载态**：点击后文字位置换成加载圈，按钮的形状、长度与宽度完全不变（含带图标的按钮）。
 - **空列表**：BT 洞察、自动化与工作流页面的空列表图标垂直居中，不再顶在卡片上方。
 - **页面切换**：切换页面时保留页面状态，不再从头重建，也没有空白闪烁或残影。
+- **可读性**：主色、占位符文字、空态说明、连接状态与语义标签的文字对比度全部提升到 WCAG AA（4.5:1）以上，并补齐了此前缺失的 `--text-tertiary` 令牌。
 
 ## 🧩 其它变更
 
@@ -84,6 +89,10 @@ v1.3.8 focuses on the settings experience and day-to-day workflow: the settings 
 - **Live latency**: the connected instance refreshes its latency silently in the background every 5 seconds, so the list stays up to date.
 - **Connection switching is race-safe**: connecting to a second instance while the first attempt is still pending now supersedes the first cleanly — no contradictory success/failure toasts and no stale "current" marker.
 
+## 🩹 Important fix
+
+- **Fixed the BitTorrent settings page showing `NaN` for port fields and breaking the engine on save**: aria2 returns a *range* for `dht-listen-port` / `listen-port` (e.g. `6881-6999`); the old code coerced that to a number and got `NaN`, so saving wrote `dht-listen-port=NaN` into `aria2.conf` and aria2 then refused to start with `Bad range NaN`. Ranges now display their lower bound, non-finite values are never written, and the main process additionally rejects them as a last line of defence. **The same bug exists in v1.3.7 — after upgrading, open the BT settings page once and save.**
+
 ## 🎛️ Settings tweaks
 
 - Removed the question-mark tooltips from settings whose label already explains the feature (e.g. "Minimize to tray", "Check for updates", "Launch at startup"), keeping only the ones with extra information.
@@ -98,6 +107,7 @@ v1.3.8 focuses on the settings experience and day-to-day workflow: the settings 
 - **Button loading states**: clicking a button replaces its label with a centered spinner while the button's shape, width and height stay exactly the same (icon buttons included).
 - **Empty lists**: the empty-state icons on BT Insights, Automation and Workflow are vertically centered instead of sticking to the top of the card.
 - **Page switching**: pages keep their state when you switch away and back — no rebuild from scratch, no blank flash and no ghosting.
+- **Readability**: the primary colour, placeholder text, empty-state text, connection status and semantic tag labels now all meet WCAG AA (4.5:1) contrast, and the previously undefined `--text-tertiary` token is now declared.
 
 ## 🧩 Other changes
 

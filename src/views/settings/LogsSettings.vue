@@ -223,11 +223,11 @@ onUnmounted(() => { stopAutoRefresh() })
 }
 
 .log-line--warn {
-  color: var(--color-warning, #f0a020);
+  color: var(--color-warning-text, #b45309);
 }
 
 .log-line--error {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 
 .log-empty {

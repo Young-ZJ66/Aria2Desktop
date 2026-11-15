@@ -960,6 +960,18 @@ export class Aria2ProcessManager {
         continue
       }
       if (typeof value === 'string' || typeof value === 'number') {
+        // 值层面的兜底：拒绝 NaN / Infinity。
+        // 渲染层若把 NaN 当数字传下来（历史上确实发生过：范围型选项
+        // 如 dht-listen-port 返回 "6881-6999" 被 Number() 成 NaN），
+        // 写进 aria2.conf 会让引擎下次启动直接报 Bad range 拒绝启动。
+        if (typeof value === 'number' && !Number.isFinite(value)) {
+          logger.warn(`[Aria2ProcessManager] Blocked non-finite global option value: ${key}=${String(value)}`)
+          continue
+        }
+        if (typeof value === 'string' && /^(nan|infinity|-infinity)$/i.test(value.trim())) {
+          logger.warn(`[Aria2ProcessManager] Blocked non-finite global option value: ${key}=${value}`)
+          continue
+        }
         safeOptions[key] = value
       }
     }

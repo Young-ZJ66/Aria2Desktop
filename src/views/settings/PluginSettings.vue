@@ -673,7 +673,7 @@ onMounted(() => {
 .plugin-error {
   margin-top: 5px;
   font-size: 11.5px;
-  color: var(--color-danger, #d32f2f);
+  color: var(--color-danger-text, #dc2626);
   word-break: break-word;
 }
 

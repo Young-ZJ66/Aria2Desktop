@@ -144,7 +144,7 @@ function handleConfirm() {
 }
 
 .danger-icon {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 
 .delete-message h3 {
