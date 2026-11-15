@@ -56,7 +56,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 # 按实际路径/版本号修改；%h 是当前用户的家目录
-ExecStart=%h/Applications/Aria2Desktop-1.3.7-x86_64.AppImage --headless
+ExecStart=%h/Applications/Aria2Desktop-1.3.8-x86_64.AppImage --headless
 # 非 0 退出（崩溃、引擎启动失败）时自动重启；正常 stop 不重启
 Restart=on-failure
 RestartSec=5
@@ -84,7 +84,7 @@ journalctl --user -u aria2desktop.service -f
 服务器上没有图形会话时，给 `ExecStart` 套一层虚拟显示：
 
 ```ini
-ExecStart=/usr/bin/xvfb-run -a %h/Applications/Aria2Desktop-1.3.7-x86_64.AppImage --headless
+ExecStart=/usr/bin/xvfb-run -a %h/Applications/Aria2Desktop-1.3.8-x86_64.AppImage --headless
 ```
 
 > 提示：`Restart=on-failure` 只会在异常退出时重启。如果引擎启动失败（例如 aria2
