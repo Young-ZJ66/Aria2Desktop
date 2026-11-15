@@ -6,14 +6,14 @@ v1.3.7 is a remote-access release. The built-in **Web Console** becomes an insta
 
 - The Web Console is now an **installable PWA** — open it on a phone, choose "Add to Home Screen", and it launches full-screen with its own icon, offline shell and automatic update prompt.
 - **Scoped API tokens**: besides the master token, create named tokens limited to `tasks:read`, `tasks:write`, `tasks:control`, `audit:read` or `admin`. A read-only token can browse the queue but cannot add, pause or delete anything.
-- Each token shows its scopes, creation time and last-used time in **Settings → Advanced → API Tokens**, and can be revoked at any time.
+- Each token shows its scopes, creation time and last-used time in **Settings → Remote Access → API Tokens**, and can be revoked at any time.
 - **OpenAPI 3.0.3 document** served at `/openapi.json`, covering every console endpoint, the bearer auth scheme and the scope semantics — import it into Postman, Insomnia or any generator.
 - Unauthorized and insufficient-scope requests are rejected with `401` / `403 { error: "insufficient_scope", required }` and recorded in the audit log.
 
 ## 🔁 Webhooks: retries, queue and HMAC
 
 - Webhook actions in completion rules now **retry automatically** with exponential backoff (default 4 attempts, 60 s base delay, capped at 6 h).
-- Failed deliveries are kept in a **delivery queue** shown under Settings → Workflow, with attempts, next attempt time and the last error; retry any entry by hand or clear the queue.
+- Failed deliveries are kept in a **delivery queue** on the Workflow page, with attempts, next attempt time and the last error; retry any entry by hand or clear the queue.
 - **HMAC-SHA256 signatures**: set a secret per webhook and each request carries `X-Aria2-Timestamp` and `X-Aria2-Signature: sha256=<hex>` over `<timestamp>.<body>`, so receivers can verify authenticity and reject replays.
 - Queue contents are persisted, so pending deliveries survive an app restart.
 - New per-rule fields: `secret`, `maxRetries` (0–10) and `retryDelaySeconds` (5–3600).
@@ -36,6 +36,11 @@ v1.3.7 is a remote-access release. The built-in **Web Console** becomes an insta
 - The CLI `add` command now matches the MCP tool schema (`--fileName/-n` supported; `--dir` reports a clear error because the target directory is decided by in-app category rules).
 - 21 languages updated with all new strings (80 new keys per locale).
 - Web Console layout is now mobile-first: the task table collapses into cards on narrow screens, with safe-area padding for notched devices.
+- **Settings reorganized**: Remote Access, Logs and Reset & Backup are now top-level pages instead of being buried under Advanced Settings.
+- **Built-in log viewer**: a new Logs page shows `main.log` with level filtering, keyword search, auto refresh and one-click "open log directory"; setting changes are recorded in the log (field names only — secrets never reach the log).
+- **Instance page**: latency is measured automatically right after connecting and refreshed in the background, so the list stays live without pressing "Test".
+- **Connection switching is race-safe**: connecting to a second instance while the first attempt is still pending now supersedes the first cleanly — no contradictory success/failure toasts and no stale "current" marker.
+- **UI polish**: button loading states replace the label with a centered spinner without changing the button size; empty states are vertically centred; switching pages no longer rebuilds the page from scratch.
 
 ## ⚠️ Known limitations
 
