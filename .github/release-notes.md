@@ -1,9 +1,5 @@
 # Aria2Desktop v1.3.8 更新日志
 
-> 中文在前，English below.
-
-v1.3.8 聚焦设置页与日常操作体验：设置页重新整理为更清晰的独立页面，新增内置日志查看器；实例页在连接后自动测延迟并持续刷新，连接切换更可靠；同时统一打磨按钮加载态、空列表与页面切换。
-
 ## 🧩 设置页重组
 
 - 设置页现在有 **10 个一级分组**：常规设置、本地引擎、下载设置、网络与协议、BitTorrent 设置、工具与插件、远程访问、日志、重置与备份、安全与维护。
@@ -64,8 +60,6 @@ v1.3.8 聚焦设置页与日常操作体验：设置页重新整理为更清晰�
 ---
 
 # Aria2Desktop v1.3.8 Release Notes
-
-v1.3.8 focuses on the settings experience and day-to-day workflow: the settings dialog is reorganized into clearer standalone pages and gains a built-in log viewer; the Instances page now measures latency automatically after connecting and keeps it fresh, and switching connections is more reliable. Button loading states, empty states and page switching are polished throughout.
 
 ## 🧩 Settings reorganized
 
