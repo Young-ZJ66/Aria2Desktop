@@ -28,7 +28,10 @@
     "workflowSettings": "Przepływy pracy",
     "instances": "Instancje",
     "btInsights": "Analiza BT",
-    "automation": "Automatyzacja"
+    "automation": "Automatyzacja",
+    "remoteAccess": "Dostęp zdalny",
+    "logs": "Dzienniki",
+    "resetBackup": "Resetowanie i kopia zapasowa"
   },
   "task": {
     "downloading": "Pobieranie",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} pól wrażliwych było pustych w kopii; bieżące wartości na tym komputerze zostaną zachowane.",
       "confirmImport": "Potwierdź import",
       "importSuccess": "Konfiguracja zaimportowana",
-      "restartHint": "Niektóre ustawienia zaczną działać po ponownym uruchomieniu aplikacji."
+      "restartHint": "Niektóre ustawienia zaczną działać po ponownym uruchomieniu aplikacji.",
+      "import": "Importuj konfigurację"
     },
     "webhookQueue": {
       "title": "Kolejka dostarczania Webhooków",
@@ -1228,6 +1232,30 @@
       "clearFailed": "Nie udało się wyczyścić kolejki: {error}",
       "empty": "Kolejka jest pusta — brak oczekujących Webhooków.",
       "loadFailed": "Nie udało się odczytać kolejki dostarczania: {error}"
+    },
+    "remoteAccess": {
+      "description": "Zarządzaj zdalną konsolą internetową i tokenami API dla skryptów lub klientów innych firm."
+    },
+    "logs": {
+      "description": "Przeglądaj dzienniki aplikacji. Podczas rozwiązywania problemów skopiuj zawartość lub otwórz folder dzienników.",
+      "refresh": "Odśwież",
+      "autoRefresh": "Automatyczne odświeżanie",
+      "searchPlaceholder": "Szukaj w dziennikach...",
+      "openDir": "Otwórz folder dzienników",
+      "levelAll": "Wszystkie poziomy",
+      "levelInfo": "Informacje",
+      "levelWarn": "Ostrzeżenie",
+      "levelError": "Błąd",
+      "filePath": "Plik dziennika: {path}",
+      "truncated": "Pokazywane są tylko ostatnie {count} wierszy",
+      "empty": "Brak dzienników",
+      "loadFailed": "Nie udało się odczytać dzienników",
+      "openFailed": "Nie udało się otworzyć folderu dzienników"
+    },
+    "resetBackup": {
+      "description": "Przywróć ustawienia domyślne lub utwórz i przywróć kopię zapasową konfiguracji",
+      "resetTitle": "Resetuj",
+      "backupTitle": "Kopia zapasowa"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "Kolejka oczekujących jest pusta"
   },
   "workflow": {
+    "pageDescription": "Zarządzaj szablonami zadań i regułami ukończenia oraz kolejką dostarczania webhooków.",
     "templateApply": "Szablon:",
     "templateSelect": "Wybierz szablon zadania",
     "templateApplied": "Zastosowano szablon",
@@ -1614,6 +1643,7 @@
     "mode": "Tryb",
     "infoHash": "Info hash",
     "unknown": "Nieznane",
+    "peers": "Peery",
     "trackers": "Trackery",
     "tier": "Poziom",
     "trackerUrl": "Adres trackera",

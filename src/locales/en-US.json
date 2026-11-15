@@ -28,7 +28,10 @@
     "workflowSettings": "Workflow",
     "instances": "Instances",
     "btInsights": "BT Insights",
-    "automation": "Automation"
+    "automation": "Automation",
+    "remoteAccess": "Remote Access",
+    "logs": "Logs",
+    "resetBackup": "Reset & Backup"
   },
   "task": {
     "downloading": "Downloading",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} sensitive fields were empty in the backup; the values on this machine are kept.",
       "confirmImport": "Confirm import",
       "importSuccess": "Configuration imported",
-      "restartHint": "Some settings take effect after restarting the app."
+      "restartHint": "Some settings take effect after restarting the app.",
+      "import": "Import configuration"
     },
     "webhookQueue": {
       "title": "Webhook delivery queue",
@@ -1228,6 +1232,30 @@
       "clearFailed": "Failed to clear queue: {error}",
       "empty": "The queue is empty — no Webhooks are waiting.",
       "loadFailed": "Failed to read the delivery queue: {error}"
+    },
+    "remoteAccess": {
+      "description": "Manage the remote web console and API tokens for scripts or third-party clients."
+    },
+    "logs": {
+      "description": "View application logs. Copy the content or open the log folder when troubleshooting.",
+      "refresh": "Refresh",
+      "autoRefresh": "Auto refresh",
+      "searchPlaceholder": "Search logs...",
+      "openDir": "Open log folder",
+      "levelAll": "All levels",
+      "levelInfo": "Info",
+      "levelWarn": "Warning",
+      "levelError": "Error",
+      "filePath": "Log file: {path}",
+      "truncated": "Showing the latest {count} lines only",
+      "empty": "No logs yet",
+      "loadFailed": "Failed to read logs",
+      "openFailed": "Failed to open the log folder"
+    },
+    "resetBackup": {
+      "description": "Restore default settings, or back up and restore app configuration",
+      "resetTitle": "Reset",
+      "backupTitle": "Backup"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "The waiting queue is empty"
   },
   "workflow": {
+    "pageDescription": "Manage task templates and completion rules, and review the webhook delivery queue.",
     "templateApply": "Template:",
     "templateSelect": "Choose a task template",
     "templateApplied": "Template applied",
@@ -1614,6 +1643,7 @@
     "mode": "Mode",
     "infoHash": "Info hash",
     "unknown": "Unknown",
+    "peers": "Peers",
     "trackers": "Trackers",
     "tier": "Tier",
     "trackerUrl": "Tracker URL",

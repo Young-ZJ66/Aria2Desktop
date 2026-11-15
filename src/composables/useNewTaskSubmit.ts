@@ -4,6 +4,7 @@ import { message } from '@/utils/feedback'
 import { getUserFriendlyError } from '@/utils/errorMessages'
 import { useUiStore } from '@/stores/uiStore'
 import { useConnectionStore } from '@/stores/connectionStore'
+import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 
 /**
  * 新建任务三页（URI / 种子 / Metalink）共用的提交骨架。
@@ -51,6 +52,8 @@ export function useNewTaskSubmit() {
   }
 
   async function runSubmit<TChecked = void>(options: RunSubmitOptions<TChecked>): Promise<void> {
+    // 提交起点：0 表示还没进入提交阶段（校验/连接检查就返回了，不需要补时长）
+    let startedAt = 0
     try {
       await options.validate?.()
 
@@ -65,6 +68,8 @@ export function useNewTaskSubmit() {
         if (checked === null) return
       }
 
+      // 新建任务常在几十毫秒内完成，补齐最短时长让「开始下载」按钮的加载动画可见
+      startedAt = Date.now()
       submitting.value = true
       const successMessage = await options.perform(checked as TChecked)
       // 空串 = 用户在提交过程中取消了本次任务：不提示成功、也不关闭弹窗
@@ -75,6 +80,7 @@ export function useNewTaskSubmit() {
       console.error(`[${options.logLabel}] Failed to add task:`, error)
       message.error(getUserFriendlyError(error, options.fallbackError))
     } finally {
+      if (startedAt) await ensureMinimumDuration(startedAt)
       submitting.value = false
     }
   }

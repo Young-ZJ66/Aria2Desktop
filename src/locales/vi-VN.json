@@ -28,7 +28,10 @@
     "workflowSettings": "Quy trình",
     "instances": "Các phiên bản",
     "btInsights": "Phân tích BT",
-    "automation": "Tự động hóa"
+    "automation": "Tự động hóa",
+    "remoteAccess": "Truy cập từ xa",
+    "logs": "Nhật ký",
+    "resetBackup": "Đặt lại và Sao lưu"
   },
   "task": {
     "downloading": "Đang tải xuống",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} trường nhạy cảm để trống trong bản sao lưu, giá trị hiện tại trên máy này sẽ được giữ nguyên.",
       "confirmImport": "Xác nhận nhập",
       "importSuccess": "Đã nhập cấu hình",
-      "restartHint": "Một số cài đặt chỉ có hiệu lực sau khi khởi động lại ứng dụng."
+      "restartHint": "Một số cài đặt chỉ có hiệu lực sau khi khởi động lại ứng dụng.",
+      "import": "Nhập cấu hình"
     },
     "webhookQueue": {
       "title": "Hàng đợi gửi Webhook",
@@ -1228,6 +1232,30 @@
       "clearFailed": "Xóa hàng đợi thất bại: {error}",
       "empty": "Hàng đợi trống, không có Webhook nào đang chờ.",
       "loadFailed": "Đọc hàng đợi gửi thất bại: {error}"
+    },
+    "remoteAccess": {
+      "description": "Quản lý bảng điều khiển web từ xa và token API cho script hoặc ứng dụng bên thứ ba."
+    },
+    "logs": {
+      "description": "Xem nhật ký ứng dụng. Sao chép nội dung hoặc mở thư mục nhật ký khi khắc phục sự cố.",
+      "refresh": "Làm mới",
+      "autoRefresh": "Tự động làm mới",
+      "searchPlaceholder": "Tìm kiếm nhật ký...",
+      "openDir": "Mở thư mục nhật ký",
+      "levelAll": "Tất cả mức",
+      "levelInfo": "Thông tin",
+      "levelWarn": "Cảnh báo",
+      "levelError": "Lỗi",
+      "filePath": "Tệp nhật ký: {path}",
+      "truncated": "Chỉ hiển thị {count} dòng gần nhất",
+      "empty": "Chưa có nhật ký",
+      "loadFailed": "Không đọc được nhật ký",
+      "openFailed": "Không mở được thư mục nhật ký"
+    },
+    "resetBackup": {
+      "description": "Khôi phục cài đặt mặc định hoặc sao lưu và khôi phục cấu hình ứng dụng",
+      "resetTitle": "Đặt lại",
+      "backupTitle": "Sao lưu"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "Hàng đợi chờ đang trống"
   },
   "workflow": {
+    "pageDescription": "Quản lý mẫu tác vụ và quy tắc hoàn thành, đồng thời xem hàng đợi gửi webhook.",
     "templateApply": "Mẫu:",
     "templateSelect": "Chọn mẫu tác vụ",
     "templateApplied": "Đã áp dụng mẫu",
@@ -1614,6 +1643,7 @@
     "mode": "Chế độ",
     "infoHash": "Info hash",
     "unknown": "Không rõ",
+    "peers": "Peer",
     "trackers": "Tracker",
     "tier": "Bậc",
     "trackerUrl": "URL tracker",

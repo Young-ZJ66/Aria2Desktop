@@ -28,7 +28,10 @@
     "workflowSettings": "Flujo de trabajo",
     "instances": "Instancias",
     "btInsights": "Análisis BT",
-    "automation": "Automatización"
+    "automation": "Automatización",
+    "remoteAccess": "Acceso remoto",
+    "logs": "Registros",
+    "resetBackup": "Restablecer y copia de seguridad"
   },
   "task": {
     "downloading": "Descargando",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} campos sensibles estaban vacíos en la copia; se conservan los valores de este equipo.",
       "confirmImport": "Confirmar importación",
       "importSuccess": "Configuración importada",
-      "restartHint": "Algunos ajustes se aplican tras reiniciar la aplicación."
+      "restartHint": "Algunos ajustes se aplican tras reiniciar la aplicación.",
+      "import": "Importar configuración"
     },
     "webhookQueue": {
       "title": "Cola de entrega de Webhooks",
@@ -1228,6 +1232,30 @@
       "clearFailed": "No se pudo vaciar la cola: {error}",
       "empty": "La cola está vacía: no hay Webhooks en espera.",
       "loadFailed": "No se pudo leer la cola de entrega: {error}"
+    },
+    "remoteAccess": {
+      "description": "Gestiona la consola web remota y los tokens de API para scripts o clientes de terceros."
+    },
+    "logs": {
+      "description": "Consulta los registros de la aplicación. Copia el contenido o abre la carpeta de registros al solucionar problemas.",
+      "refresh": "Actualizar",
+      "autoRefresh": "Actualización automática",
+      "searchPlaceholder": "Buscar en los registros...",
+      "openDir": "Abrir carpeta de registros",
+      "levelAll": "Todos los niveles",
+      "levelInfo": "Información",
+      "levelWarn": "Advertencia",
+      "levelError": "Error",
+      "filePath": "Archivo de registro: {path}",
+      "truncated": "Solo se muestran las últimas {count} líneas",
+      "empty": "Aún no hay registros",
+      "loadFailed": "No se pudieron leer los registros",
+      "openFailed": "No se pudo abrir la carpeta de registros"
+    },
+    "resetBackup": {
+      "description": "Restaurar la configuración predeterminada o hacer copia de seguridad y restaurarla",
+      "resetTitle": "Restablecer",
+      "backupTitle": "Copia de seguridad"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "La cola de espera está vacía"
   },
   "workflow": {
+    "pageDescription": "Gestiona plantillas de tareas y reglas de finalización, y revisa la cola de envío de webhooks.",
     "templateApply": "Plantilla:",
     "templateSelect": "Elija una plantilla de tarea",
     "templateApplied": "Plantilla aplicada",
@@ -1614,6 +1643,7 @@
     "mode": "Modo",
     "infoHash": "Info hash",
     "unknown": "Desconocido",
+    "peers": "Pares",
     "trackers": "Trackers",
     "tier": "Nivel",
     "trackerUrl": "URL del tracker",

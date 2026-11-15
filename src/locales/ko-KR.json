@@ -28,7 +28,10 @@
     "workflowSettings": "워크플로",
     "instances": "인스턴스",
     "btInsights": "BT 인사이트",
-    "automation": "자동화"
+    "automation": "자동화",
+    "remoteAccess": "원격 액세스",
+    "logs": "로그",
+    "resetBackup": "초기화 및 백업"
   },
   "task": {
     "downloading": "다운로드 중",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "백업에서 비어 있는 민감한 필드 {count}개는 이 컴퓨터의 현재 값을 유지합니다.",
       "confirmImport": "가져오기 확인",
       "importSuccess": "구성을 가져왔습니다",
-      "restartHint": "일부 설정은 앱을 다시 시작한 후 적용됩니다."
+      "restartHint": "일부 설정은 앱을 다시 시작한 후 적용됩니다.",
+      "import": "설정 가져오기"
     },
     "webhookQueue": {
       "title": "Webhook 전송 대기열",
@@ -1228,6 +1232,30 @@
       "clearFailed": "대기열 비우기 실패: {error}",
       "empty": "대기열이 비어 있습니다. 전송 대기 중인 Webhook이 없습니다.",
       "loadFailed": "전송 대기열을 읽지 못했습니다: {error}"
+    },
+    "remoteAccess": {
+      "description": "스크립트 또는 타사 클라이언트를 위한 원격 웹 콘솔과 API 토큰을 관리합니다."
+    },
+    "logs": {
+      "description": "앱 실행 로그를 확인합니다. 문제를 조사할 때 내용을 복사하거나 로그 폴더를 열 수 있습니다.",
+      "refresh": "새로 고침",
+      "autoRefresh": "자동 새로 고침",
+      "searchPlaceholder": "로그 검색...",
+      "openDir": "로그 폴더 열기",
+      "levelAll": "모든 수준",
+      "levelInfo": "정보",
+      "levelWarn": "경고",
+      "levelError": "오류",
+      "filePath": "로그 파일: {path}",
+      "truncated": "최근 {count}줄만 표시",
+      "empty": "로그가 없습니다",
+      "loadFailed": "로그를 읽지 못했습니다",
+      "openFailed": "로그 폴더를 열지 못했습니다"
+    },
+    "resetBackup": {
+      "description": "기본 설정으로 복원하거나 앱 구성을 백업 및 복원합니다",
+      "resetTitle": "초기화",
+      "backupTitle": "백업"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "대기열이 비어 있습니다"
   },
   "workflow": {
+    "pageDescription": "작업 템플릿과 완료 규칙을 관리하고 Webhook 전송 대기열을 확인합니다.",
     "templateApply": "작업 템플릿:",
     "templateSelect": "작업 템플릿 선택",
     "templateApplied": "템플릿이 적용되었습니다",
@@ -1614,6 +1643,7 @@
     "mode": "모드",
     "infoHash": "Info Hash",
     "unknown": "알 수 없음",
+    "peers": "피어",
     "trackers": "Tracker 목록",
     "tier": "계층",
     "trackerUrl": "Tracker URL",

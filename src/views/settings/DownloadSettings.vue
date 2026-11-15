@@ -6,6 +6,7 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :reloading="reloading"
     :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="onSave"
@@ -27,7 +28,7 @@
 
         <n-form-item path="dir">
           <template #label>
-            <TipLabel :label="t('settings.download.dir')" :tip="t('settings.download.dirTip')" />
+            <TipLabel :label="t('settings.download.dir')" />
           </template>
           <n-input
             v-model:value="settings.dir"
@@ -193,7 +194,7 @@
       <n-card :title="t('settings.download.downloadSchedule')" class="setting-group">
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.download.downloadScheduleEnabled')" :tip="t('settings.download.downloadScheduleTip')" />
+            <TipLabel :label="t('settings.download.downloadScheduleEnabled')" :tip="downloadScheduleTipText" />
           </template>
           <n-switch v-model:value="dlScheduleEnabled" />
         </n-form-item>
@@ -214,7 +215,6 @@
             <template #icon><n-icon><AddOutline /></n-icon></template>
             {{ t('settings.download.addScheduleRule') }}
           </n-button>
-          <div class="dl-schedule-note">{{ t('settings.download.downloadScheduleNote') }}</div>
         </div>
       </n-card>
 
@@ -273,7 +273,7 @@
 
         <n-form-item path="continue">
           <template #label>
-            <TipLabel :label="t('settings.download.continue')" :tip="t('settings.download.continueTip')" />
+            <TipLabel :label="t('settings.download.continue')" />
           </template>
           <AppSwitch v-model:value="settings.continue" />
         </n-form-item>
@@ -307,7 +307,7 @@
 
         <n-form-item path="allowOverwrite">
           <template #label>
-            <TipLabel :label="t('settings.download.allowOverwrite')" :tip="t('settings.download.allowOverwriteTip')" />
+            <TipLabel :label="t('settings.download.allowOverwrite')" />
           </template>
           <AppSwitch v-model:value="settings.allowOverwrite" />
         </n-form-item>
@@ -363,7 +363,7 @@
 
         <n-form-item path="parameterizedUri">
           <template #label>
-            <TipLabel :label="t('settings.download.parameterizedUri')" :tip="t('settings.download.parameterizedUriTip')" />
+            <TipLabel :label="t('settings.download.parameterizedUri')" />
           </template>
           <AppSwitch v-model:value="settings.parameterizedUri" />
         </n-form-item>
@@ -377,7 +377,7 @@
 
         <n-form-item path="checkIntegrity">
           <template #label>
-            <TipLabel :label="t('settings.download.checkIntegrity')" :tip="t('settings.download.checkIntegrityTip')" />
+            <TipLabel :label="t('settings.download.checkIntegrity')" />
           </template>
           <AppSwitch v-model:value="settings.checkIntegrity" />
         </n-form-item>
@@ -713,7 +713,7 @@ async function validate(): Promise<boolean> {
   }
 }
 
-const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
+const { loading, saving, reloading, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
   applyOptions,
   toOptions,
   defaults,
@@ -917,6 +917,14 @@ interface ScheduleRuleUI {
 const scheduleEnabled = ref(false)
 const scheduleRules = reactive<ScheduleRuleUI[]>([])
 
+/**
+ * 定时下载的说明合并到问号提示：原来长文案直接铺在规则下方，
+ * 用户只是配置一次调度，正文里留着大段解释会挤占设置项空间。
+ */
+const downloadScheduleTipText = computed(() =>
+  [t('settings.download.downloadScheduleTip'), t('settings.download.downloadScheduleNote')].join('\n\n')
+)
+
 // 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
 const dayOptions = computed(() => [
   { label: t('settings.download.mon'), value: 1 },
@@ -1105,12 +1113,6 @@ function removeDlScheduleRule(index: number) {
 .dl-schedule-action {
   font-size: 12px;
   color: var(--text-secondary);
-}
-
-.dl-schedule-note {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.6;
 }
 
 .schedule-rule {

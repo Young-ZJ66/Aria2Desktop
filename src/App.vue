@@ -15,13 +15,25 @@
               <!-- 侧边栏 -->
               <AppSidebar />
 
-              <!-- 内容区域（路由切换时淡入上移过渡，见 theme.css 的 .page-fade） -->
+              <!-- 内容区域（切页时瞬时切换，见下方注释） -->
               <div class="content-container">
-                <router-view v-slot="{ Component }">
-                  <transition name="page-fade" mode="out-in">
-                    <component :is="Component" />
-                  </transition>
-                </router-view>
+                <div class="page-host">
+                  <!--
+                    keep-alive：切页时保留各页实例，避免每次进入都重新挂载 + 重新拉数据
+                    （这是「像刷新页面」的根源）。页面重新激活时各自按需刷新，见各页的 onActivated。
+                    :key 用 route.path 而不是组件类型——/downloading 与 /completed 复用同一个 TaskList，
+                    不区分 key 的话两个列表会共用一个实例（排序记忆、筛选条件互相串）。
+
+                    这里刻意不包 <transition>：页面根节点背景是透明的，任何淡入淡出/交叉过渡都会让
+                    新旧两页的内容在过渡期间叠加成残影（用户反馈「切换页面有残影，不丝滑」）。
+                    配合 keep-alive 后页面本来就已经渲染好，直接瞬时切换是最干净、最跟手的效果。
+                  -->
+                  <router-view v-slot="{ Component, route }">
+                    <keep-alive>
+                      <component :is="Component" :key="route.path" />
+                    </keep-alive>
+                  </router-view>
+                </div>
               </div>
             </div>
 
@@ -192,6 +204,11 @@ function onDrop(event: DragEvent) {
   overflow: auto;
   padding: 20px 24px 24px;
   background-color: var(--bg-secondary);
+}
+
+/* 页面容器：撑满内容区，供各页根节点的 height:100% 生效 */
+.page-host {
+  height: 100%;
 }
 
 /* 拖拽下载覆盖层 */

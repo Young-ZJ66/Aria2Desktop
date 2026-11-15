@@ -28,7 +28,10 @@
     "workflowSettings": "Pracovní postup",
     "instances": "Instance",
     "btInsights": "Přehled BT",
-    "automation": "Automatizace"
+    "automation": "Automatizace",
+    "remoteAccess": "Vzdálený přístup",
+    "logs": "Protokoly",
+    "resetBackup": "Obnovit a zálohovat"
   },
   "task": {
     "downloading": "Stahování",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} citlivých polí bylo v záloze prázdných; hodnoty na tomto počítači zůstanou zachovány.",
       "confirmImport": "Potvrdit import",
       "importSuccess": "Konfigurace importována",
-      "restartHint": "Některá nastavení se projeví až po restartu aplikace."
+      "restartHint": "Některá nastavení se projeví až po restartu aplikace.",
+      "import": "Importovat konfiguraci"
     },
     "webhookQueue": {
       "title": "Fronta doručování Webhook",
@@ -1228,6 +1232,30 @@
       "clearFailed": "Vyprázdnění fronty se nezdařilo: {error}",
       "empty": "Fronta je prázdná — žádné čekající Webhooky.",
       "loadFailed": "Načtení fronty doručování se nezdařilo: {error}"
+    },
+    "remoteAccess": {
+      "description": "Spravujte vzdálenou webovou konzoli a tokeny API pro skripty nebo klienty třetích stran."
+    },
+    "logs": {
+      "description": "Zobrazte protokoly aplikace. Při řešení problémů můžete obsah zkopírovat nebo otevřít složku protokolů.",
+      "refresh": "Obnovit",
+      "autoRefresh": "Automatické obnovování",
+      "searchPlaceholder": "Hledat v protokolech...",
+      "openDir": "Otevřít složku protokolů",
+      "levelAll": "Všechny úrovně",
+      "levelInfo": "Informace",
+      "levelWarn": "Upozornění",
+      "levelError": "Chyba",
+      "filePath": "Soubor protokolu: {path}",
+      "truncated": "Zobrazuje se pouze posledních {count} řádků",
+      "empty": "Zatím žádné protokoly",
+      "loadFailed": "Protokoly se nepodařilo načíst",
+      "openFailed": "Složku protokolů se nepodařilo otevřít"
+    },
+    "resetBackup": {
+      "description": "Obnovit výchozí nastavení nebo zálohovat a obnovit konfiguraci aplikace",
+      "resetTitle": "Resetovat",
+      "backupTitle": "Záloha"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "Fronta čekajících je prázdná"
   },
   "workflow": {
+    "pageDescription": "Spravujte šablony úloh a pravidla dokončení a kontrolujte frontu doručování webhooků.",
     "templateApply": "Šablona:",
     "templateSelect": "Vyberte šablonu úlohy",
     "templateApplied": "Šablona použita",
@@ -1614,6 +1643,7 @@
     "mode": "Režim",
     "infoHash": "Info hash",
     "unknown": "Neznámé",
+    "peers": "Partneři",
     "trackers": "Trackery",
     "tier": "Úroveň",
     "trackerUrl": "URL trackeru",

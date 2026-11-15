@@ -14,7 +14,7 @@
       <template #header>
         <div class="drawer-header">
           <span>{{ t('task.taskDetail') }}</span>
-          <n-button size="small" quaternary @click="refresh">
+          <n-button size="small" quaternary :loading="refreshing" @click="refresh">
             <template #icon>
               <n-icon><RefreshOutline /></n-icon>
             </template>
@@ -82,6 +82,7 @@ import { useI18n } from 'vue-i18n'
 import { NTag, NText, type DataTableColumns } from 'naive-ui'
 import { RefreshOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
+import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 import { useUiStore } from '@/stores/uiStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
@@ -99,6 +100,9 @@ const taskStore = useTaskStore()
 
 const task = ref<Aria2Task | null>(null)
 const loading = ref(false)
+// 刷新按钮自己的加载态：只在用户手动点刷新时转圈。
+// 不能直接复用 loading —— 抽屉打开期间每 3 秒会轮询刷新一次，那样按钮会一直转。
+const refreshing = ref(false)
 const uriDialogVisible = ref(false)
 const selectedFileUris = ref<Aria2Uri[]>([])
 const taskUris = ref<Aria2Uri[]>([])
@@ -276,7 +280,16 @@ async function loadTaskDetail() {
 }
 
 async function refresh() {
-  await loadTaskDetail()
+  // 手动刷新时按钮转圈；轮询走的是 loadTaskDetail()，不经过这里
+  refreshing.value = true
+  const startedAt = Date.now()
+  try {
+    await loadTaskDetail()
+  } finally {
+    // 本地读取常在几毫秒内完成，补齐最短时长，否则加载圈只闪一下看不见
+    await ensureMinimumDuration(startedAt)
+    refreshing.value = false
+  }
 }
 
 function findTaskInStore(gid: string): Aria2Task | null {

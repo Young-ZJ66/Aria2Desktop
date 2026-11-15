@@ -78,7 +78,17 @@
       </div>
 
       <div class="task-list-content">
+        <!-- 稳定空态（非加载中）单独渲染：表格在 x 轴可滚动时会把空态塞进表格节点，
+             无法垂直撑满；独立容器才能让提示真正落在列表区域的垂直中间 -->
+        <div v-if="!filteredTasks.length && !loading" class="task-empty">
+          <n-empty :description="t('task.noTasks')" size="small">
+            <template #extra>
+              <span class="empty-hint">{{ t('task.emptyHint') }}</span>
+            </template>
+          </n-empty>
+        </div>
         <n-data-table
+          v-else
           :loading="loading"
           :columns="columns"
           :data="filteredTasks"
@@ -144,6 +154,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { useStreamTaskStore } from '@/stores/streamTaskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useTaskSelection } from '@/composables/useTaskSelection'
+import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 import { taskTimeService } from '@/services/taskTimeService'
 import { taskPersistenceService } from '@/services/taskPersistenceService'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
@@ -459,12 +470,13 @@ const filteredTasks = computed(() => {
 const taskStats = computed(() => getTaskStats(filteredTasks.value))
 
 /**
- * 可批量选择的任务：yt-dlp 流媒体任务没有 aria2 gid，批量暂停/删除无法作用于它们，
- * 因此不参与勾选（行内仍提供取消/重试/移除）。
+ * 可批量选择的任务：aria2 任务与 yt-dlp 流媒体任务都能勾选。
+ * 流媒体任务不在 aria2 队列里（gid 是主进程的 sd-xxx），批量操作在各自的
+ * handler 里按 streamTaskStore.findByGid 分流：暂停=取消、开始=重试、
+ * 删除=取消/移除并可同时删除已下载文件。这样「勾选 + 同时删除文件」
+ * 对两类任务是同一套交互，不必让用户记住哪种任务不能勾。
  */
-const selectableTasks = computed(() =>
-  filteredTasks.value.filter(task => !streamTaskStore.findByGid(task.gid))
-)
+const selectableTasks = computed(() => filteredTasks.value)
 
 // 表头全选复选框状态
 const allChecked = computed(() =>
@@ -527,10 +539,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         'onUpdate:checked': handleSelectAllChange,
         'aria-label': t('task.selectAll')
       }),
-    render: (row: Aria2Task) =>
-      streamTaskStore.findByGid(row.gid)
-        ? h('span', { class: 'stream-task-no-select', 'aria-hidden': 'true' })
-        : h(TaskCheckbox, { task: row })
+    render: (row: Aria2Task) => h(TaskCheckbox, { task: row })
   },
   {
     key: 'name',
@@ -801,6 +810,8 @@ async function removeStreamTask(gid: string) {
 async function handleStreamDeleteConfirm(deleteFiles: boolean) {
   const task = streamTaskToDelete.value
   if (!task) return
+  // 删除通常瞬间完成，补齐最短时长让对话框的删除按钮动画可见
+  const startedAt = Date.now()
   streamDeleting.value = true
   try {
     const result = await streamTaskStore.removeTask(task.gid, deleteFiles)
@@ -816,6 +827,7 @@ async function handleStreamDeleteConfirm(deleteFiles: boolean) {
       message.error(t('task.deleteFailed', { error: getUserFriendlyError(result.error) }))
     }
   } finally {
+    await ensureMinimumDuration(startedAt)
     streamDeleting.value = false
   }
 }
@@ -880,10 +892,8 @@ async function removeTask(gid: string) {
   }
 }
 
-// 行点击选择任务
+// 行点击选择任务（aria2 任务与流媒体任务一视同仁）
 function handleRowSelect(row: Aria2Task) {
-  // 流媒体任务不参与批量操作，点击行不勾选
-  if (streamTaskStore.findByGid(row.gid)) return
   toggleTask(row)
 }
 
@@ -1007,6 +1017,8 @@ async function batchOpen() {
     message.warning(t('task.noFileInfo'))
     return
   }
+  // 打开文件很快，补齐最短时长让按钮的加载动画可见
+  const startedAt = Date.now()
   batchOpening.value = true
   let opened = 0
   try {
@@ -1022,6 +1034,7 @@ async function batchOpen() {
     console.error('Failed to batch open files:', error)
     message.error(t('task.batchOpenFailed'))
   } finally {
+    await ensureMinimumDuration(startedAt)
     batchOpening.value = false
   }
 }
@@ -1030,6 +1043,8 @@ async function batchOpen() {
 
 async function batchStart() {
   if (batchOperating.value) return
+  // 批量操作常在几十毫秒内完成，补齐最短时长让按钮的加载动画可见
+  const startedAt = Date.now()
   batchOperating.value = true
   try {
     const startableTasks = selectedTasks.value.filter(task =>
@@ -1041,27 +1056,39 @@ async function batchStart() {
       return
     }
 
+    let startedCount = 0
     for (const task of startableTasks) {
+      // 流媒体任务没有 aria2 队列：失败的任务用原 URL/格式重新发起（相当于重试）
+      if (streamTaskStore.findByGid(task.gid)) {
+        if (task.status !== 'error') continue
+        const result = await streamTaskStore.retryTask(task.gid)
+        if (result.success) startedCount++
+        else console.error('重试流媒体任务失败:', result.error)
+        continue
+      }
       if (task.status === 'error') {
         await taskStore.retryErrorTask(task.gid)
       } else {
         await taskStore.unpauseTask(task.gid)
       }
+      startedCount++
     }
 
     await taskStore.loadAllTasks()
-    message.success(t('task.startedCount', { count: startableTasks.length }))
+    message.success(t('task.startedCount', { count: startedCount }))
     clearSelection()
   } catch (error) {
     console.error('开始任务失败:', error)
     message.error(t('task.startFailed', { error: getUserFriendlyError(error) }))
   } finally {
+    await ensureMinimumDuration(startedAt)
     batchOperating.value = false
   }
 }
 
 async function batchPause() {
   if (batchOperating.value) return
+  const startedAt = Date.now()
   batchOperating.value = true
   try {
     const pausableTasks = selectedTasks.value.filter(task =>
@@ -1073,16 +1100,24 @@ async function batchPause() {
       return
     }
 
+    let pausedCount = 0
     for (const task of pausableTasks) {
+      // 流媒体任务由 yt-dlp 子进程执行，「暂停」等价于取消（列表记录会被 cancelled 事件移除）
+      if (streamTaskStore.findByGid(task.gid)) {
+        if (await streamTaskStore.cancelTask(task.gid)) pausedCount++
+        continue
+      }
       await taskStore.pauseTask(task.gid, true)
+      pausedCount++
     }
 
-    message.success(t('task.pausedCount', { count: pausableTasks.length }))
+    message.success(t('task.pausedCount', { count: pausedCount }))
     clearSelection()
   } catch (error) {
     console.error('暂停任务失败:', error)
     message.error(t('task.pauseFailed', { error: getUserFriendlyError(error) }))
   } finally {
+    await ensureMinimumDuration(startedAt)
     batchOperating.value = false
   }
 }
@@ -1098,13 +1133,18 @@ async function batchDelete() {
     let hasFiles = false
 
     if (props.taskType === 'stopped') {
-      hasFiles = selectedTasks.value.some(task =>
-        completedTaskDeleteService.hasDeleteableFiles(task)
-      )
+      hasFiles = selectedTasks.value.some(task => {
+        // 流媒体任务：只有已完成且拿到最终文件路径时才提供「同时删除文件」
+        const streamTask = streamTaskStore.findByGid(task.gid)
+        if (streamTask) return streamTask.status === 'complete' && !!streamTask.filePath
+        return completedTaskDeleteService.hasDeleteableFiles(task)
+      })
     } else {
-      hasFiles = selectedTasks.value.some(task =>
-        task.files && task.files.length > 0 && task.files.some(file => file.path && file.path.trim())
-      )
+      hasFiles = selectedTasks.value.some(task => {
+        const streamTask = streamTaskStore.findByGid(task.gid)
+        if (streamTask) return streamTask.status === 'complete' && !!streamTask.filePath
+        return task.files && task.files.length > 0 && task.files.some(file => file.path && file.path.trim())
+      })
     }
 
     if (isElectron && hasFiles) {
@@ -1131,12 +1171,37 @@ async function batchDelete() {
 
 // 批量删除确认处理
 async function handleBatchDeleteConfirm(deleteFiles: boolean) {
+  // 删除通常瞬间完成，补齐最短时长让对话框的删除按钮动画可见
+  const startedAt = Date.now()
   batchDeleting.value = true
   try {
     const tasks = tasksToDelete.value.length > 0 ? tasksToDelete.value : [...selectedTasks.value]
 
+    // 流媒体任务不在 aria2 里：先按 streamTaskStore 逐个取消/移除（可选删文件），
+    // 剩下的 aria2 任务再走原有链路。混选时两类任务都要处理，不能整批丢给一边。
+    const streamGids = new Set(
+      tasks.filter(task => streamTaskStore.findByGid(task.gid)).map(task => task.gid)
+    )
+    let streamSuccess = 0
+    let streamFailed = 0
+    for (const gid of streamGids) {
+      const result = await streamTaskStore.removeTask(gid, deleteFiles)
+      if (result.success) streamSuccess++
+      else {
+        streamFailed++
+        console.error('Failed to remove stream task ' + gid + ':', result.error)
+      }
+    }
+    const aria2Tasks = tasks.filter(task => !streamGids.has(task.gid))
+
     if (props.taskType === 'stopped') {
-      const result = await completedTaskDeleteService.batchDeleteCompletedTasks(tasks, deleteFiles, connectionStore.service)
+      const result = aria2Tasks.length > 0
+        ? await completedTaskDeleteService.batchDeleteCompletedTasks(aria2Tasks, deleteFiles, connectionStore.service)
+        : { totalTasks: 0, successfulTasks: 0, failedTasks: 0, totalFilesDeleted: 0, results: [], errors: [] as string[] }
+      // 把流媒体任务的成败并入统计，用户看到的数字是「这一批」的真实结果
+      result.totalTasks += streamGids.size
+      result.successfulTasks += streamSuccess
+      result.failedTasks += streamFailed
       await taskStore.loadAllTasks()
 
       if (result.successfulTasks === result.totalTasks) {
@@ -1152,8 +1217,8 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
         }
       }
     } else {
-      let successCount = 0
-      for (const task of tasks) {
+      let successCount = streamSuccess
+      for (const task of aria2Tasks) {
         try {
           await taskStore.removeTask(task.gid, deleteFiles)
           successCount++
@@ -1178,6 +1243,7 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
     console.error('删除任务失败:', error)
     message.error(t('task.deleteTaskFailed'))
   } finally {
+    await ensureMinimumDuration(startedAt)
     batchDeleting.value = false
     showBatchDeleteDialog.value = false
   }
@@ -1462,13 +1528,15 @@ watch(
   height: 100%;
 }
 
-/* 空状态铺满列表区域并居中，避免空列表时横向滚动条残留在中间 */
-.task-list-content :deep(.n-data-table-empty) {
+/* 空状态：铺满列表区域并在垂直方向居中（水平方向由 n-empty 自身居中） */
+.task-empty {
+  height: 100%;
   min-height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
 
 .task-actions {
   flex: none;
@@ -1570,9 +1638,13 @@ watch(
 }
 
 .empty-hint {
+  display: block;
+  max-width: 420px;
+  margin-top: 4px;
   font-size: 13px;
   color: var(--text-secondary);
-  margin-top: 4px;
+  text-align: center;
+  line-height: 1.6;
 }
 
 :deep(.app-action-btn--primary-type) {

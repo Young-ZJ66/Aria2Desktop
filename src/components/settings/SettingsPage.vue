@@ -24,7 +24,7 @@
         <n-button type="primary" :loading="saving" :disabled="disabled" @click="$emit('save')">
           {{ t('settings.save') }}
         </n-button>
-        <n-button :disabled="disabled" @click="$emit('reload')">
+        <n-button :loading="reloading" :disabled="disabled" @click="$emit('reload')">
           {{ t('settings.reload') }}
         </n-button>
         <n-tooltip trigger="hover">
@@ -47,7 +47,7 @@
               <n-button type="primary" :loading="saving" :disabled="disabled" @click="$emit('save')">
                 {{ t('settings.save') }}
               </n-button>
-              <n-button :disabled="disabled" @click="$emit('reload')">
+              <n-button :loading="reloading" :disabled="disabled" @click="$emit('reload')">
                 {{ t('settings.reload') }}
               </n-button>
               <n-tooltip trigger="hover">
@@ -78,6 +78,8 @@ const props = defineProps<{
   connected?: boolean
   showActions?: boolean
   saving?: boolean
+  /** 「重新加载」按钮自身的加载态：加载期间由全局样式把文字换成加载圈，按钮尺寸不变 */
+  reloading?: boolean
   loading?: boolean
   disabled?: boolean
 }>()

@@ -207,7 +207,7 @@ import SettingsPage from '@/components/settings/SettingsPage.vue'
 import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import { message, confirm } from '@/utils/feedback'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { runWithMinimumLoading } from '@/composables/useMinimumLoading'
+import { runWithMinimumLoading, ensureMinimumDuration } from '@/composables/useMinimumLoading'
 
 interface PluginInfo {
   manifest: {
@@ -356,6 +356,8 @@ function confirmPermissions(plugin: PluginInfo): Promise<boolean> {
 async function togglePlugin(plugin: PluginInfo, enable: boolean) {
   // 启用前先展示权限清单：插件运行在独立 utilityProcess，权限标签不是安全沙箱
   if (enable && !(await confirmPermissions(plugin))) return
+  // 启用/禁用只是改标记位，通常瞬间返回；补齐最短时长让开关旁的加载动画可见
+  const startedAt = Date.now()
   switchingId.value = plugin.manifest.id
   try {
     const result = enable
@@ -370,6 +372,7 @@ async function togglePlugin(plugin: PluginInfo, enable: boolean) {
   } catch {
     message.error(t('settings.plugins.switchFailed'))
   } finally {
+    await ensureMinimumDuration(startedAt)
     switchingId.value = null
   }
 }
@@ -381,6 +384,7 @@ function confirmUninstall(plugin: PluginInfo) {
     positiveText: t('settings.plugins.uninstall'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
+      const startedAt = Date.now()
       uninstallingId.value = plugin.manifest.id
       try {
         const result = await api().pluginsUninstall(plugin.manifest.id)
@@ -393,6 +397,7 @@ function confirmUninstall(plugin: PluginInfo) {
       } catch {
         message.error(t('settings.plugins.uninstallFailed'))
       } finally {
+        await ensureMinimumDuration(startedAt)
         uninstallingId.value = null
       }
     }
@@ -438,6 +443,8 @@ async function installMarketPlugin(item: MarketPlugin) {
     })
   })
   if (!confirmed) return
+  // 安装/升级按钮的加载态同样补齐最短时长
+  const startedAt = Date.now()
   installingMarketId.value = item.id
   try {
     const result = await api.pluginsMarketInstall(item.id)
@@ -455,6 +462,7 @@ async function installMarketPlugin(item: MarketPlugin) {
   } catch (error) {
     message.error(t('settings.plugins.marketInstallFailed', { error: String(error) }))
   } finally {
+    await ensureMinimumDuration(startedAt)
     installingMarketId.value = null
   }
 }
@@ -476,6 +484,7 @@ async function reportMarketPlugin(item: MarketPlugin) {
 }
 
 async function saveMarketSettings() {
+  const startedAt = Date.now()
   savingMarketSettings.value = true
   try {
     await settingsStore.updateSetting('pluginMarket', {
@@ -487,11 +496,13 @@ async function saveMarketSettings() {
   } catch (error) {
     message.error(String(error))
   } finally {
+    await ensureMinimumDuration(startedAt)
     savingMarketSettings.value = false
   }
 }
 
 async function savePublishers() {
+  const startedAt = Date.now()
   savingPublishers.value = true
   try {
     const keys = publisherKeys.value.split(/\n\s*\n/).map(value => value.trim()).filter(Boolean)
@@ -500,6 +511,7 @@ async function savePublishers() {
   } catch (error) {
     message.error(String(error))
   } finally {
+    await ensureMinimumDuration(startedAt)
     savingPublishers.value = false
   }
 }

@@ -6,6 +6,7 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :reloading="reloading"
     :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
@@ -31,7 +32,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.metalink.metalinkPreferredProtocol')" :tip="t('settings.metalink.metalinkPreferredProtocolTip')" />
+            <TipLabel :label="t('settings.metalink.metalinkPreferredProtocol')" />
           </template>
           <n-input v-model:value="settings.metalinkPreferredProtocol" :placeholder="t('settings.metalink.metalinkPreferredProtocolPlaceholder')" clearable />
         </n-form-item>
@@ -161,7 +162,7 @@ async function validate(): Promise<boolean> {
   }
 }
 
-const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
+const { loading, saving, reloading, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
   // 未保存离开确认：跟踪全部表单字段（原始值，JSON 序列化对比）
   dirtyTracking: {
     pageId: 'metalink',

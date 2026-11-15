@@ -28,7 +28,10 @@
     "workflowSettings": "工作流",
     "instances": "实例",
     "btInsights": "BT 洞察",
-    "automation": "自动化"
+    "automation": "自动化",
+    "remoteAccess": "远程访问",
+    "logs": "日志",
+    "resetBackup": "重置与备份"
   },
   "task": {
     "downloading": "正在下载",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} 个敏感字段在备份中为空，将保留本机当前值。",
       "confirmImport": "确认导入",
       "importSuccess": "配置已导入",
-      "restartHint": "部分设置需重启应用后生效。"
+      "restartHint": "部分设置需重启应用后生效。",
+      "import": "导入配置"
     },
     "webhookQueue": {
       "title": "Webhook 投递队列",
@@ -1228,6 +1232,30 @@
       "clearFailed": "清空队列失败：{error}",
       "empty": "队列为空，没有待投递的 Webhook。",
       "loadFailed": "读取投递队列失败：{error}"
+    },
+    "remoteAccess": {
+      "description": "管理远程 Web 控制台与 API 令牌，供脚本或第三方客户端访问。"
+    },
+    "logs": {
+      "description": "查看应用运行日志，排查问题时可复制内容或直接打开日志目录。",
+      "refresh": "刷新",
+      "autoRefresh": "自动刷新",
+      "searchPlaceholder": "搜索日志...",
+      "openDir": "打开日志目录",
+      "levelAll": "全部级别",
+      "levelInfo": "信息",
+      "levelWarn": "警告",
+      "levelError": "错误",
+      "filePath": "日志文件：{path}",
+      "truncated": "仅显示最近 {count} 行",
+      "empty": "暂无日志",
+      "loadFailed": "读取日志失败",
+      "openFailed": "打开日志目录失败"
+    },
+    "resetBackup": {
+      "description": "恢复默认设置，或备份与恢复应用配置",
+      "resetTitle": "重置",
+      "backupTitle": "备份"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "等待队列为空"
   },
   "workflow": {
+    "pageDescription": "管理任务模板与完成规则，并查看 Webhook 投递队列。",
     "templateApply": "任务模板：",
     "templateSelect": "选择任务模板",
     "templateApplied": "已应用模板",
@@ -1614,6 +1643,7 @@
     "mode": "模式",
     "infoHash": "Info Hash",
     "unknown": "未知",
+    "peers": "Peer 列表",
     "trackers": "Tracker 列表",
     "tier": "层级",
     "trackerUrl": "Tracker 地址",

@@ -162,6 +162,99 @@ body {
 }
 
 /* =========================================
+   按钮加载态统一样式：加载圈替换文字，而不是挤在文字前
+   ---------------------------------------------------------------
+   Naive UI 的 :loading 会在左侧图标槽插入一个转圈图标，文字仍然显示，
+   于是按钮宽度会先被撑开、再回缩，看起来是"文字前多了个圈"。
+   这里改成：文字保留占位（visibility:hidden，宽度不变）但不可见，
+   加载圈绝对定位到按钮正中心，因此按钮的形状、长、宽在点击前后完全一致。
+   仅对"有文字的按钮"生效（:has 检测 content 槽），纯图标按钮仍让加载圈
+   原地替换图标，避免宽度塌陷。
+   ========================================= */
+.n-button--loading > .n-button__content {
+  visibility: hidden;
+}
+
+/* 图标槽：去掉展开/收起过渡与宽度限制（含 naive 写入的行内 max-width） */
+.n-button--loading > .n-button__icon,
+.n-button--loading > .n-button__icon.fade-in-width-expand-transition-enter-from,
+.n-button--loading > .n-button__icon.fade-in-width-expand-transition-enter-active,
+.n-button--loading > .n-button__icon.fade-in-width-expand-transition-enter-to {
+  max-width: none !important;
+  overflow: visible !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+/* 有文字的按钮：图标槽改成覆盖整个按钮的居中容器，加载圈落在文字位置上。
+   这里让图标槽脱离文档流，因此"本来没有图标"的按钮不会因为加载态多出一个
+   图标槽而变宽（宽度只由隐藏的文字占位决定）。
+   反过来，本来就有 #icon 的按钮会因此少掉图标槽那一段宽度——这类按钮需要额外
+   加 .btn-loading-keep-icon 类，走下面那条"保留图标位"的规则。 */
+.n-button--loading:has(> .n-button__content) > .n-button__icon {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  margin: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 原本就有 #icon 的按钮：图标槽留在文档流里占住原来的宽度（按钮不变窄），
+   但让加载圈以整个按钮为基准居中。
+   position: static 是关键——它让图标槽内部那个本来就绝对定位的 .n-icon-slot
+   改用最近的定位祖先（.n-button 自身是 position: relative）作为基准。 */
+.n-button--loading.btn-loading-keep-icon:has(> .n-button__content) > .n-button__icon {
+  position: static;
+  width: var(--n-icon-size);
+  height: var(--n-icon-size);
+  /* 必须把上面通用规则里的 margin:0 覆盖回来，否则会少掉图标槽的 6px 右边距，
+     按钮宽度会窄 6px（实测 100px → 94px） */
+  margin: var(--n-icon-margin) !important;
+  margin-left: 0 !important;
+}
+
+.n-button--loading.btn-loading-keep-icon:has(> .n-button__content) > .n-button__icon > .n-icon-slot {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  margin: 0 !important;
+  transform: translate(-50%, -50%) !important;
+  transition: none !important;
+}
+
+/* 容器里的图标/加载圈回到常规流：去掉 naive 的绝对定位、位移与切换过渡，
+   否则会偏到按钮左上角、或被缩放淡入。
+   注意保留 position:relative——加载圈内部还有一层绝对定位的 svg 容器，
+   它需要一个 1em 见方的定位父级才能保持尺寸。 */
+.n-button--loading:has(> .n-button__content) > .n-button__icon > * {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  margin: 0 !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+.n-button--loading:has(> .n-button__content) > .n-button__icon > .n-base-loading {
+  opacity: 1 !important;
+}
+
+/* 加载结束时图标槽会整体淡出，这里让它立即消失：
+   否则这 200ms 里加载圈会回到文字左侧，重新出现"文字前一个圈"的闪烁 */
+.n-button__icon.fade-in-width-expand-transition-leave-from,
+.n-button__icon.fade-in-width-expand-transition-leave-active,
+.n-button__icon.fade-in-width-expand-transition-leave-to {
+  opacity: 0 !important;
+  transition: none !important;
+}
+
+/* =========================================
    主题切换平滑过渡
    由 settingsStore.applyTheme 在每次真实切换前后于 <html> 上临时挂载
    .theme-transition，覆盖全树元素的颜色类属性做一次平滑过渡，
@@ -192,27 +285,14 @@ html.theme-transition ::-webkit-scrollbar-thumb {
 /* =========================================
    通用动效类
    - .fade-in：元素出现时的淡入（空状态、抽屉内容等轻量场景）
-   - .page-fade：路由页面切换的淡入上移过渡（配合 App.vue 的 <transition>）
+   路由页面切换刻意不做过渡：页面根节点背景透明，任何淡入淡出都会让新旧两页
+   在过渡期间叠加成残影。配合 keep-alive 页面已常驻，瞬时切换最干净。
    ========================================= */
 .fade-in-enter-active {
   transition: opacity 0.2s ease;
 }
 
 .fade-in-enter-from {
-  opacity: 0;
-}
-
-.page-fade-enter-active,
-.page-fade-leave-active {
-  transition: opacity 0.22s var(--ease-smooth), transform 0.22s var(--ease-out);
-}
-
-.page-fade-enter-from {
-  opacity: 0;
-  transform: translateY(6px);
-}
-
-.page-fade-leave-to {
   opacity: 0;
 }
 

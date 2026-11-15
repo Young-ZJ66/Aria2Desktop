@@ -78,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { computed, ref, onActivated, onDeactivated, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
@@ -219,6 +219,27 @@ let resizeObserver: ResizeObserver | null = null
 
 onMounted(async () => {
   await nextTick()
+  setupTrafficChart()
+})
+
+// keep-alive 下页面被缓存时 DOM 会被摘掉，但 onUnmounted 不会触发。
+// 此时 echarts 实例仍持有已脱离文档的容器，resize 会算不出尺寸，
+// 所以失活时销毁、激活时按当前容器重建。
+onActivated(async () => {
+  await nextTick()
+  setupTrafficChart()
+})
+
+onDeactivated(() => {
+  teardownTrafficChart()
+})
+
+onUnmounted(() => {
+  teardownTrafficChart()
+})
+
+function setupTrafficChart(): void {
+  if (trafficChart || !trafficChartRef.value) return
   initTrafficChart()
   // 跟随容器宽度自适应，页面缩放时图表同步压缩/拉伸
   if (trafficChartRef.value && typeof ResizeObserver !== 'undefined') {
@@ -227,9 +248,9 @@ onMounted(async () => {
     })
     resizeObserver.observe(trafficChartRef.value)
   }
-})
+}
 
-onUnmounted(() => {
+function teardownTrafficChart(): void {
   // 仅销毁图表实例与尺寸监听，不停止后台监控（监控生命周期由全局连接状态管理）
   if (resizeObserver) {
     resizeObserver.disconnect()
@@ -239,7 +260,7 @@ onUnmounted(() => {
     trafficChart.dispose()
     trafficChart = null
   }
-})
+}
 
 // 后台监控每秒推入新点，订阅变化以刷新图表
 watch(speedHistory, () => {

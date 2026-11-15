@@ -8,65 +8,93 @@
       </template>
     </PageHeader>
 
-    <!-- 引擎不向渲染层推送事件，轮询失败只能靠这一条横幅暴露（成功时会自动清除） -->
-    <n-alert v-if="autoImportStore.lastError" type="error" class="load-error">
+    <!-- 引擎不向渲染层推送事件，轮询失败只能靠这一条横幅暴露（成功时会自动清除）。
+         错误内容会随重试变化，所以只做「本次关闭」：下次出现新错误时重新显示。 -->
+    <n-alert v-if="showLoadError" type="error" closable class="load-error" @close="dismissLoadError">
       {{ t('automation.loadFailed', { error: autoImportStore.lastError }) }}
     </n-alert>
 
-    <!-- RSS / Atom 订阅 -->
-    <n-card :bordered="false" class="section-card" :title="t('automation.rssTitle')">
-      <template #header-extra>
-        <n-button size="small" type="primary" @click="openRssForm()">
-          {{ t('automation.rssAdd') }}
-        </n-button>
-      </template>
-      <div class="section-desc">{{ t('automation.rssDescription') }}</div>
-      <n-empty v-if="autoImportStore.subscriptions.length === 0" :description="t('automation.rssEmpty')" class="section-empty" />
-      <n-data-table
-        v-else
-        :columns="rssColumns"
-        :data="autoImportStore.subscriptions"
-        :row-key="(row: RssSubscription) => row.id"
-        :bordered="false"
-        size="small"
-        :scroll-x="1180"
-      />
-    </n-card>
+    <!-- 三个功能面各自独立成页：订阅、监听文件夹、导入日志互不干扰，
+         叠在一屏里要滚很长才看得到日志，tab 切换比纵向滚动更省操作 -->
+    <n-tabs v-model:value="activeSection" type="line" animated class="automation-tabs">
+      <n-tab-pane name="rss" :tab="rssTab">
+        <!-- RSS / Atom 订阅 -->
+        <n-card :bordered="false" class="section-card">
+          <template #header>
+            <div class="section-header">
+              <div>
+                <div class="section-title">{{ t('automation.rssTitle') }}</div>
+                <div class="section-desc">{{ t('automation.rssDescription') }}</div>
+              </div>
+              <n-button size="small" type="primary" @click="openRssForm()">
+                {{ t('automation.rssAdd') }}
+              </n-button>
+            </div>
+          </template>
+          <n-empty v-if="autoImportStore.subscriptions.length === 0" :description="t('automation.rssEmpty')" class="section-empty" />
+          <n-data-table
+            v-else
+            :columns="rssColumns"
+            :data="autoImportStore.subscriptions"
+            :row-key="(row: RssSubscription) => row.id"
+            :bordered="false"
+            size="small"
+            :scroll-x="1180"
+          />
+        </n-card>
+      </n-tab-pane>
 
-    <!-- 监听文件夹 -->
-    <n-card :bordered="false" class="section-card" :title="t('automation.watchTitle')">
-      <template #header-extra>
-        <n-button size="small" type="primary" @click="openWatchForm()">
-          {{ t('automation.watchAdd') }}
-        </n-button>
-      </template>
-      <div class="section-desc">{{ t('automation.watchDescription') }}</div>
-      <n-empty v-if="autoImportStore.watchFolders.length === 0" :description="t('automation.watchEmpty')" class="section-empty" />
-      <n-data-table
-        v-else
-        :columns="watchColumns"
-        :data="autoImportStore.watchFolders"
-        :row-key="(row: WatchFolderConfig) => row.id"
-        :bordered="false"
-        size="small"
-        :scroll-x="1080"
-      />
-    </n-card>
+      <n-tab-pane name="watch" :tab="watchTab">
+        <!-- 监听文件夹 -->
+        <n-card :bordered="false" class="section-card">
+          <template #header>
+            <div class="section-header">
+              <div>
+                <div class="section-title">{{ t('automation.watchTitle') }}</div>
+                <div class="section-desc">{{ t('automation.watchDescription') }}</div>
+              </div>
+              <n-button size="small" type="primary" @click="openWatchForm()">
+                {{ t('automation.watchAdd') }}
+              </n-button>
+            </div>
+          </template>
+          <n-empty v-if="autoImportStore.watchFolders.length === 0" :description="t('automation.watchEmpty')" class="section-empty" />
+          <n-data-table
+            v-else
+            :columns="watchColumns"
+            :data="autoImportStore.watchFolders"
+            :row-key="(row: WatchFolderConfig) => row.id"
+            :bordered="false"
+            size="small"
+            :scroll-x="1080"
+          />
+        </n-card>
+      </n-tab-pane>
 
-    <!-- 导入日志 -->
-    <n-card :bordered="false" class="section-card" :title="t('automation.logTitle')">
-      <div class="section-desc">{{ t('automation.logDescription') }}</div>
-      <n-empty v-if="autoImportStore.logEntries.length === 0" :description="t('automation.logEmpty')" class="section-empty" />
-      <n-data-table
-        v-else
-        :columns="logColumns"
-        :data="autoImportStore.logEntries"
-        :row-key="(row: AutoImportLogEntry) => row.id"
-        :bordered="false"
-        size="small"
-        :scroll-x="900"
-      />
-    </n-card>
+      <n-tab-pane name="log" :tab="logTab">
+        <!-- 导入日志 -->
+        <n-card :bordered="false" class="section-card">
+          <template #header>
+            <div class="section-header">
+              <div>
+                <div class="section-title">{{ t('automation.logTitle') }}</div>
+                <div class="section-desc">{{ t('automation.logDescription') }}</div>
+              </div>
+            </div>
+          </template>
+          <n-empty v-if="autoImportStore.logEntries.length === 0" :description="t('automation.logEmpty')" class="section-empty" />
+          <n-data-table
+            v-else
+            :columns="logColumns"
+            :data="autoImportStore.logEntries"
+            :row-key="(row: AutoImportLogEntry) => row.id"
+            :bordered="false"
+            size="small"
+            :scroll-x="900"
+          />
+        </n-card>
+      </n-tab-pane>
+    </n-tabs>
 
     <!-- RSS 订阅表单 -->
     <n-modal
@@ -192,7 +220,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, onUnmounted, reactive, ref, type VNode } from 'vue'
+import { computed, h, onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, type VNode } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   NButton,
@@ -213,12 +241,29 @@ import {
 } from 'naive-ui'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import { message } from '@/utils/feedback'
+import { withMinimumDuration } from '@/composables/useMinimumLoading'
 import { useAutoImportStore } from '@/stores/autoImportStore'
 import { formatCompleteTime } from '@/utils/taskFormatters'
 import type { AutoImportLogEntry, RssSubscription, WatchFolderConfig } from '@/shared/autoImport'
 
 const { t } = useI18n()
 const autoImportStore = useAutoImportStore()
+
+/**
+ * 轮询失败横幅的显示状态：轮询失败会反复写入同一个 lastError，
+ * 用户手动关闭后应保持隐藏，直到错误内容变化（新的失败原因）或刷新成功后再失败。
+ */
+const dismissedError = ref<string | null>(null)
+const showLoadError = computed(() => !!autoImportStore.lastError && autoImportStore.lastError !== dismissedError.value)
+
+/** 三个功能面各占一个 tab，tab 上带条数，方便不切页也能看出有没有配置 */
+const activeSection = ref<'rss' | 'watch' | 'log'>('rss')
+const rssTab = computed(() => `${t('automation.rssTitle')} (${autoImportStore.subscriptions.length})`)
+const watchTab = computed(() => `${t('automation.watchTitle')} (${autoImportStore.watchFolders.length})`)
+const logTab = computed(() => `${t('automation.logTitle')} (${autoImportStore.logEntries.length})`)
+function dismissLoadError() {
+  dismissedError.value = autoImportStore.lastError ?? null
+}
 
 /** 轮询周期：与"上次抓取时间"的刷新节奏对齐，30 秒足够让日志区看起来是实时的 */
 const POLL_INTERVAL_MS = 30000
@@ -741,25 +786,54 @@ async function pickDirectory(target: 'rssDir' | 'watchPath' | 'watchDir'): Promi
 }
 
 async function handleRefresh(): Promise<void> {
-  await autoImportStore.loadAll()
+  // 本机刷新常在几毫秒内完成，补齐最短时长，否则按钮上的加载动画只会闪一下
+  await withMinimumDuration(() => autoImportStore.loadAll())
   if (autoImportStore.lastError) message.error(t('automation.loadFailed', { error: autoImportStore.lastError }))
   else message.success(t('automation.refreshed'))
 }
 
+// 轮询定时器：keep-alive 下页面不会被卸载，改为随「激活 / 失活」启停
+function startPolling(): void {
+  if (pollTimer !== undefined) return
+  // 引擎无推送事件：页面可见期间以 30 秒轮询代替订阅
+  pollTimer = setInterval(() => { void autoImportStore.pollRefresh() }, POLL_INTERVAL_MS)
+}
+
+function stopPolling(): void {
+  if (pollTimer !== undefined) clearInterval(pollTimer)
+  pollTimer = undefined
+}
+
+let activatedOnce = false
+
 onMounted(() => {
   void autoImportStore.loadAll()
-  // 引擎无推送事件：页面可见期间以 30 秒轮询代替订阅，卸载时必须清理避免定时器泄漏
-  pollTimer = setInterval(() => { void autoImportStore.pollRefresh() }, POLL_INTERVAL_MS)
+})
+
+// keep-alive 下首次挂载时 onMounted 与 onActivated 都会触发，跳过第一次避免重复拉数据
+onActivated(() => {
+  startPolling()
+  if (!activatedOnce) {
+    activatedOnce = true
+    return
+  }
+  // 切回来时静默刷新一次，不用 withMinimumDuration，避免看起来像重新加载
+  void autoImportStore.loadAll()
+})
+
+// 切走时停表：页面被缓存着，不停表会一直轮询
+onDeactivated(() => {
+  stopPolling()
 })
 
 onUnmounted(() => {
-  if (pollTimer !== undefined) clearInterval(pollTimer)
-  pollTimer = undefined
+  stopPolling()
 })
 </script>
 
 <style scoped>
 .automation-view {
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -769,19 +843,72 @@ onUnmounted(() => {
   margin-top: 0;
 }
 
+/* tab 撑满剩余高度：卡片自己滚动，页面本身不再出现整页滚动条 */
+.automation-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: -2px;
+}
+
+.automation-tabs :deep(.n-tabs-nav) {
+  flex: none;
+  margin-bottom: 2px;
+}
+
+.automation-tabs :deep(.n-tabs-pane-wrapper) {
+  flex: 1;
+  min-height: 0;
+}
+
+.automation-tabs :deep(.n-tab-pane) {
+  height: 100%;
+}
+
 .section-card {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   border-radius: 10px;
   border: 1px solid var(--border-light);
 }
 
-.section-desc {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 12px;
+.section-card :deep(.n-card__content) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
+.section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.section-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* 空态：撑满卡片内容区并垂直居中，避免图标贴在顶部 */
 .section-empty {
-  padding: 32px 0;
+  height: 100%;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .cell-stack {

@@ -28,7 +28,10 @@
     "workflowSettings": "İş Akışı",
     "instances": "Örnekler",
     "btInsights": "BT Görüşleri",
-    "automation": "Otomasyon"
+    "automation": "Otomasyon",
+    "remoteAccess": "Uzaktan Erişim",
+    "logs": "Kayıtlar",
+    "resetBackup": "Sıfırla ve Yedekle"
   },
   "task": {
     "downloading": "İndiriliyor",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "Yedekte {count} hassas alan boştu; bu bilgisayardaki mevcut değerler korunacak.",
       "confirmImport": "İçe aktarmayı onayla",
       "importSuccess": "Yapılandırma içe aktarıldı",
-      "restartHint": "Bazı ayarlar uygulama yeniden başlatıldıktan sonra geçerli olur."
+      "restartHint": "Bazı ayarlar uygulama yeniden başlatıldıktan sonra geçerli olur.",
+      "import": "Yapılandırmayı içe aktar"
     },
     "webhookQueue": {
       "title": "Webhook teslim kuyruğu",
@@ -1228,6 +1232,30 @@
       "clearFailed": "Kuyruk temizlenemedi: {error}",
       "empty": "Kuyruk boş, bekleyen Webhook yok.",
       "loadFailed": "Teslim kuyruğu okunamadı: {error}"
+    },
+    "remoteAccess": {
+      "description": "Betikler veya üçüncü taraf istemciler için uzak web konsolunu ve API belirteçlerini yönetin."
+    },
+    "logs": {
+      "description": "Uygulama günlüklerini görüntüleyin. Sorun giderirken içeriği kopyalayın veya günlük klasörünü açın.",
+      "refresh": "Yenile",
+      "autoRefresh": "Otomatik yenile",
+      "searchPlaceholder": "Günlüklerde ara...",
+      "openDir": "Günlük klasörünü aç",
+      "levelAll": "Tüm seviyeler",
+      "levelInfo": "Bilgi",
+      "levelWarn": "Uyarı",
+      "levelError": "Hata",
+      "filePath": "Günlük dosyası: {path}",
+      "truncated": "Yalnızca son {count} satır gösteriliyor",
+      "empty": "Henüz günlük yok",
+      "loadFailed": "Günlükler okunamadı",
+      "openFailed": "Günlük klasörü açılamadı"
+    },
+    "resetBackup": {
+      "description": "Varsayılan ayarları geri yükleyin veya uygulama yapılandırmasını yedekleyip geri yükleyin",
+      "resetTitle": "Sıfırla",
+      "backupTitle": "Yedekleme"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "Bekleme kuyruğu boş"
   },
   "workflow": {
+    "pageDescription": "Görev şablonlarını ve tamamlama kurallarını yönetin, webhook teslim kuyruğunu görüntüleyin.",
     "templateApply": "Şablon:",
     "templateSelect": "Bir görev şablonu seçin",
     "templateApplied": "Şablon uygulandı",
@@ -1614,6 +1643,7 @@
     "mode": "Mod",
     "infoHash": "Info hash",
     "unknown": "Bilinmiyor",
+    "peers": "Eşler",
     "trackers": "Tracker'lar",
     "tier": "Katman",
     "trackerUrl": "Tracker URL",

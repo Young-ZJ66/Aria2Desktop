@@ -6,6 +6,7 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :reloading="reloading"
     :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
@@ -24,7 +25,7 @@
       <n-card :title="t('settings.protocol.groupHttpAuth')" class="setting-group">
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.protocol.httpUser')" :tip="t('settings.protocol.httpUserTip')" />
+            <TipLabel :label="t('settings.protocol.httpUser')" />
           </template>
           <n-input
             v-model:value="form.httpUser"
@@ -35,7 +36,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.protocol.httpPasswd')" :tip="t('settings.protocol.httpPasswdTip')" />
+            <TipLabel :label="t('settings.protocol.httpPasswd')" />
           </template>
           <n-input
             v-model:value="form.httpPasswd"
@@ -60,7 +61,7 @@
       <n-card :title="t('settings.protocol.groupHttpBehavior')" class="setting-group">
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.protocol.httpAcceptGzip')" :tip="t('settings.protocol.httpAcceptGzipTip')" />
+            <TipLabel :label="t('settings.protocol.httpAcceptGzip')" />
           </template>
           <AppSwitch
             v-model:value="form.httpAcceptGzip"
@@ -136,7 +137,7 @@
       <n-card :title="t('settings.protocol.groupTls')" class="setting-group">
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.protocol.checkCertificate')" :tip="t('settings.protocol.checkCertificateTip')" />
+            <TipLabel :label="t('settings.protocol.checkCertificate')" />
           </template>
           <AppSwitch
             v-model:value="form.checkCertificate"
@@ -390,7 +391,7 @@ async function validate(): Promise<boolean> {
   }
 }
 
-const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(form, {
+const { loading, saving, reloading, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(form, {
   // 未保存离开确认：跟踪全部表单字段（原始值，JSON 序列化对比）
   dirtyTracking: {
     pageId: 'protocol',

@@ -216,6 +216,9 @@ class SettingsService {
 
   // 保存设置
   async saveSettings(newSettings: Partial<AppSettings>): Promise<void> {
+    // 记下保存前的快照：deepMerge 之后无法还原「用户这次到底改了哪一项」。
+    // 主进程收到的是一整包合并后的设置（含全部默认值），只有这里才知道真实意图。
+    const before = this.settings
     this.settings = this.deepMerge(this.settings, newSettings)
 
     try {
@@ -233,7 +236,38 @@ class SettingsService {
       throw error
     }
 
+    this.logSettingsChange(before, newSettings)
     this.notifyListeners()
+  }
+
+  /**
+   * 把「用户改了哪些设置」写进应用日志，供设置里的「日志」页查看。
+   * 只记录字段名，绝不记录值：settings.aria2.secret、Web 控制台令牌等都在设置里。
+   */
+  private logSettingsChange(before: AppSettings, patch: Partial<AppSettings>): void {
+    try {
+      if (!window.electronAPI?.writeLog) return
+      const labels: string[] = []
+      for (const key of Object.keys(patch) as Array<keyof AppSettings>) {
+        const b = before[key]
+        const a = this.settings[key]
+        if (JSON.stringify(b) === JSON.stringify(a)) continue
+        if (b && a && typeof b === 'object' && typeof a === 'object') {
+          const bo = b as Record<string, unknown>
+          const ao = a as Record<string, unknown>
+          const subKeys = [...new Set([...Object.keys(bo), ...Object.keys(ao)])].filter(
+            (subKey) => JSON.stringify(bo[subKey]) !== JSON.stringify(ao[subKey])
+          )
+          labels.push(subKeys.length > 0 ? `${String(key)}(${subKeys.join(',')})` : String(key))
+        } else {
+          labels.push(String(key))
+        }
+      }
+      if (labels.length === 0) return
+      void window.electronAPI.writeLog('info', `[Settings] 设置已更新: ${labels.join(', ')}`).catch(() => {})
+    } catch {
+      // 日志记录失败不能影响设置保存本身
+    }
   }
 
   // 获取设置

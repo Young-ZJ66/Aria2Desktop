@@ -51,6 +51,9 @@ export const useConnectionStore = defineStore('connection', () => {
     { id: 'default', name: '', config: { ...DEFAULT_CONFIG } }
   ])
   const activeProfileId = ref<string>('default')
+  // 连接代次：每次 connect/disconnect 都会 +1。旧连接尝试发现自己不再是"最新一代"时
+  // 必须安静退出，不能覆盖新连接的状态（否则会出现"提示连接成功但实际没连上"）
+  let connectToken = 0
 
   // 当前激活配置（自动连接 / 状态页地址展示使用）
   const config = computed<Aria2Config>(() => {
@@ -162,13 +165,22 @@ export const useConnectionStore = defineStore('connection', () => {
     }
   }
 
-  async function connect(newConfig?: Partial<Aria2Config>): Promise<boolean> {
-    // 并发保护：连接进行中时忽略重复调用，返回 false 供调用方感知被忽略
-    if (isConnecting.value) return false
+  async function connect(newConfig?: Partial<Aria2Config>, profileId?: string): Promise<boolean> {
+    // 允许并发发起连接：后来的连接会接管（token 递增），先前的尝试自动作废。
+    // 这样用户在第一个实例迟迟连不上时可以直接点另一个实例，不必等超时。
+    const token = ++connectToken
 
-    if (newConfig) {
+    // 指定 profileId 时按该预设连接，成功后才把它切成当前预设：
+    // 失败的连接不会把界面上的「当前连接」改到连不上的实例上
+    const targetProfile = profileId ? profiles.value.find(p => p.id === profileId) : undefined
+    if (targetProfile) {
+      if (newConfig) targetProfile.config = { ...targetProfile.config, ...newConfig }
+    } else if (newConfig) {
       updateActiveConfig(newConfig)
     }
+    // 固定本次尝试的目标配置：并发发起第二次连接时，第一次仍按自己当初的参数收尾，
+    // 不会因为 activeProfile 变了而连到错误的实例
+    const targetConfig: Aria2Config = { ...(targetProfile ? targetProfile.config : config.value) }
 
     isConnecting.value = true
     connectionError.value = null
@@ -183,31 +195,41 @@ export const useConnectionStore = defineStore('connection', () => {
         taskStore.clearTasks()
       }
 
-      service.value = new Aria2Service(config.value)
+      // 用局部变量持有本次连接的服务实例：并发发起第二次连接会改写 service.value，
+      // 若这里始终读 service.value，第一次的 await 会落到第二次的实例上，相互串扰
+      const targetService = new Aria2Service(targetConfig)
+      service.value = targetService
 
       // 设置基本监听器
-      service.value.on('connected', () => {
+      targetService.on('connected', () => {
+        if (token !== connectToken) return
         isConnected.value = true
         connectionError.value = null
       })
 
-      service.value.on('disconnected', () => {
+      targetService.on('disconnected', () => {
+        if (token !== connectToken) return
         isConnected.value = false
       })
 
-      service.value.on('error', (error: unknown) => {
+      targetService.on('error', (error: unknown) => {
+        if (token !== connectToken) return
         const err = error as Error
         connectionError.value = err.message || 'Connection error'
       })
 
       try {
-        await service.value.connect()
+        await targetService.connect()
       } catch (wsError) {
         console.warn('WebSocket connection failed, will use HTTP:', wsError)
       }
 
       // 验证连接
-      await service.value.getVersion()
+      await targetService.getVersion()
+
+      // 期间又发起了新的连接：本次结果作废，交还给最新一次尝试
+      if (token !== connectToken) return false
+
       isConnected.value = true
       connectionError.value = null
 
@@ -215,17 +237,21 @@ export const useConnectionStore = defineStore('connection', () => {
       const statsStore = useStatsStore()
       await statsStore.loadGlobalOptions()
 
-      // 连接成功后持久化配置预设
+      // 连接成功后才切换当前预设并持久化：失败或作废的尝试不会改动它
+      if (targetProfile) activeProfileId.value = targetProfile.id
       await persistProfiles()
 
       return true
 
     } catch (error) {
+      // 被更新的连接取代：不报错、不改状态，让最新一次尝试自己汇报结果
+      if (token !== connectToken) return false
       connectionError.value = error instanceof Error ? error.message : 'Connection failed'
       isConnected.value = false
       throw error
     } finally {
-      isConnecting.value = false
+      // 只有最新一次尝试才负责收尾，避免旧尝试把新连接的 loading 提前关掉
+      if (token === connectToken) isConnecting.value = false
     }
   }
 
@@ -247,6 +273,9 @@ export const useConnectionStore = defineStore('connection', () => {
   }
 
   function disconnect() {
+    // 断开也推进代次：正在进行的连接尝试随之作废，不会再回写 isConnected
+    connectToken += 1
+    isConnecting.value = false
     if (service.value) {
       service.value.disconnect()
       service.value = null

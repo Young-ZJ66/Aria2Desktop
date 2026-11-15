@@ -28,7 +28,10 @@
     "workflowSettings": "Workflow",
     "instances": "Instanties",
     "btInsights": "BT-inzichten",
-    "automation": "Automatisering"
+    "automation": "Automatisering",
+    "remoteAccess": "Externe toegang",
+    "logs": "Logboeken",
+    "resetBackup": "Resetten en back-up"
   },
   "task": {
     "downloading": "Downloaden",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} gevoelige velden waren leeg in de back-up; de huidige waarden op deze computer blijven behouden.",
       "confirmImport": "Import bevestigen",
       "importSuccess": "Configuratie geïmporteerd",
-      "restartHint": "Sommige instellingen worden pas actief na het herstarten van de app."
+      "restartHint": "Sommige instellingen worden pas actief na het herstarten van de app.",
+      "import": "Configuratie importeren"
     },
     "webhookQueue": {
       "title": "Webhook-afleverwachtrij",
@@ -1228,6 +1232,30 @@
       "clearFailed": "Wachtrij leegmaken mislukt: {error}",
       "empty": "De wachtrij is leeg — geen Webhooks in afwachting.",
       "loadFailed": "Afleverwachtrij lezen mislukt: {error}"
+    },
+    "remoteAccess": {
+      "description": "Beheer de externe webconsole en API-tokens voor scripts of clients van derden."
+    },
+    "logs": {
+      "description": "Bekijk applicatielogboeken. Kopieer de inhoud of open de logmap bij het oplossen van problemen.",
+      "refresh": "Vernieuwen",
+      "autoRefresh": "Automatisch vernieuwen",
+      "searchPlaceholder": "Logboeken doorzoeken...",
+      "openDir": "Logmap openen",
+      "levelAll": "Alle niveaus",
+      "levelInfo": "Info",
+      "levelWarn": "Waarschuwing",
+      "levelError": "Fout",
+      "filePath": "Logbestand: {path}",
+      "truncated": "Alleen de laatste {count} regels worden getoond",
+      "empty": "Nog geen logboeken",
+      "loadFailed": "Logboeken konden niet worden gelezen",
+      "openFailed": "Logmap kon niet worden geopend"
+    },
+    "resetBackup": {
+      "description": "Standaardinstellingen herstellen of app-configuratie back-uppen en herstellen",
+      "resetTitle": "Resetten",
+      "backupTitle": "Back-up"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "De wachtrij is leeg"
   },
   "workflow": {
+    "pageDescription": "Beheer taaksjablonen en voltooiingsregels en bekijk de webhook-wachtrij.",
     "templateApply": "Sjabloon:",
     "templateSelect": "Kies een taaksjabloon",
     "templateApplied": "Sjabloon toegepast",
@@ -1614,6 +1643,7 @@
     "mode": "Modus",
     "infoHash": "Info-hash",
     "unknown": "Onbekend",
+    "peers": "Peers",
     "trackers": "Trackers",
     "tier": "Niveau",
     "trackerUrl": "Tracker-URL",

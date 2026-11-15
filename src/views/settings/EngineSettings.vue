@@ -6,12 +6,14 @@
     <!-- 服务状态 -->
     <n-card :title="t('localService.serviceStatus')" class="setting-group">
       <template #header-extra>
+        <!-- 纯图标按钮：加载态由 naive 的 :loading 把图标换成加载圈（全局样式对无文字的
+             按钮就是"图标原地换成圈"，circle 按钮宽度锁定为高度，因此形状、长、宽都不变） -->
         <n-button
           size="small"
           quaternary
           circle
           class="refresh-button"
-          :class="{ 'is-refreshing': isRefreshing }"
+          :loading="isRefreshing"
           @click="refreshStatus"
         >
           <n-icon><RefreshOutline /></n-icon>
@@ -55,7 +57,7 @@
         <n-space>
           <n-button
             type="default"
-            :class="isRunning ? 'status-btn-stop' : 'status-btn-start'"
+            :class="[isRunning ? 'status-btn-stop' : 'status-btn-start', 'btn-loading-keep-icon']"
             :loading="isStarting || isStopping"
             :disabled="!canStart && !canStop"
             @click="isRunning ? stopService() : startService()"
@@ -69,7 +71,7 @@
           <n-button
             v-if="isRunning"
             type="default"
-            class="status-btn-restart"
+            class="status-btn-restart btn-loading-keep-icon"
             :loading="isStarting || isStopping"
             :disabled="!canRestart"
             @click="restartService"
@@ -131,7 +133,7 @@
 
         <n-form-item path="downloadDir">
           <template #label>
-            <TipLabel :label="t('localService.downloadDir')" :tip="t('localService.downloadDirTip')" />
+            <TipLabel :label="t('localService.downloadDir')" />
           </template>
           <n-input
             v-model:value="localConfig.downloadDir"
@@ -149,7 +151,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('localService.autoStart')" :tip="t('localService.autoStartTip')" />
+            <TipLabel :label="t('localService.autoStart')" />
           </template>
           <AppSwitch
             v-model:value="localConfig.autoStart"
@@ -222,7 +224,7 @@ import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { useAria2LocalService, type Aria2LocalConfig } from '@/composables/useAria2LocalService'
-import { withMinimumDuration } from '@/composables/useMinimumLoading'
+import { withMinimumDuration, ensureMinimumDuration } from '@/composables/useMinimumLoading'
 
 const { t } = useI18n()
 const {
@@ -379,6 +381,8 @@ async function saveConfig() {
     return
   }
 
+  // 写配置文件通常瞬间完成，补齐最短时长让保存按钮的加载动画可见
+  const saveStartedAt = Date.now()
   isSavingConfig.value = true
 
   try {
@@ -414,6 +418,7 @@ async function saveConfig() {
   } catch (error) {
     handleConfigError(error)
   } finally {
+    await ensureMinimumDuration(saveStartedAt)
     isSavingConfig.value = false
   }
 }
@@ -542,15 +547,6 @@ onMounted(async () => {
   justify-content: flex-start;
   gap: 12px;
   padding-top: 8px;
-}
-
-.refresh-button.is-refreshing :deep(.n-icon) {
-  animation: refresh-spin 0.9s linear infinite;
-}
-
-@keyframes refresh-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 /* 统一现代化操作按钮：与系统风格一致，圆角、语义色光晕、悬停轻微浮起 */

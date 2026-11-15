@@ -207,6 +207,10 @@ const electronAPI = {
   // 应用自身日志：报障时用户需要附上这个文件，界面提供路径与「打开目录」
   getLogsPath: () => ipcRenderer.invoke('get-logs-path'),
   openLogsDir: () => ipcRenderer.invoke('open-logs-dir'),
+  readLogFile: (maxLines?: number) => ipcRenderer.invoke('read-log-file', maxLines),
+  // 渲染层写日志（设置变更等只有渲染层才知道的用户操作）
+  writeLog: (level: 'debug' | 'info' | 'warn' | 'error', message: string) =>
+    ipcRenderer.invoke('write-log', level, message),
 
   // 下载事件转发给主进程插件系统（aria2 通知由渲染层的 WebSocket 接收，插件运行在主进程）
   notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart' | 'downloadError', gid: string, name: string) =>

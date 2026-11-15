@@ -28,7 +28,10 @@
     "workflowSettings": "工作流程",
     "instances": "執行個體",
     "btInsights": "BT 洞察",
-    "automation": "自動化"
+    "automation": "自動化",
+    "remoteAccess": "遠端存取",
+    "logs": "日誌",
+    "resetBackup": "重設與備份"
   },
   "task": {
     "downloading": "下載中",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} 個敏感欄位在備份中為空，將保留本機目前的值。",
       "confirmImport": "確認匯入",
       "importSuccess": "設定已匯入",
-      "restartHint": "部分設定需重新啟動應用程式後生效。"
+      "restartHint": "部分設定需重新啟動應用程式後生效。",
+      "import": "匯入設定"
     },
     "webhookQueue": {
       "title": "Webhook 投遞佇列",
@@ -1228,6 +1232,30 @@
       "clearFailed": "清空佇列失敗：{error}",
       "empty": "佇列為空，沒有待投遞的 Webhook。",
       "loadFailed": "讀取投遞佇列失敗：{error}"
+    },
+    "remoteAccess": {
+      "description": "管理遠端 Web 主控台與 API 權杖，供指令碼或第三方用戶端存取。"
+    },
+    "logs": {
+      "description": "檢視應用程式執行日誌，排查問題時可複製內容或直接開啟日誌目錄。",
+      "refresh": "重新整理",
+      "autoRefresh": "自動重新整理",
+      "searchPlaceholder": "搜尋日誌...",
+      "openDir": "開啟日誌目錄",
+      "levelAll": "全部等級",
+      "levelInfo": "資訊",
+      "levelWarn": "警告",
+      "levelError": "錯誤",
+      "filePath": "日誌檔案：{path}",
+      "truncated": "僅顯示最近 {count} 行",
+      "empty": "暫無日誌",
+      "loadFailed": "讀取日誌失敗",
+      "openFailed": "開啟日誌目錄失敗"
+    },
+    "resetBackup": {
+      "description": "恢復預設設定，或備份與還原應用程式設定",
+      "resetTitle": "重置",
+      "backupTitle": "備份"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "等待佇列是空的"
   },
   "workflow": {
+    "pageDescription": "管理任務範本與完成規則，並檢視 Webhook 投遞佇列。",
     "templateApply": "範本：",
     "templateSelect": "選擇任務範本",
     "templateApplied": "已套用範本",
@@ -1614,6 +1643,7 @@
     "mode": "模式",
     "infoHash": "Info Hash",
     "unknown": "未知",
+    "peers": "Peer 清單",
     "trackers": "Tracker 清單",
     "tier": "層級",
     "trackerUrl": "Tracker 位址",

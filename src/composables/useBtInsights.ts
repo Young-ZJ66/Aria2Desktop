@@ -7,6 +7,7 @@
 import { onUnmounted, ref, shallowRef, watch, type Ref } from 'vue'
 import type { Aria2Peer, Aria2Task } from '@/types/aria2'
 import type { Aria2Service } from '@/services/aria2Service'
+import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 
 /** 轮询间隔：与 Status 页同量级。太短会把空闲任务的 RPC 打满。 */
 export const BT_INSIGHTS_POLL_MS = 5_000
@@ -133,8 +134,11 @@ export function useBtInsights(
   function start(): void {
     stop()
     if (!gid.value || !enabled.value) return
+    // 本机 RPC 常在几毫秒内返回，补齐最短时长让选择器/加载区的动画可见
+    const startedAt = Date.now()
     loading.value = true
-    refreshOnce().finally(() => {
+    refreshOnce().finally(async () => {
+      await ensureMinimumDuration(startedAt)
       loading.value = false
     })
     scheduleNext()

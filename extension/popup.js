@@ -74,6 +74,7 @@ function initI18n() {
   $('bannerPairBtn').textContent = i18n('goPair')
 
   $('statusText').textContent = i18n('testing')
+  $('statusDetail').hidden = true
 }
 
 /**
@@ -93,15 +94,22 @@ function showFeedback(text, isError = false) {
   }
 }
 
-/** 状态条三态：loading（脉冲）/ connected（绿）/ disconnected（红） */
-function setStatus(state, text) {
+/**
+ * 状态条三态：loading（脉冲）/ connected（绿）/ disconnected（红）。
+ * 胶囊只放短状态；排错长文案（如「无法连接 localhost:6800：请确认 App 与引擎已启动」）
+ * 走下面的 statusDetail 整行折行显示，否则会被 172px 胶囊截成省略号。
+ */
+function setStatus(state, text, detail) {
   const cls = state === 'connected'
     ? 'status connected'
     : state === 'disconnected' ? 'status disconnected' : 'status loading'
   $('status').className = cls
   $('statusText').textContent = text
-  // 胶囊宽度有限：完整文案放进 title，鼠标悬停仍可看到
-  $('statusText').title = text
+  $('statusText').title = detail || text
+  const detailText = detail && detail !== text ? detail : ''
+  const detailEl = $('statusDetail')
+  detailEl.textContent = detailText
+  detailEl.hidden = !detailText
 }
 
 /**
@@ -224,7 +232,8 @@ async function refreshStatusViaRpc() {
       // 连得上但扩展被停用时，明确说出来，否则用户会奇怪"为什么右键没反应"
       if (response.enabled === false) showFeedback(i18n('connectedButDisabled'), true)
     } else {
-      setStatus('disconnected', response?.error || i18n('notConnectedShort'))
+      // 胶囊放短状态，后台返回的排错长文案走下面的详情行
+      setStatus('disconnected', i18n('notConnectedShort'), response?.error)
     }
   } catch {
     setStatus('disconnected', i18n('notConnectedShort'))

@@ -6,6 +6,7 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :reloading="reloading"
     :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
@@ -24,7 +25,7 @@
       <n-card :title="t('settings.network.groupTimeoutRetry')" class="setting-group">
         <n-form-item path="timeout">
           <template #label>
-            <TipLabel :label="t('settings.network.timeout')" :tip="t('settings.network.timeoutTip')" />
+            <TipLabel :label="t('settings.network.timeout')" />
           </template>
           <n-input-number
             v-model:value="form.timeout"
@@ -36,7 +37,7 @@
 
         <n-form-item path="connectTimeout">
           <template #label>
-            <TipLabel :label="t('settings.network.connectTimeout')" :tip="t('settings.network.connectTimeoutTip')" />
+            <TipLabel :label="t('settings.network.connectTimeout')" />
           </template>
           <n-input-number
             v-model:value="form.connectTimeout"
@@ -281,7 +282,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.network.disableIpv6')" :tip="t('settings.network.disableIpv6Tip')" />
+            <TipLabel :label="t('settings.network.disableIpv6')" />
           </template>
           <AppSwitch
             v-model:value="form.disableIpv6"
@@ -324,7 +325,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.network.asyncDns')" :tip="t('settings.network.asyncDnsTip')" />
+            <TipLabel :label="t('settings.network.asyncDns')" />
           </template>
           <AppSwitch
             v-model:value="form.asyncDns"
@@ -536,7 +537,7 @@ async function validate(): Promise<boolean> {
   }
 }
 
-const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(form, {
+const { loading, saving, reloading, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(form, {
   // 未保存离开确认：跟踪全部表单字段（原始值，JSON 序列化对比）
   dirtyTracking: {
     pageId: 'network',

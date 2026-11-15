@@ -6,6 +6,7 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :reloading="reloading"
     :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
@@ -32,14 +33,14 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.bt.enableDht6')" :tip="t('settings.bt.enableDht6Tip')" :option="'enable-dht6'" />
+            <TipLabel :label="t('settings.bt.enableDht6')" :option="'enable-dht6'" />
           </template>
           <AppSwitch v-model:value="settings.enableDht6" />
         </n-form-item>
 
         <n-form-item path="dhtListenPort">
           <template #label>
-            <TipLabel :label="t('settings.bt.dhtListenPort')" :tip="t('settings.bt.dhtListenPortTip')" :option="'dht-listen-port'" />
+            <TipLabel :label="t('settings.bt.dhtListenPort')" :option="'dht-listen-port'" />
           </template>
           <n-input-number v-model:value="settings.dhtListenPort" :min="1024" :max="65535" />
         </n-form-item>
@@ -125,7 +126,7 @@
       <n-card :title="t('settings.bt.groupConnections')" class="setting-group">
         <n-form-item path="listenPort">
           <template #label>
-            <TipLabel :label="t('settings.bt.listenPort')" :tip="t('settings.bt.listenPortTip')" :option="'listen-port'" />
+            <TipLabel :label="t('settings.bt.listenPort')" :option="'listen-port'" />
           </template>
           <n-input-number v-model:value="settings.listenPort" :min="1024" :max="65535" />
         </n-form-item>
@@ -167,7 +168,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.bt.btRequireCrypto')" :tip="t('settings.bt.btRequireCryptoTip')" />
+            <TipLabel :label="t('settings.bt.btRequireCrypto')" />
           </template>
           <AppSwitch v-model:value="settings.btRequireCrypto" />
         </n-form-item>
@@ -606,7 +607,7 @@ const btSettingsSchema: SettingSchema = {
 
 const { applyOptions, toOptions, defaults } = useSettingSchema(btSettingsSchema, settings)
 
-const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
+const { loading, saving, reloading, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
   // 未保存离开确认：跟踪全部表单字段（原始值，JSON 序列化对比）
   dirtyTracking: {
     pageId: 'bt',

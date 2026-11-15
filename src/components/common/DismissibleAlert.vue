@@ -5,24 +5,37 @@
     :bordered="bordered"
     :show-icon="showIcon"
     :title="title"
-    closable
     class="dismissible-alert"
     :class="{ 'dismissible-alert--has-forever': showForever }"
-    @close="closeForSession"
   >
-    <div class="dismissible-alert-content">
+    <div class="dismissible-alert-row">
       <div class="dismissible-alert-message">
         <slot />
       </div>
-      <n-button
-        v-if="showForever"
-        class="dismissible-alert-forever"
-        text
-        size="tiny"
-        @click="hideForever"
-      >
-        {{ t('common.dontShowAgain') }}
-      </n-button>
+      <!-- 「不再显示」与关闭按钮放在同一行右侧，不再靠绝对定位对齐关闭叉 -->
+      <div class="dismissible-alert-actions">
+        <n-button
+          v-if="showForever"
+          class="dismissible-alert-forever"
+          text
+          size="tiny"
+          @click="hideForever"
+        >
+          {{ t('common.dontShowAgain') }}
+        </n-button>
+        <n-button
+          class="dismissible-alert-close"
+          text
+          size="tiny"
+          :aria-label="t('common.close')"
+          :title="t('common.close')"
+          @click="closeForSession"
+        >
+          <template #icon>
+            <n-icon><CloseOutline /></n-icon>
+          </template>
+        </n-button>
+      </div>
     </div>
   </n-alert>
 </template>
@@ -30,6 +43,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { CloseOutline } from '@vicons/ionicons5'
 
 const props = withDefaults(defineProps<{
   /** 唯一标识：用于保存普通关闭（sessionStorage）与不再显示（localStorage）状态 */
@@ -79,32 +93,47 @@ function hideForever() {
 </script>
 
 <style scoped>
-/* 「不再显示」与右上角关闭按钮固定在同一条顶部操作行 */
-.dismissible-alert-content {
+/* 提示正文与右侧操作组同一行排布：操作组始终贴右，正文换行不会把按钮挤走 */
+.dismissible-alert-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   min-width: 0;
 }
 
 .dismissible-alert-message {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
-.dismissible-alert--has-forever :deep(.n-alert-body) {
-  padding-right: 156px;
+.dismissible-alert-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* 与 Naive UI 关闭叉原来距顶部的距离保持一致 */
+  margin-top: -2px;
 }
 
 .dismissible-alert-forever {
-  position: absolute;
-  top: 13px;
-  right: 40px;
-  z-index: 1;
   height: 20px;
-  padding: 0;
+  padding: 0 4px;
   line-height: 20px;
   white-space: nowrap;
   color: var(--text-secondary);
 }
 
 .dismissible-alert-forever:hover {
+  color: var(--color-primary);
+}
+
+.dismissible-alert-close {
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+}
+
+.dismissible-alert-close:hover {
   color: var(--color-primary);
 }
 </style>

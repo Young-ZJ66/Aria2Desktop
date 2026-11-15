@@ -36,12 +36,12 @@
           <n-button size="tiny" :loading="testing[profile.id]" @click="test(profile)">{{ t('instances.test') }}</n-button>
           <n-button
             size="tiny"
-            type="primary"
-            :disabled="profile.id === connectionStore.activeProfileId && connectionStore.isConnected"
+            :type="isActive(profile) ? 'default' : 'primary'"
+            :class="isActive(profile) ? 'btn-danger-outline' : ''"
             :loading="connectingId === profile.id"
             @click="activate(profile)"
           >
-            {{ profile.id === connectionStore.activeProfileId && connectionStore.isConnected ? t('instances.connected') : t('instances.connect') }}
+            {{ isActive(profile) ? t('connection.disconnect') : t('instances.connect') }}
           </n-button>
           <n-button size="tiny" @click="edit(profile)">{{ t('instances.edit') }}</n-button>
         </div>
@@ -53,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NCard, NButton, NTag, NEmpty } from 'naive-ui'
 import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
@@ -78,6 +78,62 @@ const probes = reactive<Record<string, ProbeResult>>({})
 const testing = reactive<Record<string, boolean>>({})
 const testingAll = ref(false)
 const connectingId = ref('')
+
+/** 已连接实例的实时延迟刷新间隔 */
+const LATENCY_REFRESH_MS = 5000
+let latencyTimer: ReturnType<typeof setInterval> | null = null
+
+/**
+ * 静默探测：不点亮「测试」按钮、不显示「测试中」，只在后台更新版本与延迟。
+ * 用于连接成功后与已连接实例的定时刷新 —— 用户不需要手动点「测试」就能看到实时延迟。
+ */
+async function probeSilently(profile: ConnectionProfile) {
+  try {
+    probes[profile.id] = await connectionStore.testConnection(profile.config)
+  } catch {
+    // 静默探测失败不打扰用户：保留上一次的结果
+  }
+}
+
+function activeProfile(): ConnectionProfile | undefined {
+  return connectionStore.profiles.find(profile => profile.id === connectionStore.activeProfileId)
+}
+
+function startLatencyPolling() {
+  stopLatencyPolling()
+  latencyTimer = setInterval(() => {
+    if (!connectionStore.isConnected) return
+    const profile = activeProfile()
+    if (profile) void probeSilently(profile)
+  }, LATENCY_REFRESH_MS)
+}
+
+function stopLatencyPolling() {
+  if (latencyTimer !== null) {
+    clearInterval(latencyTimer)
+    latencyTimer = null
+  }
+}
+
+// keep-alive 下页面不会被卸载：随「激活 / 失活」启停轮询，避免后台页继续探测
+onMounted(() => startLatencyPolling())
+onActivated(() => {
+  startLatencyPolling()
+  const profile = activeProfile()
+  if (profile && connectionStore.isConnected) void probeSilently(profile)
+})
+onDeactivated(() => stopLatencyPolling())
+onUnmounted(() => stopLatencyPolling())
+
+// 连接建立或切换实例后立即静默刷新一次，让延迟马上出现在卡片上
+watch(
+  () => [connectionStore.activeProfileId, connectionStore.isConnected] as const,
+  ([, connected]) => {
+    if (!connected) return
+    const profile = activeProfile()
+    if (profile) void probeSilently(profile)
+  }
+)
 
 function endpoint(profile: ConnectionProfile): string {
   return `${profile.config.protocol}://${profile.config.host}:${profile.config.port}${profile.config.path || '/jsonrpc'}`
@@ -115,16 +171,37 @@ async function testAll() {
   }
 }
 
+function isActive(profile: ConnectionProfile): boolean {
+  return profile.id === connectionStore.activeProfileId && connectionStore.isConnected
+}
+
 async function activate(profile: ConnectionProfile) {
+  // 已连接的实例：同一个按钮改为断开
+  if (isActive(profile)) {
+    connectingId.value = profile.id
+    try {
+      await withMinimumDuration(async () => connectionStore.disconnect())
+      message.success(t('connection.disconnected'))
+    } finally {
+      if (connectingId.value === profile.id) connectingId.value = ''
+    }
+    return
+  }
+
   connectingId.value = profile.id
   try {
-    connectionStore.setActiveProfile(profile.id)
-    await withMinimumDuration(() => connectionStore.connect({ ...profile.config }))
+    // 按预设连接：成功的连接才会把它切成「当前」，失败不会改动当前连接
+    const connected = await withMinimumDuration(() => connectionStore.connect({ ...profile.config }, profile.id))
+    // false = 本次尝试已被更新的连接取代（用户又点了别的实例），静默退出，不弹提示
+    if (!connected) return
     message.success(t('instances.connectSuccess', { name: profile.name || t('connection.defaultProfileName') }))
+    // 连接成功后静默测一次延迟（不点亮「测试」按钮），省去用户再点「测试」
+    void probeSilently(profile)
   } catch (error) {
     message.error(t('instances.connectFailed', { error: getUserFriendlyError(error) }))
   } finally {
-    connectingId.value = ''
+    // 并发连接时 connectingId 可能已被后来的实例接管，只有仍归自己时才清空
+    if (connectingId.value === profile.id) connectingId.value = ''
   }
 }
 

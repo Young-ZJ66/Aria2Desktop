@@ -6,6 +6,7 @@
     :connected="connectionStore.isConnected"
     :show-actions="true"
     :saving="saving"
+    :reloading="reloading"
     :loading="loading"
     :disabled="!connectionStore.isConnected"
     @save="handleSave"
@@ -24,21 +25,21 @@
       <n-card :title="t('settings.rpc.groupService')" class="setting-group">
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.rpc.enableRpc')" :tip="t('settings.rpc.enableRpcTip')" />
+            <TipLabel :label="t('settings.rpc.enableRpc')" />
           </template>
           <AppSwitch v-model:value="settings.enableRpc" />
         </n-form-item>
 
         <n-form-item path="rpcListenPort">
           <template #label>
-            <TipLabel :label="t('settings.rpc.rpcListenPort')" :tip="t('settings.rpc.rpcListenPortTip')" />
+            <TipLabel :label="t('settings.rpc.rpcListenPort')" />
           </template>
           <n-input-number v-model:value="settings.rpcListenPort" :min="1024" :max="65535" />
         </n-form-item>
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('settings.rpc.rpcListenAll')" :tip="t('settings.rpc.rpcListenAllTip')" />
+            <TipLabel :label="t('settings.rpc.rpcListenAll')" />
           </template>
           <AppSwitch v-model:value="settings.rpcListenAll" />
         </n-form-item>
@@ -255,7 +256,7 @@ async function validate(): Promise<boolean> {
   }
 }
 
-const { loading, saving, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
+const { loading, saving, reloading, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
   // 未保存离开确认：跟踪全部表单字段（原始值，JSON 序列化对比）
   dirtyTracking: {
     pageId: 'rpcSecurity',

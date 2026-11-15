@@ -324,6 +324,10 @@ export interface ElectronAPI {
   getLogsPath: () => Promise<{ success: boolean; file?: string; dir?: string }>
   /** 打开应用日志目录（不存在时自动创建） */
   openLogsDir: () => Promise<{ success: boolean; dir?: string; error?: string }>
+  /** 读取应用日志末尾若干行（默认 1000 行，最多 5000 行） */
+  readLogFile: (maxLines?: number) => Promise<{ success: boolean; path?: string; lines: string[]; truncated?: boolean; totalLines?: number; error?: string }>
+  /** 渲染层写应用日志（设置变更等只有渲染层才知道的用户操作） */
+  writeLog: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => Promise<{ success: boolean }>
 
   /** 把 aria2 下载事件转发给主进程插件系统（fire-and-forget，无返回值） */
   notifyDownloadEvent: (kind: 'downloadComplete' | 'downloadStart' | 'downloadError', gid: string, name: string) => void

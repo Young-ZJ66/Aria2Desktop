@@ -59,9 +59,11 @@
       margin-bottom: 10px;
     }
     .header img { width: 24px; height: 24px; border-radius: 5px; }
-    .header h1 { font-size: 14px; font-weight: 600; letter-spacing: 0.2px; }
+    .header h1 { flex: none; font-size: 14px; font-weight: 600; letter-spacing: 0.2px; white-space: nowrap; }
 
-    /* 状态胶囊放在标题右侧：省掉一整行高度，长文案单行截断（完整内容在 title 里） */
+    /* 状态胶囊放在标题右侧：省掉一整行高度，胶囊内只放短状态（未连接 / 已连接 (v1.3.7) / 检测中…）。
+       排错长文案（「无法连接 localhost:6800：请确认 App 与引擎已启动」）折行显示在下面的
+       .status-detail 里——塞进 172px 胶囊只会被省略号截成「无法连接 localhost:6800: …」。 */
     .status {
       margin-left: auto;
       flex: none;
@@ -77,6 +79,14 @@
       color: var(--text-dim);
     }
     .status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* 状态详情：整行宽度折行显示，长文案不再被截断 */
+    .status-detail {
+      margin: -4px 0 10px;
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: var(--danger);
+      word-break: break-word;
+    }
     .status.connected { background: var(--success-bg); border-color: transparent; color: var(--success); }
     .status.disconnected { background: var(--danger-bg); border-color: transparent; color: var(--danger); }
     .status-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
@@ -396,6 +406,7 @@
       <span id="statusText" class="status-text"></span>
     </div>
   </div>
+  <p id="statusDetail" class="status-detail" role="status" aria-live="polite" hidden></p>
 
   <div class="tabs" role="tablist">
     <button class="tab active" id="tabSend" type="button" role="tab" aria-selected="true" aria-controls="paneSend"></button>

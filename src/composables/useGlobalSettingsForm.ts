@@ -12,6 +12,7 @@ import { useStatsStore } from '@/stores/statsStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { isLocalEngineAddress } from '@/shared/localEngine'
 import { hasRestartRequiredOption } from '@/utils/aria2RestartOptions'
+import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 import type { Aria2Option } from '@/types/aria2'
 
 /**
@@ -69,6 +70,9 @@ export function useGlobalSettingsForm<T extends object>(
 
   const loading = ref(false)
   const saving = ref(false)
+  // 「重载」按钮自己的加载态：只反映手动重载，不随页面整体 loading（含首次加载）变化。
+  // 按钮上由全局样式把文字换成加载圈，所以这里只需要一个布尔值。
+  const reloading = ref(false)
   // 最近一次保存是否真的落地（供下面的快照逻辑与弹窗关闭确认判断）
   let lastSaveOk = true
 
@@ -89,7 +93,13 @@ export function useGlobalSettingsForm<T extends object>(
       return
     }
     const hasCache = Object.keys(statsStore.globalOptions).length > 0
-    if (!hasCache || force) loading.value = true
+    const showLoading = !hasCache || force
+    // 本机读取配置常在几毫秒内完成，补齐最短时长让「重载」按钮的加载动画可见
+    const startedAt = Date.now()
+    if (showLoading) loading.value = true
+    // 手动重载（force=true）时按钮自己也要转圈：首次加载由页面级 n-spin 表达，
+    // 这里只标记用户点击触发的这一次，避免首屏加载时按钮跟着转。
+    if (force) reloading.value = true
     try {
       const opts = await statsStore.getGlobalOptions(force)
       if (opts) options.applyOptions(opts)
@@ -98,7 +108,11 @@ export function useGlobalSettingsForm<T extends object>(
       message.error(t(options.loadErrorKey || 'settings.loadFailed', { error: errorMessage }))
       console.error('Failed to load settings:', error)
     } finally {
-      loading.value = false
+      if (showLoading) {
+        await ensureMinimumDuration(startedAt)
+        loading.value = false
+      }
+      if (force) reloading.value = false
     }
   }
 
@@ -120,6 +134,8 @@ export function useGlobalSettingsForm<T extends object>(
         return false
       }
     }
+    // 本地引擎保存往往瞬间完成，补齐最短时长让保存按钮的加载动画可见
+    const saveStartedAt = Date.now()
     saving.value = true
     try {
       const opts = options.toOptions(form)
@@ -173,6 +189,7 @@ export function useGlobalSettingsForm<T extends object>(
       console.error('Failed to save settings:', error)
       return false
     } finally {
+      await ensureMinimumDuration(saveStartedAt)
       saving.value = false
     }
   }
@@ -227,7 +244,7 @@ export function useGlobalSettingsForm<T extends object>(
     })
   }
 
-  return { loading, saving, loadSettings, handleSave, handleReset }
+  return { loading, saving, reloading, loadSettings, handleSave, handleReset }
 }
 
 function pickFields<T extends object>(form: T, fields: Array<keyof T & string>): Record<string, unknown> {

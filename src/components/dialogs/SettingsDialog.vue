@@ -83,16 +83,6 @@
         >
           <DownloadSettings />
         </n-tab-pane>
-        <n-tab-pane
-          class="settings-main-pane settings-leaf-pane"
-          data-settings-tab="workflow"
-          data-settings-group="workflow"
-          :display-directive="paneDirective('workflow')"
-          name="workflow"
-          :tab="t('nav.workflowSettings')"
-        >
-          <WorkflowSettings />
-        </n-tab-pane>
         <n-tab-pane class="settings-main-pane" :display-directive="paneDirective('network')" name="network" :tab="t('nav.networkProtocolGroup')">
           <n-tabs v-model:value="networkSubTab" class="settings-subtabs" type="segment" size="small" pane-style="padding: 0;">
             <n-tab-pane
@@ -161,6 +151,36 @@
             </n-tab-pane>
           </n-tabs>
         </n-tab-pane>
+        <n-tab-pane
+          class="settings-main-pane settings-leaf-pane"
+          data-settings-tab="remote-access"
+          data-settings-group="remoteAccess"
+          :display-directive="paneDirective('remote-access')"
+          name="remote-access"
+          :tab="t('nav.remoteAccess')"
+        >
+          <RemoteAccessSettings />
+        </n-tab-pane>
+        <n-tab-pane
+          class="settings-main-pane settings-leaf-pane"
+          data-settings-tab="logs"
+          data-settings-group="logs"
+          :display-directive="paneDirective('logs')"
+          name="logs"
+          :tab="t('nav.logs')"
+        >
+          <LogsSettings />
+        </n-tab-pane>
+        <n-tab-pane
+          class="settings-main-pane settings-leaf-pane"
+          data-settings-tab="reset-backup"
+          data-settings-group="resetBackup"
+          :display-directive="paneDirective('reset-backup')"
+          name="reset-backup"
+          :tab="t('nav.resetBackup')"
+        >
+          <ResetBackupSettings />
+        </n-tab-pane>
         <n-tab-pane class="settings-main-pane" :display-directive="paneDirective('rpc-security')" name="security" :tab="t('nav.securityMaintenanceGroup')">
           <n-tabs v-model:value="securitySubTab" class="settings-subtabs" type="segment" size="small" pane-style="padding: 0;">
             <n-tab-pane
@@ -215,7 +235,6 @@ const settingsLoaders = {
   general: () => import('@/views/settings/GeneralSettings.vue'),
   engine: () => import('@/views/settings/EngineSettings.vue'),
   download: () => import('@/views/settings/DownloadSettings.vue'),
-  workflow: () => import('@/views/settings/WorkflowSettings.vue'),
   network: () => import('@/views/settings/NetworkSettings.vue'),
   protocol: () => import('@/views/settings/ProtocolSettings.vue'),
   bt: () => import('@/views/settings/BtSettings.vue'),
@@ -223,14 +242,16 @@ const settingsLoaders = {
   components: () => import('@/views/settings/ComponentSettings.vue'),
   plugins: () => import('@/views/settings/PluginSettings.vue'),
   rpcSecurity: () => import('@/views/settings/RpcSecuritySettings.vue'),
+  remoteAccess: () => import('@/views/settings/RemoteAccessSettings.vue'),
+  resetBackup: () => import('@/views/settings/ResetBackupSettings.vue'),
   advanced: () => import('@/views/settings/AdvancedSettings.vue'),
-  diagnostics: () => import('@/views/settings/DiagnosticsSettings.vue')
+  diagnostics: () => import('@/views/settings/DiagnosticsSettings.vue'),
+  logs: () => import('@/views/settings/LogsSettings.vue')
 } as const
 
 const GeneralSettings = defineAsyncComponent(settingsLoaders.general)
 const EngineSettings = defineAsyncComponent(settingsLoaders.engine)
 const DownloadSettings = defineAsyncComponent(settingsLoaders.download)
-const WorkflowSettings = defineAsyncComponent(settingsLoaders.workflow)
 const NetworkSettings = defineAsyncComponent(settingsLoaders.network)
 const ProtocolSettings = defineAsyncComponent(settingsLoaders.protocol)
 const BtSettings = defineAsyncComponent(settingsLoaders.bt)
@@ -238,8 +259,11 @@ const MetalinkSettings = defineAsyncComponent(settingsLoaders.metalink)
 const ComponentSettings = defineAsyncComponent(settingsLoaders.components)
 const PluginSettings = defineAsyncComponent(settingsLoaders.plugins)
 const RpcSecuritySettings = defineAsyncComponent(settingsLoaders.rpcSecurity)
+const RemoteAccessSettings = defineAsyncComponent(settingsLoaders.remoteAccess)
+const ResetBackupSettings = defineAsyncComponent(settingsLoaders.resetBackup)
 const AdvancedSettings = defineAsyncComponent(settingsLoaders.advanced)
 const DiagnosticsSettings = defineAsyncComponent(settingsLoaders.diagnostics)
+const LogsSettings = defineAsyncComponent(settingsLoaders.logs)
 
 const uiStore = useUiStore()
 const connectionStore = useConnectionStore()
@@ -265,7 +289,6 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
   { name: 'general', labelKey: 'nav.generalSettings', pages: [{ name: 'general', labelKey: 'nav.generalSettings' }] },
   { name: 'engine', labelKey: 'nav.engineSettings', pages: [{ name: 'engine', labelKey: 'nav.engineSettings' }] },
   { name: 'download', labelKey: 'nav.downloadSettings', pages: [{ name: 'download', labelKey: 'nav.downloadSettings' }] },
-  { name: 'workflow', labelKey: 'nav.workflowSettings', pages: [{ name: 'workflow', labelKey: 'nav.workflowSettings' }] },
   {
     name: 'network',
     labelKey: 'nav.networkProtocolGroup',
@@ -284,6 +307,9 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
       { name: 'plugins', labelKey: 'nav.pluginSettings' }
     ]
   },
+  { name: 'remote-access', labelKey: 'nav.remoteAccess', pages: [{ name: 'remote-access', labelKey: 'nav.remoteAccess' }] },
+  { name: 'logs', labelKey: 'nav.logs', pages: [{ name: 'logs', labelKey: 'nav.logs' }] },
+  { name: 'reset-backup', labelKey: 'nav.resetBackup', pages: [{ name: 'reset-backup', labelKey: 'nav.resetBackup' }] },
   {
     name: 'security',
     labelKey: 'nav.securityMaintenanceGroup',

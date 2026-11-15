@@ -28,7 +28,10 @@
     "workflowSettings": "Flux de travail",
     "instances": "Instances",
     "btInsights": "Analyses BT",
-    "automation": "Automatisation"
+    "automation": "Automatisation",
+    "remoteAccess": "Accès à distance",
+    "logs": "Journaux",
+    "resetBackup": "Réinitialisation et sauvegarde"
   },
   "task": {
     "downloading": "Téléchargement",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} champs sensibles étaient vides dans la sauvegarde ; les valeurs de cette machine sont conservées.",
       "confirmImport": "Confirmer l’import",
       "importSuccess": "Configuration importée",
-      "restartHint": "Certains paramètres prennent effet après le redémarrage de l’application."
+      "restartHint": "Certains paramètres prennent effet après le redémarrage de l’application.",
+      "import": "Importer la configuration"
     },
     "webhookQueue": {
       "title": "File d’envoi des Webhooks",
@@ -1228,6 +1232,30 @@
       "clearFailed": "Échec du vidage de la file : {error}",
       "empty": "La file est vide : aucun Webhook en attente.",
       "loadFailed": "Échec de la lecture de la file d’envoi : {error}"
+    },
+    "remoteAccess": {
+      "description": "Gérez la console web à distance et les jetons API pour les scripts ou les clients tiers."
+    },
+    "logs": {
+      "description": "Consultez les journaux de l’application. Copiez le contenu ou ouvrez le dossier des journaux en cas de problème.",
+      "refresh": "Actualiser",
+      "autoRefresh": "Actualisation automatique",
+      "searchPlaceholder": "Rechercher dans les journaux...",
+      "openDir": "Ouvrir le dossier des journaux",
+      "levelAll": "Tous les niveaux",
+      "levelInfo": "Info",
+      "levelWarn": "Avertissement",
+      "levelError": "Erreur",
+      "filePath": "Fichier journal : {path}",
+      "truncated": "Affichage des {count} dernières lignes uniquement",
+      "empty": "Aucun journal pour le moment",
+      "loadFailed": "Échec de la lecture des journaux",
+      "openFailed": "Échec de l’ouverture du dossier des journaux"
+    },
+    "resetBackup": {
+      "description": "Restaurer les paramètres par défaut ou sauvegarder et restaurer la configuration",
+      "resetTitle": "Réinitialiser",
+      "backupTitle": "Sauvegarde"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "La file d'attente est vide"
   },
   "workflow": {
+    "pageDescription": "Gérez les modèles de tâches et les règles d'achèvement, et consultez la file d'attente des webhooks.",
     "templateApply": "Modèle :",
     "templateSelect": "Choisir un modèle de tâche",
     "templateApplied": "Modèle appliqué",
@@ -1614,6 +1643,7 @@
     "mode": "Mode",
     "infoHash": "Info hash",
     "unknown": "Inconnu",
+    "peers": "Pairs",
     "trackers": "Trackers",
     "tier": "Niveau",
     "trackerUrl": "URL du tracker",

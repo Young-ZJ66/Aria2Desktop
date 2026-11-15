@@ -28,7 +28,10 @@
     "workflowSettings": "Workflow",
     "instances": "Instanzen",
     "btInsights": "BT-Insights",
-    "automation": "Automatisierung"
+    "automation": "Automatisierung",
+    "remoteAccess": "Remote-Zugriff",
+    "logs": "Protokolle",
+    "resetBackup": "Zurücksetzen & Sichern"
   },
   "task": {
     "downloading": "Wird heruntergeladen",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} sensible Felder waren in der Sicherung leer; die Werte dieses Rechners bleiben erhalten.",
       "confirmImport": "Import bestätigen",
       "importSuccess": "Konfiguration importiert",
-      "restartHint": "Einige Einstellungen werden erst nach einem Neustart der App wirksam."
+      "restartHint": "Einige Einstellungen werden erst nach einem Neustart der App wirksam.",
+      "import": "Konfiguration importieren"
     },
     "webhookQueue": {
       "title": "Webhook-Zustellwarteschlange",
@@ -1228,6 +1232,30 @@
       "clearFailed": "Warteschlange konnte nicht geleert werden: {error}",
       "empty": "Die Warteschlange ist leer – keine Webhooks warten.",
       "loadFailed": "Zustellwarteschlange konnte nicht gelesen werden: {error}"
+    },
+    "remoteAccess": {
+      "description": "Remote-Webkonsole und API-Token für Skripte oder Drittanbieter-Clients verwalten."
+    },
+    "logs": {
+      "description": "Anwendungsprotokolle anzeigen. Bei der Fehlersuche Inhalte kopieren oder den Protokollordner öffnen.",
+      "refresh": "Aktualisieren",
+      "autoRefresh": "Automatisch aktualisieren",
+      "searchPlaceholder": "Protokolle durchsuchen...",
+      "openDir": "Protokollordner öffnen",
+      "levelAll": "Alle Stufen",
+      "levelInfo": "Info",
+      "levelWarn": "Warnung",
+      "levelError": "Fehler",
+      "filePath": "Protokolldatei: {path}",
+      "truncated": "Nur die letzten {count} Zeilen werden angezeigt",
+      "empty": "Noch keine Protokolle",
+      "loadFailed": "Protokolle konnten nicht gelesen werden",
+      "openFailed": "Protokollordner konnte nicht geöffnet werden"
+    },
+    "resetBackup": {
+      "description": "Standardeinstellungen wiederherstellen oder App-Konfiguration sichern und wiederherstellen",
+      "resetTitle": "Zurücksetzen",
+      "backupTitle": "Sicherung"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "Die Warteschlange ist leer"
   },
   "workflow": {
+    "pageDescription": "Aufgabenvorlagen und Abschlussregeln verwalten sowie die Webhook-Warteschlange prüfen.",
     "templateApply": "Vorlage:",
     "templateSelect": "Aufgabenvorlage wählen",
     "templateApplied": "Vorlage angewendet",
@@ -1614,6 +1643,7 @@
     "mode": "Modus",
     "infoHash": "Info-Hash",
     "unknown": "Unbekannt",
+    "peers": "Peers",
     "trackers": "Tracker",
     "tier": "Stufe",
     "trackerUrl": "Tracker-URL",

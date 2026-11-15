@@ -1,7 +1,8 @@
 <template>
-  <n-card class="info-card" size="small" :bordered="false">
-    <div v-if="peers.length" class="peer-toolbar">
-      <span class="peer-count">{{ t('taskDetail.peerInfo', { count: peers.length }) }}</span>
+  <n-card class="info-card" :class="{ 'info-card--flat': flat }" size="small" :bordered="false">
+    <div v-if="peers.length" class="peer-toolbar" :class="{ 'peer-toolbar--flat': flat }">
+      <!-- flat 模式下分区标题里已显示数量，这里不再重复 -->
+      <span v-if="!flat" class="peer-count">{{ t('taskDetail.peerInfo', { count: peers.length }) }}</span>
       <n-button size="tiny" secondary :loading="locating" @click="lookupLocations">
         {{ t('taskPeer.lookupLocation') }}
       </n-button>
@@ -38,6 +39,8 @@ import { countryCodeToFlag, getPeerClientName } from '@/utils/peerClient'
 
 interface Props {
   peers: Aria2Peer[]
+  /** 不渲染自带卡片外壳，由调用方提供分区容器（BT 洞察页使用） */
+  flat?: boolean
 }
 
 const props = defineProps<Props>()
@@ -180,6 +183,17 @@ function getPeerStatusText(amChoking: boolean, peerChoking: boolean): string {
   border-radius: 10px;
 }
 
+/* flat：调用方（BT 洞察页）已有卡片外壳，这里只保留内容（含内边距，避免双层留白） */
+.info-card--flat {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.info-card--flat :deep(.n-card__content) {
+  padding: 0;
+}
+
 .info-card :deep(.n-data-table) {
   font-size: 13px;
 }
@@ -203,5 +217,10 @@ function getPeerStatusText(amChoking: boolean, peerChoking: boolean): string {
 
 .peer-alert {
   margin-bottom: 10px;
+}
+
+/* flat 模式工具栏只有右侧按钮，靠右对齐 */
+.peer-toolbar--flat {
+  justify-content: flex-end;
 }
 </style>

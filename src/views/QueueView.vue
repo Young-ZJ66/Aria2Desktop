@@ -59,7 +59,7 @@
       </div>
 
       <div class="queue-table-wrap">
-        <n-table :bordered="false" size="small" class="queue-table">
+        <n-table v-if="taskStore.waitingTasks.length > 0" :bordered="false" size="small" class="queue-table">
           <thead>
             <tr>
               <th class="col-pos">{{ t('queue.position') }}</th>
@@ -93,18 +93,18 @@
                 </n-space>
               </td>
             </tr>
-            <tr v-if="taskStore.waitingTasks.length === 0" class="empty-row-row">
-              <td colspan="4" class="empty-row">{{ t('queue.empty') }}</td>
-            </tr>
           </tbody>
         </n-table>
+        <div v-else class="queue-empty">
+          <n-empty size="small" :description="t('queue.empty')" />
+        </div>
       </div>
     </n-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMessage } from 'naive-ui'
 import { useTaskStore } from '@/stores/taskStore'
@@ -203,8 +203,22 @@ async function remove(gid: string): Promise<void> {
   }
 }
 
+// keep-alive 下首次挂载时 onMounted 与 onActivated 都会触发，用这个标记跳过第一次，
+// 避免刚进页面就重复拉一遍
+let activatedOnce = false
+
 onMounted(() => {
   void refresh()
+})
+
+// 页面被 keep-alive 缓存，切回来时不会重新挂载：这里补一次静默刷新，
+// 不走 refresh() 以免按钮转圈（最短 450ms 的加载态在切页时反而像在重新加载）
+onActivated(() => {
+  if (!activatedOnce) {
+    activatedOnce = true
+    return
+  }
+  void taskStore.loadAllTasks().catch(() => {})
 })
 
 onBeforeUnmount(() => {
@@ -281,11 +295,12 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.empty-row {
+/* 队列为空时用占位块撑满卡片剩余高度，避免空表格只显示一行文字贴在上边 */
+.queue-empty {
   height: 100%;
-  text-align: center;
-  padding: 32px 0;
-  opacity: 0.6;
-  vertical-align: middle;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

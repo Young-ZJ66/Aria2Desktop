@@ -48,7 +48,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('generalSettings.autoConnect')" :tip="t('generalSettings.autoConnectTip')" />
+            <TipLabel :label="t('generalSettings.autoConnect')" />
           </template>
           <AppSwitch
             v-model:value="form.autoConnect"
@@ -58,7 +58,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('generalSettings.minimizeToTray')" :tip="t('generalSettings.minimizeToTrayTip')" />
+            <TipLabel :label="t('generalSettings.minimizeToTray')" />
           </template>
           <AppSwitch
             v-model:value="form.minimizeToTray"
@@ -78,7 +78,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('generalSettings.autoLaunch')" :tip="t('generalSettings.autoLaunchTip')" />
+            <TipLabel :label="t('generalSettings.autoLaunch')" />
           </template>
           <AppSwitch
             v-model:value="form.autoLaunch"
@@ -89,7 +89,7 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('generalSettings.downloadCompleteAction')" :tip="t('generalSettings.downloadCompleteActionTip')" />
+            <TipLabel :label="t('generalSettings.downloadCompleteAction')" />
           </template>
           <n-select
             v-model:value="form.downloadCompleteAction"
@@ -133,12 +133,13 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('generalSettings.checkForUpdates')" :tip="t('generalSettings.updateCheckTooltip')" />
+            <TipLabel :label="t('generalSettings.checkForUpdates')" />
           </template>
           <div class="update-section">
             <div class="update-control">
               <n-button
                 size="small"
+                class="btn-loading-keep-icon"
                 :type="updateState === 'downloaded' ? 'primary' : 'default'"
                 :loading="updating"
                 :disabled="!isElectronAvailable || updateState === 'downloading'"
@@ -167,85 +168,14 @@
       </n-form>
     </n-card>
 
-    <!-- 重置与备份 -->
-    <n-card :title="t('generalSettings.groupResetBackup')" class="setting-group">
-      <div class="backup-actions">
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button :disabled="settingsStore.isLoading" @click="resetSettings">
-              {{ t('generalSettings.resetSettings') }}
-            </n-button>
-          </template>
-          {{ t('generalSettings.resetSettingsTip') }}
-        </n-tooltip>
-        <n-button @click="exportSettings">
-          {{ t('generalSettings.backupSettings') }}
-        </n-button>
-        <n-button @click="openImportDialog">
-          {{ t('generalSettings.importSettings') }}
-        </n-button>
-      </div>
-    </n-card>
-
-    <!-- 导入设置对话框 -->
-    <n-modal
-      v-model:show="showImportDialog"
-      preset="card"
-      :title="t('generalSettings.importDialogTitle')"
-      style="width: 540px"
-    >
-      <n-form>
-        <n-form-item :label="t('generalSettings.settingsFile')">
-          <n-input-group>
-            <n-input
-              :value="selectedFileName"
-              :placeholder="t('generalSettings.selectFilePlaceholder')"
-              readonly
-            />
-            <n-button @click="selectImportFile">
-              <template #icon>
-                <n-icon><FolderOpenOutline /></n-icon>
-              </template>
-              {{ t('generalSettings.selectFile') }}
-            </n-button>
-          </n-input-group>
-        </n-form-item>
-        <n-form-item :label="t('generalSettings.fileContent')">
-          <n-input
-            v-model:value="importText"
-            type="textarea"
-            :rows="10"
-            :placeholder="t('generalSettings.importPlaceholder')"
-          />
-        </n-form-item>
-      </n-form>
-
-      <template #footer>
-        <n-space justify="end">
-          <n-button @click="showImportDialog = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" :loading="importing" @click="importSettings">
-            {{ t('generalSettings.importButton') }}
-          </n-button>
-        </n-space>
-      </template>
-    </n-modal>
-
-    <!-- 隐藏的文件选择器 -->
-    <input
-      ref="fileInputRef"
-      type="file"
-      accept=".json,application/json"
-      class="hidden-file-input"
-      @change="handleFileSelected"
-    />
   </SettingsPage>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOpenOutline, RefreshOutline } from '@vicons/ionicons5'
-import { message, confirm } from '@/utils/feedback'
+import { RefreshOutline } from '@vicons/ionicons5'
+import { message } from '@/utils/feedback'
 import type { UpdateStatus } from '@/types/electron'
 
 import SettingsPage from '@/components/settings/SettingsPage.vue'
@@ -255,16 +185,11 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { useUiStore } from '@/stores/uiStore'
 import { setLocale, type AppLocale } from '@/i18n'
 import { APP_LOCALES } from '@/shared/locale'
+import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 
 const settingsStore = useSettingsStore()
 const uiStore = useUiStore()
 const { t } = useI18n()
-const importing = ref(false)
-const showImportDialog = ref(false)
-const importText = ref('')
-const selectedFileName = ref('')
-const fileInputRef = ref<HTMLInputElement | null>(null)
-
 // Electron 环境可用性
 const isElectronAvailable = !!window.electronAPI
 
@@ -479,110 +404,6 @@ async function handleAutoConnectChange() {
   }
 }
 
-async function resetSettings() {
-  confirm({
-    title: t('generalSettings.resetConfirmTitle'),
-    content: t('generalSettings.resetConfirmMsg'),
-    positiveText: t('generalSettings.resetConfirmBtn'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
-      try {
-        // 重置设置到默认值
-        await settingsStore.resetSettings()
-
-        // 重新加载表单数据
-        loadFormData()
-
-        // 应用主题（因为主题可能被重置了）
-        settingsStore.applyTheme()
-
-        // 控制托盘（根据重置后的设置）；`?? 默认值` 兜住设置项缺失的情况（与 defaultSettings 一致）
-        if (window.electronAPI?.setTrayEnabled) {
-          await window.electronAPI.setTrayEnabled(settingsStore.settings.minimizeToTray ?? true)
-        }
-
-        // 同步开机自启（重置后默认关闭）
-        if (window.electronAPI?.setAutoLaunch) {
-          await window.electronAPI.setAutoLaunch(settingsStore.settings.autoLaunch ?? false)
-        }
-
-        message.success(t('generalSettings.resetDone'))
-      } catch (error) {
-        console.error('Reset settings error:', error)
-        message.error(t('generalSettings.resetFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
-      }
-    }
-  })
-}
-
-function exportSettings() {
-  try {
-    const settingsJson = settingsStore.exportSettings()
-
-    // 创建下载链接
-    const blob = new Blob([settingsJson], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `aria2-desktop-settings-${new Date().toISOString().split('T')[0]}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-
-    message.success(t('generalSettings.exportDone'))
-  } catch (_error) {
-    message.error(t('generalSettings.exportFailed'))
-  }
-}
-
-// 打开导入对话框（清空上一次选择）
-function openImportDialog() {
-  selectedFileName.value = ''
-  importText.value = ''
-  showImportDialog.value = true
-}
-
-// 触发文件选择
-function selectImportFile() {
-  fileInputRef.value?.click()
-}
-
-// 读取选中的设置文件内容
-function handleFileSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-
-  const reader = new FileReader()
-  reader.onload = () => {
-    importText.value = String(reader.result ?? '')
-    selectedFileName.value = file.name
-  }
-  reader.readAsText(file)
-  // 允许重复选择同一个文件
-  input.value = ''
-}
-
-async function importSettings() {
-  if (!importText.value.trim()) {
-    message.warning(t('generalSettings.importEmpty'))
-    return
-  }
-
-  importing.value = true
-  try {
-    await settingsStore.importSettings(importText.value)
-    showImportDialog.value = false
-    importText.value = ''
-    message.success(t('generalSettings.importDone'))
-  } catch (error) {
-    message.error(t('generalSettings.importFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
-  } finally {
-    importing.value = false
-  }
-}
-
 async function handleThemeChange() {
   try {
     // 立即应用主题（直接使用当前选择的主题值）
@@ -759,6 +580,8 @@ async function checkForUpdates() {
   if (!window.electronAPI?.checkForUpdates) return
   // 防止检查进行中重复点击导致状态错乱
   if (updating.value) return
+  // 本机检查更新常在几百毫秒内返回，补齐最短时长避免加载动画只闪一下
+  const startedAt = Date.now()
   updating.value = true
   updateState.value = 'checking'
   try {
@@ -779,6 +602,7 @@ async function checkForUpdates() {
   } catch (_error) {
     updateState.value = 'not-available'
   } finally {
+    await ensureMinimumDuration(startedAt)
     updating.value = false
   }
 }
@@ -810,10 +634,6 @@ async function restartAndInstall() {
   max-width: 100%;
 }
 
-.backup-actions {
-  display: flex;
-  gap: 12px;
-}
 
 .update-section {
   display: flex;
@@ -836,7 +656,4 @@ async function restartAndInstall() {
   user-select: text;
 }
 
-.hidden-file-input {
-  display: none;
-}
 </style>

@@ -28,7 +28,10 @@
     "workflowSettings": "เวิร์กโฟลว์",
     "instances": "อินสแตนซ์",
     "btInsights": "ข้อมูลเชิงลึก BT",
-    "automation": "ระบบอัตโนมัติ"
+    "automation": "ระบบอัตโนมัติ",
+    "remoteAccess": "การเข้าถึงระยะไกล",
+    "logs": "บันทึก",
+    "resetBackup": "รีเซ็ตและสำรองข้อมูล"
   },
   "task": {
     "downloading": "กำลังดาวน์โหลด",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "มีฟิลด์ที่ละเอียดอ่อน {count} ฟิลด์ที่ว่างในไฟล์สำรอง ระบบจะเก็บค่าปัจจุบันของเครื่องนี้ไว้",
       "confirmImport": "ยืนยันการนำเข้า",
       "importSuccess": "นำเข้าการตั้งค่าแล้ว",
-      "restartHint": "บางการตั้งค่าจะมีผลหลังรีสตาร์ทแอป"
+      "restartHint": "บางการตั้งค่าจะมีผลหลังรีสตาร์ทแอป",
+      "import": "นำเข้าการตั้งค่า"
     },
     "webhookQueue": {
       "title": "คิวการส่ง Webhook",
@@ -1228,6 +1232,30 @@
       "clearFailed": "ล้างคิวไม่สำเร็จ: {error}",
       "empty": "คิวว่าง ไม่มี Webhook ที่รอส่ง",
       "loadFailed": "อ่านคิวการส่งไม่สำเร็จ: {error}"
+    },
+    "remoteAccess": {
+      "description": "จัดการคอนโซลเว็บระยะไกลและโทเค็น API สำหรับสคริปต์หรือไคลเอนต์ของบุคคลที่สาม"
+    },
+    "logs": {
+      "description": "ดูบันทึกการทำงานของแอปพลิเคชัน คัดลอกเนื้อหาหรือเปิดโฟลเดอร์บันทึกเมื่อแก้ไขปัญหา",
+      "refresh": "รีเฟรช",
+      "autoRefresh": "รีเฟรชอัตโนมัติ",
+      "searchPlaceholder": "ค้นหาบันทึก...",
+      "openDir": "เปิดโฟลเดอร์บันทึก",
+      "levelAll": "ทุกระดับ",
+      "levelInfo": "ข้อมูล",
+      "levelWarn": "คำเตือน",
+      "levelError": "ข้อผิดพลาด",
+      "filePath": "ไฟล์บันทึก: {path}",
+      "truncated": "แสดงเฉพาะ {count} บรรทัดล่าสุด",
+      "empty": "ยังไม่มีบันทึก",
+      "loadFailed": "อ่านบันทึกไม่สำเร็จ",
+      "openFailed": "เปิดโฟลเดอร์บันทึกไม่สำเร็จ"
+    },
+    "resetBackup": {
+      "description": "คืนค่าการตั้งค่าเริ่มต้น หรือสำรองและกู้คืนการกำหนดค่าแอป",
+      "resetTitle": "รีเซ็ต",
+      "backupTitle": "สำรองข้อมูล"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "คิวรอดำเนินการว่างเปล่า"
   },
   "workflow": {
+    "pageDescription": "จัดการเทมเพลตงานและกฎการเสร็จสิ้น และดูคิวการส่ง Webhook",
     "templateApply": "แม่แบบ:",
     "templateSelect": "เลือกแม่แบบงาน",
     "templateApplied": "นำแม่แบบไปใช้แล้ว",
@@ -1614,6 +1643,7 @@
     "mode": "โหมด",
     "infoHash": "Info Hash",
     "unknown": "ไม่ทราบ",
+    "peers": "เพียร์",
     "trackers": "Tracker",
     "tier": "ชั้น",
     "trackerUrl": "URL ของ Tracker",

@@ -28,7 +28,10 @@
     "workflowSettings": "Alur Kerja",
     "instances": "Instans",
     "btInsights": "Wawasan BT",
-    "automation": "Otomatisasi"
+    "automation": "Otomatisasi",
+    "remoteAccess": "Akses jarak jauh",
+    "logs": "Log",
+    "resetBackup": "Reset & Cadangkan"
   },
   "task": {
     "downloading": "Mengunduh",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} kolom sensitif kosong dalam cadangan; nilai saat ini di komputer ini tetap dipertahankan.",
       "confirmImport": "Konfirmasi impor",
       "importSuccess": "Konfigurasi diimpor",
-      "restartHint": "Beberapa pengaturan berlaku setelah aplikasi dimulai ulang."
+      "restartHint": "Beberapa pengaturan berlaku setelah aplikasi dimulai ulang.",
+      "import": "Impor konfigurasi"
     },
     "webhookQueue": {
       "title": "Antrean pengiriman Webhook",
@@ -1228,6 +1232,30 @@
       "clearFailed": "Gagal mengosongkan antrean: {error}",
       "empty": "Antrean kosong, tidak ada Webhook yang menunggu.",
       "loadFailed": "Gagal membaca antrean pengiriman: {error}"
+    },
+    "remoteAccess": {
+      "description": "Kelola konsol web jarak jauh dan token API untuk skrip atau klien pihak ketiga."
+    },
+    "logs": {
+      "description": "Lihat log aplikasi. Salin konten atau buka folder log saat memecahkan masalah.",
+      "refresh": "Muat ulang",
+      "autoRefresh": "Muat ulang otomatis",
+      "searchPlaceholder": "Cari log...",
+      "openDir": "Buka folder log",
+      "levelAll": "Semua level",
+      "levelInfo": "Info",
+      "levelWarn": "Peringatan",
+      "levelError": "Kesalahan",
+      "filePath": "File log: {path}",
+      "truncated": "Hanya menampilkan {count} baris terakhir",
+      "empty": "Belum ada log",
+      "loadFailed": "Gagal membaca log",
+      "openFailed": "Gagal membuka folder log"
+    },
+    "resetBackup": {
+      "description": "Pulihkan pengaturan default, atau cadangkan dan pulihkan konfigurasi aplikasi",
+      "resetTitle": "Reset",
+      "backupTitle": "Cadangan"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "Antrean tunggu kosong"
   },
   "workflow": {
+    "pageDescription": "Kelola templat tugas dan aturan penyelesaian, serta tinjau antrean pengiriman webhook.",
     "templateApply": "Templat:",
     "templateSelect": "Pilih templat tugas",
     "templateApplied": "Templat diterapkan",
@@ -1614,6 +1643,7 @@
     "mode": "Mode",
     "infoHash": "Info hash",
     "unknown": "Tidak diketahui",
+    "peers": "Peer",
     "trackers": "Tracker",
     "tier": "Tingkat",
     "trackerUrl": "URL tracker",

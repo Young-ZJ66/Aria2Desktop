@@ -69,6 +69,17 @@
             >
               {{ t('connection.disconnect') }}
             </n-button>
+            <n-button
+              v-else
+              size="small"
+              type="primary"
+              class="app-action-btn"
+              :loading="connectingProfileId === profile.id"
+              :disabled="connectionStore.isConnecting && connectingProfileId !== profile.id"
+              @click="handleConnectProfile(profile)"
+            >
+              {{ t('connection.connect') }}
+            </n-button>
           </div>
         </div>
       </div>
@@ -155,12 +166,14 @@
               {{ t('connection.back') }}
             </n-button>
             <n-button :loading="saving" @click="handleSave">{{ t('connection.save') }}</n-button>
+            <!-- 文案保持固定：加载态由全局样式把文字换成加载圈，若在此切换成更长的
+                 「连接中...」，隐藏的文字仍会撑开按钮宽度，违反"按钮长宽不变" -->
             <n-button
               type="primary"
               :loading="connecting"
               @click="handleConnect"
             >
-              {{ connecting ? t('connection.connectingText') : t('connection.connect') }}
+              {{ t('connection.connect') }}
             </n-button>
           </template>
         </n-space>
@@ -221,6 +234,8 @@ const connectionStore = useConnectionStore()
 const formRef = ref<FormInst>()
 const connecting = ref(false)
 const saving = ref(false)
+// 一级列表中正在连接的那一项（逐项 loading，避免所有按钮一起转圈）
+const connectingProfileId = ref('')
 
 // 对话框内部视图：list=配置列表（一级），edit=配置详情（二级）
 const view = ref<'list' | 'edit'>('list')
@@ -314,6 +329,32 @@ function goBackToList() {
 
 function handleDisconnect() {
   connectionStore.disconnect()
+  message.success(t('connection.disconnected'))
+}
+
+// 一级列表里直接连接某个配置：不进入二级编辑，直接用该配置的已保存参数连接
+async function handleConnectProfile(profile: ConnectionProfile) {
+  connectingProfileId.value = profile.id
+  try {
+    // 按预设连接：成功后才把该预设切成「当前」，失败不会改动当前连接。
+    // 并发点另一个实例时，新的连接会接管，旧尝试返回 false 后静默退出。
+    const connected = await withMinimumDuration(() => connectionStore.connect({ ...profile.config }, profile.id))
+    if (!connected) return
+    message.success(t('connection.connectSuccess'))
+  } catch (error) {
+    console.error('Connection failed:', error)
+    message.error(
+      buildConnectionFailureMessage({
+        host: profile.config.host,
+        error,
+        baseMessage: getUserFriendlyError(error, t('connection.connectionFailed')),
+        proxyHint: t('connection.proxyHint')
+      })
+    )
+  } finally {
+    // 并发连接时状态可能已被另一个预设接管，只有仍归自己时才清空
+    if (connectingProfileId.value === profile.id) connectingProfileId.value = ''
+  }
 }
 
 // ── 二级编辑视图 ──
@@ -360,8 +401,9 @@ async function handleConnect() {
 
     connecting.value = true
 
-    connectionStore.setActiveProfile(selectedProfileId.value)
-    await withMinimumDuration(() => connectionStore.connect({ ...form }))
+    // 按当前编辑的预设连接：成功后才切换「当前」预设
+    const connected = await withMinimumDuration(() => connectionStore.connect({ ...form }, selectedProfileId.value))
+    if (!connected) return
 
     message.success(t('connection.connectSuccess'))
     visible.value = false

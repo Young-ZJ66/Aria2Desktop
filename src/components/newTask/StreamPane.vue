@@ -171,6 +171,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from '@/utils/feedback'
+import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import { useUiStore } from '@/stores/uiStore'
 import { useTaskStore } from '@/stores/taskStore'
@@ -353,6 +354,8 @@ function formatDuration(seconds?: number): string {
 
 async function fetchStreamInfo() {
   if (!streamUrl.value.trim() || !window.electronAPI?.ytdlpVideoInfo) return
+  // yt-dlp 解析常瞬间返回，补齐最短时长让按钮的加载动画可见
+  const startedAt = Date.now()
   streamFetching.value = true
   streamFormats.value = []
   selectedFormatId.value = null
@@ -383,6 +386,7 @@ async function fetchStreamInfo() {
       message.error(t('newTask.streamParseFailed'))
     }
   } finally {
+    await ensureMinimumDuration(startedAt)
     streamFetching.value = false
   }
 }
@@ -394,6 +398,7 @@ async function fetchStreamInfo() {
  */
 async function fetchPlaylistInfo(fromVideoFallback: boolean) {
   if (!streamUrl.value.trim() || !window.electronAPI?.ytdlpPlaylistInfo) return
+  const startedAt = Date.now()
   playlistFetching.value = true
   if (!fromVideoFallback) {
     // 手动触发：清掉单视频解析残留（标题/格式列表属于上一个 URL）
@@ -425,6 +430,7 @@ async function fetchPlaylistInfo(fromVideoFallback: boolean) {
   } catch {
     if (!fromVideoFallback) message.error(t('newTask.streamPlaylistEmpty'))
   } finally {
+    await ensureMinimumDuration(startedAt)
     playlistFetching.value = false
   }
 }

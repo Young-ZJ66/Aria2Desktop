@@ -28,7 +28,10 @@
     "workflowSettings": "Flusso di lavoro",
     "instances": "Istanze",
     "btInsights": "Analisi BT",
-    "automation": "Automazione"
+    "automation": "Automazione",
+    "remoteAccess": "Accesso remoto",
+    "logs": "Log",
+    "resetBackup": "Ripristino e backup"
   },
   "task": {
     "downloading": "Download in corso",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} campi sensibili erano vuoti nel backup; vengono mantenuti i valori di questo computer.",
       "confirmImport": "Conferma importazione",
       "importSuccess": "Configurazione importata",
-      "restartHint": "Alcune impostazioni diventano effettive dopo il riavvio dell’app."
+      "restartHint": "Alcune impostazioni diventano effettive dopo il riavvio dell’app.",
+      "import": "Importa configurazione"
     },
     "webhookQueue": {
       "title": "Coda di consegna Webhook",
@@ -1228,6 +1232,30 @@
       "clearFailed": "Svuotamento della coda non riuscito: {error}",
       "empty": "La coda è vuota: nessun Webhook in attesa.",
       "loadFailed": "Lettura della coda di consegna non riuscita: {error}"
+    },
+    "remoteAccess": {
+      "description": "Gestisci la console web remota e i token API per script o client di terze parti."
+    },
+    "logs": {
+      "description": "Visualizza i log dell’applicazione. Copia il contenuto o apri la cartella dei log quando risolvi problemi.",
+      "refresh": "Aggiorna",
+      "autoRefresh": "Aggiornamento automatico",
+      "searchPlaceholder": "Cerca nei log...",
+      "openDir": "Apri cartella dei log",
+      "levelAll": "Tutti i livelli",
+      "levelInfo": "Informazioni",
+      "levelWarn": "Avviso",
+      "levelError": "Errore",
+      "filePath": "File di log: {path}",
+      "truncated": "Vengono mostrate solo le ultime {count} righe",
+      "empty": "Nessun log disponibile",
+      "loadFailed": "Impossibile leggere i log",
+      "openFailed": "Impossibile aprire la cartella dei log"
+    },
+    "resetBackup": {
+      "description": "Ripristina le impostazioni predefinite o esegui il backup e ripristina la configurazione",
+      "resetTitle": "Reimposta",
+      "backupTitle": "Backup"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "La coda di attesa è vuota"
   },
   "workflow": {
+    "pageDescription": "Gestisci modelli di attività e regole di completamento e controlla la coda di consegna dei webhook.",
     "templateApply": "Modello:",
     "templateSelect": "Scegli un modello di attività",
     "templateApplied": "Modello applicato",
@@ -1614,6 +1643,7 @@
     "mode": "Modalità",
     "infoHash": "Info hash",
     "unknown": "Sconosciuto",
+    "peers": "Peer",
     "trackers": "Tracker",
     "tier": "Livello",
     "trackerUrl": "URL tracker",

@@ -41,6 +41,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from '@/utils/feedback'
+import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -147,6 +148,8 @@ function selectCategory(categoryId: string) {
 async function apply() {
   const service = connectionStore.service
   if (!service || selected.value.size === 0) return
+  // 本地 RPC 常在几毫秒内返回，补齐最短时长让应用按钮的加载动画可见
+  const startedAt = Date.now()
   applying.value = true
   try {
     await service.changeOption(props.task.gid, {
@@ -158,6 +161,7 @@ async function apply() {
     message.error(t('taskDetail.fileSelectionFailed'))
     console.warn('[TaskFilesInfo] change select-file failed:', error)
   } finally {
+    await ensureMinimumDuration(startedAt)
     applying.value = false
     // 任务可能被 aria2 重启，刷新列表以便拿到最新状态
     await taskStore.loadAllTasks()

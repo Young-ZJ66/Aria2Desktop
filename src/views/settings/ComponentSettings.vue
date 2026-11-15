@@ -8,12 +8,11 @@
       <div class="component-item">
         <div class="component-info">
           <div class="component-head">
-            <span class="component-name">{{ t('settings.components.ytdlpName') }}</span>
+            <TipLabel :label="t('settings.components.ytdlpName')" :tip="t('settings.components.ytdlpDesc')" class="component-name" />
             <n-tag size="small" :type="componentStore.ytdlp.available ? 'success' : 'default'" :title="statusText(componentStore.ytdlp)">
               <span class="component-status-text">{{ statusText(componentStore.ytdlp) }}</span>
             </n-tag>
           </div>
-          <p class="component-desc">{{ t('settings.components.ytdlpDesc') }}</p>
           <!-- 版本单独一行完整展示：构建号可能很长，放进状态标签会被截断 -->
           <p v-if="componentStore.ytdlp.available && componentStore.ytdlp.version" class="component-version">
             {{ t('settings.components.versionLine', { version: componentStore.ytdlp.version }) }}
@@ -74,12 +73,11 @@
       <div class="component-item">
         <div class="component-info">
           <div class="component-head">
-            <span class="component-name">{{ t('settings.components.ffmpegName') }}</span>
+            <TipLabel :label="t('settings.components.ffmpegName')" :tip="t('settings.components.ffmpegDesc')" class="component-name" />
             <n-tag size="small" :type="componentStore.ffmpeg.available ? 'success' : 'default'" :title="statusText(componentStore.ffmpeg)">
               <span class="component-status-text">{{ statusText(componentStore.ffmpeg) }}</span>
             </n-tag>
           </div>
-          <p class="component-desc">{{ t('settings.components.ffmpegDesc') }}</p>
           <p v-if="componentStore.ffmpeg.available && componentStore.ffmpeg.version" class="component-version">
             {{ t('settings.components.versionLine', { version: componentStore.ffmpeg.version }) }}
           </p>
@@ -136,8 +134,10 @@
     </n-card>
 
     <!-- 浏览器扩展：一键跳到商店安装（链接与"是否已上架"的判断见 shared/extensionStore） -->
-    <n-card :title="t('settings.rpc.groupExtension')" class="setting-group">
-      <p class="extension-desc">{{ t('settings.rpc.extensionDesc') }}</p>
+    <n-card class="setting-group">
+      <template #header>
+        <TipLabel :label="t('settings.rpc.groupExtension')" :tip="t('settings.rpc.extensionDesc')" />
+      </template>
       <n-space align="center" :size="12">
         <n-button :disabled="!storeUrlReady" @click="openExtensionStore">
           <template #icon>
@@ -157,8 +157,10 @@
     </n-card>
 
     <!-- MCP：让 AI 助手（Claude Desktop / Cursor 等）直接驱动下载 -->
-    <n-card :title="t('settings.rpc.groupMcp')" class="setting-group">
-      <p class="extension-desc">{{ t('settings.rpc.mcpDesc') }}</p>
+    <n-card class="setting-group">
+      <template #header>
+        <TipLabel :label="t('settings.rpc.groupMcp')" :tip="mcpGroupTip" />
+      </template>
       <div class="mcp-code-wrap">
         <code class="mcp-endpoint">{{ mcpEndpoint }}</code>
         <n-button
@@ -178,7 +180,6 @@
           <template v-if="copiedTarget === 'endpoint'">{{ t('settings.rpc.mcpCopied') }}</template>
         </n-button>
       </div>
-      <p class="extension-desc mcp-hint">{{ t('settings.rpc.mcpAuthHint') }}</p>
       <div class="mcp-config-toolbar">
         <n-radio-group v-model:value="mcpConfigMode" size="small" class="mcp-config-switch">
           <n-radio-button value="sample">{{ t('settings.rpc.mcpSampleTab') }}</n-radio-button>
@@ -217,6 +218,7 @@ import { useI18n } from 'vue-i18n'
 import { CheckmarkOutline, CopyOutline, ExtensionPuzzleOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
+import TipLabel from '@/components/settings/TipLabel.vue'
 import { useComponentStore, type ComponentStatus } from '@/stores/componentStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { withMinimumDuration } from '@/composables/useMinimumLoading'
@@ -231,6 +233,12 @@ import { classifyUpdateError, COMPONENT_ERROR_MESSAGE_KEYS } from '@/shared/upda
 const { t } = useI18n()
 const componentStore = useComponentStore()
 const settingsStore = useSettingsStore()
+
+/**
+ * MCP 分组说明：把"能做什么"和"鉴权用哪个密钥"合并成组标题问号的内容。
+ * 原先两段正文提示占了整块版面，实际只在第一次配置时需要读一遍。
+ */
+const mcpGroupTip = computed(() => `${t('settings.rpc.mcpDesc')}\n\n${t('settings.rpc.mcpAuthHint')}`)
 
 /**
  * 组件下载失败的提示：先认清是不是"连不上 GitHub / 被限流 / 这个标签没有该平台的包"，
@@ -475,13 +483,6 @@ async function openExtensionStore() {
   word-break: break-all;
 }
 
-.component-desc {
-  margin: 6px 0 0;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-}
-
 .component-hint {
   margin: 6px 0 0;
   font-size: 12px;
@@ -500,14 +501,6 @@ async function openExtensionStore() {
 
 .component-divider {
   margin: 18px 0;
-}
-
-/* 与 SettingsPage 的 .settings-description 同口径，保持卡片内说明文字一致 */
-.extension-desc {
-  margin: 0 0 12px 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 .pending-hint {
@@ -531,10 +524,6 @@ async function openExtensionStore() {
   color: var(--text-regular);
   overflow-x: auto;
   white-space: nowrap;
-}
-
-.mcp-hint {
-  margin: 10px 0 6px;
 }
 
 .mcp-json {

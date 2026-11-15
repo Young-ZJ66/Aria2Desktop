@@ -4,6 +4,7 @@
       <n-button
         size="small"
         type="default"
+        class="btn-loading-keep-icon"
         :disabled="operating || !canBatchStart"
         :loading="operating"
         @click="$emit('batch-start')"
@@ -17,6 +18,7 @@
       <n-button
         size="small"
         type="default"
+        class="btn-loading-keep-icon"
         :disabled="operating || !canBatchPause"
         :loading="operating"
         @click="$emit('batch-pause')"
@@ -44,7 +46,7 @@
         v-if="hasSelection"
         size="small"
         type="default"
-        class="btn-danger-outline"
+        class="btn-danger-outline btn-loading-keep-icon"
         :disabled="deleting"
         :loading="deleting"
         @click="$emit('batch-delete')"

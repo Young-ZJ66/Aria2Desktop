@@ -1,5 +1,6 @@
 <template>
-  <div class="workflow-settings">
+  <div class="workflow-view">
+    <PageHeader :title="t('nav.workflowSettings')" :description="t('workflow.pageDescription')" />
     <n-tabs v-model:value="activeSection" type="line" animated class="workflow-tabs">
       <n-tab-pane name="templates" :tab="templateTab">
         <n-card :bordered="false" class="section-card">
@@ -15,7 +16,7 @@
             </div>
           </template>
 
-          <n-empty v-if="templates.length === 0" :description="t('workflow.noTemplates')" />
+          <n-empty v-if="templates.length === 0" :description="t('workflow.noTemplates')" class="section-empty" />
           <div v-for="(template, index) in templates" :key="template.id" class="editor-block">
             <div class="block-head">
               <n-input v-model:value="template.name" size="small" :placeholder="t('workflow.templateName')" class="name-input" />
@@ -79,7 +80,7 @@
             </div>
           </template>
 
-          <n-empty v-if="rules.length === 0" :description="t('workflow.noRules')" />
+          <n-empty v-if="rules.length === 0" :description="t('workflow.noRules')" class="section-empty" />
           <div v-for="(rule, index) in rules" :key="rule.id" class="editor-block">
             <div class="block-head">
               <div class="block-title-row">
@@ -164,55 +165,59 @@
           </div>
         </n-card>
       </n-tab-pane>
-    </n-tabs>
 
-    <!-- Webhook 投递队列：规则触发的投递失败后会按指数退避自动重试，超过上限的条目在这里手动处理 -->
-    <n-card :bordered="false" class="section-card queue-card">
-      <template #header>
-        <div class="section-header">
-          <div>
-            <div class="section-title">{{ t('settings.webhookQueue.title') }}</div>
-            <div class="section-desc">{{ t('settings.webhookQueue.description') }}</div>
-          </div>
-          <n-space>
-            <n-button size="small" :loading="queueLoading" @click="refreshQueue()">
-              {{ t('settings.webhookQueue.refresh') }}
-            </n-button>
-            <n-popconfirm @positive-click="clearQueue">
-              <template #trigger>
-                <n-button size="small" type="error" secondary :disabled="queueEntries.length === 0">
-                  {{ t('settings.webhookQueue.clear') }}
+      <!-- Webhook 投递队列：规则触发的投递失败后会按指数退避自动重试，超过上限的条目在这里手动处理 -->
+      <n-tab-pane name="queue" :tab="queueTab">
+        <n-card :bordered="false" class="section-card">
+          <template #header>
+            <div class="section-header">
+              <div>
+                <div class="section-title">{{ t('settings.webhookQueue.title') }}</div>
+                <div class="section-desc">{{ t('settings.webhookQueue.description') }}</div>
+              </div>
+              <n-space>
+                <n-button size="small" :loading="queueLoading" @click="refreshQueue()">
+                  {{ t('settings.webhookQueue.refresh') }}
                 </n-button>
-              </template>
-              {{ t('settings.webhookQueue.clearConfirm', { count: queueEntries.length }) }}
-            </n-popconfirm>
-          </n-space>
-        </div>
-      </template>
+                <n-popconfirm @positive-click="clearQueue">
+                  <template #trigger>
+                    <n-button size="small" type="error" secondary :disabled="queueEntries.length === 0">
+                      {{ t('settings.webhookQueue.clear') }}
+                    </n-button>
+                  </template>
+                  {{ t('settings.webhookQueue.clearConfirm', { count: queueEntries.length }) }}
+                </n-popconfirm>
+              </n-space>
+            </div>
+          </template>
 
-      <n-empty v-if="queueEntries.length === 0" :description="t('settings.webhookQueue.empty')" />
-      <n-data-table
-        v-else
-        :columns="queueColumns"
-        :data="queueEntries"
-        :row-key="(row: WebhookQueueEntry) => row.id"
-        :bordered="false"
-        size="small"
-        :scroll-x="860"
-      />
-    </n-card>
+          <n-empty v-if="queueEntries.length === 0" :description="t('settings.webhookQueue.empty')" class="section-empty" />
+          <n-data-table
+            v-else
+            :columns="queueColumns"
+            :data="queueEntries"
+            :row-key="(row: WebhookQueueEntry) => row.id"
+            :bordered="false"
+            size="small"
+            :scroll-x="860"
+          />
+        </n-card>
+      </n-tab-pane>
+    </n-tabs>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h, onMounted, onUnmounted } from 'vue'
+import { ref, computed, h, onActivated, onDeactivated, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import PageHeader from '@/components/layout/PageHeader.vue'
 import { NButton, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { useSettingsStore } from '@/stores/settingsStore'
 import type { CompletionRule, TaskTemplate } from '@/shared/appSettings'
 import type { WebhookQueueEntry } from '@/shared/webhookQueue'
 import { formatCompleteTime } from '@/utils/taskFormatters'
+import { withMinimumDuration } from '@/composables/useMinimumLoading'
 
 interface EditableAction {
   type: 'move' | 'rename' | 'open' | 'notify' | 'webhook' | 'extract'
@@ -243,9 +248,11 @@ const settingsStore = useSettingsStore()
 const saving = ref(false)
 const templates = ref<TaskTemplate[]>([])
 const rules = ref<RuleDraft[]>([])
-const activeSection = ref<'templates' | 'rules'>('templates')
+// 三个分区各占一个标签页：模板条目一多，规则会被挤到首屏之外，分页后每块都能直接看到
+const activeSection = ref<'templates' | 'rules' | 'queue'>('templates')
 const templateTab = computed(() => `${t('workflow.templatesTitle')} (${templates.value.length})`)
 const ruleTab = computed(() => `${t('workflow.rulesTitle')} (${rules.value.length})`)
+const queueTab = computed(() => `${t('settings.webhookQueue.title')} (${queueEntries.value.length})`)
 
 // 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
 const statusOptions = computed(() => [
@@ -415,10 +422,11 @@ async function refreshQueue(force = false): Promise<void> {
   queueRefreshing = true
   queueLoading.value = true
   try {
-    const result = await window.electronAPI?.webhookQueueList?.()
+    // 本地读取队列通常瞬间返回，补齐最短时长让刷新动画可见
+    const result = await withMinimumDuration(async () => window.electronAPI?.webhookQueueList?.())
     queueEntries.value = result?.entries ?? []
   } catch (error) {
-    console.error('[WorkflowSettings] 读取 Webhook 投递队列失败:', error)
+    console.error('[WorkflowView] 读取 Webhook 投递队列失败:', error)
     message.error(t('settings.webhookQueue.loadFailed', { error: error instanceof Error ? error.message : String(error) }))
   } finally {
     queueRefreshing = false
@@ -437,7 +445,7 @@ async function retryQueueEntry(entry: WebhookQueueEntry): Promise<void> {
     message.success(t('settings.webhookQueue.retrySuccess'))
     await refreshQueue(true)
   } catch (error) {
-    console.error('[WorkflowSettings] 重试 Webhook 投递失败:', error)
+    console.error('[WorkflowView] 重试 Webhook 投递失败:', error)
     message.error(t('settings.webhookQueue.retryFailed', { error: error instanceof Error ? error.message : String(error) }))
   } finally {
     queueRetryingId.value = ''
@@ -454,7 +462,7 @@ async function clearQueue(): Promise<void> {
     message.success(t('settings.webhookQueue.cleared', { count: result?.cleared ?? 0 }))
     await refreshQueue(true)
   } catch (error) {
-    console.error('[WorkflowSettings] 清空 Webhook 投递队列失败:', error)
+    console.error('[WorkflowView] 清空 Webhook 投递队列失败:', error)
     message.error(t('settings.webhookQueue.clearFailed', { error: error instanceof Error ? error.message : String(error) }))
   }
 }
@@ -507,38 +515,101 @@ const queueColumns = computed<DataTableColumns<WebhookQueueEntry>>(() => [
   }
 ])
 
-onMounted(() => {
-  load()
-  void refreshQueue()
+// 投递队列轮询：keep-alive 下页面不会被卸载，改为随「激活 / 失活」启停
+function startQueuePolling(): void {
+  if (queueTimer !== undefined) return
   queueTimer = setInterval(() => { void refreshQueue() }, QUEUE_POLL_INTERVAL_MS)
-})
+}
 
-onUnmounted(() => {
+function stopQueuePolling(): void {
   if (queueTimer !== undefined) {
     clearInterval(queueTimer)
     queueTimer = undefined
   }
+}
+
+let activatedOnce = false
+
+onMounted(() => {
+  load()
+  void refreshQueue()
+})
+
+// keep-alive 下切回来时组件不重新挂载：恢复轮询并静默刷新一次队列。
+// 首次进入时 onMounted 已拉过数据，用 activatedOnce 跳过，避免重复请求。
+onActivated(() => {
+  startQueuePolling()
+  if (!activatedOnce) {
+    activatedOnce = true
+    return
+  }
+  void refreshQueue()
+})
+
+// 切走时停表：页面被缓存着，不停表会一直轮询
+onDeactivated(() => {
+  stopQueuePolling()
+})
+
+onUnmounted(() => {
+  stopQueuePolling()
 })
 </script>
 
 <style scoped>
-.workflow-settings {
+.workflow-view {
+  height: 100%;
   display: flex;
   flex-direction: column;
+  gap: 16px;
 }
+/* tab 撑满剩余高度，卡片自己滚动，页面不再整体滚动 */
 .workflow-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   margin-top: -2px;
 }
 .workflow-tabs :deep(.n-tabs-nav) {
+  flex: none;
   margin-bottom: 2px;
 }
+.workflow-tabs :deep(.n-tabs-pane-wrapper) {
+  flex: 1;
+  min-height: 0;
+}
+.workflow-tabs :deep(.n-tab-pane) {
+  height: 100%;
+}
+/* 独立页面不再继承设置页对控件宽度的全局规则，这里补回同样的观感：
+   输入框/选择框占满所在网格单元，需要定宽的控件用更具体的类覆盖 */
+.workflow-view :deep(.n-input),
+.workflow-view :deep(.n-select),
+.workflow-view :deep(.n-input-number) {
+  width: 100%;
+}
 .section-card {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   border-radius: 10px;
 }
-.section-card + .section-card {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-light);
+.section-card :deep(.n-card__content) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+/* 空态：撑满卡片内容区并垂直居中，避免图标贴在顶部 */
+.section-empty {
+  height: 100%;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 .section-header {
   display: flex;
@@ -575,7 +646,8 @@ onUnmounted(() => {
   gap: 8px;
   flex: 1;
 }
-.name-input {
+.block-head .name-input {
+  width: 100%;
   max-width: 320px;
 }
 .sub-title {
@@ -592,13 +664,13 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
 }
-.action-type {
+.action-row .action-type {
   width: 130px;
-  flex-shrink: 0;
+  flex: 0 0 130px;
 }
-.method-select {
+.action-row .method-select {
   width: 90px;
-  flex-shrink: 0;
+  flex: 0 0 90px;
 }
 .action-extra {
   display: flex;
@@ -620,8 +692,5 @@ onUnmounted(() => {
 .section-actions {
   display: flex;
   justify-content: flex-start;
-}
-.queue-card {
-  margin-top: 16px;
 }
 </style>

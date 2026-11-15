@@ -47,6 +47,11 @@ const router = createRouter({
       path: '/automation',
       name: 'automation',
       component: () => import('@/views/AutomationView.vue')
+    },
+    {
+      path: '/workflow',
+      name: 'workflow',
+      component: () => import('@/views/WorkflowView.vue')
     }
   ]
 })

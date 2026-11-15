@@ -28,7 +28,10 @@
     "workflowSettings": "Fluxo de Trabalho",
     "instances": "Instâncias",
     "btInsights": "Análises BT",
-    "automation": "Automação"
+    "automation": "Automação",
+    "remoteAccess": "Acesso remoto",
+    "logs": "Registros",
+    "resetBackup": "Redefinir e backup"
   },
   "task": {
     "downloading": "Baixando",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} campos sensíveis estavam vazios no backup; os valores deste computador são mantidos.",
       "confirmImport": "Confirmar importação",
       "importSuccess": "Configuração importada",
-      "restartHint": "Algumas configurações só entram em vigor após reiniciar o aplicativo."
+      "restartHint": "Algumas configurações só entram em vigor após reiniciar o aplicativo.",
+      "import": "Importar configuração"
     },
     "webhookQueue": {
       "title": "Fila de entrega de Webhooks",
@@ -1228,6 +1232,30 @@
       "clearFailed": "Falha ao limpar a fila: {error}",
       "empty": "A fila está vazia — nenhum Webhook aguardando.",
       "loadFailed": "Falha ao ler a fila de entrega: {error}"
+    },
+    "remoteAccess": {
+      "description": "Gerencie o console web remoto e os tokens de API para scripts ou clientes de terceiros."
+    },
+    "logs": {
+      "description": "Visualize os registros do aplicativo. Copie o conteúdo ou abra a pasta de registros ao solucionar problemas.",
+      "refresh": "Atualizar",
+      "autoRefresh": "Atualização automática",
+      "searchPlaceholder": "Pesquisar registros...",
+      "openDir": "Abrir pasta de registros",
+      "levelAll": "Todos os níveis",
+      "levelInfo": "Informação",
+      "levelWarn": "Aviso",
+      "levelError": "Erro",
+      "filePath": "Arquivo de registro: {path}",
+      "truncated": "Mostrando apenas as últimas {count} linhas",
+      "empty": "Ainda não há registros",
+      "loadFailed": "Falha ao ler os registros",
+      "openFailed": "Falha ao abrir a pasta de registros"
+    },
+    "resetBackup": {
+      "description": "Restaurar as configurações padrão ou fazer backup e restaurar a configuração",
+      "resetTitle": "Redefinir",
+      "backupTitle": "Backup"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "A fila de espera está vazia"
   },
   "workflow": {
+    "pageDescription": "Gerencie modelos de tarefas e regras de conclusão, e veja a fila de envio de webhooks.",
     "templateApply": "Modelo:",
     "templateSelect": "Escolha um modelo de tarefa",
     "templateApplied": "Modelo aplicado",
@@ -1614,6 +1643,7 @@
     "mode": "Modo",
     "infoHash": "Info hash",
     "unknown": "Desconhecido",
+    "peers": "Pares",
     "trackers": "Trackers",
     "tier": "Nível",
     "trackerUrl": "URL do tracker",

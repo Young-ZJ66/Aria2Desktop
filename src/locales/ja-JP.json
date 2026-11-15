@@ -28,7 +28,10 @@
     "workflowSettings": "ワークフロー",
     "instances": "インスタンス",
     "btInsights": "BT インサイト",
-    "automation": "自動化"
+    "automation": "自動化",
+    "remoteAccess": "リモートアクセス",
+    "logs": "ログ",
+    "resetBackup": "リセットとバックアップ"
   },
   "task": {
     "downloading": "ダウンロード中",
@@ -1204,7 +1207,8 @@
       "preservedSecrets": "{count} 件の機密フィールドはバックアップ内で空のため、この端末の現在値を保持します。",
       "confirmImport": "インポートを実行",
       "importSuccess": "設定をインポートしました",
-      "restartHint": "一部の設定はアプリの再起動後に反映されます。"
+      "restartHint": "一部の設定はアプリの再起動後に反映されます。",
+      "import": "設定をインポート"
     },
     "webhookQueue": {
       "title": "Webhook 配信キュー",
@@ -1228,6 +1232,30 @@
       "clearFailed": "キューのクリアに失敗しました: {error}",
       "empty": "キューは空です。配信待ちの Webhook はありません。",
       "loadFailed": "配信キューの読み取りに失敗しました: {error}"
+    },
+    "remoteAccess": {
+      "description": "スクリプトやサードパーティ製クライアント向けに、リモート Web コンソールと API トークンを管理します。"
+    },
+    "logs": {
+      "description": "アプリケーションの実行ログを表示します。問題調査時は内容をコピーするか、ログフォルダーを開けます。",
+      "refresh": "更新",
+      "autoRefresh": "自動更新",
+      "searchPlaceholder": "ログを検索...",
+      "openDir": "ログフォルダーを開く",
+      "levelAll": "すべてのレベル",
+      "levelInfo": "情報",
+      "levelWarn": "警告",
+      "levelError": "エラー",
+      "filePath": "ログファイル：{path}",
+      "truncated": "最新 {count} 行のみ表示",
+      "empty": "ログはありません",
+      "loadFailed": "ログの読み取りに失敗しました",
+      "openFailed": "ログフォルダーを開けませんでした"
+    },
+    "resetBackup": {
+      "description": "既定の設定に戻すか、アプリ設定をバックアップ・復元します",
+      "resetTitle": "リセット",
+      "backupTitle": "バックアップ"
     }
   },
   "generalSettings": {
@@ -1522,6 +1550,7 @@
     "empty": "待機キューは空です"
   },
   "workflow": {
+    "pageDescription": "タスクテンプレートと完了ルールを管理し、Webhook 配信キューを確認します。",
     "templateApply": "タスクテンプレート：",
     "templateSelect": "タスクテンプレートを選択",
     "templateApplied": "テンプレートを適用しました",
@@ -1614,6 +1643,7 @@
     "mode": "モード",
     "infoHash": "Info Hash",
     "unknown": "不明",
+    "peers": "ピア",
     "trackers": "Tracker 一覧",
     "tier": "階層",
     "trackerUrl": "Tracker URL",

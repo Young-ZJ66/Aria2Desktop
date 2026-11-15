@@ -216,6 +216,7 @@ export class IpcController {
         if (!result.ok) return { success: false, error: result.error }
         if (options?.dryRun === true) return { success: true, report: result.report }
         saveSettings(result.next)
+        logger.info('[Settings] 配置导入已应用')
         // 与 set-store-value 保持一致：端口/UPnP 相关设置变化后重新协商映射
         void upnpService.reconcile()
         return { success: true, report: result.report }
@@ -1102,6 +1103,38 @@ export class IpcController {
       } catch (e) {
         return { success: false, error: String(e) }
       }
+    }, { getMainWindow: this.windowRef })
+
+    // 读取应用日志末尾若干行，供设置里的「日志」页直接查看（无需用户自己去翻 userData）
+    registerSecureHandler('read-log-file', async (_event, maxLines?: number) => {
+      const { file } = getLogFilePaths()
+      // 上限做硬限制：日志文件 5MB 轮转，整文件读取也不会失控；返回行数按 UI 需要裁剪
+      const limit = Math.min(5000, Math.max(50, Number(maxLines) || 1000))
+      try {
+        const content = await fs.promises.readFile(file, 'utf8')
+        const all = content.split(/\r?\n/)
+        // 文件通常以换行结尾，split 会多出一个空串，去掉以免界面上出现一条空白行
+        if (all.length > 0 && all[all.length - 1] === '') all.pop()
+        const lines = all.slice(-limit)
+        return { success: true, path: file, lines, truncated: all.length > lines.length, totalLines: all.length }
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code
+        // 首次启动还没来得及写日志时文件不存在，视为空日志而不是错误
+        if (code === 'ENOENT') return { success: true, path: file, lines: [], truncated: false, totalLines: 0 }
+        return { success: false, path: file, lines: [], error: String(e) }
+      }
+    }, { getMainWindow: this.windowRef })
+
+    // 渲染层写日志：设置变更等「用户意图」只有渲染层知道（主进程收到的是一整包
+    // 合并后的设置，无法分辨用户到底改了哪一项），因此由渲染层算出真正变更的键，
+    // 再经这个通道落到 main.log，供设置里的「日志」页直接查看。
+    registerSecureHandler('write-log', (_event, level: unknown, message: unknown) => {
+      if (typeof message !== 'string' || message.length === 0) return { success: false }
+      const allowed = ['debug', 'info', 'warn', 'error'] as const
+      const name = allowed.find((item) => item === level) ?? 'info'
+      // 截断超长内容：日志是给人看的排查线索，不接受任意长度字符串撑爆日志文件
+      logger[name](message.slice(0, 2000))
+      return { success: true }
     }, { getMainWindow: this.windowRef })
   }
 }
