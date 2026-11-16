@@ -196,18 +196,22 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
+/* 悬浮保存条：铺满内容区宽度，用一条向上淡出的底色承接滚动内容，
+   避免按钮条像「压在某一行的文字上」。只有药丸本身接收点击。 */
 .float-actions-bar {
   position: absolute;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: calc(100vw - 48px);
-  pointer-events: auto;
-  padding: 12px 0 2px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  padding: 20px 0 10px;
+  pointer-events: none;
+  background: linear-gradient(to top, var(--bg-primary) 58%, transparent);
 }
 
 .float-actions-bar__inner {
+  pointer-events: auto;
   padding: 8px 14px;
   border-radius: 12px;
   background: var(--bg-primary);

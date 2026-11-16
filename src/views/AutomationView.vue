@@ -873,6 +873,8 @@ onUnmounted(() => {
   flex-direction: column;
   border-radius: 10px;
   border: 1px solid var(--border-light);
+  /* 与队列/状态/任务列表的卡片一致：极浅投影把卡片从页面底色上托起来 */
+  box-shadow: var(--shadow-light);
 }
 
 .section-card :deep(.n-card__content) {

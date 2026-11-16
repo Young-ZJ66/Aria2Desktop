@@ -10,7 +10,7 @@
                 <div class="section-title">{{ t('workflow.templatesTitle') }}</div>
                 <div class="section-desc">{{ t('workflow.templatesDesc') }}</div>
               </div>
-              <n-button size="small" @click="addTemplate">
+              <n-button size="small" type="primary" @click="addTemplate">
                 {{ t('workflow.addTemplate') }}
               </n-button>
             </div>
@@ -74,7 +74,7 @@
                 <div class="section-title">{{ t('workflow.rulesTitle') }}</div>
                 <div class="section-desc">{{ t('workflow.rulesDesc') }}</div>
               </div>
-              <n-button size="small" @click="addRule">
+              <n-button size="small" type="primary" @click="addRule">
                 {{ t('workflow.addRule') }}
               </n-button>
             </div>
@@ -595,6 +595,10 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   border-radius: 10px;
+  /* 与自动化页保持一致：n-card 自带边框之外不再叠加，统一用主题边框色 */
+  border: 1px solid var(--border-light);
+  /* 与队列/状态/任务列表的卡片一致：极浅投影把卡片从页面底色上托起来 */
+  box-shadow: var(--shadow-light);
 }
 .section-card :deep(.n-card__content) {
   flex: 1;
@@ -624,7 +628,7 @@ onUnmounted(() => {
 .section-desc {
   margin-top: 4px;
   font-size: 12px;
-  opacity: 0.65;
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 .editor-block {

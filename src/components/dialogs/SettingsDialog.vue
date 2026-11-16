@@ -798,21 +798,34 @@ watch(visible, (show) => {
   overflow: hidden;
 }
 
-/* 一级导航固定宽度；分组后只有 8 项，常见窗口高度下无需上下滚动 */
+/* 一级导航固定宽度；当前 10 项，常见窗口高度下无需上下滚动 */
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav.n-tabs-nav--left) {
   flex: 0 0 190px;
   width: 190px;
   padding: 6px 8px 6px 10px;
 }
 
+/* 一级导航用「胶囊高亮」代替 naive 默认的细竖线：与左侧主侧边栏的选中态一致，
+   在 10 个条目里更容易一眼扫到当前页。 */
+.settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-bar) {
+  display: none;
+}
+
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab) {
-  padding: 9px 14px;
+  padding: 9px 12px;
   font-size: 14px;
   line-height: 22px;
+  border-radius: 8px;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab:hover) {
+  background-color: var(--hover-color);
 }
 
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab.n-tabs-tab--active) {
   font-weight: 600;
+  background-color: var(--hover-color);
 }
 
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-pane-wrapper) {

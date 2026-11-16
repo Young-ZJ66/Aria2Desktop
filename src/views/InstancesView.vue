@@ -217,7 +217,7 @@ function openConnectionDialog() {
 
 <style scoped>
 .instance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
-.instance-card { border-radius: 12px; border: 1px solid var(--border-light); }
+.instance-card { border-radius: 10px; border: 1px solid var(--border-light); }
 .instance-card.active { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary) inset; }
 .instance-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .instance-name { display: flex; align-items: center; gap: 8px; font-weight: 600; }

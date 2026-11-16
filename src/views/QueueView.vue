@@ -281,7 +281,7 @@ onBeforeUnmount(() => {
 }
 .retry-hint {
   font-size: 12px;
-  opacity: 0.65;
+  color: var(--text-secondary);
 }
 .queue-table-wrap {
   flex: 1;

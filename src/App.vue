@@ -1,5 +1,10 @@
 <template>
-  <n-config-provider :theme="currentTheme" :theme-overrides="themeOverrides" :locale="naiveLocale">
+  <n-config-provider
+    :theme="currentTheme"
+    :theme-overrides="themeOverrides"
+    :locale="naiveLocale"
+    :component-options="componentOptions"
+  >
     <n-message-provider placement="top">
       <n-dialog-provider>
         <n-notification-provider placement="bottom-right">
@@ -75,9 +80,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, h } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { CloudDownloadOutline } from '@vicons/ionicons5'
+import { NIcon } from 'naive-ui'
+import { CloudDownloadOutline, FileTrayOutline } from '@vicons/ionicons5'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useThemeManager } from '@/composables/useThemeManager'
@@ -98,6 +104,15 @@ const { t } = useI18n()
 // Naive UI 主题 / 语言（跟随设置与系统深浅色）
 const themeManager = useThemeManager()
 const { currentTheme, themeOverrides, naiveLocale } = themeManager
+
+// 全局空态图标：naive 默认的 EmptyIcon 是「方框 + 叉号」，浅色主题下很容易被误读成
+// 「图片损坏」而不是「这里还没有内容」。统一换成文件托盘图标——语义更贴切，
+// 且全部 n-empty 自动一致，不需要逐个页面写 #icon 插槽。
+const componentOptions = {
+  Empty: {
+    renderIcon: () => h(NIcon, null, { default: () => h(FileTrayOutline) })
+  }
+}
 
 // 应用生命周期编排：设置初始化、更新检查、自动刷新、配置热重载、连接管理
 useAppLifecycle(themeManager)
