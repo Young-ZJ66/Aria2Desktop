@@ -120,20 +120,22 @@ function hideForever() {
   padding: 0 4px;
   line-height: 20px;
   white-space: nowrap;
-  color: var(--text-secondary);
+  /* 提示条底色是 #edf5fe，--text-secondary(#6b7280) 在此只有 4.4:1；
+     改用正文级颜色后达到 7:1 以上 */
+  color: var(--text-regular);
 }
 
 .dismissible-alert-forever:hover {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .dismissible-alert-close {
   width: 20px;
   height: 20px;
-  color: var(--text-secondary);
+  color: var(--text-regular);
 }
 
 .dismissible-alert-close:hover {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 </style>

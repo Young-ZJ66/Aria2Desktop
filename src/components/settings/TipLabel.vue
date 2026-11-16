@@ -72,14 +72,14 @@ function showTooltip(show: boolean) {
 }
 
 .tip-icon:hover {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .tip-icon:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
   border-radius: 4px;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .tip-content {

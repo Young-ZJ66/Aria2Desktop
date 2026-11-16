@@ -16,7 +16,7 @@
      回落到 #999（白底 2.85:1），低于 AA。
      取值在白底 4.89:1、卡片底 #f6f7f9 上 4.56:1，仍满足正文级 AA。 */
   --text-tertiary: #68727e;
-  --text-placeholder: #6b7280;
+  --text-placeholder: #626a76;
   --border-light: #ececf1;
   --border-base: #dde0e7;
   --border-dark: #c2c7d1;
@@ -24,6 +24,10 @@
      旧的 #4f6ef2 只有 4.33 / 3.94，而主色用在侧边栏当前项、页签、主按钮上，
      覆盖面很大，所以整体压深一档。 */
   --color-primary: #4560e0;
+  /* 主色作为「文字」使用时的值（浅色与主色一致；深色需要更亮的蓝才能过 AA） */
+  --color-primary-text: #4560e0;
+  /* 浅色悬停底色：用于 Tracker 来源等小卡片背景 */
+  --hover-color: #f5f5f5;
   --color-success: #22c55e;
   --color-warning: #d97706;
   --color-danger: #ef4444;
@@ -71,12 +75,14 @@
   --text-secondary: #8b93a5;
   /* 深色下的第三级文字：必须比 secondary 更淡但仍过 4.5:1
      （#8891a3 对 #1e222b 5.02、对 #171a21 5.49、对卡片 #262b36 4.47） */
-  --text-tertiary: #8891a3;
-  --text-placeholder: #8b93a5;
+  --text-tertiary: #919aad;
+  --text-placeholder: #98a1b3;
   --border-light: #2c323e;
   --border-base: #3a4150;
   --border-dark: #4b5465;
   --color-primary: #6c86f5;
+  --color-primary-text: #93a8ff;
+  --hover-color: #2f3038;
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #f87171;
@@ -331,6 +337,15 @@ html.theme-transition ::-webkit-scrollbar-thumb {
 /* 弹窗/抽屉右上角关闭按钮：naive 用 --n-close-size 控制命中区 */
 .n-base-close {
   --n-close-size: 24px;
+  /* --absolute 变体把 width/height 固定成 --n-close-icon-size(18px)，
+     只有 ::before 是 24px 命中区；补 min-* 让元素本身也达到 24×24 */
+  min-width: 24px;
+  min-height: 24px;
+}
+
+/* 文本按钮（如「展开全部」）默认高度随行高只有 12px，补最小命中高度 */
+.n-button--small-type {
+  min-height: 24px;
 }
 
 /* InputNumber 的加减按钮是 18×18 的 text 按钮（没有 text-type 类名）：

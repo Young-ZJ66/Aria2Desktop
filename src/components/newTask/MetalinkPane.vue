@@ -199,9 +199,9 @@ defineExpose({
 
 .file-drop-area:hover,
 .file-drop-area.drag-active {
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-text);
   background-color: var(--bg-hover);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .drop-text {

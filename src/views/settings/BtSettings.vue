@@ -949,13 +949,13 @@ onMounted(async () => {
 .tracker-expand-btn {
   align-self: flex-start;
   font-size: 12px;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .tracker-expand-btn:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .tracker-source-actions {

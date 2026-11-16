@@ -568,7 +568,7 @@ onMounted(async () => {
    仅覆盖文字色：启动默认蓝字，停止默认红字。
    悬浮时边框与字体自动变蓝（naive-ui default 按钮默认行为，与「保存会话」一致） */
 .control-buttons :deep(.status-btn-start) {
-  color: var(--color-primary) !important;
+  color: var(--color-primary-text) !important;
 }
 
 .control-buttons :deep(.status-btn-stop) {

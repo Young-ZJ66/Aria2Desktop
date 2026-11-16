@@ -129,7 +129,7 @@ defineEmits<Emits>()
 
 .selected-count {
   font-size: 14px;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   font-weight: 500;
   margin-left: 16px;
 }

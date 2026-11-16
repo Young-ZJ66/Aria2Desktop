@@ -15,8 +15,10 @@ export const THEME_TOKENS = {
     // 侧边栏当前项、页签标签、蓝底白字主按钮上，覆盖面积很大。
     // #4560e0 在白底 5.25、#f0f4ff 上 4.77、#f6f7f9 上 4.89，全部达标。
     primaryColor: '#4560e0',
-    primaryColorHover: '#5a74e6',
-    primaryColorPressed: '#3750c4',
+    // hover 也用作文字色（页签 hover、文字按钮），必须是 #4c63d8 这类
+    // 白底 5.14 / 选中底 #f0f4ff 4.67 的深值；旧的 #5a74e6 白底只有 4.14。
+    primaryColorHover: '#4c63d8',
+    primaryColorPressed: '#3b50b8',
     primaryColorSuppl: '#4560e0'
   },
   dark: {
@@ -24,6 +26,15 @@ export const THEME_TOKENS = {
     primaryColorHover: '#8499f7',
     primaryColorPressed: '#5465d8',
     primaryColorSuppl: '#6c86f5'
+  },
+  /**
+   * 主色作为「文字」使用时的颜色。深色主题下 primaryColor(#6c86f5) 放在
+   * 面板 #2c2c32 上只有 4.21:1，低于 AA；而它作为按钮底色又必须保持足够深
+   * 让白色文字可读。两个场景无法共用一个值，因此单独给文字场景一个更亮的蓝。
+   */
+  primaryText: {
+    light: '#4560e0',
+    dark: '#93a8ff'
   },
   borderRadius: '8px',
   cardBorderRadius: '10px',
@@ -38,8 +49,10 @@ export const THEME_TOKENS = {
    * 输入框占位符与空态说明基本看不清。这里统一提到 4.8:1 以上。
    */
   textMuted: {
-    light: '#6b7280',
-    dark: '#8b93a5'
+    // #626a76 在浅蓝提示条 #edf5fe 上 4.97（旧 #6b7280 只有 4.40）；
+    // 深色主题用 #98a1b3，在面板 #2c2c32 上 5.34（旧 #8b93a5 恰好 4.50 临界）。
+    light: '#626a76',
+    dark: '#98a1b3'
   },
   /**
    * 语义色（tag 文字、状态文字等）的 AA 版本。
@@ -68,6 +81,7 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
   const surface = isDark ? THEME_TOKENS.buttonSurface.dark : THEME_TOKENS.buttonSurface.light
   const muted = isDark ? THEME_TOKENS.textMuted.dark : THEME_TOKENS.textMuted.light
   const semantic = isDark ? THEME_TOKENS.semanticText.dark : THEME_TOKENS.semanticText.light
+  const primaryText = isDark ? THEME_TOKENS.primaryText.dark : THEME_TOKENS.primaryText.light
   return {
     common: {
       primaryColor: tokens.primaryColor,
@@ -92,7 +106,19 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       color: surface.color,
       colorHover: surface.colorHover,
       colorPressed: surface.colorPressed,
-      colorFocus: surface.colorFocus
+      colorFocus: surface.colorFocus,
+      // 文字按钮（text）用主色当文字：深色主题必须换成更亮的 primaryText，
+      // 否则 #6c86f5 在 #2c2c32 上只有 4.21:1。
+      textColorText: primaryText,
+      textColorTextHover: primaryText,
+      textColorTextPressed: primaryText
+    },
+    // 页签激活/悬停标签用主色当文字：深色主题同样要换成 primaryText。
+    Tabs: {
+      tabTextColorActiveLine: primaryText,
+      tabTextColorHoverLine: primaryText,
+      tabTextColorActiveCard: primaryText,
+      tabTextColorHoverCard: primaryText
     },
     // 空态描述文字默认取 textColorDisabled（很淡），单列出来保证可读
     Empty: { textColor: muted },

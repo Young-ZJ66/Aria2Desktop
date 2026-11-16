@@ -231,7 +231,7 @@ function onDrop(event: DragEvent) {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   font-size: 16px;
   font-weight: 600;
 }

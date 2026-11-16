@@ -965,7 +965,7 @@ onUnmounted(() => {
 }
 
 .preview-link {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   text-decoration: none;
   word-break: break-all;
 }

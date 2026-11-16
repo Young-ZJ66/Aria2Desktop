@@ -223,7 +223,7 @@ const isPausedSeeding = computed(() => {
 }
 
 .task-action-btn:hover .action-icon {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .task-action-btn:focus-visible {
@@ -233,7 +233,7 @@ const isPausedSeeding = computed(() => {
 }
 
 .task-action-btn:focus-visible .action-icon {
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .action-icon {
