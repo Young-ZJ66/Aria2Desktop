@@ -356,6 +356,23 @@ html.theme-transition ::-webkit-scrollbar-thumb {
 }
 
 /* =========================================
+   视觉隐藏（仅供读屏与文档大纲，不占布局）
+   用于给不含可见一级标题的容器补 h1，例如设置弹窗：
+   n-modal 的 title 只是文本节点，不产生 heading
+   ========================================= */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* =========================================
    全局"减少动态"兜底：
    系统开启减少动态时，停用所有可与动效（动画、过渡），
    覆盖上文 theme-transition 的个别规则，保证体验一致

@@ -10,6 +10,9 @@
     content-style="padding: 0;"
   >
     <div ref="bodyRef" class="settings-dialog-body">
+      <!-- 设置弹窗自身的一级标题：n-modal 的 title 只是文本节点，不产生 heading。
+           设置内各页的标题保持 h2，层级才对（/ui-taste 审计 P3）。 -->
+      <h1 class="sr-only">{{ t('app.settings') }}</h1>
       <!-- 设置项模糊搜索：跨页签按名称/说明匹配，点击结果直接跳转并高亮 -->
       <div class="settings-search">
         <n-input
@@ -837,9 +840,19 @@ watch(visible, (show) => {
 }
 
 /* 设置弹窗里一级/二级页签已说明当前页面，隐藏子页面重复的大标题；
-   保留页面描述与卡片标题，减少空白层级 */
+   保留页面描述与卡片标题，减少空白层级。
+   注意用「视觉隐藏」而不是 display:none：后者会把标题从无障碍树里移除，
+   导致每个设置页在文档大纲和读屏里都没有标题（/ui-taste 审计 P3）。 */
 .settings-dialog-body :deep(.settings-page .settings-header) {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .settings-dialog-body :deep(.settings-page) {

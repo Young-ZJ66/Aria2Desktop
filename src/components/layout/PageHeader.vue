@@ -1,7 +1,9 @@
 <template>
   <header class="page-header">
     <div class="page-header__text">
-      <h2 class="page-header__title">{{ title }}</h2>
+      <!-- 页面唯一的一级标题：此前用 h2，导致整个应用的标题层级从 h2 起跳，
+           读屏与文档大纲都找不到页面主标题（/ui-taste 审计 P3）。 -->
+      <h1 class="page-header__title">{{ title }}</h1>
       <p v-if="description" class="page-header__desc">{{ description }}</p>
     </div>
     <div v-if="$slots.actions" class="page-header__actions">

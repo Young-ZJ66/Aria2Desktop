@@ -90,11 +90,11 @@
         <n-data-table
           v-else
           :loading="loading"
-          :columns="columns"
+          :columns="visibleColumns"
           :data="filteredTasks"
           :row-key="(row: Aria2Task) => row.gid"
           :row-props="rowProps"
-          :scroll-x="920"
+          :scroll-x="tableScrollX"
           :min-row-height="60"
           flex-height
           virtual-scroll
@@ -141,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, ref, watch, type Component } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon, NProgress, NTag, NCheckbox, type DataTableColumns } from 'naive-ui'
 import { AddOutline, SearchOutline, VideocamOutline, MusicalNotesOutline, ImageOutline, ArchiveOutline, DocumentTextOutline, CodeSlashOutline, CubeOutline, DocumentOutline } from '@vicons/ionicons5'
@@ -654,6 +654,37 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     }
   }
 ])
+
+// ── 窄屏列优先级 ──
+// 960px 窗口下内容区只剩约 674px，全量 8 列必须横向滚动才能看全。
+// 窄屏按信息优先级隐藏次要列，保留「文件名 / 进度 / 状态 / 操作」，
+// 隐藏「大小 / 下载速度 / 剩余时间（完成时间）」，总宽降到 624px 正好放下，
+// 不必再拖横向滚动条（/ui-taste 审计 P3）。
+const NARROW_MAX_WIDTH = 1024
+const NARROW_SCROLL_X = 624
+const NARROW_HIDDEN_KEYS = new Set(['size', 'downloadSpeed', 'remainingTime', 'completeTime'])
+const isNarrow = ref(false)
+
+function syncNarrowLayout(): void {
+  isNarrow.value = window.innerWidth <= NARROW_MAX_WIDTH
+}
+
+onMounted(() => {
+  syncNarrowLayout()
+  window.addEventListener('resize', syncNarrowLayout, { passive: true })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncNarrowLayout)
+})
+
+const visibleColumns = computed<DataTableColumns<Aria2Task>>(() => {
+  if (!isNarrow.value) return columns.value
+  // 选择列没有 key（TableSelectionColumn），用 in 判断后再取
+  return columns.value.filter((column) => !('key' in column) || !NARROW_HIDDEN_KEYS.has(String(column.key)))
+})
+
+const tableScrollX = computed(() => (isNarrow.value ? NARROW_SCROLL_X : 920))
 
 // 行点击选择任务。忽略点击行内按钮/链接等交互元素的事件，避免误触发选中
 function rowProps(row: Aria2Task) {
