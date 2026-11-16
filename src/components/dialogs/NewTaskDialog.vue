@@ -4,7 +4,7 @@
     :title="t('newTask.title')"
     preset="card"
     style="width: 620px; max-width: 92vw"
-    content-style="max-height: calc(100vh - 170px); overflow-y: auto; scrollbar-gutter: stable;"
+    content-style="max-height: calc(100vh - 170px); overflow-y: auto; scrollbar-gutter: stable; padding: 20px 24px 0;"
     :bordered="false"
     :mask-closable="true"
     display-directive="show"
@@ -35,7 +35,8 @@
       type="line"
       animated
       display-directive="show"
-      pane-style="padding: 6px 8px 0; box-sizing: border-box;"
+      class="dialog-tabs"
+      pane-style="padding: 16px 0 0; box-sizing: border-box;"
     >
       <n-tab-pane name="uri" :tab="t('newTask.uriTab')">
         <UriPane
@@ -78,21 +79,25 @@
 
     <!-- 操作按钮放在 card footer：与滚动内容分离，内容再长也始终可见 -->
     <template #footer>
-      <div class="dialog-footer">
-        <n-space v-if="activePane">
-          <n-button
-            v-if="activePane.actionVisible"
-            type="primary"
-            :loading="activePane.submitting"
-            :disabled="activePane.actionDisabled"
-            @click="activePane.submit()"
-          >
-            {{ activePane.actionLabel }}
-          </n-button>
-          <n-button v-if="activePane.reset" @click="activePane.reset()">
-            {{ t('newTask.reset') }}
-          </n-button>
-        </n-space>
+      <div v-if="activePane" class="dialog-footer">
+        <n-button
+          v-if="activePane.reset"
+          text
+          class="dialog-footer__reset"
+          @click="activePane.reset()"
+        >
+          {{ t('newTask.reset') }}
+        </n-button>
+        <n-button
+          v-if="activePane.actionVisible"
+          type="primary"
+          class="dialog-footer__primary"
+          :loading="activePane.submitting"
+          :disabled="activePane.actionDisabled"
+          @click="activePane.submit()"
+        >
+          {{ activePane.actionLabel }}
+        </n-button>
       </div>
     </template>
 
@@ -307,22 +312,109 @@ function handleFileInputChange(event: Event) {
 </script>
 
 <style scoped>
+/* 模板栏：与下方页签区用一条细线断开，避免「模板选择」被误读成表单的一部分 */
 .template-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px 8px;
+  gap: var(--ds-space-12);
+  padding: 0 0 var(--ds-space-16);
+  border-bottom: 1px solid var(--ds-border-subtle);
 }
 .template-label {
-  font-size: 12px;
-  opacity: 0.7;
+  flex: none;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
   white-space: nowrap;
 }
 .template-select {
   width: 260px;
 }
+
+/* 页签：v2 的选中态（主色文字 + 2px 下划线）由 themeTokens 的 Tabs 覆盖提供，
+   这里只收敛节奏——naive 默认 12px 上下内边距在 620px 宽的弹窗里过于松散 */
+.dialog-tabs :deep(.n-tabs-nav) {
+  margin-bottom: var(--ds-space-4);
+}
+.dialog-tabs :deep(.n-tabs-tab) {
+  padding: var(--ds-space-8) var(--ds-space-12);
+  font-size: var(--ds-text-body-size);
+  color: var(--ds-text-muted);
+  transition: color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
+}
+.dialog-tabs :deep(.n-tabs-tab:hover) {
+  color: var(--ds-text-strong);
+}
+.dialog-tabs :deep(.n-tabs-tab.n-tabs-tab--active) {
+  color: var(--ds-accent-text);
+  font-weight: 600;
+}
+.dialog-tabs :deep(.n-tabs-bar) {
+  height: 2px;
+  border-radius: var(--ds-radius-pill);
+}
+
+/* 底部操作条：主操作靠右；重置会清空已填内容，降级为左侧文字按钮，
+   不再和主按钮同排同权重（原先紧邻，误点即丢输入） */
 .dialog-footer {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: var(--ds-space-12);
+  width: 100%;
+}
+.dialog-footer__reset.n-button {
+  --n-text-color: var(--ds-text-muted);
+  --n-text-color-hover: var(--ds-text-strong);
+  --n-text-color-pressed: var(--ds-text-strong);
+  --n-text-color-focus: var(--ds-text-strong);
+}
+.dialog-footer__primary {
+  margin-left: auto;
+}
+
+/* —— 四个 tab 共用的组节奏 ——
+   组标题/分隔线/字段说明只在这里定义一次：四个 pane 各写一套会出现四种字号与间距，
+   切换 tab 时像四个不同的产品。pane 里只用 class 名。 */
+.dialog-tabs :deep(.pane-section) {
+  padding: var(--ds-space-16) 0;
+}
+
+.dialog-tabs :deep(.pane-section:first-child) {
+  padding-top: 0;
+}
+
+.dialog-tabs :deep(.pane-section:last-child) {
+  padding-bottom: 0;
+}
+
+.dialog-tabs :deep(.pane-section + .pane-section) {
+  border-top: 1px solid var(--ds-border-subtle);
+}
+
+.dialog-tabs :deep(.pane-section-title) {
+  margin: 0 0 var(--ds-space-8);
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-text-muted);
+}
+
+/* 字段下方常显说明：替代原先塞进 placeholder 的多行文字（输入后不会消失） */
+.dialog-tabs :deep(.field-helper) {
+  margin-top: var(--ds-space-4);
+  font-size: var(--ds-text-small-size);
+  line-height: 1.5;
+  color: var(--ds-text-muted);
+}
+
+.dialog-tabs :deep(.field-helper--preline) {
+  white-space: pre-line;
+}
+
+/* 图标型文字按钮（最近目录、目录选择）可点区域不小于 24×24 */
+.dialog-tabs :deep(.n-button--text-type) {
+  min-width: var(--ds-space-24);
 }
 </style>

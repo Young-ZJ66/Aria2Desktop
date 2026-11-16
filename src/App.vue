@@ -15,12 +15,9 @@
             @dragleave.prevent="onDragLeave"
             @drop.prevent="onDrop"
           >
-            <!-- 主要内容区域 -->
             <div class="main-container" :class="{ 'is-entered': appEntered }">
-              <!-- 侧边栏 -->
               <AppSidebar />
 
-              <!-- 内容区域（切页时瞬时切换，见下方注释） -->
               <div class="content-container">
                 <div class="page-host">
                   <!--
@@ -66,9 +63,11 @@
             <!-- 拖拽下载覆盖层 -->
             <transition name="fade-in">
               <div v-if="isDragging" class="drop-overlay">
-                <div class="drop-overlay-content">
-                  <n-icon :size="48"><CloudDownloadOutline /></n-icon>
-                  <span>{{ t('task.dropToDownload') }}</span>
+                <div class="drop-overlay__inner">
+                  <span class="drop-overlay__icon">
+                    <n-icon :size="26"><CloudDownloadOutline /></n-icon>
+                  </span>
+                  <span class="drop-overlay__text">{{ t('task.dropToDownload') }}</span>
                 </div>
               </div>
             </transition>
@@ -185,9 +184,11 @@ function onDrop(event: DragEvent) {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  transition: background-color var(--transition-slow), color var(--transition-slow);
+  background: var(--ds-bg-app);
+  color: var(--ds-text-base);
+  transition:
+    background-color var(--ds-motion-dur-4) var(--ds-motion-ease-in-out),
+    color var(--ds-motion-dur-4) var(--ds-motion-ease-in-out);
 }
 
 /* Windows 标题栏按钮预留空间 */
@@ -196,17 +197,20 @@ function onDrop(event: DragEvent) {
 }
 
 .app-container.windows-titlebar .content-container {
-  padding-right: 28px;
+  padding-right: 32px;
 }
 
 .main-container {
   flex: 1;
+  min-height: 0;
   display: flex;
   overflow: hidden;
   /* 首载淡入上移（由 appEntered 触发，悬挂在 is-entered 上避免启动白屏） */
   opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.45s var(--ease-smooth), transform 0.45s var(--ease-out);
+  transform: translateY(4px);
+  transition:
+    opacity 0.4s var(--ds-motion-ease-out),
+    transform 0.4s var(--ds-motion-ease-out);
 }
 
 .main-container.is-entered {
@@ -216,48 +220,72 @@ function onDrop(event: DragEvent) {
 
 .content-container {
   flex: 1;
+  min-width: 0;
   overflow: auto;
-  padding: 20px 24px 24px;
-  background-color: var(--bg-secondary);
+  padding: var(--ds-space-24) var(--ds-space-24) var(--ds-space-24) var(--ds-space-24);
+  /* 内容区不再自己刷底色：表面层级由 --ds-bg-app 与面板的 --ds-bg-surface 拉开，
+     中间那层 --bg-secondary 是 v1 灰白打架的根源 */
+  background: transparent;
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 900px) {
+  .content-container {
+    padding: var(--ds-space-16);
+  }
 }
 
 /* 页面容器：撑满内容区，供各页根节点的 height:100% 生效 */
 .page-host {
   height: 100%;
+  min-height: 0;
 }
 
-/* 拖拽下载覆盖层 */
+/* 拖拽下载覆盖层：整屏压暗 + 中心一张悬浮卡片，不再用 3px 虚线框住整个窗口 */
 .drop-overlay {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--color-primary) 12%, var(--bg-primary));
-  backdrop-filter: blur(4px);
-  border: 3px dashed var(--color-primary);
-  border-radius: 12px;
-  margin: 8px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--ds-bg-app) 68%, transparent);
+  backdrop-filter: blur(6px);
 }
 
-.drop-overlay-content {
+.drop-overlay__inner {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  color: var(--color-primary-text);
-  font-size: 16px;
-  font-weight: 600;
+  gap: var(--ds-space-12);
+  padding: var(--ds-space-32) var(--ds-space-48);
+  border-radius: var(--ds-radius-xl);
+  border: 1px dashed var(--ds-accent-border);
+  background: var(--ds-bg-surface);
+  box-shadow: var(--ds-elev-3);
 }
 
-/* 覆盖层淡入动画 */
+.drop-overlay__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-accent-subtle);
+  color: var(--ds-accent-text);
+}
+
+.drop-overlay__text {
+  font-size: var(--ds-text-bodyLg-size);
+  font-weight: 600;
+  color: var(--ds-text-strong);
+}
+
 .fade-in-enter-active {
-  transition: opacity var(--transition-base);
+  transition: opacity var(--ds-motion-dur-3) var(--ds-motion-ease-out);
 }
 
 .fade-in-leave-active {
-  transition: opacity var(--transition-fast);
+  transition: opacity var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
 }
 
 .fade-in-enter-from,

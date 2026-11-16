@@ -1,60 +1,95 @@
 <template>
-  <div class="app-footer">
-    <div class="global-stats">
-      <span
-        class="stat-item"
-        :aria-label="`${t('footer.downloadSpeed')}: ${formatSpeed(globalStat.downloadSpeed)}`"
-      >
-        <n-icon :size="14"><DownloadOutline /></n-icon>
-        {{ formatSpeed(globalStat.downloadSpeed) }}
+  <footer class="app-footer">
+    <div class="footer-stats">
+      <span class="stat" :aria-label="`${t('footer.downloadSpeed')}: ${formatSpeed(globalStat.downloadSpeed)}`">
+        <n-icon :size="13" class="stat__icon"><DownloadOutline /></n-icon>
+        <span class="stat__value ds-tnum">{{ formatSpeed(globalStat.downloadSpeed) }}</span>
       </span>
-      <span
-        class="stat-item"
-        :aria-label="`${t('footer.uploadSpeed')}: ${formatSpeed(globalStat.uploadSpeed)}`"
-      >
-        <n-icon :size="14"><CloudUploadOutline /></n-icon>
-        {{ formatSpeed(globalStat.uploadSpeed) }}
+      <span class="stat" :aria-label="`${t('footer.uploadSpeed')}: ${formatSpeed(globalStat.uploadSpeed)}`">
+        <n-icon :size="13" class="stat__icon"><CloudUploadOutline /></n-icon>
+        <span class="stat__value ds-tnum">{{ formatSpeed(globalStat.uploadSpeed) }}</span>
       </span>
-      <n-divider vertical />
-      <span class="stat-item" :aria-label="`${t('footer.active')}: ${globalStat.numActive}`">
-        {{ t('footer.active') }}: {{ globalStat.numActive }}
+
+      <span class="footer-sep" aria-hidden="true" />
+
+      <span class="stat stat--count" :aria-label="`${t('footer.active')}: ${globalStat.numActive}`">
+        <span class="stat__label">{{ t('footer.active') }}</span>
+        <span class="stat__value ds-tnum">{{ globalStat.numActive }}</span>
       </span>
-      <span class="stat-item" :aria-label="`${t('footer.waiting')}: ${globalStat.numWaiting}`">
-        {{ t('footer.waiting') }}: {{ globalStat.numWaiting }}
+      <span class="stat stat--count" :aria-label="`${t('footer.waiting')}: ${globalStat.numWaiting}`">
+        <span class="stat__label">{{ t('footer.waiting') }}</span>
+        <span class="stat__value ds-tnum">{{ globalStat.numWaiting }}</span>
       </span>
-      <span class="stat-item" :aria-label="`${t('footer.stopped')}: ${globalStat.numStopped}`">
-        {{ t('footer.stopped') }}: {{ globalStat.numStopped }}
+      <span class="stat stat--count" :aria-label="`${t('footer.stopped')}: ${globalStat.numStopped}`">
+        <span class="stat__label">{{ t('footer.stopped') }}</span>
+        <span class="stat__value ds-tnum">{{ globalStat.numStopped }}</span>
       </span>
     </div>
 
-    <!-- 限速快捷开关：左键开关，右键/下拉箭头选档位 -->
-    <n-dropdown
-      trigger="manual"
-      :show="limitMenuVisible"
-      :x="limitMenuX"
-      :y="limitMenuY"
+    <!--
+      限速入口：v1 是「左键开关 + 右键选档位」——右键菜单没有可见提示，
+      等于把选档位这件事藏了起来。v2 改成点击弹出面板，开关与档位都在里面。
+    -->
+    <n-popover
+      trigger="click"
       placement="top-end"
-      :options="limitMenuOptions"
-      @select="handleLimitPreset"
-      @clickoutside="limitMenuVisible = false"
-    />
-    <button
-      class="speed-limit-btn"
-      :class="{ active: statsStore.isSpeedLimited }"
-      :title="statsStore.isSpeedLimited ? t('footer.speedLimitOn') + ': ' + statsStore.speedLimitDisplay : t('footer.speedLimitOff')"
-      @click="handleToggleSpeedLimit"
-      @contextmenu.prevent="openLimitMenu"
+      :show-arrow="false"
+      :style="{ padding: '0' }"
+      :disabled="false"
     >
-      <n-icon :size="14"><SpeedometerOutline /></n-icon>
-      <span v-if="statsStore.isSpeedLimited" class="speed-limit-text">{{ statsStore.speedLimitDisplay }}</span>
-    </button>
-  </div>
+      <template #trigger>
+        <button
+          type="button"
+          class="limit-trigger"
+          :class="{ 'is-limited': statsStore.isSpeedLimited }"
+          aria-haspopup="dialog"
+          :aria-label="`${t('footer.speedLimit')}: ${statsStore.isSpeedLimited ? statsStore.speedLimitDisplay : t('footer.speedLimitOff')}`"
+        >
+          <n-icon :size="13"><SpeedometerOutline /></n-icon>
+          <span v-if="statsStore.isSpeedLimited" class="limit-trigger__value ds-tnum">
+            {{ statsStore.speedLimitDisplay }}
+          </span>
+          <span v-else class="limit-trigger__value">{{ t('footer.speedLimit') }}</span>
+        </button>
+      </template>
+
+      <div class="limit-pop">
+        <div class="limit-pop__head">
+          <span class="limit-pop__title">{{ t('footer.speedLimit') }}</span>
+          <n-switch
+            size="small"
+            :value="statsStore.isSpeedLimited"
+            :disabled="!connectionStore.service"
+            @update:value="handleToggleSpeedLimit"
+          />
+        </div>
+
+        <p v-if="!connectionStore.service" class="limit-pop__hint">
+          {{ t('footer.speedLimitNoEngine') }}
+        </p>
+
+        <div v-else class="limit-pop__grid" role="group" :aria-label="t('footer.speedLimit')">
+          <button
+            v-for="preset in LIMIT_PRESETS"
+            :key="preset.key"
+            type="button"
+            class="limit-chip"
+            :class="{ 'is-active': currentLimitBytes === preset.bytes }"
+            :aria-pressed="currentLimitBytes === preset.bytes"
+            @click="applyPreset(preset.bytes)"
+          >
+            {{ preset.label }}
+          </button>
+        </div>
+      </div>
+    </n-popover>
+  </footer>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { DropdownOption } from 'naive-ui'
+import { NIcon, NPopover, NSwitch } from 'naive-ui'
 import { useStatsStore } from '@/stores/statsStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { formatSpeed } from '@/utils/taskFormatters'
@@ -67,65 +102,41 @@ const { t } = useI18n()
 
 const globalStat = computed(() => statsStore.globalStat)
 
-async function handleToggleSpeedLimit() {
-  // 未连接时 toggleSpeedLimit 会静默返回，若不拦住就会给用户一个"已关闭限速"的假成功
+const LIMIT_PRESETS = [
+  { key: '512k', label: '512K', bytes: 512 * 1024 },
+  { key: '1m', label: '1M', bytes: 1024 * 1024 },
+  { key: '2m', label: '2M', bytes: 2 * 1024 * 1024 },
+  { key: '5m', label: '5M', bytes: 5 * 1024 * 1024 },
+  { key: '10m', label: '10M', bytes: 10 * 1024 * 1024 }
+] as const
+
+const currentLimitBytes = computed(() => {
+  const raw = statsStore.globalOptions['max-overall-download-limit']
+  const bytes = Number(raw)
+  return Number.isFinite(bytes) && bytes > 0 ? bytes : 0
+})
+
+async function handleToggleSpeedLimit(value: boolean) {
   if (!connectionStore.service) {
     message.warning(t('footer.speedLimitNoEngine'))
     return
   }
-
   try {
     await statsStore.toggleSpeedLimit()
-    const text = statsStore.isSpeedLimited
-      ? `${t('footer.speedLimitOn')}: ${statsStore.speedLimitDisplay}`
-      : t('footer.speedLimitOff')
-    message.success(text)
+    message.success(value ? t('footer.speedLimitOn') : t('footer.speedLimitOff'))
   } catch {
-    // 以前这里什么都不提示：点了没反应，用户只会以为按钮坏了
     message.error(t('footer.speedLimitToggleFailed'))
   }
 }
 
-// ── 右键限速档位菜单 ──
-/** 档位值（字节/秒）——与 changeGlobalOption 的原始值语义一致 */
-const LIMIT_PRESETS: Array<{ key: string; bytes: number }> = [
-  { key: '512k', bytes: 512 * 1024 },
-  { key: '1m', bytes: 1024 * 1024 },
-  { key: '2m', bytes: 2 * 1024 * 1024 },
-  { key: '5m', bytes: 5 * 1024 * 1024 },
-  { key: '10m', bytes: 10 * 1024 * 1024 }
-]
-
-const limitMenuVisible = ref(false)
-const limitMenuX = ref(0)
-const limitMenuY = ref(0)
-
-const limitMenuOptions = computed<DropdownOption[]>(() => [
-  ...LIMIT_PRESETS.map(p => ({
-    key: p.key,
-    label: formatSpeed(p.bytes) + ' /s'
-  })),
-  { type: 'divider', key: 'd1' },
-  { key: 'off', label: t('footer.speedLimitOff') }
-])
-
-function openLimitMenu(e: MouseEvent) {
+async function applyPreset(bytes: number) {
   if (!connectionStore.service) {
     message.warning(t('footer.speedLimitNoEngine'))
     return
   }
-  limitMenuX.value = e.clientX
-  limitMenuY.value = e.clientY
-  limitMenuVisible.value = true
-}
-
-async function handleLimitPreset(key: string | number) {
-  limitMenuVisible.value = false
-  const value = key === 'off' ? '0' : LIMIT_PRESETS.find(p => p.key === key)?.bytes
-  if (value === undefined) return
   try {
-    await statsStore.changeGlobalOptions({ 'max-overall-download-limit': String(value) })
-    message.success(key === 'off' ? t('footer.speedLimitOff') : `${t('footer.speedLimitOn')}: ${formatSpeed(value)}/s`)
+    await statsStore.changeGlobalOptions({ 'max-overall-download-limit': String(bytes) })
+    message.success(`${t('footer.speedLimitOn')}: ${formatSpeed(bytes)}/s`)
   } catch {
     message.error(t('footer.speedLimitToggleFailed'))
   }
@@ -134,57 +145,165 @@ async function handleLimitPreset(key: string | number) {
 
 <style scoped>
 .app-footer {
-  height: 40px;
-  background: var(--bg-primary);
-  border-top: 1px solid var(--border-light);
+  height: var(--ds-control-footer-height);
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  font-size: 12px;
-  color: var(--text-regular);
-  transition: background-color var(--transition-slow), border-color var(--transition-slow), color var(--transition-slow);
+  gap: var(--ds-space-16);
+  padding: 0 var(--ds-space-16) 0 var(--ds-space-20);
+  background: var(--ds-bg-surface);
+  border-top: 1px solid var(--ds-border-subtle);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
+  transition:
+    background-color var(--ds-motion-dur-4) var(--ds-motion-ease-in-out),
+    border-color var(--ds-motion-dur-4) var(--ds-motion-ease-in-out);
 }
 
-.speed-limit-btn {
+.footer-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-16);
+  min-width: 0;
+}
+
+.stat {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  padding: 4px 8px;
-  /* 触控目标 ≥24px（WCAG 2.5.8 AA），视觉上只比原来高 2px */
-  min-height: 24px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: color var(--transition-base), background-color var(--transition-base);
+  gap: var(--ds-space-6);
+  white-space: nowrap;
 }
 
-.speed-limit-btn:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+.stat__icon {
+  color: var(--ds-text-faint);
 }
 
-.speed-limit-btn.active {
-  color: var(--color-warning);
-}
-
-.speed-limit-text {
-  font-size: 11px;
+.stat__value {
+  color: var(--ds-text-base);
   font-weight: 500;
 }
 
-.global-stats {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+.stat--count .stat__label {
+  color: var(--ds-text-faint);
 }
 
-.stat-item {
+.stat--count .stat__value {
+  color: var(--ds-text-muted);
+  font-weight: 600;
+}
+
+.footer-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--ds-border-subtle);
+}
+
+.limit-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--ds-space-6);
+  height: 24px;
+  padding: 0 var(--ds-space-8);
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-sm);
+  background: transparent;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-small-size);
+  cursor: pointer;
+  transition:
+    background-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
+    color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
+    border-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
+}
+
+.limit-trigger:hover {
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-strong);
+}
+
+.limit-trigger:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
+}
+
+.limit-trigger.is-limited {
+  border-color: var(--ds-status-warning-subtle);
+  background: var(--ds-status-warning-subtle);
+  color: var(--ds-status-warning-text);
+}
+
+.limit-trigger__value {
+  font-weight: 500;
+}
+
+.limit-pop {
+  width: 216px;
+  padding: var(--ds-space-12);
+}
+
+.limit-pop__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-12);
+}
+
+.limit-pop__title {
+  font-size: var(--ds-text-small-size);
+  font-weight: 600;
+  color: var(--ds-text-strong);
+}
+
+.limit-pop__hint {
+  margin: var(--ds-space-8) 0 0;
+  font-size: var(--ds-text-micro-size);
+  line-height: 1.5;
+  color: var(--ds-text-muted);
+}
+
+.limit-pop__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--ds-space-6);
+  margin-top: var(--ds-space-12);
+}
+
+.limit-chip {
+  height: 28px;
+  border: 1px solid var(--ds-border-base);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-bg-surface);
+  color: var(--ds-text-base);
+  font-size: var(--ds-text-small-size);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
+    border-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
+    color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
+}
+
+.limit-chip:hover {
+  border-color: var(--ds-border-strong);
+  background: var(--ds-bg-hover);
+}
+
+.limit-chip.is-active {
+  border-color: var(--ds-accent);
+  background: var(--ds-accent-subtle);
+  color: var(--ds-accent-text);
+  font-weight: 600;
+}
+
+.limit-chip:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 1px;
+}
+
+@media (max-width: 900px) {
+  .stat--count {
+    display: none;
+  }
 }
 </style>

@@ -10,12 +10,14 @@
   <title>Aria2 Desktop</title>
   <style>
     /* 预加载样式：根据系统深浅色主题设置背景，避免闪烁 */
+    /* 颜色与 src/styles/designSystem.ts 的 roles 保持一致：首帧背景必须等于 --ds-bg-app，
+       否则浅色下会先闪一下纯白再变成 #f7f8fa，深色下会先闪一下 #1a1a1a 再变 #0d1016 */
     html,
     body {
       margin: 0;
       padding: 0;
-      background-color: #ffffff;
-      color: #333333;
+      background-color: #f7f8fa;
+      color: #3f4654;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
@@ -23,18 +25,18 @@
     @media (prefers-color-scheme: dark) {
       html,
       body {
-        background-color: #1a1a1a;
-        color: #ffffff;
+        background-color: #0d1016;
+        color: #c3cad6;
       }
       #app {
-        background-color: #1a1a1a;
+        background-color: #0d1016;
       }
     }
 
     #app {
       height: 100vh;
       overflow: hidden;
-      background-color: #ffffff;
+      background-color: #f7f8fa;
     }
 
     /* 滚动条样式 */
@@ -44,16 +46,16 @@
     }
 
     ::-webkit-scrollbar-track {
-      background: #f1f1f1;
+      background: transparent;
     }
 
     ::-webkit-scrollbar-thumb {
-      background: #c1c1c1;
-      border-radius: 4px;
+      background: #dfe3ea;
+      border-radius: 999px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: #a8a8a8;
+      background: #c2c9d6;
     }
 
     /* 深色主题滚动条样式在 theme.css 中定义 */

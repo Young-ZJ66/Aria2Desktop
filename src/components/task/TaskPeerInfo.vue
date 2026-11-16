@@ -114,7 +114,7 @@ const columns = computed<DataTableColumns<Aria2Peer>>(() => [
     render: (row: Aria2Peer) => {
       const speed = formatSpeed(row.downloadSpeed || '0')
       return Number(row.downloadSpeed) > 0
-        ? h('span', { style: 'color: var(--color-success); font-weight: 500; font-variant-numeric: tabular-nums;' }, speed)
+        ? h('span', { style: 'color: var(--ds-status-success-solid); font-weight: 500; font-variant-numeric: tabular-nums;' }, speed)
         : speed
     }
   },
@@ -126,7 +126,7 @@ const columns = computed<DataTableColumns<Aria2Peer>>(() => [
     render: (row: Aria2Peer) => {
       const speed = formatSpeed(row.uploadSpeed || '0')
       return Number(row.uploadSpeed) > 0
-        ? h('span', { style: 'color: var(--color-info); font-weight: 500; font-variant-numeric: tabular-nums;' }, speed)
+        ? h('span', { style: 'color: var(--ds-status-info-solid); font-weight: 500; font-variant-numeric: tabular-nums;' }, speed)
         : speed
     }
   },
@@ -178,9 +178,9 @@ function getPeerStatusText(amChoking: boolean, peerChoking: boolean): string {
 
 <style scoped>
 .info-card {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
+  background: var(--ds-bg-surface);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
 }
 
 /* flat：调用方（BT 洞察页）已有卡片外壳，这里只保留内容（含内边距，避免双层留白） */
@@ -195,7 +195,7 @@ function getPeerStatusText(amChoking: boolean, peerChoking: boolean): string {
 }
 
 .info-card :deep(.n-data-table) {
-  font-size: 13px;
+  font-size: var(--ds-text-body-size);
 }
 
 .info-card :deep(.n-data-table-th) {
@@ -211,8 +211,8 @@ function getPeerStatusText(amChoking: boolean, peerChoking: boolean): string {
 }
 
 .peer-count {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
 .peer-alert {

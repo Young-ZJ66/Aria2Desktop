@@ -249,67 +249,68 @@ function restartToUpdate() {
 .update-dialog-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 16px;
+  gap: var(--ds-space-8);
+  margin-top: var(--ds-space-16);
 }
 
 .update-notes {
-  margin-bottom: 12px;
+  margin-bottom: var(--ds-space-12);
 }
 
 .update-notes-title {
-  font-size: 13px;
+  margin-bottom: var(--ds-space-8);
+  font-size: var(--ds-text-body-size);
   font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
 }
 
 .update-notes-body {
-  padding: 10px 12px;
+  padding: var(--ds-space-10) var(--ds-space-12);
   max-height: 260px;
   overflow: auto;
-  font-size: 12px;
+  font-size: var(--ds-text-small-size);
   line-height: 1.7;
   word-break: break-word;
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
+  color: var(--ds-text-muted);
+  background: var(--ds-bg-sunken);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-md);
 }
 
 /* 渲染 GitHub Releases 富文本的基础排版 */
 .update-notes-body :deep(h1),
 .update-notes-body :deep(h2),
 .update-notes-body :deep(h3) {
-  margin: 8px 0 6px;
-  font-size: 14px;
+  margin: var(--ds-space-8) 0 var(--ds-space-6);
+  font-size: var(--ds-text-body-size);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
 }
 
 .update-notes-body :deep(ul),
 .update-notes-body :deep(ol) {
-  margin: 4px 0;
-  padding-left: 20px;
+  margin: var(--ds-space-4) 0;
+  padding-left: var(--ds-space-20);
 }
 
 .update-notes-body :deep(li) {
-  margin: 2px 0;
+  margin: var(--ds-space-2) 0;
 }
 
 .update-notes-body :deep(p) {
-  margin: 6px 0;
+  margin: var(--ds-space-6) 0;
 }
 
 .update-notes-body :deep(a) {
-  color: var(--color-primary, #4560e0);
+  color: var(--ds-accent-text);
 }
 
 .update-notes-body :deep(code) {
-  padding: 1px 4px;
-  font-size: 11px;
-  border-radius: 4px;
-  background: var(--bg-tertiary, rgba(128, 128, 128, 0.15));
+  padding: 1px var(--ds-space-4);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-micro-size);
+  border-radius: var(--ds-radius-xs);
+  background: var(--ds-bg-sunken);
 }
 
 .update-notes-body :deep(img) {
@@ -318,20 +319,20 @@ function restartToUpdate() {
 
 .update-downloading-text,
 .update-downloaded-text {
-  margin-top: 12px;
-  color: var(--text-secondary);
-  font-size: 13px;
+  margin-top: var(--ds-space-12);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-body-size);
 }
 
 /* 未校验警示条：醒目但不打断下载完成主状态 */
 .update-unverified-warning {
-  margin-top: 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--color-warning);
-  border-radius: 8px;
-  color: var(--color-warning);
-  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
-  font-size: 12px;
-  line-height: 1.6;
+  margin-top: var(--ds-space-12);
+  padding: var(--ds-space-8) var(--ds-space-12);
+  border: 1px solid var(--ds-status-warning-solid);
+  border-radius: var(--ds-radius-md);
+  color: var(--ds-status-warning-text);
+  background: var(--ds-status-warning-subtle);
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
 }
 </style>

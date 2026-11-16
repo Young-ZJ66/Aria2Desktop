@@ -99,38 +99,36 @@ defineEmits<Emits>()
 .batch-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--ds-space-12);
   flex: 1;
+  min-width: 0;
 }
 
 .action-buttons-group {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--ds-space-6);
 }
 
-/* 统一现代化批量操作按钮：圆角、悬停轻微浮起。
-   开始/暂停为默认样式（灰边框+黑字，悬浮时边框与字体自动变蓝）；
-   删除按钮为灰边框+红字，悬浮时边框与字体变红 */
+/* v2：批量操作不再是「会浮起的灰按钮」，而是选中上下文里的次级动作。
+   悬停只换表面色，不做位移——位移留给真正的按钮反馈，不留给工具栏。 */
 .action-buttons-group :deep(.n-button) {
-  height: 32px;
-  border-radius: 8px;
+  height: var(--ds-control-height-sm);
+  border-radius: var(--ds-radius-sm);
   font-weight: 500;
-  transition: transform var(--ease-out) 0.18s, box-shadow var(--ease-out) 0.18s;
-}
-
-.action-buttons-group :deep(.n-button:hover:not([disabled])) {
-  transform: translateY(-1px);
-}
-
-.action-buttons-group :deep(.n-button:active:not([disabled])) {
-  transform: translateY(0);
 }
 
 .selected-count {
-  font-size: 14px;
-  color: var(--color-primary-text);
-  font-weight: 500;
-  margin-left: 16px;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--ds-space-8);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-accent);
+  color: var(--ds-text-on-accent);
+  font-size: var(--ds-text-micro-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 </style>

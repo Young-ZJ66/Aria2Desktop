@@ -5,80 +5,87 @@
     <span>{{ t('newTask.streamChecking') }}</span>
   </div>
 
+  <!-- 组件不可用：先解释为什么不能用，再给唯一的恢复动作（去设置页安装） -->
   <template v-else-if="!componentStore.ytdlp.available">
-    <DismissibleAlert storage-key="newTask.streamTip" type="warning" style="margin-bottom: 12px;">
-      {{ t('newTask.streamUrlTip') }}
-    </DismissibleAlert>
-    <n-button type="primary" @click="openComponentSettings">
-      {{ t('newTask.openComponentSettings') }}
-    </n-button>
+    <div class="stream-unavailable">
+      <DismissibleAlert storage-key="newTask.streamTip" type="warning">
+        {{ t('newTask.streamUrlTip') }}
+      </DismissibleAlert>
+      <n-button type="primary" @click="openComponentSettings">
+        {{ t('newTask.openComponentSettings') }}
+      </n-button>
+    </div>
   </template>
 
   <template v-else>
-    <n-form>
-      <n-form-item :label="t('newTask.urisLabel')" label-placement="top" :show-feedback="false">
-        <n-input-group>
-          <n-input
-            v-model:value="streamUrl"
-            :placeholder="t('newTask.streamUrlPlaceholder')"
-            :disabled="streamDownloading || streamStarting"
-            @keyup.enter="fetchStreamInfo"
-          />
-          <n-button
-            :loading="streamFetching"
-            :disabled="!streamUrl.trim() || streamDownloading || streamStarting"
-            @click="fetchStreamInfo"
-          >
-            {{ t('newTask.streamParse') }}
-          </n-button>
-          <!-- 列表按钮常驻：链接是不是列表页只有 yt-dlp 知道，由用户显式选择 -->
-          <n-button
-            :loading="playlistFetching"
-            :disabled="!streamUrl.trim() || streamDownloading || streamStarting"
-            @click="fetchPlaylistInfo(false)"
-          >
-            {{ t('newTask.streamPlaylist') }}
-          </n-button>
-        </n-input-group>
-      </n-form-item>
-    </n-form>
+    <div class="pane-section">
+      <n-form>
+        <n-form-item :label="t('newTask.urisLabel')" label-placement="top" :show-feedback="false">
+          <n-input-group>
+            <n-input
+              v-model:value="streamUrl"
+              :placeholder="t('newTask.streamUrlPlaceholder')"
+              :disabled="streamDownloading || streamStarting"
+              @keyup.enter="fetchStreamInfo"
+            />
+            <n-button
+              :loading="streamFetching"
+              :disabled="!streamUrl.trim() || streamDownloading || streamStarting"
+              @click="fetchStreamInfo"
+            >
+              {{ t('newTask.streamParse') }}
+            </n-button>
+            <!-- 列表按钮常驻：链接是不是列表页只有 yt-dlp 知道，由用户显式选择 -->
+            <n-button
+              :loading="playlistFetching"
+              :disabled="!streamUrl.trim() || streamDownloading || streamStarting"
+              @click="fetchPlaylistInfo(false)"
+            >
+              {{ t('newTask.streamPlaylist') }}
+            </n-button>
+          </n-input-group>
+        </n-form-item>
+      </n-form>
+    </div>
 
     <!-- 播放列表条目：勾选要下载的条目，下载整单交给 yt-dlp 按条目序号执行 -->
-    <div v-if="playlistInfo" class="playlist-section">
-      <div class="playlist-header">
-        <span class="playlist-title" :title="playlistInfo.title">
-          {{ playlistInfo.title }} · {{ selectedPlaylistKeys.size }}/{{ playlistInfo.count }}
-        </span>
-        <n-button
-          size="tiny"
-          quaternary
-          type="primary"
-          :disabled="streamDownloading || streamStarting"
-          @click="togglePlaylistSelectAll"
-        >
-          {{ allPlaylistSelected ? t('newTask.streamPlaylistDeselectAll') : t('newTask.streamPlaylistSelectAll') }}
-        </n-button>
-      </div>
-      <div class="playlist-list">
-        <div
-          v-for="(entry, i) in playlistInfo.entries"
-          :key="entry.id + '-' + i"
-          class="playlist-item"
-          @click="togglePlaylistEntry(entry)"
-        >
-          <n-checkbox
-            :checked="isPlaylistEntrySelected(entry)"
+    <div v-if="playlistInfo" class="pane-section">
+      <div class="playlist-section">
+        <div class="playlist-header">
+          <span class="playlist-title" :title="playlistInfo.title">
+            {{ playlistInfo.title }} · {{ selectedPlaylistKeys.size }}/{{ playlistInfo.count }}
+          </span>
+          <n-button
+            size="tiny"
+            quaternary
+            type="primary"
             :disabled="streamDownloading || streamStarting"
-            @click.stop
-            @update:checked="togglePlaylistEntry(entry)"
-          />
-          <span class="playlist-item-title" :title="entry.title">{{ entry.title }}</span>
-          <span class="playlist-item-duration">{{ formatDuration(entry.duration) }}</span>
+            @click="togglePlaylistSelectAll"
+          >
+            {{ allPlaylistSelected ? t('newTask.streamPlaylistDeselectAll') : t('newTask.streamPlaylistSelectAll') }}
+          </n-button>
+        </div>
+        <div class="playlist-list">
+          <div
+            v-for="(entry, i) in playlistInfo.entries"
+            :key="entry.id + '-' + i"
+            class="playlist-item"
+            @click="togglePlaylistEntry(entry)"
+          >
+            <n-checkbox
+              :checked="isPlaylistEntrySelected(entry)"
+              :disabled="streamDownloading || streamStarting"
+              @click.stop
+              @update:checked="togglePlaylistEntry(entry)"
+            />
+            <span class="playlist-item-title" :title="entry.title">{{ entry.title }}</span>
+            <span class="playlist-item-duration ds-tnum">{{ formatDuration(entry.duration) }}</span>
+          </div>
         </div>
       </div>
     </div>
 
-    <div style="margin-top: 16px;">
+    <div class="pane-section">
       <n-form-item :label="t('newTask.streamPresetLabel')" label-placement="top">
         <n-select
           v-model:value="selectedPresetId"
@@ -123,7 +130,7 @@
     </div>
 
     <!-- 字幕：只有 yt-dlp 下载路径支持（aria2 直链没有字幕概念） -->
-    <n-form style="margin-top: 8px;">
+    <n-form class="pane-section">
       <n-form-item :label="t('newTask.streamSubtitlesLabel')" label-placement="top" :show-feedback="false">
         <div class="subtitle-row">
           <n-switch v-model:value="subtitleEnabled" size="small" :disabled="streamDownloading || streamStarting" />
@@ -145,7 +152,7 @@
       </n-form-item>
 
       <!-- Cookie 文件：需要登录态的站点（会员视频等）把浏览器导出的 cookies.txt 交给 yt-dlp -->
-      <n-form-item :label="t('newTask.streamCookieLabel')" label-placement="top" :show-feedback="false" style="margin-top: 12px;">
+      <n-form-item :label="t('newTask.streamCookieLabel')" label-placement="top" :show-feedback="false">
         <div class="cookie-row">
           <n-button size="small" :disabled="streamDownloading || streamStarting" @click="pickCookieFile">
             {{ t('newTask.streamCookiePick') }}
@@ -659,54 +666,65 @@ function sanitizeFileName(name: string): string {
 </script>
 
 <style scoped>
+/* 分组节奏（.pane-section / .field-helper）由 NewTaskDialog 统一提供，四个 tab 共用一套 */
 .ytdlp-checking {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  font-size: 12px;
-  color: var(--text-secondary);
+  gap: var(--ds-space-8);
+  padding: var(--ds-space-8) 0;
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
+}
+
+/* 组件缺失态：解释在上、唯一恢复动作在下，形成一组而不是散落两块 */
+.stream-unavailable {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ds-space-12);
 }
 
 .stream-note {
-  margin: -4px 0 8px;
-  font-size: 12px;
-  line-height: 1.5;
-  opacity: 0.85;
+  margin: 0 0 var(--ds-space-8);
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
 }
 
 .ffmpeg-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: var(--ds-space-12);
+  margin-bottom: var(--ds-space-8);
 }
 
 .ffmpeg-row .stream-note {
   margin: 0;
 }
 
+/* 列表勾选面板：与 TorrentPane 的 .torrent-files 同款 sunken 容器 */
 .playlist-section {
-  margin-top: 12px;
-  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
-  border-radius: 6px;
-  padding: 8px 10px;
+  padding: var(--ds-space-12);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-bg-sunken);
 }
 
 .playlist-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: var(--ds-space-8);
+  margin-bottom: var(--ds-space-8);
 }
 
 .playlist-title {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--ds-text-small-size);
   font-weight: 600;
+  color: var(--ds-text-strong);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -721,15 +739,15 @@ function sanitizeFileName(name: string): string {
 .playlist-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 2px;
-  font-size: 12px;
+  gap: var(--ds-space-8);
+  padding: var(--ds-space-4) var(--ds-space-6);
+  border-radius: var(--ds-radius-sm);
+  font-size: var(--ds-text-small-size);
   cursor: pointer;
-  border-radius: 4px;
 }
 
 .playlist-item:hover {
-  background: var(--hover-color, rgba(128, 128, 128, 0.08));
+  background: var(--ds-bg-hover);
 }
 
 .playlist-item-title {
@@ -742,14 +760,13 @@ function sanitizeFileName(name: string): string {
 
 .playlist-item-duration {
   flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.65;
+  color: var(--ds-text-muted);
 }
 
 .subtitle-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--ds-space-12);
   width: 100%;
 }
 
@@ -760,17 +777,17 @@ function sanitizeFileName(name: string): string {
 .cookie-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--ds-space-12);
   width: 100%;
 }
 
 .cookie-path {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.8;
 }
 </style>

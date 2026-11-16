@@ -1,113 +1,125 @@
 <template>
   <n-form ref="formRef" :model="form" :rules="rules">
-    <n-form-item path="uris" :label="t('newTask.urisLabel')" label-placement="top">
-      <!-- 固定 6 行：既能完整显示占位提示，又不会随输入内容拉伸（也不允许手动拖拽改高） -->
-      <n-input
-        v-model:value="form.uris"
-        type="textarea"
-        :rows="6"
-        :resizable="false"
-        :placeholder="t('newTask.urlsPlaceholder')"
-        @blur="parseCurlIfPresent"
-      />
-    </n-form-item>
-    <n-form-item path="dir" :label="t('newTask.downloadDir')" label-placement="top">
-      <n-input v-model:value="form.dir" :placeholder="t('newTask.dirPlaceholder')">
-        <template #suffix>
-          <n-popselect
-            v-if="recentDirOptions.length > 0"
-            :value="form.dir"
-            :options="recentDirOptions"
-            trigger="click"
-            @update:value="applyRecentDir"
-          >
-            <n-button text :title="t('newTask.recentDirs')">
-              <template #icon><n-icon><TimeOutline /></n-icon></template>
-            </n-button>
-          </n-popselect>
-          <n-button text :disabled="!isElectron" :aria-label="t('common.browse')" @click="selectDir">
-            <template #icon><n-icon><FolderOutline /></n-icon></template>
-          </n-button>
-        </template>
-      </n-input>
-    </n-form-item>
-    <n-form-item path="category" :label="t('newTask.categoryLabel')" label-placement="top">
-      <n-select v-model:value="form.category" :options="categoryOptions" />
-    </n-form-item>
-    <div v-if="targetDir" class="dir-tip">
-      {{ autoClassifyFailed
-        ? t('newTask.saveToUnclassified', { dir: targetDir })
-        : `${t('newTask.saveTo')}：${targetDir}` }}
-      <span v-if="freeBytes >= 0" class="dir-free-space"> · {{ t('newTask.diskFree', { size: formatSize(freeBytes) }) }}</span>
+    <div class="pane-section">
+      <n-form-item path="uris" :label="t('newTask.urisLabel')" label-placement="top">
+        <!-- 固定 6 行：既不会随输入内容拉伸，也不允许手动拖拽改高。
+             占位提示只留一句示例：原先把「协议说明 + 两条示例」整段塞进 placeholder，
+             一输入就全部消失；说明改为字段下方常显文本，并用 aria-describedby 关联。 -->
+        <n-input
+          v-model:value="form.uris"
+          type="textarea"
+          :rows="6"
+          :resizable="false"
+          placeholder="https://example.com/file.zip"
+          :input-props="{ 'aria-describedby': URIS_HELP_ID }"
+          @blur="parseCurlIfPresent"
+        />
+        <div :id="URIS_HELP_ID" class="field-helper field-helper--preline">
+          {{ t('newTask.urlsPlaceholder') }}
+        </div>
+      </n-form-item>
     </div>
-    <n-form-item path="fileName" :label="t('newTask.fileName')" label-placement="top">
-      <n-input v-model:value="form.fileName" :placeholder="t('newTask.fileNamePlaceholder')" />
-    </n-form-item>
+    <div class="pane-section">
+      <n-form-item path="dir" :label="t('newTask.downloadDir')" label-placement="top">
+        <n-input v-model:value="form.dir" :placeholder="t('newTask.dirPlaceholder')">
+          <template #suffix>
+            <n-popselect
+              v-if="recentDirOptions.length > 0"
+              :value="form.dir"
+              :options="recentDirOptions"
+              trigger="click"
+              @update:value="applyRecentDir"
+            >
+              <n-button text :title="t('newTask.recentDirs')" :aria-label="t('newTask.recentDirs')">
+                <template #icon><n-icon><TimeOutline /></n-icon></template>
+              </n-button>
+            </n-popselect>
+            <n-button text :disabled="!isElectron" :aria-label="t('common.browse')" @click="selectDir">
+              <template #icon><n-icon><FolderOutline /></n-icon></template>
+            </n-button>
+          </template>
+        </n-input>
+      </n-form-item>
+      <n-form-item path="category" :label="t('newTask.categoryLabel')" label-placement="top">
+        <n-select v-model:value="form.category" :options="categoryOptions" />
+      </n-form-item>
+      <div v-if="targetDir" class="dir-tip">
+        {{ autoClassifyFailed
+          ? t('newTask.saveToUnclassified', { dir: targetDir })
+          : `${t('newTask.saveTo')}：${targetDir}` }}
+        <span v-if="freeBytes >= 0" class="dir-free-space"> · {{ t('newTask.diskFree', { size: formatSize(freeBytes) }) }}</span>
+      </div>
+      <n-form-item path="fileName" :label="t('newTask.fileName')" label-placement="top">
+        <n-input v-model:value="form.fileName" :placeholder="t('newTask.fileNamePlaceholder')" />
+      </n-form-item>
+    </div>
     <!-- 任务选项与请求头都属于低频设置，折叠起来避免默认视图过长 -->
-    <n-collapse class="advanced-collapse">
-      <n-collapse-item :title="t('newTask.advancedSettings')" name="advanced">
-        <div class="advanced-body">
-          <div class="advanced-section-title">{{ t('newTask.options') }}</div>
-          <div class="option-row">
+    <div class="pane-section">
+      <n-collapse class="advanced-collapse">
+        <n-collapse-item :title="t('newTask.advancedSettings')" name="advanced">
+          <div class="advanced-body">
+            <div class="pane-section-title">{{ t('newTask.options') }}</div>
+            <div class="option-row">
+              <div class="option-item">
+                <span class="option-item-label">{{ t('newTask.maxConnectionPerServer') }}</span>
+                <n-input-number v-model:value="form.maxConnectionPerServer" :min="1" :max="16" />
+              </div>
+              <div class="option-item">
+                <span class="option-item-label">{{ t('newTask.minSplitSize') }}</span>
+                <n-select v-model:value="form.minSplitSize" :options="minSplitSizeOptions" />
+              </div>
+              <div class="option-item option-item--switch">
+                <span class="option-item-label">{{ t('newTask.autoStart') }}</span>
+                <AppSwitch v-model:value="form.autoStart" />
+              </div>
+            </div>
+            <div class="option-row">
+              <div class="option-item">
+                <span class="option-item-label">{{ t('newTask.maxDownloadLimit') }}</span>
+                <n-input-number v-model:value="form.maxDownloadLimitKB" :min="0" :suffix="'KB/s'" />
+              </div>
+              <div class="option-item">
+                <span class="option-item-label">{{ t('newTask.maxUploadLimit') }}</span>
+                <n-input-number v-model:value="form.maxUploadLimitKB" :min="0" :suffix="'KB/s'" />
+              </div>
+              <div class="option-item">
+                <span class="option-item-label">{{ t('newTask.allProxy') }}</span>
+                <n-input v-model:value="form.allProxy" :placeholder="t('newTask.proxyPlaceholder')" />
+              </div>
+            </div>
+            <div class="pane-section-title">{{ t('newTask.advancedOptions') }}</div>
+            <div class="advanced-tip">{{ t('newTask.advancedOptionsTip') }}</div>
             <div class="option-item">
-              <span class="option-item-label">{{ t('newTask.maxConnectionPerServer') }}</span>
-              <n-input-number v-model:value="form.maxConnectionPerServer" :min="1" :max="16" />
+              <span class="option-item-label">{{ t('newTask.referer') }}</span>
+              <n-input v-model:value="form.referer" :placeholder="t('newTask.refererPlaceholder')" />
             </div>
             <div class="option-item">
-              <span class="option-item-label">{{ t('newTask.minSplitSize') }}</span>
-              <n-select v-model:value="form.minSplitSize" :options="minSplitSizeOptions" />
-            </div>
-            <div class="option-item option-item--switch">
-              <span class="option-item-label">{{ t('newTask.autoStart') }}</span>
-              <AppSwitch v-model:value="form.autoStart" />
-            </div>
-          </div>
-          <div class="option-row">
-            <div class="option-item">
-              <span class="option-item-label">{{ t('newTask.maxDownloadLimit') }}</span>
-              <n-input-number v-model:value="form.maxDownloadLimitKB" :min="0" :suffix="'KB/s'" />
-            </div>
-            <div class="option-item">
-              <span class="option-item-label">{{ t('newTask.maxUploadLimit') }}</span>
-              <n-input-number v-model:value="form.maxUploadLimitKB" :min="0" :suffix="'KB/s'" />
+              <div class="option-item-head">
+                <span class="option-item-label">{{ t('newTask.userAgent') }}</span>
+                <n-select
+                  class="ua-preset-select"
+                  size="tiny"
+                  :options="userAgentPresetOptions"
+                  :value="matchedUserAgentPreset"
+                  :placeholder="t('newTask.userAgentPreset')"
+                  @update:value="applyUserAgentPreset"
+                />
+              </div>
+              <n-input v-model:value="form.userAgent" :placeholder="t('newTask.userAgentPlaceholder')" />
             </div>
             <div class="option-item">
-              <span class="option-item-label">{{ t('newTask.allProxy') }}</span>
-              <n-input v-model:value="form.allProxy" :placeholder="t('newTask.proxyPlaceholder')" />
-            </div>
-          </div>
-          <div class="advanced-section-title">{{ t('newTask.advancedOptions') }}</div>
-          <div class="advanced-tip">{{ t('newTask.advancedOptionsTip') }}</div>
-          <div class="option-item">
-            <span class="option-item-label">{{ t('newTask.referer') }}</span>
-            <n-input v-model:value="form.referer" :placeholder="t('newTask.refererPlaceholder')" />
-          </div>
-          <div class="option-item">
-            <div class="option-item-head">
-              <span class="option-item-label">{{ t('newTask.userAgent') }}</span>
-              <n-select
-                class="ua-preset-select"
-                size="tiny"
-                :options="userAgentPresetOptions"
-                :value="matchedUserAgentPreset"
-                :placeholder="t('newTask.userAgentPreset')"
-                @update:value="applyUserAgentPreset"
+              <span class="option-item-label">{{ t('newTask.customHeaders') }}</span>
+              <n-input
+                v-model:value="form.customHeaders"
+                type="textarea"
+                :rows="3"
+                :placeholder="t('newTask.customHeadersPlaceholder')"
               />
             </div>
-            <n-input v-model:value="form.userAgent" :placeholder="t('newTask.userAgentPlaceholder')" />
           </div>
-          <div class="option-item">
-            <span class="option-item-label">{{ t('newTask.customHeaders') }}</span>
-            <n-input
-              v-model:value="form.customHeaders"
-              type="textarea"
-              :rows="3"
-              :placeholder="t('newTask.customHeadersPlaceholder')"
-            />
-          </div>
-        </div>
-      </n-collapse-item>
-    </n-collapse>
+        </n-collapse-item>
+      </n-collapse>
+    </div>
   </n-form>
 </template>
 
@@ -148,6 +160,9 @@ const { t } = useI18n()
 const taskStore = useTaskStore()
 const settingsStore = useSettingsStore()
 const { submitting, runSubmit } = useNewTaskSubmit()
+
+/** 链接输入框与字段下方常显说明的关联 id（aria-describedby 指向 helper） */
+const URIS_HELP_ID = 'new-task-uris-help'
 
 const formRef = ref<FormInst>()
 
@@ -505,17 +520,19 @@ defineExpose({
 </script>
 
 <style scoped>
+/* 分组节奏（.pane-section / .pane-section-title / .field-helper）由 NewTaskDialog 统一提供，
+   四个 tab 共用同一套组标题与分隔线；这里只保留本页自己的小布局 */
 .dir-tip {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: -6px 0 10px;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
+  margin: 0 0 var(--ds-space-12);
   word-break: break-all;
-  line-height: 1.6;
 }
 
 /* 剩余空间弱化显示：辅助信息，不与目录路径抢注意力 */
 .dir-free-space {
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--ds-text-faint);
 }
 
 /* 表单项间距收紧。
@@ -525,20 +542,20 @@ defineExpose({
  * 置 0 后反馈为空时不占位；出现错误文案时所在网格行会自动撑高，不会遮挡后续内容。 */
 :deep(.n-form-item) {
   --n-feedback-height: 0 !important;
-  margin-bottom: 12px;
+  margin-bottom: var(--ds-space-12);
 }
 
 .option-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: var(--ds-space-16);
   width: 100%;
 }
 
 .option-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--ds-space-6);
   flex: 1 1 0;
   min-width: 160px;
 }
@@ -548,8 +565,9 @@ defineExpose({
 }
 
 .option-item-label {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
+  color: var(--ds-text-muted);
 }
 
 /* 标签 + 右侧小操作（如 User-Agent 预设入口） */
@@ -557,24 +575,19 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--ds-space-8);
   min-height: 20px;
 }
 
 .advanced-collapse {
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .advanced-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--ds-space-12);
   width: 100%;
-}
-
-.advanced-section-title {
-  font-size: 13px;
-  font-weight: 500;
 }
 
 .ua-preset-select {
@@ -582,8 +595,8 @@ defineExpose({
 }
 
 .advanced-tip {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
 }
 </style>

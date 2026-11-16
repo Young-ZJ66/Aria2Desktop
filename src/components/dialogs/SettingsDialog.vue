@@ -17,7 +17,7 @@
       <div class="settings-search">
         <n-input
           v-model:value="searchQuery"
-          size="small"
+          class="settings-search-input"
           clearable
           :placeholder="t('settings.searchPlaceholder')"
           @keydown.enter="jumpToFirstResult"
@@ -54,7 +54,7 @@
         placement="left"
         animated
         size="small"
-        pane-style="padding: 0 24px 0 24px;"
+        pane-style="padding: 0;"
       >
         <n-tab-pane
           class="settings-main-pane settings-leaf-pane"
@@ -712,59 +712,66 @@ watch(visible, (show) => {
 </script>
 
 <style scoped>
+/* 弹窗主体：左导航固定，右栏内容区内部滚动（原来外层 overflow:hidden 会把底部内容直接裁掉） */
 .settings-dialog-body {
   height: min(82vh, 900px);
   max-height: calc(100vh - 112px);
   overflow: hidden;
-  padding: 2px 0 12px;
   display: flex;
   flex-direction: column;
 }
 
-/* 搜索框固定在页签上方，和内容区同宽通栏排布 */
+/* 搜索框固定在页签上方通栏；高度/圆角/焦点环由 themeTokens 的 Input 覆盖提供 */
 .settings-search {
   position: relative;
   z-index: 2;
   flex: none;
-  padding: 0 24px 10px;
+  padding: var(--ds-space-20) var(--ds-space-24) var(--ds-space-12);
 }
 
 .settings-search .n-input {
   width: 100%;
+  /* 搜索框通栏铺满 1100px 会显得像主输入区，按「工具控件」而非「主表单」定宽 */
+  max-width: 420px;
 }
 
 .settings-search-panel {
   position: absolute;
-  top: calc(100% - 2px);
-  left: 24px;
-  right: 24px;
-  max-height: 300px;
+  top: calc(100% - var(--ds-space-8));
+  left: var(--ds-space-24);
+  width: min(420px, calc(100% - var(--ds-space-48)));
+  right: auto;
+  max-height: 320px;
   overflow-y: auto;
-  padding: 4px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  padding: var(--ds-space-4);
+  background: var(--ds-bg-raised);
+  border: 1px solid var(--ds-border-base);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-elev-3);
 }
 
 .settings-search-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--ds-space-8);
   width: 100%;
-  padding: 7px 9px;
+  min-height: var(--ds-control-height-sm);
+  padding: var(--ds-space-4) var(--ds-space-8);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--ds-radius-sm);
   background: transparent;
-  color: inherit;
+  color: var(--ds-text-base);
   font-family: inherit;
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
   text-align: left;
   cursor: pointer;
 }
 
 .settings-search-item:hover {
-  background: var(--bg-tertiary);
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-strong);
 }
 
 .settings-search-label {
@@ -772,84 +779,225 @@ watch(visible, (show) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12.5px;
-  color: var(--text-primary);
 }
 
 .settings-search-tab {
   flex: none;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--bg-secondary);
-  font-size: 11px;
-  color: var(--text-secondary);
+  padding: 0 var(--ds-space-6);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-bg-sunken);
+  font-size: var(--ds-text-micro-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
 }
 
 .settings-search-empty {
-  padding: 10px 9px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  padding: var(--ds-space-8);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
-/* 左侧标签栏固定不动，仅右侧内容区独立滚动 */
+/* 左侧导航固定宽度，右侧内容区独占剩余空间 */
 .settings-dialog-body :deep(.settings-main-tabs) {
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-/* 一级导航固定宽度；当前 10 项，常见窗口高度下无需上下滚动 */
+/* 一级导航：与主侧栏 AppSidebar 同一套选中态——accent-subtle 底 + 3px 主色指示条 + accent-text 文字。
+   原来只有「淡灰底 + 蓝字」，10 个条目里很难一眼定位当前页。 */
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav.n-tabs-nav--left) {
-  flex: 0 0 190px;
-  width: 190px;
-  padding: 6px 8px 6px 10px;
+  flex: 0 0 208px;
+  width: 208px;
+  padding: var(--ds-space-8) var(--ds-space-12);
+  border-right: 1px solid var(--ds-border-subtle);
+  overflow-y: auto;
 }
 
-/* 一级导航用「胶囊高亮」代替 naive 默认的细竖线：与左侧主侧边栏的选中态一致，
-   在 10 个条目里更容易一眼扫到当前页。 */
+/* naive 自带的细竖线指示器隐藏，改用条目内部的 3px 主色条 */
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-bar) {
   display: none;
 }
 
+/* naive 在 placement=left 时会给滚动内容加 1px 右边线，与外层 nav 的 border-right 叠成双线；
+   同时它的 scroll-content 默认 min-width:100%，条目被拉满宽度，这里改为纵向整列排布 */
+.settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-nav-scroll-content) {
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  border-right: none;
+}
+
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab) {
-  padding: 9px 12px;
-  font-size: 14px;
-  line-height: 22px;
-  border-radius: 8px;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: var(--ds-control-nav-item);
+  padding: 0 var(--ds-space-12);
+  border-radius: var(--ds-radius-md);
+  font-size: var(--ds-text-body-size);
+  font-weight: 450;
+  color: var(--ds-text-base);
+  transition:
+    background-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
+    color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
 }
 
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab:hover) {
-  background-color: var(--hover-color);
+  background-color: var(--ds-bg-hover);
+  color: var(--ds-text-strong);
 }
 
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab.n-tabs-tab--active) {
-  font-weight: 600;
-  background-color: var(--hover-color);
+  background-color: var(--ds-accent-subtle);
+  color: var(--ds-accent-text);
+  font-weight: 550;
 }
 
-.settings-dialog-body :deep(.settings-main-tabs > .n-tabs-pane-wrapper) {
-  padding-right: 2px;
+.settings-dialog-body
+  :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab.n-tabs-tab--active::before) {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  transform: translateY(-50%);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-accent);
+}
+
+/* 10 项导航的语义分组：应用与引擎 / 下载与网络 / 组件与连接 / 维护与安全。
+   加文字小标题需要 24 个 locale 的新 key（见报告 TODO(i18n)），这里先用 1px 细线分隔；
+   :has() 不受支持时整条规则失效，不会破坏布局。 */
+.settings-dialog-body
+  :deep(
+    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='download'])
+  ),
+.settings-dialog-body
+  :deep(
+    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='components'])
+  ),
+.settings-dialog-body
+  :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='logs'])) {
+  margin-top: var(--ds-space-8);
+  padding-top: var(--ds-space-8);
+  border-top: 1px solid var(--ds-border-subtle);
+}
+
+/* 内容区内部滚动：长页面（下载/网络/BT）底部不再被弹窗裁掉。
+   placement=left 时 naive 不生成 pane-wrapper，pane 直接是 tabs 的 flex 子项，
+   必须自己拿 flex:1 + min-width:0，否则长表单会把弹窗横向撑开。 */
+.settings-dialog-body :deep(.settings-main-tabs > .n-tabs-tab-pane) {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
 }
 
 .settings-dialog-body :deep(.settings-main-pane) {
+  box-sizing: border-box;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  padding: var(--ds-space-20) var(--ds-space-24) var(--ds-space-16);
 }
 
-/* 二级分组 Tab 用胶囊样式，与左侧一级导航形成清晰层级 */
+/* 二级分组页签：v2 的分段控件（sunken 轨道 + surface 选中块 + accent-text） */
 .settings-dialog-body :deep(.settings-subtabs) {
-  margin: 0 0 12px;
+  margin: 0 0 var(--ds-space-16);
 }
 
 .settings-dialog-body :deep(.settings-subtabs > .n-tabs-nav) {
-  margin-bottom: 10px;
+  margin-bottom: 0;
+}
+
+.settings-dialog-body :deep(.settings-subtabs .n-tabs-rail) {
+  background: var(--ds-bg-sunken);
+  border-radius: var(--ds-radius-md);
+}
+
+.settings-dialog-body :deep(.settings-subtabs .n-tabs-capsule) {
+  border-radius: var(--ds-radius-sm);
+  background-color: var(--ds-bg-surface);
+  box-shadow: var(--ds-elev-1);
 }
 
 .settings-dialog-body :deep(.settings-subtabs .n-tabs-tab) {
-  padding: 4px 12px;
-  font-size: 12.5px;
+  height: var(--ds-control-height-sm);
+  padding: 0 var(--ds-space-12);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
+}
+
+.settings-dialog-body :deep(.settings-subtabs .n-tabs-tab.n-tabs-tab--active) {
+  color: var(--ds-accent-text);
+  font-weight: 600;
+}
+
+/* 右栏表单：原来是「label 左 / 控件右 / 中间约 200px 空白、行距 55px」。
+   改成 2 列栅格：label 固定 160px + 控件 flex:1，列间距 16，行距 12。
+   只命中 label-placement="left" 的行（naive 会在根节点加 n-form-item--left-labelled），
+   避开 DownloadSettings / RemoteAccessSettings 里 label-placement="top" 的小表单。 */
+.settings-dialog-body :deep(.settings-page .n-form-item.n-form-item--left-labelled) {
+  grid-template-columns: 160px minmax(0, 1fr);
+  column-gap: var(--ds-space-16);
+  align-items: center;
+  margin-bottom: var(--ds-space-12);
+}
+
+.settings-dialog-body :deep(.settings-page .n-form-item--left-labelled > .n-form-item-label) {
+  width: auto !important;
+  padding-right: 0;
+  justify-content: flex-start;
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
+  color: var(--ds-text-muted);
+}
+
+.settings-dialog-body :deep(.settings-page .n-form-item--left-labelled .n-form-item-blank) {
+  min-height: var(--ds-control-height-md);
+}
+
+/* 分组：标题降为 v2 的 section label（12/600、muted、字距微开），组间 1px 细线分隔 */
+.settings-dialog-body :deep(.settings-page .setting-group + .setting-group) {
+  margin-top: var(--ds-space-20);
+  padding-top: var(--ds-space-16);
+  border-top: 1px solid var(--ds-border-subtle);
+}
+
+.settings-dialog-body :deep(.settings-page .setting-group .n-card-header) {
+  padding: 0 0 var(--ds-space-8);
+}
+
+.settings-dialog-body :deep(.settings-page .setting-group .n-card-header__main) {
+  font-size: var(--ds-text-small-size);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ds-text-muted);
+}
+
+/* 底部操作条吸底：长页面滚到一半也能保存，1px 上边线把它与表单分开 */
+.settings-dialog-body :deep(.settings-page .settings-actions) {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  justify-content: flex-end;
+  margin-top: var(--ds-space-16);
+  padding: var(--ds-space-12) 0;
+  border-top: 1px solid var(--ds-border-subtle);
+  background: var(--ds-bg-raised);
+}
+
+/* 悬浮保存条：与吸底操作条同一套表面色与描边，避免半透明渐变透出旧配色 */
+.settings-dialog-body :deep(.float-actions-bar) {
+  background: linear-gradient(to top, var(--ds-bg-raised) 58%, transparent);
+}
+
+.settings-dialog-body :deep(.float-actions-bar__inner) {
+  border: 1px solid var(--ds-border-base);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-bg-raised);
+  box-shadow: var(--ds-elev-2);
 }
 
 /* 设置弹窗里一级/二级页签已说明当前页面，隐藏子页面重复的大标题；
@@ -870,15 +1018,15 @@ watch(visible, (show) => {
 
 .settings-dialog-body :deep(.settings-page) {
   max-width: 100%;
-  padding-bottom: 4px;
+  padding-bottom: var(--ds-space-4);
 }
 </style>
 
 <style>
 /* 全局样式：高亮类加到子页面（异步组件）的 DOM 上，scoped 样式作用不到 */
 .settings-search-hit {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 4px;
-  border-radius: 6px;
+  outline: 2px solid var(--ds-accent);
+  outline-offset: var(--ds-space-4);
+  border-radius: var(--ds-radius-sm);
 }
 </style>

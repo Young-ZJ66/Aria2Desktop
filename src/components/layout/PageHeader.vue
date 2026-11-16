@@ -1,8 +1,6 @@
 <template>
   <header class="page-header">
     <div class="page-header__text">
-      <!-- 页面唯一的一级标题：此前用 h2，导致整个应用的标题层级从 h2 起跳，
-           读屏与文档大纲都找不到页面主标题（/ui-taste 审计 P3）。 -->
       <h1 class="page-header__title">{{ title }}</h1>
       <p v-if="description" class="page-header__desc">{{ description }}</p>
     </div>
@@ -22,31 +20,32 @@ defineProps<{
 <style scoped>
 .page-header {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 16px;
-  padding: 2px 2px 0;
+  gap: var(--ds-space-24);
+  margin-bottom: var(--ds-space-20);
 }
 
 .page-header__text {
   min-width: 0;
 }
 
+/* 页面主标题：v2 里 h1 降到 20px/600——v1 的 22px/650 比面板标题（18px）只大一点，
+   层级靠字号挤不出来，改用「标题小、正文稳、留白大」的比例关系。 */
 .page-header__title {
   margin: 0;
-  font-size: 22px;
-  line-height: 1.35;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
+  font-size: var(--ds-text-h1-size);
+  line-height: var(--ds-text-h1-leading);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ds-text-strong);
 }
 
 .page-header__desc {
-  margin: 6px 0 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--text-secondary);
+  margin: var(--ds-space-4) 0 0;
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
+  color: var(--ds-text-muted);
 }
 
 .page-header__actions {
@@ -55,13 +54,14 @@ defineProps<{
   flex-wrap: wrap;
   justify-content: flex-end;
   flex: none;
-  gap: 12px;
+  gap: var(--ds-space-8);
 }
 
 @media (max-width: 900px) {
   .page-header {
     flex-direction: column;
-    gap: 12px;
+    align-items: flex-start;
+    gap: var(--ds-space-12);
   }
 
   .page-header__actions {

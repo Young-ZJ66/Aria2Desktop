@@ -38,7 +38,7 @@ function toggle() {
 
 <style scoped>
 .app-switch {
-  --sw-active: var(--color-primary);
+  --sw-active: var(--ds-accent);
   display: inline-flex;
   align-items: center;
   padding: 0;
@@ -53,9 +53,9 @@ function toggle() {
 }
 
 .app-switch:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--ds-focus-ring);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--ds-radius-xs);
 }
 
 .app-switch:focus-visible .app-switch__rail {
@@ -71,15 +71,21 @@ function toggle() {
   position: relative;
   width: 44px;
   height: 24px;
-  border-radius: 9px;
-  background-color: var(--border-base);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
-  transition: background-color var(--transition-slow), box-shadow var(--transition-slow);
+  border-radius: var(--ds-radius-sm);
+  background-color: var(--ds-border-base);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-text-strong) 8%, transparent);
+  transition:
+    background-color var(--ds-motion-dur-4) var(--ds-motion-ease-in-out),
+    box-shadow var(--ds-motion-dur-4) var(--ds-motion-ease-in-out);
 }
 
 .app-switch--active .app-switch__rail {
-  background-image: linear-gradient(135deg, var(--sw-active), color-mix(in srgb, var(--sw-active) 78%, #ffffff));
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.02);
+  background-image: linear-gradient(
+    135deg,
+    var(--sw-active),
+    color-mix(in srgb, var(--sw-active) 78%, var(--ds-text-on-accent))
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-text-strong) 4%, transparent);
 }
 
 .app-switch__knob {
@@ -88,10 +94,14 @@ function toggle() {
   left: 3px;
   width: 18px;
   height: 18px;
-  border-radius: 5px;
-  background-color: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
-  transition: left 0.28s cubic-bezier(0.34, 1.45, 0.64, 1), width var(--transition-base);
+  border-radius: var(--ds-radius-sm);
+  background-color: var(--ds-text-on-accent);
+  box-shadow:
+    0 1px 3px color-mix(in srgb, var(--ds-text-strong) 32%, transparent),
+    0 0 0 0.5px color-mix(in srgb, var(--ds-text-strong) 8%, transparent);
+  transition:
+    left var(--ds-motion-dur-4) var(--ds-motion-ease-out),
+    width var(--ds-motion-dur-3) var(--ds-motion-ease-in-out);
 }
 
 .app-switch--active .app-switch__knob {
@@ -110,10 +120,12 @@ function toggle() {
   position: absolute;
   top: 5px;
   left: 5px;
-  color: #ffffff;
+  color: var(--ds-text-on-accent);
   opacity: 0;
   transform: scale(0.4);
-  transition: opacity var(--transition-base), transform 0.22s var(--ease-smooth);
+  transition:
+    opacity var(--ds-motion-dur-3) var(--ds-motion-ease-in-out),
+    transform var(--ds-motion-dur-3) var(--ds-motion-ease-out);
 }
 
 .app-switch--active .app-switch__check {

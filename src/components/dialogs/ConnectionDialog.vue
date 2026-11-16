@@ -483,50 +483,57 @@ function handleDeleteProfile() {
 .profile-list-view {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--ds-space-4);
 }
 
 .list-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: var(--ds-space-12);
 }
 
 .list-title {
-  font-size: 14px;
+  font-size: var(--ds-text-body-size);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
 }
 
 .profile-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--ds-space-8);
 }
 
+/* v2：卡片静置无阴影、无浮起位移；hover 只换底与描边。位移留给真正可拖拽的元素 */
 .profile-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
+  gap: var(--ds-space-12);
+  padding: var(--ds-space-12) var(--ds-space-16);
+  background: var(--ds-bg-sunken);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
   cursor: pointer;
-  transition: border-color var(--transition-base), background-color var(--transition-base), box-shadow var(--transition-base), transform var(--ease-out) 0.18s;
+  transition:
+    border-color var(--ds-motion-dur-2) var(--ds-motion-ease-out),
+    background-color var(--ds-motion-dur-2) var(--ds-motion-ease-out);
 }
 
 .profile-item:hover {
-  border-color: var(--color-primary);
-  background: var(--bg-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-base);
+  border-color: var(--ds-border-strong);
+  background: var(--ds-bg-hover);
+}
+
+/* 已连接用 3px 左侧指示条（和侧栏/设置导航同一套「当前项」语言），不再只靠描边变色 */
+.profile-item.connected {
+  border-color: var(--ds-accent-border);
+  box-shadow: inset 3px 0 0 var(--ds-status-success-solid);
 }
 
 .profile-item.connected {
-  border-color: var(--color-success);
+  border-color: var(--ds-status-success-solid);
 }
 
 .profile-item-main {
@@ -534,22 +541,22 @@ function handleDeleteProfile() {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--ds-space-2);
 }
 
 .profile-item-name {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: var(--ds-space-8);
+  font-size: var(--ds-text-body-size);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
 }
 
 .profile-item-endpoint {
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
+  font-family: var(--ds-font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -559,7 +566,7 @@ function handleDeleteProfile() {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-8);
 }
 
 .profile-edit-view {
@@ -568,52 +575,38 @@ function handleDeleteProfile() {
 }
 
 .profile-manager {
-  margin-bottom: 4px;
+  margin-bottom: var(--ds-space-4);
 }
 
 .profile-select-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--ds-space-4);
 }
 
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--ds-space-8);
 }
 
-/* 统一现代化操作按钮：圆角、语义色光晕、悬停轻微浮起（与系统风格一致） */
 :deep(.app-action-btn) {
-  height: 30px;
-  border-radius: 8px;
+  height: var(--ds-control-height-sm);
+  border-radius: var(--ds-radius-md);
   font-weight: 500;
-  transition: transform var(--ease-out) 0.18s, box-shadow var(--ease-out) 0.18s;
-}
-
-:deep(.app-action-btn:hover:not([disabled])) {
-  transform: translateY(-1px);
-}
-
-:deep(.app-action-btn:active:not([disabled])) {
-  transform: translateY(0);
-}
-
-:deep(.app-action-btn--primary-type) {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
 /* 断开按钮：灰边框+红字，悬浮时边框与字体变红 */
 :deep(.disconnect-btn) {
-  color: var(--color-danger-text) !important;
+  color: var(--ds-status-danger-text) !important;
 }
 
 :deep(.disconnect-btn:hover:not([disabled])) {
-  color: var(--color-danger-text) !important;
+  color: var(--ds-status-danger-text) !important;
 }
 
 :deep(.disconnect-btn:hover:not([disabled]) .n-button__state-border) {
-  border-color: var(--color-danger);
+  border-color: var(--ds-status-danger-solid);
 }
 
 /* 断开按钮点击后的 focus 状态不显示蓝色边框，仅悬浮时边框变红 */

@@ -1,71 +1,80 @@
 <template>
   <n-form ref="formRef" :model="form" :rules="rules">
-    <n-form-item path="torrentFile">
-      <div
-        class="file-drop-area"
-        :class="{ 'drag-active': dragging }"
-        role="button"
-        tabindex="0"
-        :aria-label="t('newTask.selectTorrentFile')"
-        @click="pickFile"
-        @keydown.enter="pickFile"
-        @dragover.prevent="dragging = true"
-        @dragleave.prevent="dragging = false"
-        @drop.prevent="handleDrop"
-      >
-        <n-icon size="34"><CloudUploadOutline /></n-icon>
-        <div class="drop-text">
-          {{ form.torrentFile ? form.torrentFile.name : t('newTask.dropTorrentHint') }}
+    <div class="pane-section">
+      <n-form-item path="torrentFile">
+        <div
+          class="file-drop-area"
+          :class="{ 'drag-active': dragging }"
+          role="button"
+          tabindex="0"
+          :aria-label="t('newTask.selectTorrentFile')"
+          @click="pickFile"
+          @keydown.enter="pickFile"
+          @dragover.prevent="dragging = true"
+          @dragleave.prevent="dragging = false"
+          @drop.prevent="handleDrop"
+        >
+          <n-icon size="34"><CloudUploadOutline /></n-icon>
+          <div class="drop-text">
+            {{ form.torrentFile ? form.torrentFile.name : t('newTask.dropTorrentHint') }}
+          </div>
         </div>
-      </div>
-    </n-form-item>
+      </n-form-item>
+    </div>
 
     <!-- 下载前勾选文件：索引直接对应 aria2 的 select-file 选项 -->
-    <div v-if="parsingTorrent" class="torrent-parsing">
-      <n-spin size="small" />
-      <span>{{ t('newTask.torrentParsing') }}</span>
-    </div>
-    <div v-else-if="torrentFiles.length > 0" class="torrent-files">
-      <div class="torrent-files-header">
-        <span>{{ t('newTask.torrentFiles', { count: torrentFiles.length }) }}</span>
-        <span class="torrent-files-summary">
-          {{ t('newTask.torrentSelected', { count: selectedFileCount, size: formatSize(selectedFileBytes) }) }}
-        </span>
+    <div
+      v-if="parsingTorrent || torrentFiles.length > 0 || parseError"
+      class="pane-section"
+    >
+      <div v-if="parsingTorrent" class="torrent-parsing">
+        <n-spin size="small" />
+        <span>{{ t('newTask.torrentParsing') }}</span>
       </div>
-      <div class="torrent-file-actions">
-        <n-button size="tiny" secondary @click="selectAllFiles">{{ t('newTask.selectAllFiles') }}</n-button>
-        <n-button size="tiny" secondary @click="clearFileSelection">{{ t('newTask.clearFileSelection') }}</n-button>
-        <n-button
-          v-for="filter in quickFilters"
-          :key="filter.id"
-          size="tiny"
-          quaternary
-          @click="selectQuickCategory(filter.id)"
-        >
-          {{ filter.label }}
-        </n-button>
-      </div>
-      <div class="torrent-file-list">
-        <div v-for="item in torrentFiles" :key="item.index" class="torrent-file-row" :title="item.path">
-          <n-checkbox
-            :checked="selectedFiles.has(item.index)"
-            @update:checked="(checked: boolean) => toggleFile(item.index, checked)"
-          />
-          <span class="torrent-file-name">{{ item.path }}</span>
-          <span class="torrent-file-size">{{ formatSize(item.length) }}</span>
+      <div v-else-if="torrentFiles.length > 0" class="torrent-files">
+        <div class="torrent-files-header">
+          <span>{{ t('newTask.torrentFiles', { count: torrentFiles.length }) }}</span>
+          <span class="torrent-files-summary ds-tnum">
+            {{ t('newTask.torrentSelected', { count: selectedFileCount, size: formatSize(selectedFileBytes) }) }}
+          </span>
+        </div>
+        <div class="torrent-file-actions">
+          <n-button size="tiny" secondary @click="selectAllFiles">{{ t('newTask.selectAllFiles') }}</n-button>
+          <n-button size="tiny" secondary @click="clearFileSelection">{{ t('newTask.clearFileSelection') }}</n-button>
+          <n-button
+            v-for="filter in quickFilters"
+            :key="filter.id"
+            size="tiny"
+            quaternary
+            @click="selectQuickCategory(filter.id)"
+          >
+            {{ filter.label }}
+          </n-button>
+        </div>
+        <div class="torrent-file-list">
+          <div v-for="item in torrentFiles" :key="item.index" class="torrent-file-row" :title="item.path">
+            <n-checkbox
+              :checked="selectedFiles.has(item.index)"
+              @update:checked="(checked: boolean) => toggleFile(item.index, checked)"
+            />
+            <span class="torrent-file-name">{{ item.path }}</span>
+            <span class="torrent-file-size ds-tnum">{{ formatSize(item.length) }}</span>
+          </div>
         </div>
       </div>
-    </div>
-    <div v-else-if="parseError" class="torrent-parse-error">
-      {{ t('newTask.torrentParseFailed') }}
+      <div v-else-if="parseError" class="torrent-parse-error">
+        {{ t('newTask.torrentParseFailed') }}
+      </div>
     </div>
 
-    <n-form-item :label="t('newTask.categoryLabel')" label-placement="top">
-      <n-select v-model:value="form.category" :options="categoryOptions" />
-    </n-form-item>
-    <div v-if="targetDirPreview" class="dir-tip">
-      {{ t('newTask.saveTo') }}：{{ targetDirPreview }}
-      <span v-if="freeBytes >= 0" class="dir-free-space"> · {{ t('newTask.diskFree', { size: formatSize(freeBytes) }) }}</span>
+    <div class="pane-section">
+      <n-form-item :label="t('newTask.categoryLabel')" label-placement="top">
+        <n-select v-model:value="form.category" :options="categoryOptions" />
+      </n-form-item>
+      <div v-if="targetDirPreview" class="dir-tip">
+        {{ t('newTask.saveTo') }}：{{ targetDirPreview }}
+        <span v-if="freeBytes >= 0" class="dir-free-space"> · {{ t('newTask.diskFree', { size: formatSize(freeBytes) }) }}</span>
+      </div>
     </div>
   </n-form>
 </template>
@@ -334,72 +343,85 @@ defineExpose({
 </script>
 
 <style scoped>
-/* 与 UriPane 的 dir-tip 同款：保存目录预览 + 剩余空间 */
+/* 分组节奏（.pane-section / .field-helper）由 NewTaskDialog 统一提供，四个 tab 共用一套 */
 .dir-tip {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: -6px 0 10px;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
+  margin: var(--ds-space-4) 0 0;
   word-break: break-all;
-  line-height: 1.6;
 }
 
 .dir-free-space {
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--ds-text-faint);
 }
 
+/* 拖拽/点击选区：sunken 底 + 1px 虚线描边；hover 与拖入态统一成主色高亮 */
 .file-drop-area {
   width: 100%;
-  height: 150px;
+  height: 148px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  border: 1px dashed var(--border-base);
-  border-radius: 8px;
-  background-color: var(--bg-tertiary);
-  color: var(--text-secondary);
+  gap: var(--ds-space-8);
+  border: 1px dashed var(--ds-border-base);
+  border-radius: var(--ds-radius-lg);
+  background-color: var(--ds-bg-sunken);
+  color: var(--ds-text-muted);
   cursor: pointer;
-  transition: border-color var(--transition-base), background-color var(--transition-base), color var(--transition-base);
+  transition:
+    border-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
+    background-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
+    color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
 }
 
 .file-drop-area:hover,
 .file-drop-area.drag-active {
-  border-color: var(--color-primary-text);
-  background-color: var(--bg-hover);
-  color: var(--color-primary-text);
+  border-color: var(--ds-accent);
+  background-color: var(--ds-accent-subtle);
+  color: var(--ds-accent-text);
+}
+
+/* 键盘焦点环：可聚焦的拖拽区不能因为自定义背景而丢掉焦点指示 */
+.file-drop-area:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
 }
 
 .drop-text {
-  font-size: 13px;
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
   text-align: center;
-  padding: 0 16px;
+  padding: 0 var(--ds-space-16);
   word-break: break-all;
 }
 
 .torrent-parsing {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0 12px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  gap: var(--ds-space-8);
+  padding: 0 0 var(--ds-space-12);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
+/* 文件勾选面板：sunken 容器把「可选项」与表单字段分开 */
 .torrent-files {
-  margin-bottom: 16px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
+  margin-bottom: var(--ds-space-16);
+  padding: var(--ds-space-12);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-bg-sunken);
 }
 
 .torrent-files-header {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  gap: var(--ds-space-8);
+  margin-bottom: var(--ds-space-8);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
 .torrent-files-summary {
@@ -409,8 +431,8 @@ defineExpose({
 .torrent-file-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: var(--ds-space-6);
+  margin-bottom: var(--ds-space-8);
 }
 
 .torrent-file-list {
@@ -421,9 +443,14 @@ defineExpose({
 .torrent-file-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 2px;
-  font-size: 12.5px;
+  gap: var(--ds-space-8);
+  padding: var(--ds-space-4) var(--ds-space-6);
+  border-radius: var(--ds-radius-sm);
+  font-size: var(--ds-text-body-size);
+}
+
+.torrent-file-row:hover {
+  background: var(--ds-bg-hover);
 }
 
 .torrent-file-name {
@@ -432,18 +459,18 @@ defineExpose({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-regular);
+  color: var(--ds-text-base);
 }
 
 .torrent-file-size {
   flex: none;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
 .torrent-parse-error {
-  margin-bottom: 12px;
-  font-size: 12px;
-  color: var(--color-warning);
+  margin-bottom: var(--ds-space-12);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-status-danger-text);
 }
 </style>

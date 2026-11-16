@@ -1,79 +1,82 @@
 <template>
   <div class="status-page">
-    <PageHeader :title="t('statusPage.title')" :description="t('statusPage.subtitle')" />
+    <PageHeader class="page-head" :title="t('statusPage.title')" :description="t('statusPage.subtitle')" />
 
-    <!-- 服务信息 -->
-    <n-card class="info-card" :bordered="false">
-      <n-grid cols="1 s:2 m:3 l:3" :x-gap="24" :y-gap="8" item-responsive>
-        <n-grid-item v-for="info in serverInfos" :key="info.label">
-          <div class="info-item">
-            <span class="info-label">{{ info.label }}</span>
-            <div class="info-value">
-              <n-tag v-if="info.type === 'status'" :type="info.tagType" size="small">
-                {{ info.value }}
-              </n-tag>
-              <span v-else>{{ info.value }}</span>
-            </div>
-          </div>
-        </n-grid-item>
-      </n-grid>
-    </n-card>
+    <!--
+      服务信息：三项都是「引擎现在是什么状态」的只读事实，排成一条元信息带。
+      v1 用 n-card + n-grid 撑起一整张卡，卡片标题缺省时只剩一块空面板，层级虚高。
+    -->
+    <UiPanel flush>
+      <dl class="info-grid">
+        <div v-for="info in serverInfos" :key="info.label" class="info-item">
+          <dt class="info-label">{{ info.label }}</dt>
+          <dd class="info-value">
+            <n-tag v-if="info.type === 'status'" :type="info.tagType" size="small">
+              {{ info.value }}
+            </n-tag>
+            <span v-else class="info-text" :title="info.value">{{ info.value }}</span>
+          </dd>
+        </div>
+      </dl>
+    </UiPanel>
 
-    <!-- 概览摘要：今日/累计下载量与任务状态计数 -->
-    <n-card class="summary-card" :bordered="false">
-      <div class="summary-grid">
-        <div v-for="item in summaryItems" :key="item.label" class="summary-item">
-          <span class="summary-value">{{ item.value }}</span>
-          <span class="summary-label">{{ item.label }}</span>
+    <!--
+      摘要指标带：五个数字语义同一层级（都是「此刻的量」），并排成一排，
+      数值用等宽数字、单位降级成小字，读的时候先读量级再读单位。
+    -->
+    <UiPanel flush>
+      <div class="metric-band">
+        <div v-for="item in summaryStats" :key="item.label" class="stat-cell">
+          <UiStat :label="item.label" :value="item.value" :unit="item.unit" />
         </div>
       </div>
-      <div class="summary-footer">
+    </UiPanel>
+
+    <!-- 流量统计：图 + 明细列表；破坏性的「重置统计」放在面板 header 右侧，不贴着数字 -->
+    <UiPanel :title="t('statusPage.trafficStats')">
+      <template #actions>
         <n-popconfirm @positive-click="downloadHistoryStore.reset()">
           <template #trigger>
-            <n-button text size="tiny">{{ t('statusPage.resetHistory') }}</n-button>
+            <n-button size="small" type="error" secondary>{{ t('statusPage.resetHistory') }}</n-button>
           </template>
           {{ t('statusPage.resetHistoryConfirm') }}
         </n-popconfirm>
-      </div>
-    </n-card>
+      </template>
 
-    <!-- 流量统计卡片 -->
-    <n-card class="traffic-card" :bordered="false" :title="t('statusPage.trafficStats')">
-      <!-- 实时流量图（位于所有小卡片上方） -->
-      <div class="traffic-chart-section">
+      <div class="traffic-chart-wrap">
         <div
           ref="trafficChartRef"
           class="traffic-chart"
           role="img"
           :aria-label="t('statusPage.trafficChartAria')"
         />
+        <!-- 还没有采到数据点时的占位说明：图表本身空着会像「加载失败」 -->
+        <p v-if="hasNoSpeedData" class="traffic-chart-empty">{{ t('statusPage.trafficCollecting') }}</p>
       </div>
 
-      <div class="traffic-grid">
-        <div class="traffic-stat" v-for="stat in trafficStats" :key="stat.label">
-          <div class="traffic-stat-icon" :class="stat.colorClass">
-            <n-icon :size="20"><component :is="stat.icon" /></n-icon>
-          </div>
-          <div class="traffic-stat-meta">
-            <div class="traffic-stat-value">{{ stat.value }}</div>
-            <div class="traffic-stat-label">{{ stat.label }}</div>
-          </div>
-        </div>
-      </div>
-    </n-card>
+      <!--
+        明细列表：v1 是 6 张彩色 pastel 图标小卡，颜色无语义、还和摘要带抢注意力。
+        这里改成中性两列列表，语义色只保留在「下载/上传」两个速度项的图标上。
+      -->
+      <ul class="traffic-list">
+        <li v-for="stat in trafficStats" :key="stat.label" class="traffic-row">
+          <span class="traffic-row__icon" :class="stat.colorClass">
+            <n-icon :size="16"><component :is="stat.icon" /></n-icon>
+          </span>
+          <span class="traffic-row__label">{{ stat.label }}</span>
+          <span class="traffic-row__value ds-tnum">{{ stat.value }}</span>
+        </li>
+      </ul>
+    </UiPanel>
 
     <!-- 支持的功能 -->
-    <n-card v-if="version" class="features-card" :bordered="false" :title="t('statusPage.enabledFeatures')">
+    <UiPanel v-if="version" :title="t('statusPage.enabledFeatures')">
       <n-space wrap :size="4">
-        <n-tag
-          v-for="feature in version.enabledFeatures"
-          :key="feature"
-          size="small"
-        >
+        <n-tag v-for="feature in version.enabledFeatures" :key="feature" size="small">
           {{ feature }}
         </n-tag>
       </n-space>
-    </n-card>
+    </UiPanel>
   </div>
 </template>
 
@@ -87,6 +90,7 @@ import { useDownloadHistoryStore } from '@/stores/downloadHistoryStore'
 import { formatSpeed, formatSize } from '@/utils/taskFormatters'
 import { getTaskStats } from '@/utils/taskUtils'
 import PageHeader from '@/components/layout/PageHeader.vue'
+import { UiPanel, UiStat } from '@/components/ui'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
 import { useThemeManager } from '@/composables/useThemeManager'
 import {
@@ -99,10 +103,10 @@ import {
 } from '@vicons/ionicons5'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
-import { TooltipComponent, GridComponent } from 'echarts/components'
+import { TooltipComponent, GridComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 
-echarts.use([LineChart, TooltipComponent, GridComponent, CanvasRenderer])
+echarts.use([LineChart, TooltipComponent, GridComponent, LegendComponent, CanvasRenderer])
 
 const connectionStore = useConnectionStore()
 const taskStore = useTaskStore()
@@ -130,13 +134,25 @@ const seedingCount = computed(() =>
   taskStore.activeTasks.filter(task => task.seeder === 'true').length
 )
 
-const summaryItems = computed(() => [
-  { label: t('statusPage.todayDownloaded'), value: formatSize(downloadHistoryStore.todayBytes) },
-  { label: t('statusPage.totalDownloaded'), value: formatSize(downloadHistoryStore.totalBytes) },
-  { label: t('statusPage.activeTasks'), value: String(taskStore.activeTasks.length) },
-  { label: t('statusPage.waitingTasks'), value: String(taskStore.waitingTasks.length) },
-  { label: t('statusPage.seedingTasks'), value: String(seedingCount.value) }
-])
+// formatSize 返回「1.5 MB」这种带单位的字符串：拆成数值 + 单位，数值走等宽数字，单位降级成小字
+function splitUnit(formatted: string): { value: string; unit?: string } {
+  const match = /^([\d.]+)\s*(.*)$/.exec(formatted)
+  if (!match) return { value: formatted }
+  const unit = match[2]
+  return { value: match[1] ?? formatted, unit: unit && unit.length > 0 ? unit : undefined }
+}
+
+const summaryStats = computed(() => {
+  const today = splitUnit(formatSize(downloadHistoryStore.todayBytes))
+  const total = splitUnit(formatSize(downloadHistoryStore.totalBytes))
+  return [
+    { label: t('statusPage.todayDownloaded'), value: today.value, unit: today.unit },
+    { label: t('statusPage.totalDownloaded'), value: total.value, unit: total.unit },
+    { label: t('statusPage.activeTasks'), value: String(taskStore.activeTasks.length) },
+    { label: t('statusPage.waitingTasks'), value: String(taskStore.waitingTasks.length) },
+    { label: t('statusPage.seedingTasks'), value: String(seedingCount.value) }
+  ]
+})
 
 // 服务信息
 /** 服务器信息卡片项；tagType 限定为 n-tag 支持的取值（否则模板里 :type 会因 string 过宽报错） */
@@ -166,7 +182,7 @@ const serverInfos = computed<ServerInfoItem[]>(() => [
   }
 ])
 
-// 流量统计小卡片数据（下载/上传速度 + 详细统计去重整合）
+// 流量统计明细（下载/上传速度 + 任务统计）；colorClass 只给速度项上语义色，其余中性
 const trafficStats = computed(() => {
   const stats = allTaskStats.value
   const progress = stats.totalSize > 0 ? Math.round((stats.completedSize / stats.totalSize) * 100) : 0
@@ -185,34 +201,58 @@ const trafficStats = computed(() => {
     },
     {
       label: t('stats.totalTasks'),
-      value: stats.total,
+      value: String(stats.total),
       icon: LayersOutline,
-      colorClass: 'all'
+      colorClass: 'neutral'
     },
     {
       label: t('stats.totalDownloaded'),
       value: formatSize(stats.totalSize),
       icon: SaveOutline,
-      colorClass: 'download'
+      colorClass: 'neutral'
     },
     {
       label: t('stats.completed'),
       value: formatSize(stats.completedSize),
       icon: CheckmarkDoneOutline,
-      colorClass: 'complete'
+      colorClass: 'neutral'
     },
     {
       label: t('stats.totalProgress'),
       value: `${progress}%`,
       icon: TrendingUpOutline,
-      colorClass: 'active'
+      colorClass: 'neutral'
     }
   ]
 })
 
-// ── 实时流量图（速度趋势折线图） ──
-// 数据由全局后台监控（useTrafficMonitor）采集，与状态页是否打开无关
+// ── 实时流量图（下载 + 上传双序列折线图） ──
+// 下载序列由全局后台监控（useTrafficMonitor）采集，与状态页是否打开无关。
+// 上传速度没有历史缓冲（composable 只记录下载速度，且不在本任务可改范围内），
+// 这里按同一个 600 点窗口在本页自行采样，时间轴与下载序列严格对齐。
 const { speedHistory, retryMarkers } = useTrafficMonitor()
+
+interface UploadPoint {
+  time: string
+  speed: number
+}
+
+const UPLOAD_HISTORY_LIMIT = 600
+const uploadHistory = ref<UploadPoint[]>([])
+
+// 下载序列每多一个点，就为同一时刻补一个上传速度采样
+watch(
+  () => speedHistory.value[speedHistory.value.length - 1]?.time,
+  time => {
+    if (!time) return
+    const speed = Number(globalStat.value.uploadSpeed) || 0
+    uploadHistory.value = [...uploadHistory.value, { time, speed }].slice(-UPLOAD_HISTORY_LIMIT)
+  }
+)
+
+// 图表空态：还没有任何速度采样点（刚启动/未连接）时给一句解释，而不是留一块空白画布
+const hasNoSpeedData = computed(() => speedHistory.value.length === 0)
+
 const trafficChartRef = ref<HTMLDivElement>()
 let trafficChart: echarts.ECharts | null = null
 let resizeObserver: ResizeObserver | null = null
@@ -267,6 +307,10 @@ watch(speedHistory, () => {
   if (trafficChart) updateTrafficChart()
 })
 
+watch(uploadHistory, () => {
+  if (trafficChart) updateTrafficChart()
+})
+
 watch(retryMarkers, () => {
   if (trafficChart) updateTrafficChart()
 })
@@ -280,6 +324,21 @@ watch(isDark, () => {
 function isMinuteBoundary(index: number): boolean {
   const point = speedHistory.value[index]
   return point ? point.time.endsWith(':00') : false
+}
+
+/**
+ * 横轴标签该落在哪些点上。
+ *
+ * 只有整分钟才画标签时，应用刚启动的前 59 秒横轴是完全空白的——
+ * 屏幕上只有一条曲线飘在没有时间刻度的画布里，看起来像图表没加载完。
+ * 窗口里还没有整分钟节点时，退化成「等分 6 份」的临时刻度。
+ */
+function showAxisLabel(index: number): boolean {
+  const points = speedHistory.value
+  if (points.length === 0) return false
+  if (points.some(point => point.time.endsWith(':00'))) return isMinuteBoundary(index)
+  const step = Math.max(1, Math.ceil(points.length / 6))
+  return index % step === 0
 }
 
 function initTrafficChart() {
@@ -304,57 +363,118 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
+/**
+ * 计算「好看的」y 轴：刻度落在 1/2/2.5/5 × 10^n 上，固定 4 段。
+ * v1 用 Math.ceil(max*1.2/1024)*1024 直接定上限，刻度间隔与数值都不可读
+ * （15.6/14.3/11.4/8.6/5.7/2.9 MB/s 这种刻度既不是整数、间距也不等）。
+ */
+function niceAxis(maxValue: number): { max: number; interval: number } {
+  const target = maxValue > 0 ? maxValue * 1.1 : 1024
+  const rough = target / 4
+  // 刻度必须落在 1024 进制单位上：按十进制量级取整会得到 5,000,000 B 这样的间隔，
+  // 换算成 MB/s 就是 4.8 / 9.5 / 14.3 / 19.1 —— 比 v1 还难读。
+  const exponent = Math.max(0, Math.floor(Math.log(rough) / Math.log(1024)))
+  const unit = Math.pow(1024, exponent)
+  const scaled = rough / unit
+  const steps = [1, 2, 2.5, 5, 10]
+  let step = 10
+  for (const candidate of steps) {
+    if (scaled <= candidate) {
+      step = candidate
+      break
+    }
+  }
+  const interval = step * unit
+  return { max: interval * 4, interval }
+}
+
+interface TooltipItem {
+  seriesName?: string
+  marker?: string
+  value?: number | null
+  dataIndex: number
+}
+
 function updateTrafficChart() {
   if (!trafficChart) return
 
-  // 按当前主题取色：图表主色跟随 --color-primary，轴文字/网格线跟随文本与边框色
-  const primaryColor = getCssVar('--color-primary', isDark.value ? '#6c86f5' : '#4560e0')
-  const axisTextColor = getCssVar('--text-secondary', isDark.value ? '#7d8597' : '#8a93a6')
-  const splitLineColor = getCssVar('--border-light', isDark.value ? '#2c323e' : '#ececf1')
-  const tooltipBgColor = getCssVar('--bg-secondary', isDark.value ? '#1e222b' : '#f6f7f9')
-  const tooltipTextColor = getCssVar('--text-primary', isDark.value ? '#e6e9ef' : '#1a1f2b')
-  const tooltipBorderColor = getCssVar('--border-light', isDark.value ? '#2c323e' : '#ececf1')
+  // 按当前主题取色：全部走 --ds-* 角色令牌，图表与页面共用同一套配色
+  const accentColor = getCssVar('--ds-accent', isDark.value ? '#5465d8' : '#4560e0')
+  const successColor = getCssVar('--ds-status-success-text', isDark.value ? '#63e2b7' : '#15803d')
+  const dangerColor = getCssVar('--ds-status-danger-text', isDark.value ? '#ff8b8b' : '#c81e1e')
+  const axisTextColor = getCssVar('--ds-text-muted', isDark.value ? '#98a1b3' : '#636d7f')
+  const splitLineColor = getCssVar('--ds-border-subtle', isDark.value ? '#232936' : '#eaedf2')
+  const tooltipBgColor = getCssVar('--ds-bg-raised', isDark.value ? '#262d3c' : '#ffffff')
+  const tooltipTextColor = getCssVar('--ds-text-strong', isDark.value ? '#e6e9ef' : '#1a1f2b')
+  const tooltipBorderColor = getCssVar('--ds-border-base', isDark.value ? '#2c323e' : '#dfe3ea')
 
-  // 根据实际数据计算合理的 y 轴上限，空闲时回退到 1KB/s，避免出现异常大刻度
-  const speeds = speedHistory.value.map(item => item.speed)
-  const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 0
-  const yMax = maxSpeed > 0 ? Math.ceil((maxSpeed * 1.2) / 1024) * 1024 : 1024
+  const downloadData = speedHistory.value.map(item => item.speed)
+  const uploadByTime = new Map(uploadHistory.value.map(item => [item.time, item.speed]))
+  // 时间轴以下载序列为准（它才是每秒稳定推点的序列），上传按时刻对齐，缺失处留空不连线
+  const uploadData = speedHistory.value.map(item => {
+    const speed = uploadByTime.get(item.time)
+    return speed === undefined ? null : speed
+  })
+
+  const peak = Math.max(
+    downloadData.length > 0 ? Math.max(...downloadData) : 0,
+    uploadHistory.value.length > 0 ? Math.max(...uploadHistory.value.map(item => item.speed)) : 0
+  )
+  const { max: yMax, interval: yInterval } = niceAxis(peak)
 
   const option = {
     // 数据每秒更新时曲线平滑过渡（而非瞬跳），默认缓动之外的显式声明以保证一致性
     animationDurationUpdate: 600,
     // as const：echarts 要求缓动名为字面量联合类型，直接写字符串会被推断为 string
     animationEasingUpdate: 'linear' as const,
+    // 图例放右上角，与面板标题同一水平线，12px muted，避免抢曲线注意力
+    legend: {
+      top: 0,
+      right: 0,
+      itemWidth: 8,
+      itemHeight: 8,
+      itemGap: 12,
+      icon: 'roundRect',
+      textStyle: { color: axisTextColor, fontSize: 12 }
+    },
     tooltip: {
       trigger: 'axis',
       backgroundColor: tooltipBgColor,
       borderColor: tooltipBorderColor,
       textStyle: { color: tooltipTextColor },
-      formatter: (params: { name: string; value: number; dataIndex: number } | { name: string; value: number; dataIndex: number }[]) => {
-        const data = Array.isArray(params) ? params[0] : params
+      formatter: (params: TooltipItem | TooltipItem[]) => {
+        const list = Array.isArray(params) ? params : [params]
+        const first = list[0]
         // 数组为空时没有可展示的数据点（noUncheckedIndexedAccess 下 params[0] 可能为 undefined）
-        if (!data) return ''
-        const point = speedHistory.value[data.dataIndex]
+        if (!first) return ''
+        const point = speedHistory.value[first.dataIndex]
         const time = point ? point.time : ''
-        return `${time}<br/>${t('stats.downloadSpeed')}: ${formatSpeed(data.value)}`
+        const lines = list.map(item => {
+          const value = item.value === null || item.value === undefined ? '--' : formatSpeed(item.value)
+          return `${item.marker ?? ''}${item.seriesName ?? ''}: ${value}`
+        })
+        return [time, ...lines].join('<br/>')
       }
     },
-    grid: { left: 8, right: 8, top: 16, bottom: 8, containLabel: true },
+    // containLabel: 给 y 轴标签与 x 轴时间留出真实空间，曲线不再压顶/贴边
+    grid: { left: 4, right: 8, top: 28, bottom: 0, containLabel: true },
     xAxis: {
       type: 'category',
       boundaryGap: false,
       data: speedHistory.value.map(item => item.time),
-      // 仅在整分钟（:00 秒）生成大刻度/标签/网格线
-      axisTick: { interval: isMinuteBoundary },
+      // 整分钟优先；窗口内还没有整分钟时退化成等分标签，避免启动初期横轴空白
+      axisTick: { interval: showAxisLabel },
       axisLabel: {
         fontSize: 10,
-        interval: isMinuteBoundary,
+        interval: showAxisLabel,
         color: axisTextColor,
-        formatter: (value: string) => value.slice(0, 5)
+        // 窗口不足两分钟时所有点都在同一分钟里，只显示 HH:mm 会得到一排完全相同的标签，
+        // 这种情况退到 mm:ss；跨度够大才用整分钟刻度
+        formatter: (value: string) => (speedHistory.value.length < 120 ? value.slice(3) : value.slice(0, 5))
       },
       axisLine: { lineStyle: { color: splitLineColor } },
       splitLine: {
-        interval: isMinuteBoundary,
+        interval: showAxisLabel,
         lineStyle: { color: splitLineColor }
       }
     },
@@ -362,6 +482,7 @@ function updateTrafficChart() {
       type: 'value',
       min: 0,
       max: yMax,
+      interval: yInterval,
       axisLabel: {
         color: axisTextColor,
         formatter: (value: number) => formatSpeed(value)
@@ -371,24 +492,25 @@ function updateTrafficChart() {
     },
     series: [
       {
-        name: t('stats.downloadSpeed'),
+        name: t('statusPage.downloadSpeed'),
         type: 'line',
         smooth: true,
         showSymbol: false,
-        data: speedHistory.value.map(item => item.speed),
+        data: downloadData,
+        // 面积填充压到 0.12 -> 0.02，双序列叠加时仍能读出主次
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: hexToRgba(primaryColor, 0.3) },
-            { offset: 1, color: hexToRgba(primaryColor, 0.1) }
+            { offset: 0, color: hexToRgba(accentColor, 0.12) },
+            { offset: 1, color: hexToRgba(accentColor, 0.02) }
           ])
         },
-        lineStyle: { color: primaryColor },
-        itemStyle: { color: primaryColor },
+        lineStyle: { color: accentColor, width: 2 },
+        itemStyle: { color: accentColor },
         // 失败任务自动重试的断点：用红色菱形标出重试发生的时刻
         markPoint: {
           symbol: 'diamond',
           symbolSize: 10,
-          itemStyle: { color: '#e88080' },
+          itemStyle: { color: dangerColor },
           label: {
             show: true,
             formatter: (params: { name?: string }) => params.name || '',
@@ -402,6 +524,22 @@ function updateTrafficChart() {
             value: marker.speed
           }))
         }
+      },
+      {
+        name: t('statusPage.uploadSpeed'),
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        connectNulls: false,
+        data: uploadData,
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: hexToRgba(successColor, 0.06) },
+            { offset: 1, color: hexToRgba(successColor, 0.01) }
+          ])
+        },
+        lineStyle: { color: successColor, width: 1.5 },
+        itemStyle: { color: successColor }
       }
     ]
   }
@@ -411,201 +549,179 @@ function updateTrafficChart() {
 
 <style scoped>
 .status-page {
-  /* 流量统计图标的语义色：浅/暗色下分别取值，配合 color-mix 生成半透明背景 */
-  --stat-download: #2080f0;
-  --stat-upload: #18a058;
-  --stat-warning: #f0a020;
-}
-
-/* 暗色下提亮语义色，保证在深色背景上的可读性与对比度 */
-[data-theme='dark'] .status-page {
-  --stat-download: #6ea8ff;
-  --stat-upload: #34c98a;
-  --stat-warning: #f5b63f;
-}
-
-.info-card {
-  margin-bottom: 16px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  box-shadow: var(--shadow-light);
-  transition: background-color var(--transition-slow), border-color var(--transition-slow), box-shadow var(--transition-slow);
-}
-
-.summary-card {
-  margin-bottom: 16px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  box-shadow: var(--shadow-light);
-  transition: background-color var(--transition-slow), border-color var(--transition-slow), box-shadow var(--transition-slow);
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 12px;
-}
-
-.summary-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 4px 2px;
+  gap: var(--ds-space-16);
 }
 
-.summary-value {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
+/* PageHeader 自带 20px 下边距，这里改用 gap 统一节奏，避免叠加 */
+.status-page .page-head {
+  margin-bottom: 0;
 }
 
-.summary-label {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.summary-footer {
-  margin-top: 8px;
-  text-align: right;
+/* ── 服务信息带 ── */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--ds-space-12) var(--ds-space-24);
+  margin: 0;
+  padding: var(--ds-space-16) var(--ds-space-20);
 }
 
 .info-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 4px 0;
+  flex-direction: column;
+  gap: var(--ds-space-4);
+  min-width: 0;
 }
 
 .info-label {
-  font-size: 13px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
+  margin: 0;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
 }
 
 .info-value {
-  font-size: 13px;
-  color: var(--text-primary);
+  margin: 0;
+  min-width: 0;
+}
+
+.info-text {
+  display: block;
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
   font-weight: 500;
+  color: var(--ds-text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.traffic-card {
-  margin-bottom: 16px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  box-shadow: var(--shadow-light);
-  transition: background-color var(--transition-slow), border-color var(--transition-slow), box-shadow var(--transition-slow);
-}
-
-.traffic-chart-section {
-  margin-bottom: 16px;
-}
-
-.traffic-chart {
-  height: 200px;
-  width: 100%;
-}
-
-.traffic-grid {
+/* ── 指标带 ── */
+.metric-band {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--ds-space-24);
+  padding: var(--ds-space-20);
 }
 
-@media (max-width: 1200px) {
-  .traffic-grid {
-    grid-template-columns: repeat(2, 1fr);
+/* 发丝线分隔：靠线读「这是五个独立数字」，靠留白读「这是同一组」 */
+.stat-cell + .stat-cell {
+  border-left: 1px solid var(--ds-border-subtle);
+  padding-left: var(--ds-space-24);
+}
+
+@media (max-width: 1100px) {
+  .metric-band {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: var(--ds-space-20);
+  }
+
+  .stat-cell + .stat-cell {
+    border-left: none;
+    padding-left: 0;
   }
 }
 
-.traffic-stat {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
-  /* 悬浮轻微抬升 + 柔和阴影过渡（提升统计卡片的可交互感知） */
-  transition: border-color var(--transition-base), transform var(--ease-out) 0.18s, box-shadow var(--transition-base);
+/* ── 图表 ── */
+.traffic-chart-wrap {
+  position: relative;
 }
 
-.traffic-stat:hover {
-  border-color: var(--color-primary);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-base);
+.traffic-chart {
+  width: 100%;
+  height: 200px;
 }
 
-.traffic-stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+.traffic-chart-empty {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  margin: 0;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-faint);
+  pointer-events: none;
 }
 
-.traffic-stat-icon.download {
-  background: color-mix(in srgb, var(--stat-download) 12%, transparent);
-  color: var(--stat-download);
+/* ── 明细列表：中性两列，语义色只留给下载/上传两项的图标 ── */
+.traffic-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--ds-space-32);
+  margin: var(--ds-space-16) 0 0;
+  padding: var(--ds-space-12) 0 0;
+  border-top: 1px solid var(--ds-border-subtle);
+  list-style: none;
 }
 
-.traffic-stat-icon.upload {
-  background: color-mix(in srgb, var(--stat-upload) 12%, transparent);
-  color: var(--stat-upload);
+@media (max-width: 760px) {
+  .traffic-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
-.traffic-stat-icon.active {
-  background: color-mix(in srgb, var(--stat-warning) 12%, transparent);
-  color: var(--stat-warning);
-}
-
-.traffic-stat-icon.waiting {
-  background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
-  color: var(--text-secondary);
-}
-
-.traffic-stat-icon.complete {
-  background: color-mix(in srgb, var(--stat-upload) 12%, transparent);
-  color: var(--stat-upload);
-}
-
-.traffic-stat-icon.all {
-  background: color-mix(in srgb, var(--stat-download) 12%, transparent);
-  color: var(--stat-download);
-}
-
-.traffic-stat-meta {
+.traffic-row {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  align-items: center;
+  gap: var(--ds-space-8);
+  min-height: 40px;
+  padding: var(--ds-space-8) 0;
+  border-bottom: 1px solid var(--ds-border-subtle);
 }
 
-.traffic-stat-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
+/* 列表末两行（两列布局的最后一行）不再画下边框 */
+.traffic-row:last-child,
+.traffic-row:nth-last-child(2) {
+  border-bottom: none;
+}
+
+@media (max-width: 760px) {
+  .traffic-row:nth-last-child(2) {
+    border-bottom: 1px solid var(--ds-border-subtle);
+  }
+
+  .traffic-row:last-child {
+    border-bottom: none;
+  }
+}
+
+.traffic-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ds-text-muted);
+}
+
+/* 只有「速度」有方向语义：下载走强调色、上传走成功色 */
+.traffic-row__icon.download {
+  color: var(--ds-accent-text);
+}
+
+.traffic-row__icon.upload {
+  color: var(--ds-status-success-text);
+}
+
+.traffic-row__label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.traffic-stat-label {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.features-card {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  box-shadow: var(--shadow-light);
-  transition: background-color var(--transition-slow), border-color var(--transition-slow), box-shadow var(--transition-slow);
+.traffic-row__value {
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
+  font-weight: 600;
+  color: var(--ds-text-strong);
+  white-space: nowrap;
+  text-align: right;
 }
 </style>

@@ -180,8 +180,8 @@ async function apply() {
 }
 
 .summary {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
   white-space: nowrap;
 }
 
@@ -195,7 +195,7 @@ async function apply() {
   align-items: center;
   gap: 8px;
   padding: 4px 2px;
-  font-size: 12.5px;
+  font-size: var(--ds-text-small-size);
 }
 
 .file-name {
@@ -204,13 +204,13 @@ async function apply() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-regular);
+  color: var(--ds-text-base);
 }
 
 .file-size {
   flex: none;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
 .files-footer {
@@ -220,12 +220,12 @@ async function apply() {
   gap: 12px;
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid var(--ds-border-subtle);
 }
 
 .hint {
-  font-size: 12px;
+  font-size: var(--ds-text-small-size);
   line-height: 1.5;
-  color: var(--text-secondary);
+  color: var(--ds-text-muted);
 }
 </style>

@@ -204,9 +204,9 @@ function drawPiecesCanvas(): void {
 
   canvasCols.value = cols
 
-  const doneColor = getCssVar('--color-success')
-  const downloadingColor = getCssVar('--color-warning')
-  const pendingColor = getCssVar('--text-placeholder')
+  const doneColor = getCssVar('--ds-status-success-solid')
+  const downloadingColor = getCssVar('--ds-status-warning-solid')
+  const pendingColor = getCssVar('--ds-text-faint')
 
   ctx.clearRect(0, 0, cssWidth, cssHeight)
 
@@ -307,9 +307,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .info-card {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
+  background: var(--ds-bg-surface);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
 }
 
 .pieces-summary {
@@ -324,20 +324,20 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 4px;
   padding: 12px 16px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
+  background: var(--ds-bg-sunken);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-md);
 }
 
 .pieces-stat-label {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
 .pieces-stat-value {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
   font-variant-numeric: tabular-nums;
 }
 
@@ -355,8 +355,8 @@ onBeforeUnmount(() => {
 }
 
 .pieces-count {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -365,9 +365,9 @@ onBeforeUnmount(() => {
   position: relative;
   max-width: 100%;
   margin-bottom: 16px;
-  background-color: var(--bg-tertiary);
+  background-color: var(--ds-bg-sunken);
   padding: 0;
-  border-radius: 8px;
+  border-radius: var(--ds-radius-md);
   overflow: hidden;
 }
 
@@ -382,20 +382,20 @@ onBeforeUnmount(() => {
   position: fixed;
   z-index: 20;
   padding: 4px 8px;
-  border-radius: 4px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  box-shadow: var(--shadow-base);
-  font-size: 12px;
-  color: var(--text-primary);
+  border-radius: var(--ds-radius-xs);
+  background: var(--ds-bg-surface);
+  border: 1px solid var(--ds-border-subtle);
+  box-shadow: var(--ds-elev-1);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-strong);
   pointer-events: none;
   white-space: nowrap;
 }
 
 .pieces-limit-hint {
   margin-bottom: 12px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
 .pieces-legend {
@@ -408,8 +408,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: var(--text-regular);
+  font-size: var(--ds-text-body-size);
+  color: var(--ds-text-base);
 }
 
 .legend-color {
@@ -419,15 +419,15 @@ onBeforeUnmount(() => {
 }
 
 .legend-color.completed {
-  background-color: var(--color-success);
+  background-color: var(--ds-status-success-solid);
 }
 
 .legend-color.downloading {
-  background-color: var(--color-warning);
+  background-color: var(--ds-status-warning-solid);
 }
 
 .legend-color.pending {
-  background-color: var(--text-placeholder);
+  background-color: var(--ds-text-faint);
   opacity: 0.6;
 }
 </style>

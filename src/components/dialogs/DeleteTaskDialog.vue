@@ -136,52 +136,57 @@ function handleConfirm() {
 <style scoped>
 .delete-dialog-content {
   text-align: center;
-  padding: 20px 0;
+  padding: var(--ds-space-8) 0 var(--ds-space-4);
 }
 
+/* 图标放进淡红圆底里：v1 是一个 48px 的裸露红叉，视觉重量比标题还大 */
 .warning-icon {
-  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto var(--ds-space-16);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-status-danger-subtle);
 }
 
 .danger-icon {
-  color: var(--color-danger-text);
+  color: var(--ds-status-danger-text);
 }
 
 .delete-message h3 {
-  margin: 0 0 10px 0;
-  color: var(--text-primary);
-  font-size: 18px;
+  margin: 0 0 var(--ds-space-6);
+  color: var(--ds-text-strong);
+  font-size: var(--ds-text-title-size);
+  font-weight: 600;
+  line-height: var(--ds-text-title-leading);
 }
 
 .task-name {
-  color: var(--text-regular);
-  font-size: 14px;
   margin: 0;
+  color: var(--ds-text-base);
+  font-size: var(--ds-text-body-size);
   word-break: break-all;
 }
 
 .task-count {
-  color: var(--text-regular);
-  font-size: 14px;
   margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-body-size);
 }
 
 .file-delete-option {
+  margin-top: var(--ds-space-16);
   text-align: left;
-  margin-top: 20px;
 }
 
 .trash-hint {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.option-section h4 {
-  margin: 0 0 15px 0;
-  color: var(--text-primary);
-  font-size: 16px;
+  margin-top: var(--ds-space-4);
+  padding-left: 24px;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
 }
 
 .dialog-footer {

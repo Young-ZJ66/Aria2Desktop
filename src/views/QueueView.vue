@@ -1,6 +1,6 @@
 <template>
   <div class="queue-view">
-    <PageHeader :title="t('queue.title')" :description="t('queue.description')">
+    <PageHeader class="page-head" :title="t('queue.title')" :description="t('queue.description')">
       <template #actions>
         <n-button size="small" :loading="refreshing" @click="refresh">
           {{ t('queue.refresh') }}
@@ -8,66 +8,86 @@
       </template>
     </PageHeader>
 
-    <n-card :bordered="false" class="queue-card">
-
-      <n-grid :cols="4" :x-gap="12" :y-gap="12" responsive="screen" item-responsive>
-        <n-grid-item span="1 s:1 m:1 l:1">
-          <n-statistic :label="t('queue.activeCount')" :value="taskStore.activeTasks.length" />
-        </n-grid-item>
-        <n-grid-item span="1 s:1 m:1 l:1">
-          <n-statistic :label="t('queue.waitingCount')" :value="taskStore.waitingTasks.length" />
-        </n-grid-item>
-        <n-grid-item span="1 s:1 m:1 l:1">
-          <n-statistic :label="t('queue.totalSpeed')" :value="formatSpeed(totalDownloadSpeed)" />
-        </n-grid-item>
-        <n-grid-item span="1 s:1 m:1 l:1">
-          <n-form-item :label="t('queue.maxConcurrent')" :show-feedback="false" class="concurrency-field">
-            <n-input-number
-              v-model:value="maxConcurrent"
-              size="small"
-              :min="1"
-              :max="16"
-              @update:value="scheduleMaxConcurrent"
-            />
-          </n-form-item>
-        </n-grid-item>
-      </n-grid>
-
-      <n-divider />
-
-      <div class="retry-panel">
-        <div class="retry-item">
-          <span class="retry-label">{{ t('queue.retryEnabled') }}</span>
-          <n-switch v-model:value="retryEnabled" size="small" :aria-label="t('queue.retryEnabled')" @update:value="scheduleRetryPolicy" />
+    <!--
+      指标带：三项都是「此刻有多少」的同一语义层级，并排成一排指标。
+      v1 把「最大并发数」输入框塞进同一行——大数字与 28px 输入框基线永远对不齐，
+      而且一个可编辑控件混在只读指标里，读起来像「最大并发数 = 5 个任务」。
+    -->
+    <UiPanel flush>
+      <div class="metric-band">
+        <div class="stat-cell">
+          <UiStat :label="t('queue.activeCount')" :value="taskStore.activeTasks.length" />
         </div>
-        <div class="retry-item">
-          <span class="retry-hint">{{ t('queue.retryMaxAttempts') }}</span>
+        <div class="stat-cell">
+          <UiStat :label="t('queue.waitingCount')" :value="taskStore.waitingTasks.length" />
+        </div>
+        <div class="stat-cell">
+          <UiStat :label="t('queue.totalSpeed')" :value="speedDisplay.value" :unit="speedDisplay.unit" />
+        </div>
+      </div>
+    </UiPanel>
+
+    <!--
+      队列设置：并发数与重试策略都是「引擎行为开关」，归到同一面板；
+      标签在上、控件在下，四个字段共用同一基线，控件统一 --ds-control-height-md。
+    -->
+    <UiPanel :title="t('queue.settings')" divided>
+      <div class="settings-grid">
+        <label class="setting">
+          <span class="setting__label">{{ t('queue.maxConcurrent') }}</span>
+          <n-input-number
+            v-model:value="maxConcurrent"
+            class="setting__control setting__control--number"
+            :min="1"
+            :max="16"
+            @update:value="scheduleMaxConcurrent"
+          />
+        </label>
+
+        <div class="setting">
+          <span class="setting__label">{{ t('queue.retryEnabled') }}</span>
+          <div class="setting__control">
+            <n-switch
+              v-model:value="retryEnabled"
+              :aria-label="t('queue.retryEnabled')"
+              @update:value="scheduleRetryPolicy"
+            />
+          </div>
+        </div>
+
+        <label class="setting">
+          <span class="setting__label">{{ t('queue.retryMaxAttempts') }}</span>
           <n-input-number
             v-model:value="retryMaxAttempts"
-            size="small"
-            class="retry-number"
+            class="setting__control setting__control--number"
             :min="1"
             :max="20"
             :disabled="!retryEnabled"
             @update:value="scheduleRetryPolicy"
           />
-        </div>
-        <div class="retry-item">
-          <span class="retry-hint">{{ t('queue.retryDelaySeconds') }}</span>
+        </label>
+
+        <label class="setting">
+          <span class="setting__label">{{ t('queue.retryDelaySeconds') }}</span>
           <n-input-number
             v-model:value="retryDelaySeconds"
-            size="small"
-            class="retry-number"
+            class="setting__control setting__control--number"
             :min="0"
             :max="3600"
             :disabled="!retryEnabled"
             @update:value="scheduleRetryPolicy"
           />
-        </div>
+        </label>
       </div>
+    </UiPanel>
 
-      <div class="queue-table-wrap">
-        <n-table v-if="taskStore.waitingTasks.length > 0" :bordered="false" size="small" class="queue-table">
+    <!--
+      队列表：按内容高度排布，不再把容器高度均摊给仅有的几行（v1 两行任务每行约 200px）。
+      空态同样不撑满，留给「为什么是空的 + 现在能做什么」。
+    -->
+    <UiPanel flush>
+      <div v-if="taskStore.waitingTasks.length > 0" class="queue-table-scroll">
+        <n-table :bordered="false" class="queue-table">
           <thead>
             <tr>
               <th class="col-pos">{{ t('queue.position') }}</th>
@@ -78,43 +98,65 @@
           </thead>
           <tbody>
             <tr v-for="(task, index) in taskStore.waitingTasks" :key="task.gid">
-              <td class="col-pos">{{ index + 1 }}</td>
-              <td class="task-name" :title="getTaskName(task)">{{ getTaskName(task) }}</td>
-              <td class="col-size">{{ formatSize(task.totalLength) }}</td>
+              <td class="col-pos ds-tnum">{{ index + 1 }}</td>
+              <td class="col-name" :title="getTaskName(task)">{{ getTaskName(task) }}</td>
+              <td class="col-size ds-tnum">{{ formatSize(task.totalLength) }}</td>
               <td class="col-actions">
-                <n-space :size="4" justify="end">
-                  <n-button size="tiny" secondary :disabled="index === 0" @click="move(task.gid, 'top')">
-                    {{ t('queue.moveTop') }}
-                  </n-button>
-                  <n-button size="tiny" secondary :disabled="index === 0" @click="move(task.gid, 'up')">
-                    {{ t('queue.moveUp') }}
-                  </n-button>
-                  <n-button size="tiny" secondary :disabled="index === taskStore.waitingTasks.length - 1" @click="move(task.gid, 'down')">
-                    {{ t('queue.moveDown') }}
-                  </n-button>
-                  <n-button size="tiny" secondary :disabled="index === taskStore.waitingTasks.length - 1" @click="move(task.gid, 'bottom')">
-                    {{ t('queue.moveBottom') }}
-                  </n-button>
-                  <n-button size="tiny" secondary type="error" @click="remove(task.gid)">
-                    {{ t('queue.remove') }}
-                  </n-button>
-                </n-space>
+                <div class="row-actions">
+                  <UiIconButton
+                    :icon="ArrowUpOutline"
+                    size="sm"
+                    :label="t('queue.moveTop')"
+                    :disabled="index === 0"
+                    @click="move(task.gid, 'top')"
+                  />
+                  <UiIconButton
+                    :icon="ChevronUpOutline"
+                    size="sm"
+                    :label="t('queue.moveUp')"
+                    :disabled="index === 0"
+                    @click="move(task.gid, 'up')"
+                  />
+                  <UiIconButton
+                    :icon="ChevronDownOutline"
+                    size="sm"
+                    :label="t('queue.moveDown')"
+                    :disabled="index === taskStore.waitingTasks.length - 1"
+                    @click="move(task.gid, 'down')"
+                  />
+                  <UiIconButton
+                    :icon="ArrowDownOutline"
+                    size="sm"
+                    :label="t('queue.moveBottom')"
+                    :disabled="index === taskStore.waitingTasks.length - 1"
+                    @click="move(task.gid, 'bottom')"
+                  />
+                  <UiIconButton
+                    :icon="TrashOutline"
+                    size="sm"
+                    tone="danger"
+                    :label="t('queue.remove')"
+                    @click="remove(task.gid)"
+                  />
+                </div>
               </td>
             </tr>
           </tbody>
         </n-table>
-        <div v-else class="queue-empty">
-          <!-- 断连时队列同样被清空，空态要说明是「未连接」而不是「队列为空」 -->
-          <n-empty size="small" :description="emptyDescription">
-            <template #extra>
-              <n-button v-if="isDisconnected" size="small" type="primary" @click="openConnectionDialog">
-                {{ t('connection.connect') }}
-              </n-button>
-            </template>
-          </n-empty>
-        </div>
       </div>
-    </n-card>
+
+      <!-- 断连时队列同样被清空，空态要说明是「未连接」而不是「队列为空」 -->
+      <UiEmpty v-else :icon="ListOutline" :title="emptyTitle" :description="emptyHint">
+        <template #actions>
+          <n-button v-if="isDisconnected" type="primary" size="small" @click="openConnectionDialog">
+            {{ t('connection.connect') }}
+          </n-button>
+          <n-button v-else type="primary" size="small" @click="uiStore.openNewTask()">
+            {{ t('task.newDownload') }}
+          </n-button>
+        </template>
+      </UiEmpty>
+    </UiPanel>
   </div>
 </template>
 
@@ -122,25 +164,40 @@
 import { computed, onActivated, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMessage } from 'naive-ui'
+import {
+  ArrowDownOutline,
+  ArrowUpOutline,
+  ChevronDownOutline,
+  ChevronUpOutline,
+  ListOutline,
+  TrashOutline
+} from '@vicons/ionicons5'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useConnectionStore } from '@/stores/connectionStore'
+import { useUiStore } from '@/stores/uiStore'
 import PageHeader from '@/components/layout/PageHeader.vue'
+import { UiEmpty, UiIconButton, UiPanel, UiStat } from '@/components/ui'
 import { runWithMinimumLoading } from '@/composables/useMinimumLoading'
 import { getTaskName } from '@/utils/taskUtils'
-import { formatSize, formatSpeed } from '@/utils/taskFormatters'
+import { formatSize } from '@/utils/taskFormatters'
 
 const { t } = useI18n()
 const message = useMessage()
 const taskStore = useTaskStore()
 const settingsStore = useSettingsStore()
 const connectionStore = useConnectionStore()
+const uiStore = useUiStore()
 
 // 断连时队列会被清空，空态需说明是「未连接」并给出连接入口，而不是笼统的「队列为空」
 const isDisconnected = computed(() => !connectionStore.isConnected)
-const emptyDescription = computed(() =>
+const emptyTitle = computed(() =>
   isDisconnected.value ? t('settings.notConnectedTitle') : t('queue.empty')
 )
+const emptyHint = computed(() =>
+  isDisconnected.value ? t('queue.disconnectedHint') : t('queue.emptyHint')
+)
+
 function openConnectionDialog(): void {
   connectionStore.showConnectionDialog = true
 }
@@ -172,6 +229,17 @@ function scheduleRetryPolicy(): void {
 const totalDownloadSpeed = computed(() =>
   taskStore.activeTasks.reduce((sum, task) => sum + Number(task.downloadSpeed || 0), 0)
 )
+
+// formatSize 返回「1.5 MB」这种带单位的字符串：拆成数值 + 单位，数值走等宽数字、单位降级成小字
+const speedDisplay = computed(() => {
+  const formatted = formatSize(totalDownloadSpeed.value)
+  const match = /^([\d.]+)\s*(.*)$/.exec(formatted)
+  const unit = match?.[2]
+  return {
+    value: match?.[1] ?? formatted,
+    unit: unit && unit.length > 0 ? `${unit}/s` : '/s'
+  }
+})
 
 const refreshing = ref(false)
 
@@ -253,87 +321,137 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .queue-view {
-  height: 100%;
   display: flex;
   flex-direction: column;
+  gap: var(--ds-space-16);
 }
-.queue-card {
-  flex: 1;
-  min-height: 0;
+
+/* PageHeader 自带 20px 下边距（v1 流式布局），这里改用 gap 统一节奏，避免叠加成 36px */
+.queue-view .page-head {
+  margin-bottom: 0;
+}
+
+.metric-band {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ds-space-24);
+  padding: var(--ds-space-20);
+}
+
+/* 指标之间用发丝线分隔：三列并排时靠线读「这是三个独立数字」，靠留白读「这是同一组」 */
+.stat-cell + .stat-cell {
+  border-left: 1px solid var(--ds-border-subtle);
+  padding-left: var(--ds-space-24);
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--ds-space-16) var(--ds-space-24);
+  align-items: start;
+}
+
+/* 标签在上、控件在下：四个字段的标签行高一致，控件因此落在同一条基线上 */
+.setting {
   display: flex;
   flex-direction: column;
-  border-radius: 10px;
-  border: 1px solid var(--border-light);
-  box-shadow: var(--shadow-light);
+  gap: var(--ds-space-6);
+  min-width: 0;
 }
-.queue-card :deep(.n-card-content) {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+
+.setting__label {
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.concurrency-field {
-  padding-top: 6px;
-}
-.retry-panel {
+
+/* 开关只有 22px 高，用等高容器把它对齐到和输入框同一条基线 */
+.setting__control {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  margin-bottom: 12px;
+  min-height: var(--ds-control-height-md);
 }
-/* 标签在前、控件在后成对分组，避免读成「数值 = 前一个标签」 */
-.retry-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+
+.setting__control--number {
+  width: 120px;
 }
-.retry-number {
-  width: 96px;
+
+.queue-table-scroll {
+  overflow-x: auto;
 }
-.retry-label {
-  font-size: 13px;
-  font-weight: 500;
-}
-.retry-hint {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-.queue-table-wrap {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-.queue-table {
-  margin-top: 4px;
-  height: 100%;
-}
+
 .queue-table :deep(table) {
-  height: 100%;
+  width: 100%;
+  min-width: 560px;
+  table-layout: fixed;
+  border-collapse: collapse;
 }
-.col-pos {
-  width: 64px;
+
+.queue-table :deep(th) {
+  height: 36px;
+  padding: 0 var(--ds-space-12);
+  background: var(--ds-bg-sunken);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-small-size);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.queue-table :deep(td) {
+  height: var(--ds-control-row-comfortable);
+  padding: 0 var(--ds-space-12);
+  color: var(--ds-text-base);
+  font-size: var(--ds-text-body-size);
+  border-bottom: 1px solid var(--ds-border-subtle);
+  vertical-align: middle;
+}
+
+.queue-table :deep(tbody tr:last-child td) {
+  border-bottom: none;
+}
+
+.queue-table :deep(tbody tr:hover td) {
+  background: var(--ds-bg-hover);
+}
+
+/* 列宽固定：大小列右对齐收在操作列旁边，不再把「大小」推到页面最右侧 */
+.queue-table :deep(.col-pos) {
+  width: 56px;
   text-align: center;
 }
-.col-size {
-  width: 110px;
-  white-space: nowrap;
+
+.queue-table :deep(.col-size) {
+  width: 96px;
+  text-align: right;
 }
-.col-actions {
-  width: 340px;
+
+.queue-table :deep(.col-actions) {
+  width: 168px;
 }
-.task-name {
-  max-width: 0;
+
+.queue-table :deep(.col-name) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 队列为空时用占位块撑满卡片剩余高度，避免空表格只显示一行文字贴在上边 */
-.queue-empty {
-  height: 100%;
-  min-height: 180px;
+
+.row-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  gap: var(--ds-space-2);
+}
+
+/* UiIconButton 的禁用态是 opacity .55 + 最淡的文字色，表格里几乎等于消失；
+   队列首尾行的「置顶/置底」长期禁用，需要读得出「按钮还在、只是现在不能用」 */
+.queue-table :deep(.row-actions .ui-icon-btn:disabled) {
+  opacity: 1;
+  color: var(--ds-text-faint);
+  cursor: not-allowed;
 }
 </style>

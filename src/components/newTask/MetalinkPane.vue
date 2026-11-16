@@ -1,30 +1,34 @@
 <template>
   <n-form ref="formRef" :model="form" :rules="rules">
-    <n-form-item path="metalinkFile">
-      <div
-        class="file-drop-area"
-        :class="{ 'drag-active': dragging }"
-        role="button"
-        tabindex="0"
-        :aria-label="t('newTask.selectMetalinkFile')"
-        @click="pickFile"
-        @keydown.enter="pickFile"
-        @dragover.prevent="dragging = true"
-        @dragleave.prevent="dragging = false"
-        @drop.prevent="handleDrop"
-      >
-        <n-icon size="34"><CloudUploadOutline /></n-icon>
-        <div class="drop-text">
-          {{ form.metalinkFile ? form.metalinkFile.name : t('newTask.dropMetalinkHint') }}
+    <div class="pane-section">
+      <n-form-item path="metalinkFile">
+        <div
+          class="file-drop-area"
+          :class="{ 'drag-active': dragging }"
+          role="button"
+          tabindex="0"
+          :aria-label="t('newTask.selectMetalinkFile')"
+          @click="pickFile"
+          @keydown.enter="pickFile"
+          @dragover.prevent="dragging = true"
+          @dragleave.prevent="dragging = false"
+          @drop.prevent="handleDrop"
+        >
+          <n-icon size="34"><CloudUploadOutline /></n-icon>
+          <div class="drop-text">
+            {{ form.metalinkFile ? form.metalinkFile.name : t('newTask.dropMetalinkHint') }}
+          </div>
         </div>
+      </n-form-item>
+    </div>
+    <div class="pane-section">
+      <n-form-item :label="t('newTask.categoryLabel')" label-placement="top">
+        <n-select v-model:value="form.category" :options="categoryOptions" />
+      </n-form-item>
+      <div v-if="targetDirPreview" class="dir-tip">
+        {{ t('newTask.saveTo') }}：{{ targetDirPreview }}
+        <span v-if="freeBytes >= 0" class="dir-free-space"> · {{ t('newTask.diskFree', { size: formatSize(freeBytes) }) }}</span>
       </div>
-    </n-form-item>
-    <n-form-item :label="t('newTask.categoryLabel')" label-placement="top">
-      <n-select v-model:value="form.category" :options="categoryOptions" />
-    </n-form-item>
-    <div v-if="targetDirPreview" class="dir-tip">
-      {{ t('newTask.saveTo') }}：{{ targetDirPreview }}
-      <span v-if="freeBytes >= 0" class="dir-free-space"> · {{ t('newTask.diskFree', { size: formatSize(freeBytes) }) }}</span>
     </div>
   </n-form>
 </template>
@@ -168,46 +172,57 @@ defineExpose({
 </script>
 
 <style scoped>
-/* 与 UriPane/TorrentPane 的 dir-tip 同款 */
+/* 分组节奏（.pane-section / .field-helper）由 NewTaskDialog 统一提供，四个 tab 共用一套 */
 .dir-tip {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: -6px 0 10px;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
+  margin: var(--ds-space-4) 0 0;
   word-break: break-all;
-  line-height: 1.6;
 }
 
 .dir-free-space {
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--ds-text-faint);
 }
 
+/* 拖拽/点击选区：sunken 底 + 1px 虚线描边；hover 与拖入态统一成主色高亮 */
 .file-drop-area {
   width: 100%;
-  height: 150px;
+  height: 148px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  border: 1px dashed var(--border-base);
-  border-radius: 8px;
-  background-color: var(--bg-tertiary);
-  color: var(--text-secondary);
+  gap: var(--ds-space-8);
+  border: 1px dashed var(--ds-border-base);
+  border-radius: var(--ds-radius-lg);
+  background-color: var(--ds-bg-sunken);
+  color: var(--ds-text-muted);
   cursor: pointer;
-  transition: border-color var(--transition-base), background-color var(--transition-base), color var(--transition-base);
+  transition:
+    border-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
+    background-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
+    color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
 }
 
 .file-drop-area:hover,
 .file-drop-area.drag-active {
-  border-color: var(--color-primary-text);
-  background-color: var(--bg-hover);
-  color: var(--color-primary-text);
+  border-color: var(--ds-accent);
+  background-color: var(--ds-accent-subtle);
+  color: var(--ds-accent-text);
+}
+
+/* 键盘焦点环：可聚焦的拖拽区不能因为自定义背景而丢掉焦点指示 */
+.file-drop-area:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 2px;
 }
 
 .drop-text {
-  font-size: 13px;
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
   text-align: center;
-  padding: 0 16px;
+  padding: 0 var(--ds-space-16);
   word-break: break-all;
 }
 </style>

@@ -9,31 +9,51 @@
     </PageHeader>
 
     <!-- 引擎不向渲染层推送事件，轮询失败只能靠这一条横幅暴露（成功时会自动清除）。
-         错误内容会随重试变化，所以只做「本次关闭」：下次出现新错误时重新显示。 -->
+         错误内容会随重试变化，所以只做「本次关闭」：下次出现新错误时重新显示。
+         面向用户的提示不拼原始错误串（如 window.electronAPI is not available），原始错误只进控制台。 -->
     <n-alert v-if="showLoadError" type="error" closable class="load-error" @close="dismissLoadError">
-      {{ t('automation.loadFailed', { error: autoImportStore.lastError }) }}
+      <div class="load-error__body">
+        <div class="load-error__text">
+          <div class="load-error__title">{{ t('automation.loadErrorTitle') }}</div>
+          <div class="load-error__hint">{{ t('automation.loadErrorHint') }}</div>
+        </div>
+        <n-button size="tiny" :loading="autoImportStore.loading" @click="handleRefresh">
+          {{ t('common.retry') }}
+        </n-button>
+      </div>
     </n-alert>
 
     <!-- 三个功能面各自独立成页：订阅、监听文件夹、导入日志互不干扰，
-         叠在一屏里要滚很长才看得到日志，tab 切换比纵向滚动更省操作 -->
+         叠在一屏里要滚很长才看得到日志，tab 切换比纵向滚动更省操作。
+         tab 已表达「这是什么」，所以面板里不再重复标题：左说明、右主操作、下面列表。 -->
     <n-tabs v-model:value="activeSection" type="line" animated class="automation-tabs">
-      <n-tab-pane name="rss" :tab="rssTab">
-        <!-- RSS / Atom 订阅 -->
-        <n-card :bordered="false" class="section-card">
-          <template #header>
-            <div class="section-header">
-              <div>
-                <div class="section-title">{{ t('automation.rssTitle') }}</div>
-                <div class="section-desc">{{ t('automation.rssDescription') }}</div>
-              </div>
-              <n-button size="small" type="primary" @click="openRssForm()">
-                {{ t('automation.rssAdd') }}
-              </n-button>
-            </div>
+      <n-tab-pane name="rss">
+        <template #tab>
+          <span class="tab-label">
+            {{ t('automation.rssTitle') }}
+            <span class="tab-count ds-tnum">{{ autoImportStore.subscriptions.length }}</span>
+          </span>
+        </template>
+        <div v-if="autoImportStore.loading && autoImportStore.subscriptions.length === 0" class="panel-state">{{ t('common.loading') }}</div>
+        <UiEmpty
+          v-else-if="autoImportStore.subscriptions.length === 0"
+          :title="t('automation.rssEmpty')"
+          :description="t('automation.rssDescription')"
+          :icon="RadioOutline"
+        >
+          <template #actions>
+            <n-button size="small" type="primary" @click="openRssForm()">
+              {{ t('automation.rssAdd') }}
+            </n-button>
           </template>
-          <n-empty v-if="autoImportStore.subscriptions.length === 0" :description="t('automation.rssEmpty')" class="section-empty" />
+        </UiEmpty>
+        <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('automation.rssDescription')">
+          <template #actions>
+            <n-button size="small" type="primary" @click="openRssForm()">
+              {{ t('automation.rssAdd') }}
+            </n-button>
+          </template>
           <n-data-table
-            v-else
             :columns="rssColumns"
             :data="autoImportStore.subscriptions"
             :row-key="(row: RssSubscription) => row.id"
@@ -41,26 +61,36 @@
             size="small"
             :scroll-x="1180"
           />
-        </n-card>
+        </UiPanel>
       </n-tab-pane>
 
-      <n-tab-pane name="watch" :tab="watchTab">
-        <!-- 监听文件夹 -->
-        <n-card :bordered="false" class="section-card">
-          <template #header>
-            <div class="section-header">
-              <div>
-                <div class="section-title">{{ t('automation.watchTitle') }}</div>
-                <div class="section-desc">{{ t('automation.watchDescription') }}</div>
-              </div>
-              <n-button size="small" type="primary" @click="openWatchForm()">
-                {{ t('automation.watchAdd') }}
-              </n-button>
-            </div>
+      <n-tab-pane name="watch">
+        <template #tab>
+          <span class="tab-label">
+            {{ t('automation.watchTitle') }}
+            <span class="tab-count ds-tnum">{{ autoImportStore.watchFolders.length }}</span>
+          </span>
+        </template>
+        <div v-if="autoImportStore.loading && autoImportStore.watchFolders.length === 0" class="panel-state">{{ t('common.loading') }}</div>
+        <UiEmpty
+          v-else-if="autoImportStore.watchFolders.length === 0"
+          :title="t('automation.watchEmpty')"
+          :description="t('automation.watchDescription')"
+          :icon="FolderOpenOutline"
+        >
+          <template #actions>
+            <n-button size="small" type="primary" @click="openWatchForm()">
+              {{ t('automation.watchAdd') }}
+            </n-button>
           </template>
-          <n-empty v-if="autoImportStore.watchFolders.length === 0" :description="t('automation.watchEmpty')" class="section-empty" />
+        </UiEmpty>
+        <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('automation.watchDescription')">
+          <template #actions>
+            <n-button size="small" type="primary" @click="openWatchForm()">
+              {{ t('automation.watchAdd') }}
+            </n-button>
+          </template>
           <n-data-table
-            v-else
             :columns="watchColumns"
             :data="autoImportStore.watchFolders"
             :row-key="(row: WatchFolderConfig) => row.id"
@@ -68,23 +98,25 @@
             size="small"
             :scroll-x="1080"
           />
-        </n-card>
+        </UiPanel>
       </n-tab-pane>
 
-      <n-tab-pane name="log" :tab="logTab">
-        <!-- 导入日志 -->
-        <n-card :bordered="false" class="section-card">
-          <template #header>
-            <div class="section-header">
-              <div>
-                <div class="section-title">{{ t('automation.logTitle') }}</div>
-                <div class="section-desc">{{ t('automation.logDescription') }}</div>
-              </div>
-            </div>
-          </template>
-          <n-empty v-if="autoImportStore.logEntries.length === 0" :description="t('automation.logEmpty')" class="section-empty" />
+      <n-tab-pane name="log">
+        <template #tab>
+          <span class="tab-label">
+            {{ t('automation.logTitle') }}
+            <span class="tab-count ds-tnum">{{ autoImportStore.logEntries.length }}</span>
+          </span>
+        </template>
+        <div v-if="autoImportStore.loading && autoImportStore.logEntries.length === 0" class="panel-state">{{ t('common.loading') }}</div>
+        <UiEmpty
+          v-else-if="autoImportStore.logEntries.length === 0"
+          :title="t('automation.logEmpty')"
+          :description="t('automation.logDescription')"
+          :icon="ReceiptOutline"
+        />
+        <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('automation.logDescription')">
           <n-data-table
-            v-else
             :columns="logColumns"
             :data="autoImportStore.logEntries"
             :row-key="(row: AutoImportLogEntry) => row.id"
@@ -92,7 +124,7 @@
             size="small"
             :scroll-x="900"
           />
-        </n-card>
+        </UiPanel>
       </n-tab-pane>
     </n-tabs>
 
@@ -224,7 +256,6 @@ import { computed, h, onActivated, onDeactivated, onMounted, onUnmounted, reacti
 import { useI18n } from 'vue-i18n'
 import {
   NButton,
-  NEmpty,
   NForm,
   NFormItem,
   NInput,
@@ -240,6 +271,9 @@ import {
   type FormRules
 } from 'naive-ui'
 import PageHeader from '@/components/layout/PageHeader.vue'
+import { UiEmpty, UiPanel } from '@/components/ui'
+import { FolderOpenOutline, RadioOutline, ReceiptOutline } from '@vicons/ionicons5'
+import { getUserFriendlyError } from '@/utils/errorMessages'
 import { message } from '@/utils/feedback'
 import { withMinimumDuration } from '@/composables/useMinimumLoading'
 import { useAutoImportStore } from '@/stores/autoImportStore'
@@ -258,9 +292,6 @@ const showLoadError = computed(() => !!autoImportStore.lastError && autoImportSt
 
 /** 三个功能面各占一个 tab，tab 上带条数，方便不切页也能看出有没有配置 */
 const activeSection = ref<'rss' | 'watch' | 'log'>('rss')
-const rssTab = computed(() => `${t('automation.rssTitle')} (${autoImportStore.subscriptions.length})`)
-const watchTab = computed(() => `${t('automation.watchTitle')} (${autoImportStore.watchFolders.length})`)
-const logTab = computed(() => `${t('automation.logTitle')} (${autoImportStore.logEntries.length})`)
 function dismissLoadError() {
   dismissedError.value = autoImportStore.lastError ?? null
 }
@@ -293,14 +324,16 @@ const rssColumns = computed<DataTableColumns<RssSubscription>>(() => [
   {
     title: t('automation.rssColInterval'),
     key: 'intervalMinutes',
-    width: 90,
-    render: row => row.intervalMinutes ?? '—'
+    width: 96,
+    align: 'right',
+    render: row => h('span', { class: 'ds-tnum' }, String(row.intervalMinutes ?? '—'))
   },
   {
     title: t('automation.rssColMaxPerFetch'),
     key: 'maxPerFetch',
-    width: 90,
-    render: row => row.maxPerFetch ?? '—'
+    width: 96,
+    align: 'right',
+    render: row => h('span', { class: 'ds-tnum' }, String(row.maxPerFetch ?? '—'))
   },
   {
     title: t('automation.rssColFilters'),
@@ -364,7 +397,9 @@ async function fetchNow(row: RssSubscription): Promise<void> {
   try {
     const result = await autoImportStore.fetchNow(row.id)
     if (!result.success) {
-      message.error(result.error || t('automation.operationFailed', { error: '' }))
+      // 原始错误可能是 window.electronAPI is not available 这类内部串，只进控制台
+      console.error('[AutomationView] 操作失败', result.error)
+      message.error(getUserFriendlyError(result.error))
       return
     }
     if (result.added > 0) {
@@ -385,7 +420,7 @@ async function toggleRssEnabled(row: RssSubscription, enabled: boolean): Promise
   // 只改开关，其余字段原样回传：主进程 upsert 会保留 last* 运行时字段
   const result = await autoImportStore.saveSubscription({ ...row, enabled })
   if (!result.success) {
-    message.error(t('automation.saveFailed', { error: result.error ?? '' }))
+    message.error(t('automation.saveFailed', { error: getUserFriendlyError(result.error) }))
     return
   }
   if (!enabled) return
@@ -397,7 +432,7 @@ async function deleteRss(row: RssSubscription): Promise<void> {
   try {
     const result = await autoImportStore.deleteSubscription(row.id)
     if (result.success) message.success(t('automation.deleted'))
-    else message.error(t('automation.deleteFailed', { error: result.error ?? '' }))
+    else message.error(t('automation.deleteFailed', { error: getUserFriendlyError(result.error) }))
   } finally {
     deletingRssId.value = ''
   }
@@ -514,7 +549,7 @@ async function submitRssForm(): Promise<void> {
     }
     const result = await autoImportStore.saveSubscription(subscription)
     if (!result.success) {
-      message.error(t('automation.saveFailed', { error: result.error ?? '' }))
+      message.error(t('automation.saveFailed', { error: getUserFriendlyError(result.error) }))
       return
     }
     message.success(t('automation.saved'))
@@ -602,7 +637,9 @@ async function scanNow(row: WatchFolderConfig): Promise<void> {
   try {
     const result = await autoImportStore.scanNow(row.id)
     if (!result.success) {
-      message.error(result.error || t('automation.operationFailed', { error: '' }))
+      // 原始错误可能是 window.electronAPI is not available 这类内部串，只进控制台
+      console.error('[AutomationView] 操作失败', result.error)
+      message.error(getUserFriendlyError(result.error))
       return
     }
     if (result.imported > 0) message.success(t('automation.watchScanImported', { count: result.imported }))
@@ -614,7 +651,7 @@ async function scanNow(row: WatchFolderConfig): Promise<void> {
 
 async function toggleWatchEnabled(row: WatchFolderConfig, enabled: boolean): Promise<void> {
   const result = await autoImportStore.saveFolder({ ...row, enabled })
-  if (!result.success) message.error(t('automation.saveFailed', { error: result.error ?? '' }))
+  if (!result.success) message.error(t('automation.saveFailed', { error: getUserFriendlyError(result.error) }))
 }
 
 async function deleteWatch(row: WatchFolderConfig): Promise<void> {
@@ -622,7 +659,7 @@ async function deleteWatch(row: WatchFolderConfig): Promise<void> {
   try {
     const result = await autoImportStore.deleteFolder(row.id)
     if (result.success) message.success(t('automation.deleted'))
-    else message.error(t('automation.deleteFailed', { error: result.error ?? '' }))
+    else message.error(t('automation.deleteFailed', { error: getUserFriendlyError(result.error) }))
   } finally {
     deletingWatchId.value = ''
   }
@@ -704,7 +741,7 @@ async function submitWatchForm(): Promise<void> {
     }
     const result = await autoImportStore.saveFolder(folder)
     if (!result.success) {
-      message.error(t('automation.saveFailed', { error: result.error ?? '' }))
+      message.error(t('automation.saveFailed', { error: getUserFriendlyError(result.error) }))
       return
     }
     message.success(t('automation.saved'))
@@ -788,8 +825,10 @@ async function pickDirectory(target: 'rssDir' | 'watchPath' | 'watchDir'): Promi
 async function handleRefresh(): Promise<void> {
   // 本机刷新常在几毫秒内完成，补齐最短时长，否则按钮上的加载动画只会闪一下
   await withMinimumDuration(() => autoImportStore.loadAll())
-  if (autoImportStore.lastError) message.error(t('automation.loadFailed', { error: autoImportStore.lastError }))
-  else message.success(t('automation.refreshed'))
+  if (autoImportStore.lastError) {
+    console.error('[AutomationView] 刷新失败', autoImportStore.lastError)
+    message.error(getUserFriendlyError(autoImportStore.lastError))
+  } else message.success(t('automation.refreshed'))
 }
 
 // 轮询定时器：keep-alive 下页面不会被卸载，改为随「激活 / 失活」启停
@@ -833,28 +872,52 @@ onUnmounted(() => {
 
 <style scoped>
 .automation-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-16);
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.load-error {
-  margin-top: 0;
-}
-
-/* tab 撑满剩余高度：卡片自己滚动，页面本身不再出现整页滚动条 */
-.automation-tabs {
-  flex: 1;
   min-height: 0;
+}
+
+/* PageHeader 自带 20px 下边距，这里统一走 flex gap，避免叠成 36px */
+.automation-view :deep(.page-header) {
+  margin-bottom: 0;
+}
+
+/* ---------------- 加载失败横幅 ---------------- */
+.load-error__body {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-16);
+}
+
+.load-error__text {
+  min-width: 0;
+}
+
+.load-error__title {
+  font-size: var(--ds-text-body-size);
+  font-weight: 600;
+}
+
+.load-error__hint {
+  margin-top: var(--ds-space-2);
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  opacity: 0.8;
+}
+
+/* ---------------- tab 栏 ---------------- */
+.automation-tabs {
+  display: flex;
+  flex: 1;
   flex-direction: column;
-  margin-top: -2px;
+  min-height: 0;
 }
 
 .automation-tabs :deep(.n-tabs-nav) {
   flex: none;
-  margin-bottom: 2px;
 }
 
 .automation-tabs :deep(.n-tabs-pane-wrapper) {
@@ -866,87 +929,101 @@ onUnmounted(() => {
   height: 100%;
 }
 
-.section-card {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-radius: 10px;
-  border: 1px solid var(--border-light);
-  /* 与队列/状态/任务列表的卡片一致：极浅投影把卡片从页面底色上托起来 */
-  box-shadow: var(--shadow-light);
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-6);
 }
 
-.section-card :deep(.n-card__content) {
-  flex: 1;
-  min-height: 0;
+/* 计数从标题字符串里拆出来做成 pill：不切页也能读出这一页有多少条 */
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-bg-sunken);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-micro-size);
+  font-weight: 500;
+  transition:
+    background-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
+    color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
+}
+
+.automation-tabs :deep(.n-tabs-tab--active) .tab-count {
+  background: var(--ds-accent-subtle);
+  color: var(--ds-accent-text);
+}
+
+/* ---------------- 面板 ---------------- */
+/* 有数据时铺满可视高度，让表格在面板内部滚动；空态则按内容高度收起来 */
+.section-panel--fill {
+  height: 100%;
+}
+
+.section-panel--fill :deep(.ui-panel__body) {
   overflow: auto;
 }
 
-.section-header {
+.section-panel :deep(.n-data-table-th),
+.section-panel :deep(.n-data-table-td) {
+  padding: var(--ds-space-12) var(--ds-space-16);
+}
+
+/* 行悬停走 v2 的 hover 表面，深色下不会出现 naive 默认的浅灰 */
+.section-panel :deep(.n-data-table-tr:hover .n-data-table-td) {
+  background-color: var(--ds-bg-hover);
+}
+
+.panel-state {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.section-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.section-desc {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-/* 空态：撑满卡片内容区并垂直居中，避免图标贴在顶部 */
-.section-empty {
-  height: 100%;
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  padding: var(--ds-space-32);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-small-size);
 }
 
+/* ---------------- 单元格 ---------------- */
 .cell-stack {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--ds-space-4);
   min-width: 0;
 }
 
 .cell-sub {
-  font-size: 12px;
-  color: var(--text-secondary);
   overflow: hidden;
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .cell-time {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-text-muted);
 }
 
 .cell-muted {
-  color: var(--text-secondary);
+  color: var(--ds-text-muted);
 }
 
 .cell-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ds-space-6);
 }
 
+/* ---------------- 弹窗 ---------------- */
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--ds-space-8);
 }
 
 .full-width {
@@ -954,29 +1031,30 @@ onUnmounted(() => {
 }
 
 .preview-list {
-  max-height: 360px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--ds-space-8);
+  max-height: 360px;
+  overflow-y: auto;
 }
 
 .preview-item {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
 }
 
 .preview-link {
-  color: var(--color-primary-text);
+  color: var(--ds-accent-text);
   text-decoration: none;
   word-break: break-all;
 }
 
 .preview-link:hover {
+  color: var(--ds-accent);
   text-decoration: underline;
 }
 
 .preview-title {
-  word-break: break-all;
+  color: var(--ds-text-base);
 }
 </style>

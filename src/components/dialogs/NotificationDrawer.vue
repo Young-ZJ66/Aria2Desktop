@@ -18,7 +18,11 @@
       </template>
 
       <div v-if="notificationStore.items.length === 0" class="notification-empty">
-        <n-empty :description="t('notificationCenter.empty')" />
+        <UiEmpty
+          :title="t('notificationCenter.empty')"
+          :icon="NotificationsOffOutline"
+          size="sm"
+        />
       </div>
 
       <div v-else class="notification-list">
@@ -59,9 +63,10 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
-import { AlertCircleOutline, CheckmarkCircleOutline } from '@vicons/ionicons5'
+import { AlertCircleOutline, CheckmarkCircleOutline, NotificationsOffOutline } from '@vicons/ionicons5'
 import { useUiStore } from '@/stores/uiStore'
 import { useNotificationStore, type AppNotification } from '@/stores/notificationStore'
+import UiEmpty from '@/components/ui/UiEmpty.vue'
 
 const { t } = useI18n()
 const uiStore = useUiStore()
@@ -88,37 +93,39 @@ function openItem(item: AppNotification) {
 
 <style scoped>
 .notification-empty {
-  padding: 48px 0;
+  padding: var(--ds-space-48) 0;
 }
 
 .notification-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--ds-space-4);
 }
 
 .notification-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--ds-space-10);
   width: 100%;
-  padding: 10px 10px;
+  padding: var(--ds-space-10) var(--ds-space-12);
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--ds-radius-md);
   background: transparent;
   color: inherit;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--transition-fast);
+  transition: background-color var(--ds-motion-dur-2) var(--ds-motion-ease-out);
 }
 
 .notification-item:hover {
-  background: var(--bg-tertiary);
+  background: var(--ds-bg-hover);
 }
 
+/* 未读用左侧 3px 指示条 + 淡底，和侧栏导航的选中语言保持一致 */
 .notification-item.is-unread {
-  background: var(--bg-secondary);
+  background: var(--ds-accent-subtle);
+  box-shadow: inset 3px 0 0 var(--ds-accent);
 }
 
 .notification-icon {
@@ -126,38 +133,38 @@ function openItem(item: AppNotification) {
 }
 
 .notification-icon.is-success {
-  color: var(--color-success);
+  color: var(--ds-status-success-text);
 }
 
 .notification-icon.is-error {
-  color: var(--color-danger);
+  color: var(--ds-status-danger-text);
 }
 
 .notification-meta {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--ds-space-2);
   min-width: 0;
   flex: 1;
 }
 
 .notification-name {
-  font-size: 13px;
-  color: var(--text-primary);
+  font-size: var(--ds-text-body-size);
+  color: var(--ds-text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .notification-sub {
-  font-size: 11.5px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-micro-size);
+  color: var(--ds-text-muted);
 }
 
 /* 失败原因常是一整句，单行截断 + 悬停看全，避免撑高整条通知 */
 .notification-detail {
-  font-size: 11.5px;
-  color: var(--color-warning);
+  font-size: var(--ds-text-micro-size);
+  color: var(--ds-status-warning-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -168,7 +175,7 @@ function openItem(item: AppNotification) {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--color-primary);
+  background: var(--ds-accent);
 }
 
 /* 标题 + 批量操作（标题栏内两端对齐，关闭按钮由 n-drawer-content 负责） */
@@ -176,14 +183,14 @@ function openItem(item: AppNotification) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--ds-space-12);
   width: 100%;
 }
 
 .notification-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ds-space-6);
   flex: none;
 }
 </style>

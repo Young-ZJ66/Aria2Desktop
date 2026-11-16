@@ -97,7 +97,7 @@ function hideForever() {
 .dismissible-alert-row {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--ds-space-12);
   min-width: 0;
 }
 
@@ -110,7 +110,7 @@ function hideForever() {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--ds-space-2);
   /* 与 Naive UI 关闭叉原来距顶部的距离保持一致 */
   margin-top: -2px;
 }
@@ -122,20 +122,20 @@ function hideForever() {
   white-space: nowrap;
   /* 提示条底色是 #edf5fe，--text-secondary(#6b7280) 在此只有 4.4:1；
      改用正文级颜色后达到 7:1 以上 */
-  color: var(--text-regular);
+  color: var(--ds-text-base);
 }
 
 .dismissible-alert-forever:hover {
-  color: var(--color-primary-text);
+  color: var(--ds-accent-text);
 }
 
 .dismissible-alert-close {
-  width: 20px;
-  height: 20px;
-  color: var(--text-regular);
+  width: 24px;
+  height: 24px;
+  color: var(--ds-text-base);
 }
 
 .dismissible-alert-close:hover {
-  color: var(--color-primary-text);
+  color: var(--ds-accent-text);
 }
 </style>

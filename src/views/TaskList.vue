@@ -2,16 +2,19 @@
   <div class="task-list">
     <PageHeader :title="title" :description="pageDescription">
       <template #actions>
-        <div class="task-stats">
-          <span>{{ t('task.totalTasks', { count: allTasks.length }) }}</span>
-          <span v-if="filteredTasks.length !== allTasks.length">
+        <!-- 摘要只用文字与一个 pill：v1 这里是「文字 + 文字 + 主色 tag」三种权重混排，
+             而这一屏真正需要抢眼的只有总速度这一个实时数字。 -->
+        <div class="task-summary">
+          <span class="summary-item">{{ t('task.totalTasks', { count: allTasks.length }) }}</span>
+          <span v-if="filteredTasks.length !== allTasks.length" class="summary-item summary-item--filtered">
             {{ t('task.showingTasks', { count: filteredTasks.length }) }}
           </span>
-          <n-tag v-if="taskStats.totalSpeed > 0" type="primary" size="small" :bordered="false">
-            {{ t('task.totalSpeed') }} {{ formatSpeed(taskStats.totalSpeed) }}
-          </n-tag>
+          <span v-if="taskStats.totalSpeed > 0" class="summary-speed">
+            <n-icon :size="13"><ArrowDownOutline /></n-icon>
+            <span class="ds-tnum">{{ formatSpeed(taskStats.totalSpeed) }}</span>
+          </span>
         </div>
-        <n-button type="primary" class="app-action-btn" @click="uiStore.openNewTask()">
+        <n-button type="primary" @click="uiStore.openNewTask()">
           <template #icon>
             <n-icon><AddOutline /></n-icon>
           </template>
@@ -22,8 +25,8 @@
 
     <section class="task-surface">
       <!-- 操作栏与任务表同处一个表面，减少空白卡片堆叠 -->
-      <div class="task-actions">
-        <div class="action-left">
+      <div class="task-toolbar" :class="{ 'is-selecting': hasSelection }">
+        <div class="toolbar-actions">
           <TaskBatchActions
             :selected-count="selectedCount"
             :has-selection="hasSelection"
@@ -39,14 +42,21 @@
           />
         </div>
 
-        <div class="action-right">
-          <!-- 任务导出/导入 -->
-          <n-button size="small" quaternary @click="exportTasks" :title="t('task.exportTasks')">
-            <template #icon><n-icon><ExportIcon /></n-icon></template>
-          </n-button>
-          <n-button size="small" quaternary @click="importTasks" :title="t('task.importTasks')">
-            <template #icon><n-icon><ImportIcon /></n-icon></template>
-          </n-button>
+        <div class="toolbar-filters">
+          <!-- 搜索放在最左：它是这一栏里唯一被高频使用的控件，v1 把它排在两个下拉之后，
+               手指要跨过整条工具栏才能找到。 -->
+          <n-input
+            v-model:value="searchText"
+            :placeholder="t('task.searchPlaceholder')"
+            clearable
+            size="small"
+            class="search-input"
+          >
+            <template #prefix>
+              <n-icon><SearchOutline /></n-icon>
+            </template>
+          </n-input>
+          <span class="toolbar-divider" aria-hidden="true" />
           <!-- 分类 / 来源类型筛选：与现有表格页共用，不额外拆路由。
                宽度按最长语言文案留足（德语/法语/波兰语等的「全部类型」比中文长一倍），
                否则占位文字会被截断成省略号。 -->
@@ -56,7 +66,7 @@
             :placeholder="t('task.allCategories')"
             size="small"
             clearable
-            style="width: 170px;"
+            class="filter-select filter-select--category"
           />
           <n-select
             v-model:value="selectedKind"
@@ -64,33 +74,34 @@
             :placeholder="t('task.allTypes')"
             size="small"
             clearable
-            style="width: 140px;"
+            class="filter-select filter-select--kind"
           />
-          <n-input
-            v-model:value="searchText"
-            :placeholder="t('task.searchPlaceholder')"
-            clearable
-            style="flex: 0 0 220px; width: 220px;"
-          >
-            <template #prefix>
-              <n-icon><SearchOutline /></n-icon>
-            </template>
-          </n-input>
+          <span class="toolbar-divider" aria-hidden="true" />
+          <!-- 任务导出/导入 -->
+          <n-button size="small" quaternary :title="t('task.exportTasks')" :aria-label="t('task.exportTasks')" @click="exportTasks">
+            <template #icon><n-icon><ExportIcon /></n-icon></template>
+          </n-button>
+          <n-button size="small" quaternary :title="t('task.importTasks')" :aria-label="t('task.importTasks')" @click="importTasks">
+            <template #icon><n-icon><ImportIcon /></n-icon></template>
+          </n-button>
         </div>
       </div>
 
-      <div class="task-list-content">
+      <div class="task-list-content" :style="tableHeight ? { height: tableHeight + 'px' } : undefined">
         <!-- 稳定空态（非加载中）单独渲染：表格在 x 轴可滚动时会把空态塞进表格节点，
              无法垂直撑满；独立容器才能让提示真正落在列表区域的垂直中间 -->
         <div v-if="!filteredTasks.length && !loading" class="task-empty">
-          <n-empty :description="emptyDescription" size="small">
-            <template #extra>
+          <UiEmpty
+            :title="emptyDescription"
+            :description="isDisconnected ? undefined : t('task.emptyHint')"
+            :icon="DocumentOutline"
+          >
+            <template #actions>
               <n-button v-if="isDisconnected" size="small" type="primary" @click="openConnectionDialog">
                 {{ t('connection.connect') }}
               </n-button>
-              <span v-else class="empty-hint">{{ t('task.emptyHint') }}</span>
             </template>
-          </n-empty>
+          </UiEmpty>
         </div>
         <n-data-table
           v-else
@@ -100,7 +111,7 @@
           :row-key="(row: Aria2Task) => row.gid"
           :row-props="rowProps"
           :scroll-x="tableScrollX"
-          :min-row-height="60"
+          :min-row-height="56"
           flex-height
           virtual-scroll
           table-layout="fixed"
@@ -112,17 +123,32 @@
           <template #empty>
             <!-- 空状态出现时淡入（避免搜索结果/空列表切换时生硬闪出） -->
             <transition name="fade-in">
-              <n-empty :description="emptyDescription" size="small">
-                <template #extra>
+              <UiEmpty
+                :title="emptyDescription"
+                :description="isDisconnected ? undefined : t('task.emptyHint')"
+                :icon="DocumentOutline"
+              >
+                <template #actions>
                   <n-button v-if="isDisconnected" size="small" type="primary" @click="openConnectionDialog">
                     {{ t('connection.connect') }}
                   </n-button>
-                  <span v-else class="empty-hint">{{ t('task.emptyHint') }}</span>
                 </template>
-              </n-empty>
+              </UiEmpty>
             </transition>
           </template>
         </n-data-table>
+      </div>
+      <!-- 表尾不是装饰：v1 表格行少时卡片下半截是一整片白，看起来像没渲染完；
+           这里用一行常驻信息把底部收口，并顺带暴露从未被界面提及的快捷键。
+           注意它在 .task-list-content 之外：内容区高度是按行数算死的，
+           表尾放在里面会吃掉表格最后一行的高度。 -->
+      <div v-if="filteredTasks.length" class="task-footer">
+        <span class="footer-count">{{ t('task.totalTasks', { count: filteredTasks.length }) }}</span>
+        <span class="footer-hints">
+          <kbd>Ctrl</kbd><kbd>N</kbd><span>{{ t('task.newDownload') }}</span>
+          <span class="footer-dot" aria-hidden="true">·</span>
+          <kbd>Ctrl</kbd><kbd>F</kbd><span>{{ t('task.searchPlaceholder') }}</span>
+        </span>
       </div>
     </section>
 
@@ -152,7 +178,7 @@
 import { computed, h, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon, NProgress, NTag, NCheckbox, type DataTableColumns } from 'naive-ui'
-import { AddOutline, SearchOutline, VideocamOutline, MusicalNotesOutline, ImageOutline, ArchiveOutline, DocumentTextOutline, CodeSlashOutline, CubeOutline, DocumentOutline } from '@vicons/ionicons5'
+import { AddOutline, ArrowDownOutline, SearchOutline, VideocamOutline, MusicalNotesOutline, ImageOutline, ArchiveOutline, DocumentTextOutline, CodeSlashOutline, CubeOutline, DocumentOutline } from '@vicons/ionicons5'
 import { ExportIcon, ImportIcon } from '@/components/icons/ExportImportIcons'
 import { message, confirm } from '@/utils/feedback'
 import { getUserFriendlyError } from '@/utils/errorMessages'
@@ -169,6 +195,7 @@ import { completedTaskDeleteService } from '@/services/completedTaskDeleteServic
 import TaskCheckbox from '@/components/TaskCheckbox.vue'
 import DeleteTaskDialog from '@/components/dialogs/DeleteTaskDialog.vue'
 import PageHeader from '@/components/layout/PageHeader.vue'
+import UiEmpty from '@/components/ui/UiEmpty.vue'
 import TaskBatchActions from '@/components/task/TaskBatchActions.vue'
 import TaskRowActions from '@/components/task/TaskRowActions.vue'
 import type { Aria2Task } from '@/types/aria2'
@@ -575,7 +602,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'name',
     title: t('task.fileName'),
-    width: 210,
+    width: 260,
     sorter: (a: Aria2Task, b: Aria2Task) => getTaskName(a).localeCompare(getTaskName(b)),
     render: (row: Aria2Task) => {
       const name = getTaskName(row)
@@ -594,14 +621,17 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'size',
     title: t('task.size'),
-    width: 78,
+    width: 88,
+    // 数值列右对齐：v1 全部左对齐，5.5GB / 1.5GB / 12GB 的小数点与单位参差不齐，
+    // 竖着扫一列数字时眼睛要不断重新对位。
+    align: 'right',
     sorter: (a: Aria2Task, b: Aria2Task) => (parseInt(a.totalLength, 10) || 0) - (parseInt(b.totalLength, 10) || 0),
-    render: (row: Aria2Task) => formatSize(row.totalLength)
+    render: (row: Aria2Task) => h('span', { class: 'ds-tnum cell-num' }, formatSize(row.totalLength))
   },
   {
     key: 'progress',
     title: t('task.progress'),
-    width: 110,
+    width: 124,
     sorter: (a: Aria2Task, b: Aria2Task) => getProgress(a) - getProgress(b),
     render: (row: Aria2Task) =>
       h(NProgress, {
@@ -609,36 +639,48 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         percentage: getProgress(row),
         status: row.status === 'complete' ? 'success' : row.status === 'error' ? 'error' : 'default',
         height: 8,
-        indicatorPlacement: 'outside'
+        indicatorPlacement: 'outside',
+        // 已完成任务不再画对勾：进度条满格 + 状态列的「已完成」标签已经把话说完了，
+        // 三处同时说「完成」是 v1 的冗余之一。错误行保留 ✗，它是唯一能一眼看出的信号。
+        showIndicator: row.status !== 'complete'
       })
   },
   {
     key: 'status',
     title: t('task.status'),
-    width: 96,
+    width: 92,
     sorter: (a: Aria2Task, b: Aria2Task) => a.status.localeCompare(b.status),
     render: (row: Aria2Task) =>
       h(NTag, { type: getStatusType(row.status), size: 'small' }, { default: () => t('status.' + row.status) })
   },
-  {
-    key: 'downloadSpeed',
-    title: t('task.downloadSpeed'),
-    width: 100,
-    sorter: (a: Aria2Task, b: Aria2Task) => (parseInt(a.downloadSpeed, 10) || 0) - (parseInt(b.downloadSpeed, 10) || 0),
-    render: (row: Aria2Task) => formatSpeed(row.downloadSpeed)
-  },
+  // 已完成页不显示下载速度：stopped 任务的 downloadSpeed 恒为 "0"，
+  // 一整列 0 B/s 既占宽度又暗示「还能看到速度」，而这里该看的是完成时间。
+  ...(props.taskType === 'stopped'
+    ? []
+    : [
+      {
+        key: 'downloadSpeed',
+        title: t('task.downloadSpeed'),
+        width: 104,
+        align: 'right',
+        sorter: (a: Aria2Task, b: Aria2Task) => (parseInt(a.downloadSpeed, 10) || 0) - (parseInt(b.downloadSpeed, 10) || 0),
+        render: (row: Aria2Task) => h('span', { class: 'ds-tnum cell-num' }, formatSpeed(row.downloadSpeed))
+      }
+    ] as DataTableColumns<Aria2Task>),
   props.taskType === 'stopped'
     ? {
       key: 'completeTime',
       title: t('task.completeTime'),
-      width: 120,
+      width: 128,
+      align: 'right',
       sorter: (a: Aria2Task, b: Aria2Task) => (taskTimeService.getCompleteTime(a.gid) || 0) - (taskTimeService.getCompleteTime(b.gid) || 0),
-      render: (row: Aria2Task) => formatCompleteTimeLabel(row)
+      render: (row: Aria2Task) => h('span', { class: 'ds-tnum cell-num' }, formatCompleteTimeLabel(row))
     }
     : {
       key: 'remainingTime',
       title: t('task.remainingTime'),
-      width: 110,
+      width: 116,
+      align: 'right',
       sorter: (a: Aria2Task, b: Aria2Task) => {
         const aSpeed = parseInt(a.downloadSpeed, 10) || 0
         const bSpeed = parseInt(b.downloadSpeed, 10) || 0
@@ -646,12 +688,12 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         const bRemain = bSpeed > 0 ? (parseInt(b.totalLength, 10) - parseInt(b.completedLength, 10)) / bSpeed : 0
         return aRemain - bRemain
       },
-      render: (row: Aria2Task) => formatRemainingTime(row)
+      render: (row: Aria2Task) => h('span', { class: 'ds-tnum cell-num' }, formatRemainingTime(row))
     },
   {
     key: 'actions',
     title: t('task.actions'),
-    width: 160,
+    width: 164,
     fixed: 'right',
     align: 'center',
     render: (row: Aria2Task) => {
@@ -692,16 +734,45 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
 // 隐藏「大小 / 下载速度 / 剩余时间（完成时间）」，总宽降到 624px 正好放下，
 // 不必再拖横向滚动条（/ui-taste 审计 P3）。
 const NARROW_MAX_WIDTH = 1024
-const NARROW_SCROLL_X = 624
+const NARROW_SCROLL_X = 688
 const NARROW_HIDDEN_KEYS = new Set(['size', 'downloadSpeed', 'remainingTime', 'completeTime'])
 const isNarrow = ref(false)
 
+/**
+ * 表格高度按行数收敛。
+ *
+ * v1 用 flex:1 把表格拉满整页：6 个任务时卡片下方留着 250px 空白，
+ * 看起来像「没渲染完」。数据网格填满视口是对的，但那只在行数够多时成立。
+ * 这里取 min(内容高度, 可用高度)：行少时卡片贴着内容收口，行多时仍然满高 + 虚拟滚动。
+ */
+const ROW_HEIGHT = 56
+/** 表头 + 边框 + 横向滚动条占位，给足余量：少算 3px 就会把最后一行裁掉一半 */
+const TABLE_HEADER_HEIGHT = 54
+/** 页面纵向被非表格元素占掉的高度：内容区 padding + PageHeader + 工具栏 + 表尾 + 卡片边框 */
+const TABLE_CHROME_HEIGHT = 248
+const tableHeight = ref<number | null>(null)
+
+function syncTableHeight(): void {
+  const rows = filteredTasks.value.length
+  if (rows === 0) {
+    tableHeight.value = null
+    return
+  }
+  const contentHeight = TABLE_HEADER_HEIGHT + rows * ROW_HEIGHT
+  const available = Math.max(240, window.innerHeight - TABLE_CHROME_HEIGHT)
+  tableHeight.value = Math.min(contentHeight, available)
+}
+
+watch(filteredTasks, syncTableHeight)
+
 function syncNarrowLayout(): void {
   isNarrow.value = window.innerWidth <= NARROW_MAX_WIDTH
+  syncTableHeight()
 }
 
 onMounted(() => {
   syncNarrowLayout()
+  syncTableHeight()
   window.addEventListener('resize', syncNarrowLayout, { passive: true })
 })
 
@@ -715,15 +786,35 @@ const visibleColumns = computed<DataTableColumns<Aria2Task>>(() => {
   return columns.value.filter((column) => !('key' in column) || !NARROW_HIDDEN_KEYS.has(String(column.key)))
 })
 
-const tableScrollX = computed(() => (isNarrow.value ? NARROW_SCROLL_X : 920))
+// 表格总宽按实际列宽求和：列集合会随 taskType（是否显示下载速度）与窄屏变化，
+// 写死一个数字会在少一列时让最后一列被拉宽、多一列时挤出横向滚动条。
+const tableScrollX = computed(() => {
+  const width = visibleColumns.value.reduce((sum, column) => sum + (Number(column.width) || 0), 0)
+  return isNarrow.value ? Math.min(width, NARROW_SCROLL_X) : width
+})
 
-// 行点击选择任务。忽略点击行内按钮/链接等交互元素的事件，避免误触发选中
+// 行点击选择任务。忽略点击行内按钮/链接等交互元素的事件，避免误触发选中。
+// v2 补两件事：
+// 1. 选中行整行高亮（.ds-row-selected）—— v1 只有 48px 选择列里的勾变化，
+//    在 1400px 宽的表里几乎看不出哪几行被选中了；
+// 2. 双击行打开详情 —— v1 查看详情只能点行尾那只眼睛图标，双击是列表类界面的通用预期。
+function isInteractiveTarget(event: MouseEvent): boolean {
+  const target = event.target as HTMLElement | null
+  return Boolean(target?.closest('button, a, input, textarea, select, .n-checkbox, .n-button'))
+}
+
 function rowProps(row: Aria2Task) {
   return {
+    class: selectedTaskGids.value.has(row.gid) ? 'ds-row-selected' : '',
     onClick: (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null
-      if (target?.closest('button, a, input, textarea, select, .n-checkbox, .n-button')) return
+      if (isInteractiveTarget(event)) return
       handleRowSelect(row)
+    },
+    onDblclick: (event: MouseEvent) => {
+      if (isInteractiveTarget(event)) return
+      // 流媒体任务没有 aria2 详情（tellStatus 会失败），与行尾眼睛按钮的显隐条件保持一致
+      if (streamTaskStore.findByGid(row.gid)) return
+      viewTaskDetail(row.gid)
     }
   }
 }
@@ -1553,92 +1644,206 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
+  gap: var(--ds-space-4);
 }
 
+/* 主表面：v2 里阴影只属于浮层，面板靠 1px 描边 + 表面色分层。
+   注意 flex 用 0 1 auto 而不是 1：高度由内部表格算出来，卡片贴着内容收口，
+   否则行少时卡片会被拉满整页、下方留一大片白。 */
 .task-surface {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  box-shadow: var(--shadow-light);
-  transition: background-color var(--transition-slow), border-color var(--transition-slow), box-shadow var(--transition-slow);
+  background: var(--ds-bg-surface);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
 }
 
-.task-stats {
+.task-summary {
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: var(--text-secondary);
-  font-size: 13px;
+  gap: var(--ds-space-12);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-small-size);
   white-space: nowrap;
 }
 
+.summary-item--filtered {
+  color: var(--ds-accent-text);
+  font-weight: 500;
+}
+
+/* 总速度是全屏唯一的实时数字，用 pill + 等宽数字承载，其余信息退成文字 */
+.summary-speed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-4);
+  padding: 2px var(--ds-space-8);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-accent-subtle);
+  color: var(--ds-accent-text);
+  font-size: var(--ds-text-small-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .task-list-content {
-  flex: 1;
-  /* min-height: 0 是 flex 子项能正确收缩、让内部表格 flex-height 生效的关键，否则内容区可能被撑塌/留白 */
+  flex: none;
+  /* 高度由脚本按行数算好写进 style（见 syncTableHeight），这里只兜住空态 */
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   /* flex-height 模式下表格内部自己处理滚动，外层无需滚动，避免双重滚动容器冲突 */
   overflow: hidden;
 }
 
 /* 让表格填满容器高度（配合 flex-height），横向滚动条固定在列表底部 */
 .task-list-content :deep(.n-data-table) {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
-/* 空状态：铺满列表区域并在垂直方向居中（水平方向由 n-empty 自身居中） */
+/* 空状态：铺满列表区域并在垂直方向居中 */
 .task-empty {
-  height: 100%;
-  min-height: 200px;
+  flex: none;
+  height: 320px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: var(--ds-space-32);
+}
+
+/* 表尾：收口表格底部，并暴露快捷键（v1 的快捷键存在但界面零暴露） */
+.task-footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-16);
+  padding: var(--ds-space-8) var(--ds-space-16);
+  border-top: 1px solid var(--ds-border-subtle);
+  background: var(--ds-bg-app);
+  font-size: var(--ds-text-micro-size);
+  color: var(--ds-text-faint);
+}
+
+.footer-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.footer-hints {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-4);
+  white-space: nowrap;
+}
+
+.footer-hints kbd {
+  min-width: 16px;
+  padding: 1px 5px;
+  border: 1px solid var(--ds-border-base);
+  border-bottom-width: 2px;
+  border-radius: var(--ds-radius-xs);
+  background: var(--ds-bg-surface);
+  font-family: var(--ds-font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  color: var(--ds-text-muted);
+}
+
+.footer-dot {
+  padding: 0 var(--ds-space-4);
+}
+
+@media (max-width: 900px) {
+  .footer-hints {
+    display: none;
+  }
 }
 
 
-.task-actions {
+/* 工具栏：选中态时整条染色，批量操作从「常驻的灰按钮」变成「当前上下文」 */
+.task-toolbar {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   margin: 0;
-  padding: 12px 16px;
+  padding: var(--ds-space-10) var(--ds-space-16);
   background: transparent;
-  border-bottom: 1px solid var(--border-light);
-  gap: 12px;
-  transition: border-color var(--transition-slow);
+  border-bottom: 1px solid var(--ds-border-subtle);
+  gap: var(--ds-space-12);
+  transition: background-color var(--ds-motion-dur-2) var(--ds-motion-ease-out),
+    border-color var(--ds-motion-dur-2) var(--ds-motion-ease-out);
 }
 
-.action-left {
+.task-toolbar.is-selecting {
+  background: var(--ds-accent-subtle);
+  border-bottom-color: var(--ds-accent-border);
+}
+
+.toolbar-actions {
   display: flex;
-  gap: 12px;
-  flex: 1;
   align-items: center;
+  gap: var(--ds-space-8);
+  flex: 1;
+  min-width: 0;
 }
 
-.action-right {
+.toolbar-filters {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--ds-space-8);
 }
 
-.action-divider {
-  height: 32px;
-  margin: 0 8px;
+.toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--ds-border-base);
+}
+
+.search-input {
+  width: 220px;
+}
+
+.filter-select--category {
+  width: 168px;
+}
+
+.filter-select--kind {
+  width: 132px;
+}
+
+/* 选中行：v1 只靠选择列里的勾，1400px 宽的表里几乎看不出选中了哪几行 */
+:deep(.n-data-table-tr.ds-row-selected td) {
+  background: var(--ds-bg-selected);
+}
+
+:deep(.n-data-table-tr.ds-row-selected:hover td) {
+  background: var(--ds-bg-selected);
+}
+
+:deep(.n-data-table-tr.ds-row-selected .file-name) {
+  color: var(--ds-accent-text);
+}
+
+/* 数值单元格：等宽数字 + 不换行，右对齐后小数点能对齐成一条竖线 */
+:deep(.cell-num) {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* DataTable 列 render 创建的节点不携带 scoped data-v，需用 :deep() 定位 */
 :deep(.file-info) {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 :deep(.file-name-row) {
@@ -1651,9 +1856,9 @@ watch(
 :deep(.file-name) {
   flex: 0 1 auto;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--ds-text-body-size);
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
   /* 单行省略：保证每行内容高度恒定（配合 virtual-scroll 的 min-row-height=60），
      长文件名换行会撑高行导致虚拟滚动可视区错位/空白，全名通过 title 悬浮提示展示 */
   overflow: hidden;
@@ -1664,7 +1869,7 @@ watch(
 
 :deep(.file-type-icon) {
   flex-shrink: 0;
-  color: var(--text-secondary);
+  color: var(--ds-text-muted);
   display: inline-flex;
   /* 图标字形在 16px 方框内偏上，与 13px 文字的光学中心差约 1px，向下微调对齐 */
   transform: translateY(1px);
@@ -1674,43 +1879,34 @@ watch(
 :deep(.file-path) {
   /* 与文件名文字左边缘对齐（图标 16px + gap 6px），视觉上从属于上一行 */
   padding-left: 22px;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 11px;
-  color: var(--text-secondary);
-  opacity: 0.85;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-micro-size);
+  color: var(--ds-text-faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* 统一现代化操作按钮：圆角、语义色光晕、悬停轻微浮起（与全局按钮风格一致） */
-:deep(.app-action-btn) {
-  height: 30px;
-  border-radius: 8px;
-  font-weight: 500;
-  transition: transform var(--ease-out) 0.18s, box-shadow var(--ease-out) 0.18s;
-}
+/* 窄屏：工具栏换行后两侧不再各自撑满，避免「开始暂停」孤零零占一行左端 */
+@media (max-width: 1100px) {
+  .task-toolbar {
+    align-items: flex-start;
+  }
 
-:deep(.app-action-btn:hover:not([disabled])) {
-  transform: translateY(-1px);
-}
+  .toolbar-filters {
+    justify-content: flex-start;
+  }
 
-:deep(.app-action-btn:active:not([disabled])) {
-  transform: translateY(0);
-}
+  .search-input {
+    width: 100%;
+  }
 
-.empty-hint {
-  display: block;
-  max-width: 420px;
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  text-align: center;
-  line-height: 1.6;
-}
-
-:deep(.app-action-btn--primary-type) {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 25%, transparent);
+  .filter-select--category,
+  .filter-select--kind {
+    flex: 1 1 140px;
+    width: auto;
+    min-width: 120px;
+  }
 }
 
 

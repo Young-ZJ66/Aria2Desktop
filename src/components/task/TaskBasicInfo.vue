@@ -70,7 +70,7 @@
               class="speed-line"
               :points="speedSparklinePoints"
               fill="none"
-              stroke="var(--color-primary, #4560e0)"
+              stroke="var(--ds-accent, #4560e0)"
               stroke-width="1.5"
               stroke-linejoin="round"
               stroke-linecap="round"
@@ -427,9 +427,9 @@ async function openFileInFolder(filePath: string) {
 <style scoped>
 .info-card {
   margin-bottom: 16px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
+  background: var(--ds-bg-surface);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
 }
 
 .info-card:last-child {
@@ -458,13 +458,13 @@ async function openFileInFolder(filePath: string) {
   white-space: nowrap;
   text-align: left;
   padding: 6px 16px 6px 0;
-  color: var(--text-secondary);
-  font-size: 13px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-body-size);
 }
 
 .task-descriptions :deep(.n-descriptions-table-content) {
   padding: 6px 0;
-  font-size: 13px;
+  font-size: var(--ds-text-body-size);
   word-break: break-word;
 }
 
@@ -479,7 +479,7 @@ async function openFileInFolder(filePath: string) {
   width: 100%;
   word-break: break-all;
   line-height: 1.5;
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
 }
 
 .field-with-action {
@@ -490,8 +490,8 @@ async function openFileInFolder(filePath: string) {
 
 .magnet-text {
   word-break: break-all;
-  font-size: 11px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-micro-size);
+  color: var(--ds-text-muted);
 }
 
 .speed-sparkline {
@@ -502,25 +502,25 @@ async function openFileInFolder(filePath: string) {
 
 .speed-peak {
   font-size: 9px;
-  fill: var(--text-secondary);
+  fill: var(--ds-text-muted);
 }
 
 .gid-text {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 12px;
+  font-size: var(--ds-text-small-size);
 }
 
 .muted-value {
-  color: var(--text-placeholder);
+  color: var(--ds-text-faint);
 }
 
 .speed-download {
-  color: var(--color-success);
+  color: var(--ds-status-success-solid);
   font-weight: 500;
 }
 
 .speed-upload {
-  color: var(--color-info);
+  color: var(--ds-status-info-solid);
   font-weight: 500;
 }
 
@@ -534,37 +534,37 @@ async function openFileInFolder(filePath: string) {
 .progress-track {
   flex: 1;
   height: 8px;
-  background-color: var(--bg-tertiary);
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
+  background-color: var(--ds-bg-sunken);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-xs);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  border-radius: 4px;
-  background-color: var(--color-primary);
-  transition: width var(--transition-slow);
+  border-radius: var(--ds-radius-xs);
+  background-color: var(--ds-accent);
+  transition: width var(--ds-motion-dur-4);
 }
 
 .progress-fill.complete {
-  background-color: var(--color-success);
+  background-color: var(--ds-status-success-solid);
 }
 
 .progress-fill.error {
-  background-color: var(--color-danger);
+  background-color: var(--ds-status-danger-solid);
 }
 
 .progress-fill.pending {
-  background-color: var(--text-placeholder);
+  background-color: var(--ds-text-faint);
 }
 
 .progress-text {
   flex-shrink: 0;
   min-width: 42px;
   text-align: right;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -579,12 +579,12 @@ async function openFileInFolder(filePath: string) {
   flex: 1;
   min-width: 0;
   padding: 8px 12px;
-  background-color: var(--bg-tertiary);
-  border: 1px solid var(--border-light);
-  border-radius: 6px;
+  background-color: var(--ds-bg-sunken);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-sm);
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 12px;
-  color: var(--text-regular);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-base);
   word-break: break-all;
   line-height: 1.5;
 }
@@ -594,7 +594,7 @@ async function openFileInFolder(filePath: string) {
   justify-content: flex-start;
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid var(--ds-border-subtle);
 }
 
 .announce-list {
@@ -605,8 +605,8 @@ async function openFileInFolder(filePath: string) {
 }
 
 .and-more {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
   margin-left: 4px;
 }
 
@@ -617,8 +617,8 @@ async function openFileInFolder(filePath: string) {
 /* 引擎原话：保留给排查用，但不跟"人话"抢注意力 */
 .error-raw {
   margin-top: 4px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
   word-break: break-all;
 }
 </style>

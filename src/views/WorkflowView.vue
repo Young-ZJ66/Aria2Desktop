@@ -1,22 +1,36 @@
 <template>
   <div class="workflow-view">
     <PageHeader :title="t('nav.workflowSettings')" :description="t('workflow.pageDescription')" />
+    <!-- tab 已经说明「这是哪一页」，面板里不再重复标题：左说明、右主操作、下面内容 -->
     <n-tabs v-model:value="activeSection" type="line" animated class="workflow-tabs">
-      <n-tab-pane name="templates" :tab="templateTab">
-        <n-card :bordered="false" class="section-card">
-          <template #header>
-            <div class="section-header">
-              <div>
-                <div class="section-title">{{ t('workflow.templatesTitle') }}</div>
-                <div class="section-desc">{{ t('workflow.templatesDesc') }}</div>
-              </div>
-              <n-button size="small" type="primary" @click="addTemplate">
-                {{ t('workflow.addTemplate') }}
-              </n-button>
-            </div>
+      <n-tab-pane name="templates">
+        <template #tab>
+          <span class="tab-label">
+            {{ t('workflow.templatesTitle') }}
+            <span class="tab-count ds-tnum">{{ templates.length }}</span>
+          </span>
+        </template>
+
+        <!-- 空态统一成「标题 + 一句解释 + 主操作」：只写「暂无模板」时用户不知道该点哪里 -->
+        <UiEmpty
+          v-if="templates.length === 0"
+          :title="t('workflow.noTemplates')"
+          :description="t('workflow.templatesDesc')"
+          :icon="AlbumsOutline"
+        >
+          <template #actions>
+            <n-button size="small" type="primary" @click="addTemplate">
+              {{ t('workflow.addTemplate') }}
+            </n-button>
+          </template>
+        </UiEmpty>
+        <UiPanel v-else class="section-panel section-panel--fill" :hint="t('workflow.templatesDesc')">
+          <template #actions>
+            <n-button size="small" type="primary" @click="addTemplate">
+              {{ t('workflow.addTemplate') }}
+            </n-button>
           </template>
 
-          <n-empty v-if="templates.length === 0" :description="t('workflow.noTemplates')" class="section-empty" />
           <div v-for="(template, index) in templates" :key="template.id" class="editor-block">
             <div class="block-head">
               <n-input v-model:value="template.name" size="small" :placeholder="t('workflow.templateName')" class="name-input" />
@@ -60,27 +74,42 @@
               <n-input v-model:value="template.headers" type="textarea" :rows="2" :placeholder="t('workflow.headersPlaceholder')" />
             </n-form-item>
           </div>
-          <div v-if="templates.length > 0" class="section-actions">
-            <n-button type="primary" :loading="saving" @click="saveTemplates">{{ t('workflow.saveTemplates') }}</n-button>
-          </div>
-        </n-card>
-      </n-tab-pane>
 
-      <n-tab-pane name="rules" :tab="ruleTab">
-        <n-card :bordered="false" class="section-card">
-          <template #header>
-            <div class="section-header">
-              <div>
-                <div class="section-title">{{ t('workflow.rulesTitle') }}</div>
-                <div class="section-desc">{{ t('workflow.rulesDesc') }}</div>
-              </div>
-              <n-button size="small" type="primary" @click="addRule">
-                {{ t('workflow.addRule') }}
-              </n-button>
+          <template #footer>
+            <div class="panel-footer-actions">
+              <n-button type="primary" :loading="saving" @click="saveTemplates">{{ t('workflow.saveTemplates') }}</n-button>
             </div>
           </template>
+        </UiPanel>
+      </n-tab-pane>
 
-          <n-empty v-if="rules.length === 0" :description="t('workflow.noRules')" class="section-empty" />
+      <n-tab-pane name="rules">
+        <template #tab>
+          <span class="tab-label">
+            {{ t('workflow.rulesTitle') }}
+            <span class="tab-count ds-tnum">{{ rules.length }}</span>
+          </span>
+        </template>
+
+        <UiEmpty
+          v-if="rules.length === 0"
+          :title="t('workflow.noRules')"
+          :description="t('workflow.rulesDesc')"
+          :icon="GitBranchOutline"
+        >
+          <template #actions>
+            <n-button size="small" type="primary" @click="addRule">
+              {{ t('workflow.addRule') }}
+            </n-button>
+          </template>
+        </UiEmpty>
+        <UiPanel v-else class="section-panel section-panel--fill" :hint="t('workflow.rulesDesc')">
+          <template #actions>
+            <n-button size="small" type="primary" @click="addRule">
+              {{ t('workflow.addRule') }}
+            </n-button>
+          </template>
+
           <div v-for="(rule, index) in rules" :key="rule.id" class="editor-block">
             <div class="block-head">
               <div class="block-title-row">
@@ -160,40 +189,54 @@
             </div>
             <n-button size="tiny" dashed @click="addAction(rule)">{{ t('workflow.addAction') }}</n-button>
           </div>
-          <div v-if="rules.length > 0" class="section-actions">
-            <n-button type="primary" :loading="saving" @click="saveRules">{{ t('workflow.saveRules') }}</n-button>
-          </div>
-        </n-card>
+
+          <template #footer>
+            <div class="panel-footer-actions">
+              <n-button type="primary" :loading="saving" @click="saveRules">{{ t('workflow.saveRules') }}</n-button>
+            </div>
+          </template>
+        </UiPanel>
       </n-tab-pane>
 
       <!-- Webhook 投递队列：规则触发的投递失败后会按指数退避自动重试，超过上限的条目在这里手动处理 -->
-      <n-tab-pane name="queue" :tab="queueTab">
-        <n-card :bordered="false" class="section-card">
-          <template #header>
-            <div class="section-header">
-              <div>
-                <div class="section-title">{{ t('settings.webhookQueue.title') }}</div>
-                <div class="section-desc">{{ t('settings.webhookQueue.description') }}</div>
-              </div>
-              <n-space>
-                <n-button size="small" :loading="queueLoading" @click="refreshQueue()">
-                  {{ t('settings.webhookQueue.refresh') }}
-                </n-button>
-                <n-popconfirm @positive-click="clearQueue">
-                  <template #trigger>
-                    <n-button size="small" type="error" secondary :disabled="queueEntries.length === 0">
-                      {{ t('settings.webhookQueue.clear') }}
-                    </n-button>
-                  </template>
-                  {{ t('settings.webhookQueue.clearConfirm', { count: queueEntries.length }) }}
-                </n-popconfirm>
-              </n-space>
-            </div>
-          </template>
+      <n-tab-pane name="queue">
+        <template #tab>
+          <span class="tab-label">
+            {{ t('settings.webhookQueue.title') }}
+            <span class="tab-count ds-tnum">{{ queueEntries.length }}</span>
+          </span>
+        </template>
 
-          <n-empty v-if="queueEntries.length === 0" :description="t('settings.webhookQueue.empty')" class="section-empty" />
+        <div v-if="queueLoading && queueEntries.length === 0" class="panel-state">{{ t('common.loading') }}</div>
+        <UiEmpty
+          v-else-if="queueEntries.length === 0"
+          :title="t('settings.webhookQueue.empty')"
+          :description="t('settings.webhookQueue.description')"
+          :icon="CloudUploadOutline"
+        >
+          <template #actions>
+            <n-button size="small" :loading="queueLoading" @click="refreshQueue()">
+              {{ t('settings.webhookQueue.refresh') }}
+            </n-button>
+          </template>
+        </UiEmpty>
+        <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('settings.webhookQueue.description')">
+          <template #actions>
+            <n-space>
+              <n-button size="small" :loading="queueLoading" @click="refreshQueue()">
+                {{ t('settings.webhookQueue.refresh') }}
+              </n-button>
+              <n-popconfirm @positive-click="clearQueue">
+                <template #trigger>
+                  <n-button size="small" type="error" secondary :disabled="queueEntries.length === 0">
+                    {{ t('settings.webhookQueue.clear') }}
+                  </n-button>
+                </template>
+                {{ t('settings.webhookQueue.clearConfirm', { count: queueEntries.length }) }}
+              </n-popconfirm>
+            </n-space>
+          </template>
           <n-data-table
-            v-else
             :columns="queueColumns"
             :data="queueEntries"
             :row-key="(row: WebhookQueueEntry) => row.id"
@@ -201,7 +244,7 @@
             size="small"
             :scroll-x="860"
           />
-        </n-card>
+        </UiPanel>
       </n-tab-pane>
     </n-tabs>
   </div>
@@ -211,6 +254,9 @@
 import { ref, computed, h, onActivated, onDeactivated, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PageHeader from '@/components/layout/PageHeader.vue'
+import { UiEmpty, UiPanel } from '@/components/ui'
+import { AlbumsOutline, CloudUploadOutline, GitBranchOutline } from '@vicons/ionicons5'
+import { getUserFriendlyError } from '@/utils/errorMessages'
 import { NButton, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -250,9 +296,6 @@ const templates = ref<TaskTemplate[]>([])
 const rules = ref<RuleDraft[]>([])
 // 三个分区各占一个标签页：模板条目一多，规则会被挤到首屏之外，分页后每块都能直接看到
 const activeSection = ref<'templates' | 'rules' | 'queue'>('templates')
-const templateTab = computed(() => `${t('workflow.templatesTitle')} (${templates.value.length})`)
-const ruleTab = computed(() => `${t('workflow.rulesTitle')} (${rules.value.length})`)
-const queueTab = computed(() => `${t('settings.webhookQueue.title')} (${queueEntries.value.length})`)
 
 // 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
 const statusOptions = computed(() => [
@@ -354,7 +397,9 @@ async function saveTemplates(): Promise<void> {
     await settingsStore.updateSetting('taskTemplates', templates.value)
     message.success(t('workflow.saved'))
   } catch (error) {
-    message.error(String(error))
+    // 原始错误可能是 window.electronAPI is not available 这类内部串，只进控制台
+    console.error('[WorkflowView] 保存失败', error)
+    message.error(getUserFriendlyError(error))
   } finally {
     saving.value = false
   }
@@ -378,7 +423,9 @@ async function saveRules(): Promise<void> {
     await settingsStore.updateSetting('completionRules', rules.value.map(fromDraft))
     message.success(t('workflow.saved'))
   } catch (error) {
-    message.error(String(error))
+    // 原始错误可能是 window.electronAPI is not available 这类内部串，只进控制台
+    console.error('[WorkflowView] 保存失败', error)
+    message.error(getUserFriendlyError(error))
   } finally {
     saving.value = false
   }
@@ -427,7 +474,7 @@ async function refreshQueue(force = false): Promise<void> {
     queueEntries.value = result?.entries ?? []
   } catch (error) {
     console.error('[WorkflowView] 读取 Webhook 投递队列失败:', error)
-    message.error(t('settings.webhookQueue.loadFailed', { error: error instanceof Error ? error.message : String(error) }))
+    message.error(t('settings.webhookQueue.loadFailed', { error: getUserFriendlyError(error) }))
   } finally {
     queueRefreshing = false
     queueLoading.value = false
@@ -439,14 +486,14 @@ async function retryQueueEntry(entry: WebhookQueueEntry): Promise<void> {
   try {
     const result = await window.electronAPI?.webhookQueueRetry?.(entry.id)
     if (result?.success === false) {
-      message.error(t('settings.webhookQueue.retryFailed', { error: result.error ?? t('settings.unknownError') }))
+      message.error(t('settings.webhookQueue.retryFailed', { error: getUserFriendlyError(result.error, t('settings.unknownError')) }))
       return
     }
     message.success(t('settings.webhookQueue.retrySuccess'))
     await refreshQueue(true)
   } catch (error) {
     console.error('[WorkflowView] 重试 Webhook 投递失败:', error)
-    message.error(t('settings.webhookQueue.retryFailed', { error: error instanceof Error ? error.message : String(error) }))
+    message.error(t('settings.webhookQueue.retryFailed', { error: getUserFriendlyError(error) }))
   } finally {
     queueRetryingId.value = ''
   }
@@ -463,7 +510,7 @@ async function clearQueue(): Promise<void> {
     await refreshQueue(true)
   } catch (error) {
     console.error('[WorkflowView] 清空 Webhook 投递队列失败:', error)
-    message.error(t('settings.webhookQueue.clearFailed', { error: error instanceof Error ? error.message : String(error) }))
+    message.error(t('settings.webhookQueue.clearFailed', { error: getUserFriendlyError(error) }))
   }
 }
 
@@ -485,21 +532,22 @@ const queueColumns = computed<DataTableColumns<WebhookQueueEntry>>(() => [
   {
     title: t('settings.webhookQueue.colAttempts'),
     key: 'attempts',
-    width: 90,
-    render: row => `${row.attempts}/${row.maxRetries}`
+    width: 96,
+    align: 'right',
+    render: row => h('span', { class: 'ds-tnum' }, `${row.attempts}/${row.maxRetries}`)
   },
   {
     title: t('settings.webhookQueue.colNextAttempt'),
     key: 'nextAttemptAt',
     width: 170,
-    render: row => formatNextAttempt(row)
+    render: row => h('span', { class: 'cell-time' }, formatNextAttempt(row))
   },
   {
     title: t('settings.webhookQueue.colLastError'),
     key: 'lastError',
     minWidth: 200,
     ellipsis: { tooltip: true },
-    render: row => row.lastError?.trim() || '--'
+    render: row => h('span', { class: 'cell-sub' }, row.lastError?.trim() || '--')
   },
   {
     title: t('automation.colActions'),
@@ -558,143 +606,200 @@ onUnmounted(() => {
 
 <style scoped>
 .workflow-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-16);
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-/* tab 撑满剩余高度，卡片自己滚动，页面不再整体滚动 */
-.workflow-tabs {
-  flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  margin-top: -2px;
 }
+
+/* PageHeader 自带 20px 下边距，这里统一走 flex gap，避免叠成 36px */
+.workflow-view :deep(.page-header) {
+  margin-bottom: 0;
+}
+
+/* ---------------- tab 栏 ---------------- */
+.workflow-tabs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .workflow-tabs :deep(.n-tabs-nav) {
   flex: none;
-  margin-bottom: 2px;
 }
+
 .workflow-tabs :deep(.n-tabs-pane-wrapper) {
   flex: 1;
   min-height: 0;
 }
+
 .workflow-tabs :deep(.n-tab-pane) {
   height: 100%;
 }
-/* 独立页面不再继承设置页对控件宽度的全局规则，这里补回同样的观感：
-   输入框/选择框占满所在网格单元，需要定宽的控件用更具体的类覆盖 */
+
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-6);
+}
+
+/* 计数从标题字符串里拆出来做成 pill：不切页也能读出这一页有多少条 */
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-bg-sunken);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-micro-size);
+  font-weight: 500;
+  transition:
+    background-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
+    color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
+}
+
+.workflow-tabs :deep(.n-tabs-tab--active) .tab-count {
+  background: var(--ds-accent-subtle);
+  color: var(--ds-accent-text);
+}
+
+/* 表单控件铺满栅格单元（flex 尺寸见 .action-type / .method-select） */
 .workflow-view :deep(.n-input),
 .workflow-view :deep(.n-select),
 .workflow-view :deep(.n-input-number) {
   width: 100%;
 }
-.section-card {
+
+/* ---------------- 面板 ---------------- */
+.section-panel--fill {
   height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-radius: 10px;
-  /* 与自动化页保持一致：n-card 自带边框之外不再叠加，统一用主题边框色 */
-  border: 1px solid var(--border-light);
-  /* 与队列/状态/任务列表的卡片一致：极浅投影把卡片从页面底色上托起来 */
-  box-shadow: var(--shadow-light);
 }
-.section-card :deep(.n-card__content) {
-  flex: 1;
-  min-height: 0;
+
+.section-panel--fill :deep(.ui-panel__body) {
   overflow: auto;
 }
-/* 空态：撑满卡片内容区并垂直居中，避免图标贴在顶部 */
-.section-empty {
-  height: 100%;
-  min-height: 200px;
+
+.section-panel :deep(.n-data-table-th),
+.section-panel :deep(.n-data-table-td) {
+  padding: var(--ds-space-12) var(--ds-space-16);
+}
+
+/* 行悬停走 v2 的 hover 表面，深色下不会出现 naive 默认的浅灰 */
+.section-panel :deep(.n-data-table-tr:hover .n-data-table-td) {
+  background-color: var(--ds-bg-hover);
+}
+
+.panel-footer-actions {
   display: flex;
-  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--ds-space-8);
+}
+
+.panel-state {
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  padding: var(--ds-space-32);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-small-size);
 }
-.section-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-.section-title {
-  font-size: 15px;
-  font-weight: 600;
-}
-.section-desc {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
+
+/* ---------------- 编辑块 ---------------- */
+/* 块与块之间用一条细线分隔，而不是再套一层盒子（v2 只保留一种表面） */
 .editor-block {
-  padding: 12px;
-  margin-bottom: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  padding: var(--ds-space-16) 0;
+  border-top: 1px solid var(--ds-border-subtle);
 }
+
+.editor-block:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
 .block-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: var(--ds-space-8);
+  margin-bottom: var(--ds-space-12);
 }
+
 .block-title-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
   flex: 1;
+  align-items: center;
+  gap: var(--ds-space-8);
+  min-width: 0;
 }
-.block-head .name-input {
-  width: 100%;
+
+.name-input {
   max-width: 320px;
 }
+
+/* 小节标签：11px 大写感的小标题，把「条件 / 动作」从字段里拎出来 */
 .sub-title {
-  margin: 8px 0 6px;
-  font-size: 12px;
+  margin: var(--ds-space-12) 0 var(--ds-space-6);
+  font-size: var(--ds-text-micro-size);
   font-weight: 600;
-  opacity: 0.75;
+  letter-spacing: 0.02em;
+  color: var(--ds-text-muted);
 }
+
 .action-block {
-  margin-bottom: 8px;
+  padding: var(--ds-space-12);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-bg-sunken);
 }
+
+.action-block + .action-block {
+  margin-top: var(--ds-space-8);
+}
+
 .action-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-8);
 }
-.action-row .action-type {
-  width: 130px;
+
+/* 用 flex-basis 固定宽度，避免被上面的 width:100% 覆盖 */
+.action-type {
   flex: 0 0 130px;
 }
-.action-row .method-select {
-  width: 90px;
+
+.method-select {
   flex: 0 0 90px;
 }
+
 .action-extra {
   display: flex;
   align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 6px;
+  gap: var(--ds-space-8);
+  margin-top: var(--ds-space-8);
 }
+
 .extra-secret {
   flex: 1 1 260px;
-  min-width: 200px;
+  min-width: 0;
 }
+
 .extra-number {
   flex: 0 0 140px;
 }
-.extra-number :deep(.n-input-number) {
-  width: 100%;
+
+/* ---------------- 单元格 ---------------- */
+.cell-time {
+  font-size: var(--ds-text-small-size);
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-text-muted);
 }
-.section-actions {
-  display: flex;
-  justify-content: flex-start;
+
+.cell-sub {
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 </style>

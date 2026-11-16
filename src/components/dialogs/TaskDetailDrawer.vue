@@ -13,7 +13,11 @@
       -->
       <template #header>
         <div class="drawer-header">
-          <span>{{ t('task.taskDetail') }}</span>
+          <span class="drawer-title">{{ t('task.taskDetail') }}</span>
+          <!-- v2：标题右侧带 gid 片段。详情抽屉经常是「从列表点进来又想确认看的是哪个」的场景，
+               而 gid 是唯一稳定标识（文件名可能重复）。 -->
+          <code v-if="gid" class="drawer-gid" :title="gid">{{ gid.slice(0, 8) }}</code>
+          <span class="drawer-header__spacer" />
           <n-button size="small" quaternary :loading="refreshing" :aria-label="t('common.refresh')" @click="refresh">
             <template #icon>
               <n-icon><RefreshOutline /></n-icon>
@@ -68,8 +72,13 @@
           </n-modal>
         </div>
 
-        <div v-else class="loading">
-          <n-empty :description="t('task.taskNotExist')" />
+        <div v-else class="drawer-empty">
+          <UiEmpty
+            :title="t('task.taskNotExist')"
+            :description="t('task.emptyHint')"
+            :icon="DocumentOutline"
+            size="sm"
+          />
         </div>
       </n-spin>
     </n-drawer-content>
@@ -80,7 +89,7 @@
 import { ref, onMounted, onUnmounted, computed, h, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NTag, NText, type DataTableColumns } from 'naive-ui'
-import { RefreshOutline } from '@vicons/ionicons5'
+import { DocumentOutline, RefreshOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 import { useUiStore } from '@/stores/uiStore'
@@ -92,6 +101,7 @@ import TaskFilesInfo from '@/components/task/TaskFilesInfo.vue'
 import TaskServerInfo from '@/components/task/TaskServerInfo.vue'
 import TaskPeerInfo from '@/components/task/TaskPeerInfo.vue'
 import TaskPiecesInfo from '@/components/task/TaskPiecesInfo.vue'
+import UiEmpty from '@/components/ui/UiEmpty.vue'
 
 const uiStore = useUiStore()
 const { t } = useI18n()
@@ -341,27 +351,47 @@ function getUriStatusText(status: string): string {
 .drawer-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: var(--ds-space-8);
   width: 100%;
 }
 
+.drawer-title {
+  font-size: var(--ds-text-title-size);
+  font-weight: 600;
+  color: var(--ds-text-strong);
+}
+
+/* gid 用等宽字体 + 淡底：它是「技术标识」，不该和标题抢权重，但必须能被复制辨认 */
+.drawer-gid {
+  padding: 1px var(--ds-space-6);
+  border-radius: var(--ds-radius-xs);
+  background: var(--ds-bg-sunken);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-micro-size);
+  color: var(--ds-text-faint);
+  letter-spacing: 0.02em;
+}
+
+.drawer-header__spacer {
+  flex: 1;
+}
+
 .task-detail-content {
-  padding: 8px 0;
+  padding: var(--ds-space-8) 0;
 }
 
 .task-detail-content :deep(.n-tab-pane) {
-  padding-top: 16px;
+  padding-top: var(--ds-space-16);
 }
 
 .task-detail-content :deep(.n-tabs-nav) {
-  padding: 0 4px;
+  padding: 0 var(--ds-space-4);
 }
 
-.loading {
+.drawer-empty {
   display: flex;
-  justify-content: center;
   align-items: center;
-  height: 200px;
+  justify-content: center;
+  min-height: 240px;
 }
 </style>

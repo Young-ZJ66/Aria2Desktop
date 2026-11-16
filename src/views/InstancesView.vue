@@ -1,62 +1,112 @@
 <template>
   <div class="instances-view">
-    <PageHeader :title="t('instances.title')" :description="t('instances.description')">
+    <PageHeader class="page-head" :title="t('instances.title')" :description="t('instances.description')">
       <template #actions>
         <n-button size="small" :loading="testingAll" @click="testAll">{{ t('instances.testAll') }}</n-button>
-        <n-button size="small" type="primary" @click="openConnectionDialog">{{ t('instances.manage') }}</n-button>
+        <n-button size="small" @click="openConnectionDialog">{{ t('instances.manage') }}</n-button>
+        <n-button size="small" type="primary" :loading="addingInstance" @click="addInstance">
+          <template #icon>
+            <n-icon><AddOutline /></n-icon>
+          </template>
+          {{ t('instances.add') }}
+        </n-button>
       </template>
     </PageHeader>
 
-    <n-empty v-if="connectionStore.profiles.length === 0" :description="t('instances.empty')" />
+    <!-- 多实例说明：自绘提示条（v2 表面 + 左侧 2px accent 边），保留「关闭」与「不再显示」两级持久化。
+         放在卡片网格之前：它是「为什么会有多张卡」的解释，压在页面底部时用户根本看不到。 -->
+    <div v-if="noteVisible" class="instance-note" role="note">
+      <p class="instance-note__text">{{ t('instances.multiInstanceNote') }}</p>
+      <div class="instance-note__actions">
+        <n-button text size="tiny" class="instance-note__forever" @click="hideNoteForever">
+          {{ t('common.dontShowAgain') }}
+        </n-button>
+        <UiIconButton :icon="CloseOutline" :label="t('common.close')" size="sm" @click="closeNoteForSession" />
+      </div>
+    </div>
 
+    <!-- 空态：标题 + 一句解释 + 主操作（v2 空态写法），外面套一层表面避免浮在 app 背景上 -->
+    <div v-if="connectionStore.profiles.length === 0" class="instances-empty">
+      <UiEmpty
+        :title="t('instances.empty')"
+        :description="t('instances.multiInstanceNote')"
+        :icon="ServerOutline"
+      >
+        <template #actions>
+          <n-button size="small" type="primary" @click="addInstance">{{ t('instances.add') }}</n-button>
+        </template>
+      </UiEmpty>
+    </div>
+
+    <!-- 实例卡片网格：320px 起自适应列数，不再固定单列 -->
     <div v-else class="instance-grid">
-      <n-card v-for="profile in connectionStore.profiles" :key="profile.id" size="small" class="instance-card" :class="{ active: profile.id === connectionStore.activeProfileId }">
-        <div class="instance-card-header">
-          <div class="instance-name">
-            {{ profile.name || t('connection.defaultProfileName') }}
-            <n-tag v-if="profile.id === connectionStore.activeProfileId" size="tiny" type="primary" :bordered="false">
+      <article
+        v-for="profile in connectionStore.profiles"
+        :key="profile.id"
+        class="instance-card"
+        :class="{ 'instance-card--active': isActive(profile) }"
+      >
+        <header class="instance-card__head">
+          <div class="instance-card__identity">
+            <h3 class="instance-card__name ds-truncate" :title="displayName(profile)">{{ displayName(profile) }}</h3>
+            <n-tag
+              v-if="profile.id === connectionStore.activeProfileId"
+              size="small"
+              :bordered="false"
+              class="instance-card__current"
+            >
               {{ t('instances.current') }}
             </n-tag>
           </div>
-          <n-tag size="tiny" :type="statusType(profile.id)" :bordered="false">
+          <n-tag size="small" :type="statusType(profile.id)" :bordered="false" class="instance-card__status">
             {{ statusLabel(profile.id) }}
           </n-tag>
+        </header>
+
+        <p class="instance-card__endpoint ds-num ds-truncate" :title="endpoint(profile)">{{ endpoint(profile) }}</p>
+
+        <div class="instance-card__meta">
+          <span v-if="probes[profile.id]?.version" class="instance-card__version ds-num">
+            aria2 {{ probes[profile.id]?.version }}
+          </span>
+          <span v-if="probes[profile.id]?.latencyMs !== undefined" class="instance-card__latency ds-tnum">
+            {{ t('instances.latency', { ms: probes[profile.id]?.latencyMs }) }}
+          </span>
         </div>
 
-        <div class="instance-endpoint">{{ endpoint(profile) }}</div>
+        <p
+          v-if="probes[profile.id]?.error"
+          class="instance-card__error ds-truncate"
+          :title="probes[profile.id]?.error"
+        >
+          {{ probes[profile.id]?.error }}
+        </p>
+        <p v-else-if="!probes[profile.id]" class="instance-card__hint">{{ t('instances.notTested') }}</p>
 
-        <div class="instance-meta">
-          <span v-if="probes[profile.id]?.version">aria2 {{ probes[profile.id]?.version }}</span>
-          <span v-if="probes[profile.id]?.latencyMs !== undefined">{{ t('instances.latency', { ms: probes[profile.id]?.latencyMs }) }}</span>
-          <span v-if="probes[profile.id]?.error" class="instance-error" :title="probes[profile.id]?.error">{{ probes[profile.id]?.error }}</span>
-          <span v-else-if="!probes[profile.id]" class="instance-muted">{{ t('instances.notTested') }}</span>
-        </div>
-
-        <div class="instance-card-actions">
-          <n-button size="tiny" :loading="testing[profile.id]" @click="test(profile)">{{ t('instances.test') }}</n-button>
+        <div class="instance-card__actions">
+          <n-button size="small" :loading="testing[profile.id]" @click="test(profile)">{{ t('instances.test') }}</n-button>
           <n-button
-            size="tiny"
-            :type="isActive(profile) ? 'default' : 'primary'"
-            :class="isActive(profile) ? 'btn-danger-outline' : ''"
+            size="small"
+            :type="isActive(profile) ? 'error' : 'primary'"
+            :tertiary="isActive(profile)"
             :loading="connectingId === profile.id"
             @click="activate(profile)"
           >
             {{ isActive(profile) ? t('connection.disconnect') : t('instances.connect') }}
           </n-button>
-          <n-button size="tiny" @click="edit(profile)">{{ t('instances.edit') }}</n-button>
+          <n-button size="small" @click="edit(profile)">{{ t('instances.edit') }}</n-button>
         </div>
-      </n-card>
+      </article>
     </div>
-
-    <DismissibleAlert storage-key="instances.note" type="info" :show-icon="false" class="instances-note">{{ t('instances.multiInstanceNote') }}</DismissibleAlert>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NCard, NButton, NTag, NEmpty } from 'naive-ui'
-import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
+import { NButton, NIcon, NTag } from 'naive-ui'
+import { AddOutline, CloseOutline, ServerOutline } from '@vicons/ionicons5'
+import { UiEmpty, UiIconButton } from '@/components/ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import { withMinimumDuration } from '@/composables/useMinimumLoading'
@@ -72,12 +122,14 @@ interface ProbeResult {
   error?: string
 }
 
+// 文案来自 `instances.addInstance`（新增实例）
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
 const probes = reactive<Record<string, ProbeResult>>({})
 const testing = reactive<Record<string, boolean>>({})
 const testingAll = ref(false)
 const connectingId = ref('')
+const addingInstance = ref(false)
 
 /** 已连接实例的实时延迟刷新间隔 */
 const LATENCY_REFRESH_MS = 5000
@@ -135,15 +187,24 @@ watch(
   }
 )
 
+function displayName(profile: ConnectionProfile): string {
+  return profile.name || t('connection.defaultProfileName')
+}
+
 function endpoint(profile: ConnectionProfile): string {
   return `${profile.config.protocol}://${profile.config.host}:${profile.config.port}${profile.config.path || '/jsonrpc'}`
 }
 
-function statusType(id: string): 'default' | 'success' | 'error' | 'warning' {
+/**
+ * 状态语义色：在线 = success，测试中 = warning，其余（未测试 / 离线）= 中性。
+ * 离线不再用 error 红：一屏多卡时红标签会盖过真正需要用户注意的错误行，
+ * 错误原因由卡片内的错误行单独承担。
+ */
+function statusType(id: string): 'default' | 'success' | 'warning' {
   if (testing[id]) return 'warning'
   const probe = probes[id]
   if (!probe) return 'default'
-  return probe.success ? 'success' : 'error'
+  return probe.success ? 'success' : 'default'
 }
 
 function statusLabel(id: string): string {
@@ -194,7 +255,7 @@ async function activate(profile: ConnectionProfile) {
     const connected = await withMinimumDuration(() => connectionStore.connect({ ...profile.config }, profile.id))
     // false = 本次尝试已被更新的连接取代（用户又点了别的实例），静默退出，不弹提示
     if (!connected) return
-    message.success(t('instances.connectSuccess', { name: profile.name || t('connection.defaultProfileName') }))
+    message.success(t('instances.connectSuccess', { name: displayName(profile) }))
     // 连接成功后静默测一次延迟（不点亮「测试」按钮），省去用户再点「测试」
     void probeSilently(profile)
   } catch (error) {
@@ -213,18 +274,228 @@ function edit(profile: ConnectionProfile) {
 function openConnectionDialog() {
   connectionStore.showConnectionDialog = true
 }
+
+/**
+ * 新增实例：连接对话框没有「打开即进入新建态」的入口（它打开时总是回到配置列表并选中当前预设），
+ * 所以这里用现有 store 能力组合出「新增」：先按默认配置建一个预设（卡片立刻出现在网格里），
+ * 再打开对话框让用户改地址/端口并保存。默认名复用 connection.newProfile（各语言均有译文）。
+ */
+async function addInstance() {
+  if (addingInstance.value) return
+  addingInstance.value = true
+  try {
+    await connectionStore.createProfile(t('connection.newProfile'))
+    openConnectionDialog()
+  } finally {
+    addingInstance.value = false
+  }
+}
+
+// ── 多实例说明提示条：与 DismissibleAlert 保持同一套 storageKey 约定（.session / .forever）──
+const NOTE_STORAGE_KEY = 'instances.note'
+const noteSessionKey = `${NOTE_STORAGE_KEY}.session`
+const noteForeverKey = `${NOTE_STORAGE_KEY}.forever`
+
+/** 存储不可用（隐私模式等）时按未关闭处理，不影响页面功能 */
+function readFlag(storage: Storage, key: string): boolean {
+  try {
+    return storage.getItem(key) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeFlag(storage: Storage, key: string): void {
+  try {
+    storage.setItem(key, '1')
+  } catch {
+    /* 存储不可用时仅本次页面实例生效 */
+  }
+}
+
+const noteVisible = ref(!readFlag(sessionStorage, noteSessionKey) && !readFlag(localStorage, noteForeverKey))
+
+/** 关闭：仅本次会话不再显示 */
+function closeNoteForSession(): void {
+  noteVisible.value = false
+  writeFlag(sessionStorage, noteSessionKey)
+}
+
+/** 不再显示：永久关闭 */
+function hideNoteForever(): void {
+  noteVisible.value = false
+  writeFlag(localStorage, noteForeverKey)
+}
 </script>
 
 <style scoped>
-.instance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
-.instance-card { border-radius: 10px; border: 1px solid var(--border-light); }
-.instance-card.active { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary) inset; }
-.instance-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.instance-name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-.instance-endpoint { margin-top: 10px; font-family: var(--font-mono, monospace); font-size: 12px; color: var(--text-secondary); word-break: break-all; }
-.instance-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--text-secondary); min-height: 18px; }
-.instance-muted { opacity: 0.75; }
-.instance-error { color: var(--color-error); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-.instance-card-actions { display: flex; gap: 8px; margin-top: 14px; }
-.instances-note { margin-top: 20px; }
+.instances-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-16);
+}
+
+/* PageHeader 自带 20px 下边距（v1 流式布局），这里改用 gap 统一节奏，避免叠加成 36px */
+.instances-view .page-head {
+  margin-bottom: 0;
+}
+
+/* 空态本身没有表面，套一层与卡片同款的面，避免文字直接浮在 app 背景上 */
+.instances-empty {
+  flex: 1;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ds-bg-surface);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
+}
+
+.instance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--ds-space-16);
+}
+
+.instance-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-12);
+  min-width: 0;
+  padding: var(--ds-space-16);
+  background: var(--ds-bg-surface);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
+  transition: border-color var(--ds-motion-dur-2) var(--ds-motion-ease-out);
+}
+
+.instance-card:hover {
+  border-color: var(--ds-border-base);
+}
+
+/* 当前已连接的实例：只提亮描边，不加阴影（v2 里阴影只属于浮层） */
+.instance-card--active {
+  border-color: var(--ds-accent-border);
+}
+
+.instance-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+.instance-card__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+.instance-card__name {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--ds-text-bodyLg-size);
+  line-height: var(--ds-text-bodyLg-leading);
+  font-weight: 600;
+  color: var(--ds-text-strong);
+}
+
+/* 「当前」标记：accent-subtle 底 + accent 文字（直接给属性，避免与 naive 的 --n-color 抢优先级） */
+.instance-card__current {
+  flex: none;
+  background: var(--ds-accent-subtle);
+  color: var(--ds-accent-text);
+}
+
+.instance-card__status {
+  flex: none;
+}
+
+.instance-card__endpoint {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-muted);
+}
+
+.instance-card__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ds-space-8);
+  min-width: 0;
+  min-height: var(--ds-space-16);
+}
+
+.instance-card__version {
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-base);
+}
+
+/* 延迟数值统一右对齐 + 等宽数字，多卡并排时数值能对齐 */
+.instance-card__latency {
+  margin-left: auto;
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.instance-card__error {
+  margin: 0;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-status-danger-text);
+}
+
+.instance-card__hint {
+  margin: 0;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-faint);
+}
+
+/* 操作固定在卡片底部：同一行卡片高度不齐时按钮仍然对齐 */
+.instance-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-8);
+  margin-top: auto;
+  padding-top: var(--ds-space-4);
+}
+
+.instance-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-12);
+  padding: var(--ds-space-12) var(--ds-space-16);
+  background: var(--ds-bg-surface);
+  border: 1px solid var(--ds-border-subtle);
+  border-left: 2px solid var(--ds-accent);
+  border-radius: var(--ds-radius-md);
+}
+
+.instance-note__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
+  color: var(--ds-text-base);
+}
+
+.instance-note__actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-4);
+}
+
+.instance-note__forever {
+  color: var(--ds-accent-text);
+}
 </style>

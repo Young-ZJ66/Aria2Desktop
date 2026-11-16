@@ -132,13 +132,13 @@ const columns = computed<DataTableColumns<ServerRow>>(() => [
 
 <style scoped>
 .info-card {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
+  background: var(--ds-bg-surface);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
 }
 
 .info-card :deep(.n-data-table) {
-  font-size: 13px;
+  font-size: var(--ds-text-body-size);
 }
 
 .info-card :deep(.n-data-table-th) {
