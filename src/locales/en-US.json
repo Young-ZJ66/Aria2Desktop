@@ -1529,7 +1529,8 @@
     "copied": "Copied to clipboard",
     "copyFailed": "Copy failed",
     "yesterday": "Yesterday",
-    "browse": "Browse"
+    "browse": "Browse",
+    "refresh": "Refresh"
   },
   "queue": {
     "title": "Queue",

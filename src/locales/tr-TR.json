@@ -1529,7 +1529,8 @@
     "copied": "Panoya kopyalandı",
     "copyFailed": "Kopyalama başarısız",
     "yesterday": "Dün",
-    "browse": "Göz at"
+    "browse": "Göz at",
+    "refresh": "Yenile"
   },
   "queue": {
     "title": "Kuyruk",

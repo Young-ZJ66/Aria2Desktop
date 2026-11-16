@@ -1529,7 +1529,8 @@
     "copied": "已複製到剪貼簿",
     "copyFailed": "複製失敗",
     "yesterday": "昨天",
-    "browse": "瀏覽"
+    "browse": "瀏覽",
+    "refresh": "重新整理"
   },
   "queue": {
     "title": "佇列",

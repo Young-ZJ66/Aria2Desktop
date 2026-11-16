@@ -1529,7 +1529,8 @@
     "copied": "Disalin ke clipboard",
     "copyFailed": "Penyalinan gagal",
     "yesterday": "Kemarin",
-    "browse": "Telusuri"
+    "browse": "Telusuri",
+    "refresh": "Segarkan"
   },
   "queue": {
     "title": "Antrean",

@@ -1529,7 +1529,8 @@
     "copied": "Zkopírováno do schránky",
     "copyFailed": "Kopírování se nezdařilo",
     "yesterday": "Včera",
-    "browse": "Procházet"
+    "browse": "Procházet",
+    "refresh": "Obnovit"
   },
   "queue": {
     "title": "Fronta",

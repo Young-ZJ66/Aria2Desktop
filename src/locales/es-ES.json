@@ -1529,7 +1529,8 @@
     "copied": "Copiado al portapapeles",
     "copyFailed": "Error al copiar",
     "yesterday": "Ayer",
-    "browse": "Examinar"
+    "browse": "Examinar",
+    "refresh": "Actualizar"
   },
   "queue": {
     "title": "Cola",

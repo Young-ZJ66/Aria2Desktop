@@ -1529,7 +1529,8 @@
     "copied": "Naar klembord gekopieerd",
     "copyFailed": "Kopiëren mislukt",
     "yesterday": "Gisteren",
-    "browse": "Bladeren"
+    "browse": "Bladeren",
+    "refresh": "Vernieuwen"
   },
   "queue": {
     "title": "Wachtrij",

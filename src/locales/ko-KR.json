@@ -1529,7 +1529,8 @@
     "copied": "클립보드에 복사되었습니다",
     "copyFailed": "복사 실패",
     "yesterday": "어제",
-    "browse": "찾아보기"
+    "browse": "찾아보기",
+    "refresh": "새로 고침"
   },
   "queue": {
     "title": "대기열 관리",

@@ -14,7 +14,7 @@
       <template #header>
         <div class="drawer-header">
           <span>{{ t('task.taskDetail') }}</span>
-          <n-button size="small" quaternary :loading="refreshing" @click="refresh">
+          <n-button size="small" quaternary :loading="refreshing" :aria-label="t('common.refresh')" @click="refresh">
             <template #icon>
               <n-icon><RefreshOutline /></n-icon>
             </template>

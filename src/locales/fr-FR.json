@@ -1529,7 +1529,8 @@
     "copied": "Copié dans le presse-papiers",
     "copyFailed": "Échec de la copie",
     "yesterday": "Hier",
-    "browse": "Parcourir"
+    "browse": "Parcourir",
+    "refresh": "Actualiser"
   },
   "queue": {
     "title": "Gestion de la file d'attente",

@@ -1529,7 +1529,8 @@
     "copied": "تم النسخ إلى الحافظة",
     "copyFailed": "فشل النسخ",
     "yesterday": "أمس",
-    "browse": "تصفح"
+    "browse": "تصفح",
+    "refresh": "تحديث"
   },
   "queue": {
     "title": "قائمة الانتظار",

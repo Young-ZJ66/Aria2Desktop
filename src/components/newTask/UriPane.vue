@@ -25,7 +25,7 @@
               <template #icon><n-icon><TimeOutline /></n-icon></template>
             </n-button>
           </n-popselect>
-          <n-button text :disabled="!isElectron" @click="selectDir">
+          <n-button text :disabled="!isElectron" :aria-label="t('common.browse')" @click="selectDir">
             <template #icon><n-icon><FolderOutline /></n-icon></template>
           </n-button>
         </template>

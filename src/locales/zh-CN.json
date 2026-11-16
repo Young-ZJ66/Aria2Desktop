@@ -1529,7 +1529,8 @@
     "copied": "已复制到剪贴板",
     "copyFailed": "复制失败",
     "yesterday": "昨天",
-    "browse": "浏览"
+    "browse": "浏览",
+    "refresh": "刷新"
   },
   "queue": {
     "title": "队列管理",

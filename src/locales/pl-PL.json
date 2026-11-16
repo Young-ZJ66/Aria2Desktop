@@ -1529,7 +1529,8 @@
     "copied": "Skopiowano do schowka",
     "copyFailed": "Kopiowanie nie powiodło się",
     "yesterday": "Wczoraj",
-    "browse": "Przeglądaj"
+    "browse": "Przeglądaj",
+    "refresh": "Odśwież"
   },
   "queue": {
     "title": "Kolejka",

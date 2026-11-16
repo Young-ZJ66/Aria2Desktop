@@ -1529,7 +1529,8 @@
     "copied": "Copiato negli appunti",
     "copyFailed": "Copia non riuscita",
     "yesterday": "Ieri",
-    "browse": "Sfoglia"
+    "browse": "Sfoglia",
+    "refresh": "Aggiorna"
   },
   "queue": {
     "title": "Coda",

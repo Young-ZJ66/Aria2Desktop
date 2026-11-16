@@ -1529,7 +1529,8 @@
     "copied": "In die Zwischenablage kopiert",
     "copyFailed": "Kopieren fehlgeschlagen",
     "yesterday": "Gestern",
-    "browse": "Durchsuchen"
+    "browse": "Durchsuchen",
+    "refresh": "Aktualisieren"
   },
   "queue": {
     "title": "Warteschlangenverwaltung",

@@ -1529,7 +1529,8 @@
     "copied": "クリップボードにコピーしました",
     "copyFailed": "コピーに失敗しました",
     "yesterday": "昨日",
-    "browse": "参照"
+    "browse": "参照",
+    "refresh": "更新"
   },
   "queue": {
     "title": "キューの管理",
