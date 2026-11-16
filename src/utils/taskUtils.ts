@@ -122,15 +122,15 @@ export function formatTime(seconds: number): string {
   // 守卫非有限值/非正值：负数会因 Math.floor 向下取整输出 "-1:-1"，Infinity/NaN 输出乱码
   if (!Number.isFinite(seconds) || seconds <= 0) return '--'
 
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
+  // 固定三段 H:MM:SS：v1 不足一小时输出「44:10」、超过一小时输出「4:43:27」，
+  // 同一列里前者到底是 44 分钟还是 44 小时全靠猜；固定段数后既无歧义，
+  // 配合右对齐 + 等宽数字，整列的小时/分钟/秒也能对齐。
+  const total = Math.floor(seconds)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const secs = total % 60
 
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  } else {
-    return `${minutes}:${secs.toString().padStart(2, '0')}`
-  }
+  return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
 // 搜索过滤

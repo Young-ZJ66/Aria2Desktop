@@ -97,6 +97,15 @@
           <n-button size="small" @click="edit(profile)">{{ t('instances.edit') }}</n-button>
         </div>
       </article>
+
+      <!--
+        末位虚线「新增实例」卡：单实例时网格右侧和下方是一整片空白，
+        放一张可点的槽位卡既收口又给出下一步动作（与页头按钮同源，不新增入口）。
+      -->
+      <button class="instance-add" type="button" @click="addInstance">
+        <n-icon size="22"><AddOutline /></n-icon>
+        <span>{{ t('instances.add') }}</span>
+      </button>
     </div>
   </div>
 </template>
@@ -356,6 +365,35 @@ function hideNoteForever(): void {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: var(--ds-space-16);
+}
+
+/* 新增实例的槽位卡：虚线 + 无底色，读起来是「这里还能放一个」而不是「已有一张卡」 */
+.instance-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-8);
+  min-height: 156px;
+  padding: var(--ds-space-16);
+  font-family: inherit;
+  font-size: var(--ds-text-small-size);
+  font-weight: 500;
+  color: var(--ds-text-muted);
+  background: transparent;
+  border: 1px dashed var(--ds-border-base);
+  border-radius: var(--ds-radius-lg);
+  cursor: pointer;
+  transition:
+    color var(--ds-motion-dur-2) var(--ds-motion-ease-out),
+    border-color var(--ds-motion-dur-2) var(--ds-motion-ease-out),
+    background-color var(--ds-motion-dur-2) var(--ds-motion-ease-out);
+}
+
+.instance-add:hover {
+  color: var(--ds-accent-text);
+  border-color: var(--ds-accent-border);
+  background: var(--ds-accent-subtle);
 }
 
 .instance-card {

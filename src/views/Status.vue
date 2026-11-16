@@ -612,15 +612,36 @@ function updateTrafficChart() {
   padding-left: var(--ds-space-24);
 }
 
+/*
+  1100 以下不再改列数，只压缩间距：5 是个奇数，按 3 列排是 3+2、按 2 列排是 2+2+1，
+  右下角永远缺一块。960 窗口内容区仍有约 670px，5 列各 110px 放得下四五个字的标签，
+  所以宁可挤一点也不换行。
+*/
 @media (max-width: 1100px) {
   .metric-band {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    row-gap: var(--ds-space-20);
+    gap: var(--ds-space-12);
+    padding: var(--ds-space-16);
+  }
+
+  .stat-cell + .stat-cell {
+    padding-left: var(--ds-space-12);
+  }
+}
+
+/* 真正放不下时退成两列，令第 5 项整行铺满，避免最后一行右侧留空 */
+@media (max-width: 760px) {
+  .metric-band {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: var(--ds-space-16);
   }
 
   .stat-cell + .stat-cell {
     border-left: none;
     padding-left: 0;
+  }
+
+  .stat-cell:last-child {
+    grid-column: 1 / -1;
   }
 }
 
