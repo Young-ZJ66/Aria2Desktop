@@ -154,6 +154,8 @@ async function handleLimitPreset(key: string | number) {
   background: transparent;
   border-radius: 6px;
   padding: 4px 8px;
+  /* 触控目标 ≥24px（WCAG 2.5.8 AA），视觉上只比原来高 2px */
+  min-height: 24px;
   font-size: 12px;
   color: var(--text-secondary);
   cursor: pointer;

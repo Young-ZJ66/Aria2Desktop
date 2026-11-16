@@ -36,26 +36,34 @@
       <n-divider />
 
       <div class="retry-panel">
-        <n-switch v-model:value="retryEnabled" size="small" @update:value="scheduleRetryPolicy" />
-        <span class="retry-label">{{ t('queue.retryEnabled') }}</span>
-        <n-input-number
-          v-model:value="retryMaxAttempts"
-          size="small"
-          :min="1"
-          :max="20"
-          :disabled="!retryEnabled"
-          @update:value="scheduleRetryPolicy"
-        />
-        <span class="retry-hint">{{ t('queue.retryMaxAttempts') }}</span>
-        <n-input-number
-          v-model:value="retryDelaySeconds"
-          size="small"
-          :min="0"
-          :max="3600"
-          :disabled="!retryEnabled"
-          @update:value="scheduleRetryPolicy"
-        />
-        <span class="retry-hint">{{ t('queue.retryDelaySeconds') }}</span>
+        <div class="retry-item">
+          <span class="retry-label">{{ t('queue.retryEnabled') }}</span>
+          <n-switch v-model:value="retryEnabled" size="small" @update:value="scheduleRetryPolicy" />
+        </div>
+        <div class="retry-item">
+          <span class="retry-hint">{{ t('queue.retryMaxAttempts') }}</span>
+          <n-input-number
+            v-model:value="retryMaxAttempts"
+            size="small"
+            class="retry-number"
+            :min="1"
+            :max="20"
+            :disabled="!retryEnabled"
+            @update:value="scheduleRetryPolicy"
+          />
+        </div>
+        <div class="retry-item">
+          <span class="retry-hint">{{ t('queue.retryDelaySeconds') }}</span>
+          <n-input-number
+            v-model:value="retryDelaySeconds"
+            size="small"
+            class="retry-number"
+            :min="0"
+            :max="3600"
+            :disabled="!retryEnabled"
+            @update:value="scheduleRetryPolicy"
+          />
+        </div>
       </div>
 
       <div class="queue-table-wrap">
@@ -255,8 +263,17 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 8px 20px;
   margin-bottom: 12px;
+}
+/* 标签在前、控件在后成对分组，避免读成「数值 = 前一个标签」 */
+.retry-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.retry-number {
+  width: 96px;
 }
 .retry-label {
   font-size: 13px;

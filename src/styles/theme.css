@@ -319,6 +319,28 @@ html.theme-transition ::-webkit-scrollbar-thumb {
 }
 
 /* =========================================
+   触控目标（WCAG 2.5.8 AA：可点击目标至少 24×24 CSS px）
+   只抬高最小命中区域，不改字号、图标与内边距的观感，
+   避免为了达标把表格行、输入框后缀等本就紧凑的地方整体撑大
+   ========================================= */
+.n-button--tiny-type {
+  min-width: 24px;
+  min-height: 24px;
+}
+
+/* 弹窗/抽屉右上角关闭按钮：naive 用 --n-close-size 控制命中区 */
+.n-base-close {
+  --n-close-size: 24px;
+}
+
+/* InputNumber 的加减按钮是 18×18 的 text 按钮（没有 text-type 类名）：
+   补足到 24×24 的最小命中区域，避免在紧凑表单里点不中 */
+.n-input__suffix .n-button {
+  min-width: 24px;
+  min-height: 24px;
+}
+
+/* =========================================
    全局"减少动态"兜底：
    系统开启减少动态时，停用所有可与动效（动画、过渡），
    覆盖上文 theme-transition 的个别规则，保证体验一致

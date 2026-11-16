@@ -1,5 +1,5 @@
 <template>
-  <div ref="pageRef" class="settings-page">
+  <div ref="pageRef" class="settings-page" :class="{ 'settings-page--with-actions': showActions }">
     <div class="settings-header">
       <h2>{{ title }}</h2>
       <p v-if="description" class="settings-description">{{ description }}</p>
@@ -19,7 +19,7 @@
       <slot />
     </n-spin>
 
-    <div v-if="showActions" ref="actionsRef" class="settings-actions">
+    <div v-if="showActions" class="settings-actions">
       <n-space>
         <n-button type="primary" :loading="saving" :disabled="disabled" @click="$emit('save')">
           {{ t('settings.save') }}
@@ -93,10 +93,9 @@ defineEmits<{
 const { t } = useI18n()
 
 const pageRef = ref<HTMLElement | null>(null)
-const actionsRef = ref<HTMLElement | null>(null)
 const showFloatActions = ref(false)
 let scrollContainer: HTMLElement | null = null
-let actionsObserver: IntersectionObserver | null = null
+let scrollHandler: (() => void) | null = null
 
 // 向上查找最近的滚动容器（兼容路由页面与设置对话框两种承载方式）
 function findScrollContainer(el: HTMLElement): HTMLElement | null {
@@ -109,26 +108,33 @@ function findScrollContainer(el: HTMLElement): HTMLElement | null {
   return null
 }
 
+// 悬浮操作栏只在「页面内容超出可视区、且尚未滚到底部」时出现。
+// 用滚动位置直接计算而不是 IntersectionObserver：设置页在弹窗/页签里可能处于
+// 隐藏容器中，观察器的初始回调时机不稳定，会出现该显示时不显示。
+function updateFloatActions(): void {
+  if (!scrollContainer) return
+  const scrollable = scrollContainer.scrollHeight > scrollContainer.clientHeight + 4
+  const atBottom = scrollContainer.scrollTop + scrollContainer.clientHeight >= scrollContainer.scrollHeight - 8
+  showFloatActions.value = scrollable && !atBottom
+}
+
 onMounted(() => {
-  if (props.showActions && pageRef.value && actionsRef.value) {
-    scrollContainer = findScrollContainer(pageRef.value)
-    if (scrollContainer) {
-      // 捕获为局部常量：闭包里 TS 无法保证外部 let 变量仍非空
-      const container = scrollContainer
-      // 底部操作按钮不可见时显示悬浮栏；一旦按钮进入视口（含到达底部）立即隐藏，避免下滑闪烁
-      actionsObserver = new IntersectionObserver(([entry]) => {
-        if (!entry) return
-        const scrollable = container.scrollHeight > container.clientHeight + 4
-        showFloatActions.value = scrollable && !entry.isIntersecting
-      }, { root: container, threshold: 0 })
-      actionsObserver.observe(actionsRef.value)
-    }
-  }
+  if (!props.showActions || !pageRef.value) return
+  scrollContainer = findScrollContainer(pageRef.value)
+  if (!scrollContainer) return
+  // 捕获为局部常量：闭包里 TS 无法保证外部 let 变量仍非空
+  const container = scrollContainer
+  scrollHandler = () => updateFloatActions()
+  container.addEventListener('scroll', scrollHandler, { passive: true })
+  requestAnimationFrame(updateFloatActions)
 })
 
 onBeforeUnmount(() => {
-  actionsObserver?.disconnect()
-  actionsObserver = null
+  if (scrollContainer && scrollHandler) {
+    scrollContainer.removeEventListener('scroll', scrollHandler)
+  }
+  scrollHandler = null
+  scrollContainer = null
 })
 </script>
 
@@ -138,6 +144,12 @@ onBeforeUnmount(() => {
   max-width: 860px;
   margin: 0 auto;
   padding: 2px 0 10px;
+}
+
+/* 带底部操作栏的页面：给悬浮栏留出高度，否则滚动时最后一行会被浮条压住。
+   悬浮栏约 56px（按钮 34 + 内边距/阴影），多留一点余量。 */
+.settings-page.settings-page--with-actions {
+  padding-bottom: 72px;
 }
 
 .settings-header {
