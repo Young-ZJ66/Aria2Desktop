@@ -4,6 +4,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
+import { installFormA11y } from './utils/formA11y'
 import './styles/theme.css'
 
 const app = createApp(App)
@@ -63,3 +64,6 @@ window.addEventListener('error', (event) => {
 })
 
 app.mount('#app')
+
+// 给 naive-ui 的表单字段补上可访问名称（n-form-item 没有 for/id 关联）
+installFormA11y()

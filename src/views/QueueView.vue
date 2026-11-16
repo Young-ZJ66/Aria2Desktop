@@ -38,7 +38,7 @@
       <div class="retry-panel">
         <div class="retry-item">
           <span class="retry-label">{{ t('queue.retryEnabled') }}</span>
-          <n-switch v-model:value="retryEnabled" size="small" @update:value="scheduleRetryPolicy" />
+          <n-switch v-model:value="retryEnabled" size="small" :aria-label="t('queue.retryEnabled')" @update:value="scheduleRetryPolicy" />
         </div>
         <div class="retry-item">
           <span class="retry-hint">{{ t('queue.retryMaxAttempts') }}</span>

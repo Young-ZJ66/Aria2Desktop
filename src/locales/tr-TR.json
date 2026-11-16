@@ -604,7 +604,8 @@
       "newRuleNameReq": "Lütfen bir kural adı girin",
       "newRuleDirReq": "Lütfen bir alt dizin adı girin",
       "dirPlaceholder": "Hedef dizin, varsayılan için boş bırakın",
-      "fileTypes": "Dosya Türleri"
+      "fileTypes": "Dosya Türleri",
+      "addFileType": "Dosya türü ekle"
     },
     "network": {
       "description": "Zaman aşımı yeniden denemesi, proxy ve ağ davranışını yapılandırın",
@@ -861,7 +862,8 @@
       "pieceLength": "BT Parça Boyutu",
       "pieceLengthTip": "BitTorrent dosyasının parça boyutu (MB)",
       "allowPieceLengthChange": "BT Parça Boyutu Değişikliğine İzin Ver",
-      "allowPieceLengthChangeTip": "aria2'nin indirme sırasında bağlantılara ve dosya boyutuna göre BT parça boyutunu otomatik ayarlamasına izin ver (bellek kullanımını azaltır)"
+      "allowPieceLengthChangeTip": "aria2'nin indirme sırasında bağlantılara ve dosya boyutuna göre BT parça boyutunu otomatik ayarlamasına izin ver (bellek kullanımını azaltır)",
+      "removeTrackerSource": "Kaynağı kaldır"
     },
     "metalink": {
       "description": "Metalink dosyası indirme eşleştirmesini ve davranışını yapılandırın",
@@ -1506,7 +1508,8 @@
     "stopFailed": "Aria2 durdurulamadı: {error}",
     "operatingWait": "Aria2 meşgul, lütfen bekleyin",
     "restartSuccess": "Aria2 yeniden başlatıldı",
-    "updateConfigFailed": "Aria2 yapılandırması güncellenemedi: {error}"
+    "updateConfigFailed": "Aria2 yapılandırması güncellenemedi: {error}",
+    "refresh": "Durumu yenile"
   },
   "common": {
     "confirm": "Onayla",
@@ -1525,7 +1528,8 @@
     "copy": "Kopyala",
     "copied": "Panoya kopyalandı",
     "copyFailed": "Kopyalama başarısız",
-    "yesterday": "Dün"
+    "yesterday": "Dün",
+    "browse": "Göz at"
   },
   "queue": {
     "title": "Kuyruk",

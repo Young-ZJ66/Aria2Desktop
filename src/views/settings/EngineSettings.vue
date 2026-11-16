@@ -14,6 +14,7 @@
           circle
           class="refresh-button"
           :loading="isRefreshing"
+          :aria-label="t('localService.refresh')"
           @click="refreshStatus"
         >
           <n-icon><RefreshOutline /></n-icon>
@@ -140,7 +141,8 @@
             :placeholder="t('localService.downloadDirPlaceholder')"
           >
             <template #suffix>
-              <n-button text @click="selectDownloadDir">
+              <n-button
+                :aria-label="t('common.browse')" text @click="selectDownloadDir">
                 <template #icon>
                   <n-icon><FolderOutline /></n-icon>
                 </template>

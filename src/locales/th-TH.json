@@ -604,7 +604,8 @@
       "newRuleNameReq": "โปรดใส่ชื่อกฎ",
       "newRuleDirReq": "โปรดใส่ชื่อโฟลเดอร์ย่อย",
       "dirPlaceholder": "โฟลเดอร์เป้าหมาย เว้นว่างเพื่อใช้ค่าเริ่มต้น",
-      "fileTypes": "ประเภทไฟล์"
+      "fileTypes": "ประเภทไฟล์",
+      "addFileType": "เพิ่มชนิดไฟล์"
     },
     "network": {
       "description": "กำหนดค่าการหมดเวลา การลองใหม่ พร็อกซี และพฤติกรรมเครือข่าย",
@@ -861,7 +862,8 @@
       "pieceLength": "ขนาดชิ้นข้อมูล BT",
       "pieceLengthTip": "ขนาดชิ้นข้อมูลของไฟล์ BitTorrent (MB)",
       "allowPieceLengthChange": "อนุญาตให้เปลี่ยนขนาดชิ้นข้อมูล BT",
-      "allowPieceLengthChangeTip": "อนุญาตให้ aria2 ปรับขนาดชิ้นข้อมูล BT อัตโนมัติระหว่างดาวน์โหลดตามการเชื่อมต่อและขนาดไฟล์ เพื่อลดการใช้หน่วยความจำ"
+      "allowPieceLengthChangeTip": "อนุญาตให้ aria2 ปรับขนาดชิ้นข้อมูล BT อัตโนมัติระหว่างดาวน์โหลดตามการเชื่อมต่อและขนาดไฟล์ เพื่อลดการใช้หน่วยความจำ",
+      "removeTrackerSource": "ลบแหล่งที่มา"
     },
     "metalink": {
       "description": "กำหนดค่าการจับคู่และการทำงานของการดาวน์โหลดไฟล์ Metalink",
@@ -1506,7 +1508,8 @@
     "stopFailed": "หยุด Aria2 ไม่สำเร็จ: {error}",
     "operatingWait": "Aria2 กำลังยุ่ง โปรดรอ",
     "restartSuccess": "รีสตาร์ท Aria2 แล้ว",
-    "updateConfigFailed": "อัปเดตการกำหนดค่า Aria2 ไม่สำเร็จ: {error}"
+    "updateConfigFailed": "อัปเดตการกำหนดค่า Aria2 ไม่สำเร็จ: {error}",
+    "refresh": "รีเฟรชสถานะ"
   },
   "common": {
     "confirm": "ยืนยัน",
@@ -1525,7 +1528,8 @@
     "copy": "คัดลอก",
     "copied": "คัดลอกไปยังคลิปบอร์ดแล้ว",
     "copyFailed": "คัดลอกไม่สำเร็จ",
-    "yesterday": "เมื่อวาน"
+    "yesterday": "เมื่อวาน",
+    "browse": "เรียกดู"
   },
   "queue": {
     "title": "คิว",

@@ -604,7 +604,8 @@
       "newRuleNameReq": "규칙 이름을 입력하세요",
       "newRuleDirReq": "하위 디렉터리 이름을 입력하세요",
       "dirPlaceholder": "대상 디렉터리, 기본값을 사용하려면 비워 두세요",
-      "fileTypes": "파일 유형"
+      "fileTypes": "파일 유형",
+      "addFileType": "파일 형식 추가"
     },
     "network": {
       "description": "시간 초과 재시도, 프록시 및 네트워크 동작을 구성합니다",
@@ -861,7 +862,8 @@
       "pieceLength": "BT 조각 크기",
       "pieceLengthTip": "BitTorrent 파일의 조각 크기(MB)",
       "allowPieceLengthChange": "BT 조각 크기 변경 허용",
-      "allowPieceLengthChangeTip": "다운로드 중 연결 수와 파일 크기에 따라 aria2가 BT 조각 크기를 자동 조정하여 메모리 사용량을 줄이도록 허용"
+      "allowPieceLengthChangeTip": "다운로드 중 연결 수와 파일 크기에 따라 aria2가 BT 조각 크기를 자동 조정하여 메모리 사용량을 줄이도록 허용",
+      "removeTrackerSource": "소스 삭제"
     },
     "metalink": {
       "description": "Metalink 파일 다운로드 매칭 및 동작을 구성합니다",
@@ -1506,7 +1508,8 @@
     "stopFailed": "Aria2를 중지하지 못했습니다: {error}",
     "operatingWait": "Aria2가 사용 중입니다. 기다려 주세요",
     "restartSuccess": "Aria2가 다시 시작되었습니다",
-    "updateConfigFailed": "Aria2 구성을 업데이트하지 못했습니다: {error}"
+    "updateConfigFailed": "Aria2 구성을 업데이트하지 못했습니다: {error}",
+    "refresh": "상태 새로고침"
   },
   "common": {
     "confirm": "확인",
@@ -1525,7 +1528,8 @@
     "copy": "복사",
     "copied": "클립보드에 복사되었습니다",
     "copyFailed": "복사 실패",
-    "yesterday": "어제"
+    "yesterday": "어제",
+    "browse": "찾아보기"
   },
   "queue": {
     "title": "대기열 관리",

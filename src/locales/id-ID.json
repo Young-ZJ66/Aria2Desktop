@@ -604,7 +604,8 @@
       "newRuleNameReq": "Masukkan nama aturan",
       "newRuleDirReq": "Masukkan nama subdirektori",
       "dirPlaceholder": "Direktori tujuan, biarkan kosong untuk default",
-      "fileTypes": "Jenis File"
+      "fileTypes": "Jenis File",
+      "addFileType": "Tambah jenis file"
     },
     "network": {
       "description": "Konfigurasikan timeout, percobaan ulang, proxy, dan perilaku jaringan",
@@ -861,7 +862,8 @@
       "pieceLength": "Ukuran Bagian BT",
       "pieceLengthTip": "Ukuran bagian file BitTorrent (MB)",
       "allowPieceLengthChange": "Izinkan Perubahan Ukuran Bagian BT",
-      "allowPieceLengthChangeTip": "Izinkan aria2 menyesuaikan ukuran bagian BT secara otomatis selama unduhan berdasarkan koneksi dan ukuran file untuk mengurangi penggunaan memori"
+      "allowPieceLengthChangeTip": "Izinkan aria2 menyesuaikan ukuran bagian BT secara otomatis selama unduhan berdasarkan koneksi dan ukuran file untuk mengurangi penggunaan memori",
+      "removeTrackerSource": "Hapus sumber"
     },
     "metalink": {
       "description": "Konfigurasikan pencocokan dan perilaku unduhan file Metalink",
@@ -1506,7 +1508,8 @@
     "stopFailed": "Gagal menghentikan Aria2: {error}",
     "operatingWait": "Aria2 sedang sibuk, harap tunggu",
     "restartSuccess": "Aria2 dimulai ulang",
-    "updateConfigFailed": "Gagal memperbarui konfigurasi Aria2: {error}"
+    "updateConfigFailed": "Gagal memperbarui konfigurasi Aria2: {error}",
+    "refresh": "Segarkan status"
   },
   "common": {
     "confirm": "Konfirmasi",
@@ -1525,7 +1528,8 @@
     "copy": "Salin",
     "copied": "Disalin ke clipboard",
     "copyFailed": "Penyalinan gagal",
-    "yesterday": "Kemarin"
+    "yesterday": "Kemarin",
+    "browse": "Telusuri"
   },
   "queue": {
     "title": "Antrean",

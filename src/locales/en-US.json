@@ -604,7 +604,8 @@
       "newRuleNameReq": "Please enter a rule name",
       "newRuleDirReq": "Please enter a subdirectory name",
       "dirPlaceholder": "Target directory, leave empty for default",
-      "fileTypes": "File Types"
+      "fileTypes": "File Types",
+      "addFileType": "Add file type"
     },
     "network": {
       "description": "Configure timeout retry, proxy and network behavior",
@@ -861,7 +862,8 @@
       "pieceLength": "BT Piece Size",
       "pieceLengthTip": "Piece size of the BitTorrent file (MB)",
       "allowPieceLengthChange": "Allow BT Piece Size Change",
-      "allowPieceLengthChangeTip": "Allow aria2 to auto-adjust BT piece size during download based on connections and file size to reduce memory usage"
+      "allowPieceLengthChangeTip": "Allow aria2 to auto-adjust BT piece size during download based on connections and file size to reduce memory usage",
+      "removeTrackerSource": "Remove source"
     },
     "metalink": {
       "description": "Configure Metalink file download matching and behavior",
@@ -1506,7 +1508,8 @@
     "stopFailed": "Failed to stop Aria2: {error}",
     "operatingWait": "Aria2 is busy, please wait",
     "restartSuccess": "Aria2 restarted",
-    "updateConfigFailed": "Failed to update Aria2 config: {error}"
+    "updateConfigFailed": "Failed to update Aria2 config: {error}",
+    "refresh": "Refresh status"
   },
   "common": {
     "confirm": "Confirm",
@@ -1525,7 +1528,8 @@
     "copy": "Copy",
     "copied": "Copied to clipboard",
     "copyFailed": "Copy failed",
-    "yesterday": "Yesterday"
+    "yesterday": "Yesterday",
+    "browse": "Browse"
   },
   "queue": {
     "title": "Queue",

@@ -604,7 +604,8 @@
       "newRuleNameReq": "Veuillez saisir un nom de règle",
       "newRuleDirReq": "Veuillez saisir un nom de sous-dossier",
       "dirPlaceholder": "Dossier cible, laisser vide pour la valeur par défaut",
-      "fileTypes": "Types de fichiers"
+      "fileTypes": "Types de fichiers",
+      "addFileType": "Ajouter un type de fichier"
     },
     "network": {
       "description": "Configurez les délais d'attente, les tentatives, le proxy et le comportement réseau",
@@ -861,7 +862,8 @@
       "pieceLength": "Taille des blocs BT",
       "pieceLengthTip": "Taille des blocs du fichier BitTorrent (Mo)",
       "allowPieceLengthChange": "Autoriser la modification de la taille des blocs BT",
-      "allowPieceLengthChangeTip": "Autoriser aria2 à ajuster automatiquement la taille des blocs BT pendant le téléchargement selon les connexions et la taille du fichier afin de réduire l'utilisation de la mémoire"
+      "allowPieceLengthChangeTip": "Autoriser aria2 à ajuster automatiquement la taille des blocs BT pendant le téléchargement selon les connexions et la taille du fichier afin de réduire l'utilisation de la mémoire",
+      "removeTrackerSource": "Supprimer la source"
     },
     "metalink": {
       "description": "Configurez la correspondance et le comportement du téléchargement des fichiers Metalink",
@@ -1506,7 +1508,8 @@
     "stopFailed": "Échec de l'arrêt d'Aria2 : {error}",
     "operatingWait": "Aria2 est occupé, veuillez patienter",
     "restartSuccess": "Aria2 redémarré",
-    "updateConfigFailed": "Échec de la mise à jour de la configuration d'Aria2 : {error}"
+    "updateConfigFailed": "Échec de la mise à jour de la configuration d'Aria2 : {error}",
+    "refresh": "Actualiser l'état"
   },
   "common": {
     "confirm": "Confirmer",
@@ -1525,7 +1528,8 @@
     "copy": "Copier",
     "copied": "Copié dans le presse-papiers",
     "copyFailed": "Échec de la copie",
-    "yesterday": "Hier"
+    "yesterday": "Hier",
+    "browse": "Parcourir"
   },
   "queue": {
     "title": "Gestion de la file d'attente",

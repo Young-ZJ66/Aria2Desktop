@@ -47,14 +47,16 @@
           <n-button size="small" quaternary @click="importTasks" :title="t('task.importTasks')">
             <template #icon><n-icon><ImportIcon /></n-icon></template>
           </n-button>
-          <!-- 分类 / 来源类型筛选：与现有表格页共用，不额外拆路由 -->
+          <!-- 分类 / 来源类型筛选：与现有表格页共用，不额外拆路由。
+               宽度按最长语言文案留足（德语/法语/波兰语等的「全部类型」比中文长一倍），
+               否则占位文字会被截断成省略号。 -->
           <n-select
             v-model:value="selectedCategory"
             :options="categoryOptions"
             :placeholder="t('task.allCategories')"
             size="small"
             clearable
-            style="width: 110px;"
+            style="width: 170px;"
           />
           <n-select
             v-model:value="selectedKind"
@@ -62,13 +64,13 @@
             :placeholder="t('task.allTypes')"
             size="small"
             clearable
-            style="width: 104px;"
+            style="width: 140px;"
           />
           <n-input
             v-model:value="searchText"
             :placeholder="t('task.searchPlaceholder')"
             clearable
-            style="flex: 0 0 200px; width: 200px;"
+            style="flex: 0 0 220px; width: 220px;"
           >
             <template #prefix>
               <n-icon><SearchOutline /></n-icon>

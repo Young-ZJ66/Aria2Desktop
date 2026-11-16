@@ -122,7 +122,8 @@
           </template>
           <n-input-group>
             <n-input v-model:value="settings.rpcCertificate" :placeholder="t('settings.rpc.rpcCertificatePlaceholder')" clearable />
-            <n-button @click="selectFile('rpcCertificate', t('settings.rpc.rpcCertificateDialog'))">
+            <n-button
+              :aria-label="t('common.browse')" @click="selectFile('rpcCertificate', t('settings.rpc.rpcCertificateDialog'))">
               <template #icon>
                 <n-icon><FolderOpenOutline /></n-icon>
               </template>
@@ -136,7 +137,8 @@
           </template>
           <n-input-group>
             <n-input v-model:value="settings.rpcPrivateKey" :placeholder="t('settings.rpc.rpcPrivateKeyPlaceholder')" clearable />
-            <n-button @click="selectFile('rpcPrivateKey', t('settings.rpc.rpcPrivateKeyDialog'))">
+            <n-button
+              :aria-label="t('common.browse')" @click="selectFile('rpcPrivateKey', t('settings.rpc.rpcPrivateKeyDialog'))">
               <template #icon>
                 <n-icon><FolderOpenOutline /></n-icon>
               </template>

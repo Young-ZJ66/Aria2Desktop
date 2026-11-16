@@ -604,7 +604,8 @@
       "newRuleNameReq": "Введіть назву правила",
       "newRuleDirReq": "Введіть назву підпапки",
       "dirPlaceholder": "Цільовий каталог, залиште порожнім для типового",
-      "fileTypes": "Типи файлів"
+      "fileTypes": "Типи файлів",
+      "addFileType": "Додати тип файлу"
     },
     "network": {
       "description": "Налаштуйте тайм-аути, повторні спроби, проксі та поведінку мережі",
@@ -861,7 +862,8 @@
       "pieceLength": "Розмір частини BT",
       "pieceLengthTip": "Розмір частини файлу BitTorrent (МБ)",
       "allowPieceLengthChange": "Дозволити зміну розміру частини BT",
-      "allowPieceLengthChangeTip": "Дозволити aria2 автоматично коригувати розмір частини BT під час завантаження залежно від з'єднань і розміру файлу, щоб зменшити використання пам'яті"
+      "allowPieceLengthChangeTip": "Дозволити aria2 автоматично коригувати розмір частини BT під час завантаження залежно від з'єднань і розміру файлу, щоб зменшити використання пам'яті",
+      "removeTrackerSource": "Видалити джерело"
     },
     "metalink": {
       "description": "Налаштуйте зіставлення та поведінку завантаження файлів Metalink",
@@ -1506,7 +1508,8 @@
     "stopFailed": "Не вдалося зупинити Aria2: {error}",
     "operatingWait": "Aria2 зайнятий; зачекайте",
     "restartSuccess": "Aria2 перезапущено",
-    "updateConfigFailed": "Не вдалося оновити конфігурацію Aria2: {error}"
+    "updateConfigFailed": "Не вдалося оновити конфігурацію Aria2: {error}",
+    "refresh": "Оновити стан"
   },
   "common": {
     "confirm": "Підтвердити",
@@ -1525,7 +1528,8 @@
     "copy": "Копіювати",
     "copied": "Скопійовано в буфер обміну",
     "copyFailed": "Не вдалося скопіювати",
-    "yesterday": "Учора"
+    "yesterday": "Учора",
+    "browse": "Огляд"
   },
   "queue": {
     "title": "Черга",

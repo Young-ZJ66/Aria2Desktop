@@ -604,7 +604,8 @@
       "newRuleNameReq": "Vui lòng nhập tên quy tắc",
       "newRuleDirReq": "Vui lòng nhập tên thư mục con",
       "dirPlaceholder": "Thư mục đích, để trống để dùng mặc định",
-      "fileTypes": "Loại tệp"
+      "fileTypes": "Loại tệp",
+      "addFileType": "Thêm loại tệp"
     },
     "network": {
       "description": "Cấu hình thời gian chờ, thử lại, proxy và hành vi mạng",
@@ -861,7 +862,8 @@
       "pieceLength": "Kích thước phân đoạn BT",
       "pieceLengthTip": "Kích thước phân đoạn của tệp BitTorrent (MB)",
       "allowPieceLengthChange": "Cho phép đổi kích thước phân đoạn BT",
-      "allowPieceLengthChangeTip": "Cho phép aria2 tự điều chỉnh kích thước phân đoạn BT khi tải xuống dựa trên kết nối và kích thước tệp để giảm dùng bộ nhớ"
+      "allowPieceLengthChangeTip": "Cho phép aria2 tự điều chỉnh kích thước phân đoạn BT khi tải xuống dựa trên kết nối và kích thước tệp để giảm dùng bộ nhớ",
+      "removeTrackerSource": "Xóa nguồn"
     },
     "metalink": {
       "description": "Cấu hình đối sánh và hành vi tải xuống tệp Metalink",
@@ -1506,7 +1508,8 @@
     "stopFailed": "Dừng Aria2 thất bại: {error}",
     "operatingWait": "Aria2 đang bận, vui lòng chờ",
     "restartSuccess": "Đã khởi động lại Aria2",
-    "updateConfigFailed": "Cập nhật cấu hình Aria2 thất bại: {error}"
+    "updateConfigFailed": "Cập nhật cấu hình Aria2 thất bại: {error}",
+    "refresh": "Làm mới trạng thái"
   },
   "common": {
     "confirm": "Xác nhận",
@@ -1525,7 +1528,8 @@
     "copy": "Sao chép",
     "copied": "Đã sao chép vào clipboard",
     "copyFailed": "Sao chép thất bại",
-    "yesterday": "Hôm qua"
+    "yesterday": "Hôm qua",
+    "browse": "Duyệt"
   },
   "queue": {
     "title": "Hàng đợi",

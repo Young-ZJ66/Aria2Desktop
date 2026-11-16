@@ -604,7 +604,8 @@
       "newRuleNameReq": "Zadejte název pravidla",
       "newRuleDirReq": "Zadejte název podadresáře",
       "dirPlaceholder": "Cílový adresář, ponechte prázdné pro výchozí",
-      "fileTypes": "Typy souborů"
+      "fileTypes": "Typy souborů",
+      "addFileType": "Přidat typ souboru"
     },
     "network": {
       "description": "Nakonfigurujte časové limity, opakování, proxy a chování sítě",
@@ -861,7 +862,8 @@
       "pieceLength": "Velikost části BT",
       "pieceLengthTip": "Velikost části souboru BitTorrent (MB)",
       "allowPieceLengthChange": "Povolit změnu velikosti části BT",
-      "allowPieceLengthChangeTip": "Povolit aria2 automaticky upravovat velikost části BT během stahování podle počtu připojení a velikosti souboru, aby se snížilo využití paměti"
+      "allowPieceLengthChangeTip": "Povolit aria2 automaticky upravovat velikost části BT během stahování podle počtu připojení a velikosti souboru, aby se snížilo využití paměti",
+      "removeTrackerSource": "Odebrat zdroj"
     },
     "metalink": {
       "description": "Nakonfigurujte párování a chování stahování souborů Metalink",
@@ -1506,7 +1508,8 @@
     "stopFailed": "Zastavení Aria2 se nezdařilo: {error}",
     "operatingWait": "Aria2 je zaneprázdněno, čekejte prosím",
     "restartSuccess": "Aria2 restartováno",
-    "updateConfigFailed": "Aktualizace konfigurace Aria2 se nezdařila: {error}"
+    "updateConfigFailed": "Aktualizace konfigurace Aria2 se nezdařila: {error}",
+    "refresh": "Obnovit stav"
   },
   "common": {
     "confirm": "Potvrdit",
@@ -1525,7 +1528,8 @@
     "copy": "Kopírovat",
     "copied": "Zkopírováno do schránky",
     "copyFailed": "Kopírování se nezdařilo",
-    "yesterday": "Včera"
+    "yesterday": "Včera",
+    "browse": "Procházet"
   },
   "queue": {
     "title": "Fronta",

@@ -51,7 +51,9 @@
           </template>
           <n-input-group>
             <n-input v-model:value="settings.dhtFilePath" :placeholder="t('settings.bt.dhtFilePathPlaceholder')" clearable />
-            <n-button @click="selectDhtFile('dhtFilePath')">
+            <n-button
+              :aria-label="t('common.browse')"
+              @click="selectDhtFile('dhtFilePath')">
               <template #icon>
                 <n-icon><FolderOpenOutline /></n-icon>
               </template>
@@ -106,7 +108,9 @@
           </template>
           <n-input-group>
             <n-input v-model:value="settings.dhtFilePath6" :placeholder="t('settings.bt.dhtFilePath6Placeholder')" clearable />
-            <n-button @click="selectDhtFile('dhtFilePath6')">
+            <n-button
+              :aria-label="t('common.browse')"
+              @click="selectDhtFile('dhtFilePath6')">
               <template #icon>
                 <n-icon><FolderOpenOutline /></n-icon>
               </template>
@@ -193,6 +197,7 @@
               <template #trigger>
                 <div class="tracker-source-item">
                   <n-checkbox
+                    :aria-label="source.name"
                     :checked="source.enabled"
                     :disabled="!trackerSupported"
                     @update:checked="(val: boolean) => toggleOfficialSource(source.name, val)"
@@ -224,6 +229,7 @@
               />
               <n-button
                 size="small"
+                :aria-label="t('settings.bt.removeTrackerSource')"
                 :disabled="!trackerSupported"
                 @click="removeCustomSource(index)"
               >

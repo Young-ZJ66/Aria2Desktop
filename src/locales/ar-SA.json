@@ -604,7 +604,8 @@
       "newRuleNameReq": "يرجى إدخال اسم القاعدة",
       "newRuleDirReq": "يرجى إدخال اسم المجلد الفرعي",
       "dirPlaceholder": "المجلد الهدف، اتركه فارغًا للافتراضي",
-      "fileTypes": "أنواع الملفات"
+      "fileTypes": "أنواع الملفات",
+      "addFileType": "إضافة نوع ملف"
     },
     "network": {
       "description": "تهيئة المهلة وإعادة المحاولة والوكيل وسلوك الشبكة",
@@ -861,7 +862,8 @@
       "pieceLength": "حجم قطعة BT",
       "pieceLengthTip": "حجم قطعة ملف BitTorrent (MB)",
       "allowPieceLengthChange": "السماح بتغيير حجم قطعة BT",
-      "allowPieceLengthChangeTip": "السماح لـ aria2 بضبط حجم قطعة BT تلقائيًا أثناء التنزيل بناءً على الاتصالات وحجم الملف لتقليل استخدام الذاكرة"
+      "allowPieceLengthChangeTip": "السماح لـ aria2 بضبط حجم قطعة BT تلقائيًا أثناء التنزيل بناءً على الاتصالات وحجم الملف لتقليل استخدام الذاكرة",
+      "removeTrackerSource": "إزالة المصدر"
     },
     "metalink": {
       "description": "تهيئة مطابقة وتنزيل ملفات Metalink وسلوكها",
@@ -1506,7 +1508,8 @@
     "stopFailed": "فشل إيقاف Aria2: {error}",
     "operatingWait": "Aria2 مشغول، يرجى الانتظار",
     "restartSuccess": "تمت إعادة تشغيل Aria2",
-    "updateConfigFailed": "فشل تحديث إعدادات Aria2: {error}"
+    "updateConfigFailed": "فشل تحديث إعدادات Aria2: {error}",
+    "refresh": "تحديث الحالة"
   },
   "common": {
     "confirm": "تأكيد",
@@ -1525,7 +1528,8 @@
     "copy": "نسخ",
     "copied": "تم النسخ إلى الحافظة",
     "copyFailed": "فشل النسخ",
-    "yesterday": "أمس"
+    "yesterday": "أمس",
+    "browse": "تصفح"
   },
   "queue": {
     "title": "قائمة الانتظار",

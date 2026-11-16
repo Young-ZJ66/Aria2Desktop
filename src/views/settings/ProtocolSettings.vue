@@ -167,6 +167,7 @@
               :disabled="!connectionStore.isConnected"
             />
             <n-button
+              :aria-label="t('common.browse')"
               :disabled="!connectionStore.isConnected"
               @click="selectFile('caCertificate', t('settings.protocol.caCertificateDialog'))"
             >
@@ -188,6 +189,7 @@
               :disabled="!connectionStore.isConnected"
             />
             <n-button
+              :aria-label="t('common.browse')"
               :disabled="!connectionStore.isConnected"
               @click="selectFile('certificate', t('settings.protocol.certificateDialog'))"
             >
@@ -209,6 +211,7 @@
               :disabled="!connectionStore.isConnected"
             />
             <n-button
+              :aria-label="t('common.browse')"
               :disabled="!connectionStore.isConnected"
               @click="selectFile('privateKey', t('settings.protocol.privateKeyDialog'))"
             >

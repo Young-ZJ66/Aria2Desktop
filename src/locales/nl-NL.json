@@ -604,7 +604,8 @@
       "newRuleNameReq": "Voer een regelnaam in",
       "newRuleDirReq": "Voer een naam voor de submap in",
       "dirPlaceholder": "Doelmap, leeg laten voor standaard",
-      "fileTypes": "Bestandstypen"
+      "fileTypes": "Bestandstypen",
+      "addFileType": "Bestandstype toevoegen"
     },
     "network": {
       "description": "Time-out, opnieuw proberen, proxy en netwerkgedrag configureren",
@@ -861,7 +862,8 @@
       "pieceLength": "BT-stukgrootte",
       "pieceLengthTip": "Stukgrootte van het BitTorrent-bestand (MB)",
       "allowPieceLengthChange": "Wijziging van BT-stukgrootte toestaan",
-      "allowPieceLengthChangeTip": "Toestaan dat aria2 de BT-stukgrootte tijdens de download automatisch aanpast op basis van verbindingen en bestandsgrootte om het geheugengebruik te verminderen"
+      "allowPieceLengthChangeTip": "Toestaan dat aria2 de BT-stukgrootte tijdens de download automatisch aanpast op basis van verbindingen en bestandsgrootte om het geheugengebruik te verminderen",
+      "removeTrackerSource": "Bron verwijderen"
     },
     "metalink": {
       "description": "Metalink-downloadmatching en -gedrag configureren",
@@ -1506,7 +1508,8 @@
     "stopFailed": "Stoppen van Aria2 mislukt: {error}",
     "operatingWait": "Aria2 is bezig, even geduld",
     "restartSuccess": "Aria2 herstart",
-    "updateConfigFailed": "Bijwerken van Aria2-configuratie mislukt: {error}"
+    "updateConfigFailed": "Bijwerken van Aria2-configuratie mislukt: {error}",
+    "refresh": "Status vernieuwen"
   },
   "common": {
     "confirm": "Bevestigen",
@@ -1525,7 +1528,8 @@
     "copy": "Kopiëren",
     "copied": "Naar klembord gekopieerd",
     "copyFailed": "Kopiëren mislukt",
-    "yesterday": "Gisteren"
+    "yesterday": "Gisteren",
+    "browse": "Bladeren"
   },
   "queue": {
     "title": "Wachtrij",

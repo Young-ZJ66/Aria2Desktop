@@ -604,7 +604,8 @@
       "newRuleNameReq": "कृपया नियम नाम दर्ज करें",
       "newRuleDirReq": "कृपया उप-डायरेक्टरी नाम दर्ज करें",
       "dirPlaceholder": "लक्ष्य डायरेक्टरी, डिफ़ॉल्ट के लिए खाली छोड़ें",
-      "fileTypes": "फ़ाइल प्रकार"
+      "fileTypes": "फ़ाइल प्रकार",
+      "addFileType": "फ़ाइल प्रकार जोड़ें"
     },
     "network": {
       "description": "टाइमआउट पुनः प्रयास, प्रॉक्सी और नेटवर्क व्यवहार कॉन्फ़िगर करें",
@@ -861,7 +862,8 @@
       "pieceLength": "BT पीस आकार",
       "pieceLengthTip": "BitTorrent फ़ाइल के पीस का आकार (MB)",
       "allowPieceLengthChange": "BT पीस आकार परिवर्तन की अनुमति दें",
-      "allowPieceLengthChangeTip": "मेमोरी उपयोग कम करने के लिए aria2 को डाउनलोड के दौरान कनेक्शन और फ़ाइल आकार के आधार पर BT पीस आकार स्वतः समायोजित करने दें"
+      "allowPieceLengthChangeTip": "मेमोरी उपयोग कम करने के लिए aria2 को डाउनलोड के दौरान कनेक्शन और फ़ाइल आकार के आधार पर BT पीस आकार स्वतः समायोजित करने दें",
+      "removeTrackerSource": "स्रोत हटाएँ"
     },
     "metalink": {
       "description": "Metalink फ़ाइल डाउनलोड मिलान और व्यवहार कॉन्फ़िगर करें",
@@ -1506,7 +1508,8 @@
     "stopFailed": "Aria2 रोकने में विफल: {error}",
     "operatingWait": "Aria2 व्यस्त है, कृपया प्रतीक्षा करें",
     "restartSuccess": "Aria2 पुनः आरंभ हुआ",
-    "updateConfigFailed": "Aria2 कॉन्फ़िग अपडेट करने में विफल: {error}"
+    "updateConfigFailed": "Aria2 कॉन्फ़िग अपडेट करने में विफल: {error}",
+    "refresh": "स्थिति रीफ़्रेश करें"
   },
   "common": {
     "confirm": "पुष्टि करें",
@@ -1525,7 +1528,8 @@
     "copy": "कॉपी करें",
     "copied": "क्लिपबोर्ड पर कॉपी किया गया",
     "copyFailed": "कॉपी विफल",
-    "yesterday": "कल"
+    "yesterday": "कल",
+    "browse": "ब्राउज़ करें"
   },
   "queue": {
     "title": "कतार",

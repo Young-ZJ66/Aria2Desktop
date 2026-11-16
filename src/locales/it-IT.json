@@ -604,7 +604,8 @@
       "newRuleNameReq": "Inserisci un nome per la regola",
       "newRuleDirReq": "Inserisci il nome di una sottocartella",
       "dirPlaceholder": "Cartella di destinazione, lascia vuoto per il valore predefinito",
-      "fileTypes": "Tipi di file"
+      "fileTypes": "Tipi di file",
+      "addFileType": "Aggiungi tipo di file"
     },
     "network": {
       "description": "Configura timeout, tentativi, proxy e comportamento di rete",
@@ -861,7 +862,8 @@
       "pieceLength": "Dimensione pezzo BT",
       "pieceLengthTip": "Dimensione dei pezzi del file BitTorrent (MB)",
       "allowPieceLengthChange": "Consenti modifica dimensione pezzi BT",
-      "allowPieceLengthChangeTip": "Consenti ad aria2 di regolare automaticamente la dimensione dei pezzi BT durante il download in base alle connessioni e alla dimensione del file per ridurre l'uso di memoria"
+      "allowPieceLengthChangeTip": "Consenti ad aria2 di regolare automaticamente la dimensione dei pezzi BT durante il download in base alle connessioni e alla dimensione del file per ridurre l'uso di memoria",
+      "removeTrackerSource": "Rimuovi fonte"
     },
     "metalink": {
       "description": "Configura la corrispondenza e il comportamento dei download di file Metalink",
@@ -1506,7 +1508,8 @@
     "stopFailed": "Impossibile arrestare Aria2: {error}",
     "operatingWait": "Aria2 è occupato, attendere",
     "restartSuccess": "Aria2 riavviato",
-    "updateConfigFailed": "Impossibile aggiornare la configurazione di Aria2: {error}"
+    "updateConfigFailed": "Impossibile aggiornare la configurazione di Aria2: {error}",
+    "refresh": "Aggiorna stato"
   },
   "common": {
     "confirm": "Conferma",
@@ -1525,7 +1528,8 @@
     "copy": "Copia",
     "copied": "Copiato negli appunti",
     "copyFailed": "Copia non riuscita",
-    "yesterday": "Ieri"
+    "yesterday": "Ieri",
+    "browse": "Sfoglia"
   },
   "queue": {
     "title": "Coda",

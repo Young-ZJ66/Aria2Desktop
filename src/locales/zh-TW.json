@@ -604,7 +604,8 @@
       "newRuleNameReq": "請輸入規則名稱",
       "newRuleDirReq": "請輸入子目錄名稱",
       "dirPlaceholder": "目標目錄，留空則使用預設值",
-      "fileTypes": "檔案類型"
+      "fileTypes": "檔案類型",
+      "addFileType": "新增檔案類型"
     },
     "network": {
       "description": "配置逾時重試、代理與網路行為",
@@ -861,7 +862,8 @@
       "pieceLength": "BT 分塊大小",
       "pieceLengthTip": "BitTorrent 檔案的分塊大小（MB）",
       "allowPieceLengthChange": "允許變更 BT 分塊大小",
-      "allowPieceLengthChangeTip": "允許 aria2 在下載期間依連線數與檔案大小自動調整 BT 分塊大小，以降低記憶體用量"
+      "allowPieceLengthChangeTip": "允許 aria2 在下載期間依連線數與檔案大小自動調整 BT 分塊大小，以降低記憶體用量",
+      "removeTrackerSource": "刪除來源"
     },
     "metalink": {
       "description": "配置 Metalink 檔案下載比對與行為",
@@ -1506,7 +1508,8 @@
     "stopFailed": "停止 Aria2 失敗：{error}",
     "operatingWait": "Aria2 忙碌中，請稍候",
     "restartSuccess": "Aria2 已重新啟動",
-    "updateConfigFailed": "更新 Aria2 設定失敗：{error}"
+    "updateConfigFailed": "更新 Aria2 設定失敗：{error}",
+    "refresh": "重新整理狀態"
   },
   "common": {
     "confirm": "確認",
@@ -1525,7 +1528,8 @@
     "copy": "複製",
     "copied": "已複製到剪貼簿",
     "copyFailed": "複製失敗",
-    "yesterday": "昨天"
+    "yesterday": "昨天",
+    "browse": "瀏覽"
   },
   "queue": {
     "title": "佇列",

@@ -69,6 +69,7 @@
               :disabled="!connectionStore.isConnected"
             />
             <n-button
+              :aria-label="t('common.browse')"
               :disabled="!connectionStore.isConnected"
               @click="selectLogFile"
             >

@@ -35,7 +35,11 @@
             :placeholder="t('settings.download.dirPlaceholder')"
           >
             <template #suffix>
-              <n-button text :disabled="!isElectron" @click="selectDirectory">
+              <n-button
+                :aria-label="t('common.browse')"
+                text
+                :disabled="!isElectron"
+                @click="selectDirectory">
                 <template #icon>
                   <n-icon><FolderOutline /></n-icon>
                 </template>
@@ -183,7 +187,7 @@
               <template #icon><n-icon><TrashOutline /></n-icon></template>
             </n-button>
           </div>
-          <n-button size="small" dashed @click="addScheduleRule" style="width: 100%;">
+          <n-button size="small" dashed :aria-label="t('settings.download.addScheduleRule')" @click="addScheduleRule" style="width: 100%;">
             <template #icon><n-icon><AddOutline /></n-icon></template>
             {{ t('settings.download.addScheduleRule') }}
           </n-button>
@@ -211,7 +215,7 @@
               <template #icon><n-icon><TrashOutline /></n-icon></template>
             </n-button>
           </div>
-          <n-button size="small" dashed @click="addDlScheduleRule" style="width: 100%;">
+          <n-button size="small" dashed :aria-label="t('settings.download.addScheduleRule')" @click="addDlScheduleRule" style="width: 100%;">
             <template #icon><n-icon><AddOutline /></n-icon></template>
             {{ t('settings.download.addScheduleRule') }}
           </n-button>
@@ -469,7 +473,13 @@
               />
               <div class="category-filetype-box">
                 <div class="category-filetype-title">{{ t('settings.category.fileTypes') }}</div>
-                <n-dynamic-tags v-model:value="selectedRule.extensions" />
+                <n-dynamic-tags v-model:value="selectedRule.extensions">
+                  <template #trigger="{ disabled }">
+                    <n-button size="small" dashed :disabled="disabled" :aria-label="t('settings.category.addFileType')">
+                      <template #icon><n-icon><AddOutline /></n-icon></template>
+                    </n-button>
+                  </template>
+                </n-dynamic-tags>
               </div>
             </template>
           </div>
