@@ -53,3 +53,6 @@ resources/aria2c.exe
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# UI 审计本地产物（mock 引擎、截图、CDP 脚本）
+.ui-audit

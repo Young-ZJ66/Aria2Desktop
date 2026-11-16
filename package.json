@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "concurrently --kill-others --kill-others-on-fail \"npm run dev:vue\" \"npm run dev:electron\"",
     "dev:vue": "vite",
+    "theme:css": "node --experimental-strip-types scripts/gen-theme-css.ts",
     "dev:electron": "npm run build:electron && cross-env NODE_ENV=development electron .",
     "dev:electron:watch": "tsc -p tsconfig.electron.json --watch --preserveWatchOutput",
     "build": "npm run build:vue && npm run build:electron && node scripts/verify-resources.mjs",
