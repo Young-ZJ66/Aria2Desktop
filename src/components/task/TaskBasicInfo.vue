@@ -544,7 +544,7 @@ async function openFileInFolder(filePath: string) {
   height: 100%;
   border-radius: 4px;
   background-color: var(--color-primary);
-  transition: width 0.3s ease;
+  transition: width var(--transition-slow);
 }
 
 .progress-fill.complete {

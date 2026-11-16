@@ -230,7 +230,7 @@ const connectionStatusText = computed(() => {
   flex-direction: column;
   background: var(--bg-primary);
   border-right: 1px solid var(--border-light);
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  transition: background-color var(--transition-slow), border-color var(--transition-slow);
 }
 
 .sidebar-brand {
@@ -314,7 +314,7 @@ const connectionStatusText = computed(() => {
   color: var(--text-regular);
   text-decoration: none;
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease, transform 0.18s var(--ease-out);
+  transition: background-color var(--transition-base), color var(--transition-base), transform var(--ease-out) 0.18s;
 }
 
 .footer-btn:hover {
@@ -338,11 +338,11 @@ const connectionStatusText = computed(() => {
 
 /* 连接状态图标切换过渡（连接/断开/连接中） */
 .icon-swap-enter-active {
-  transition: opacity 0.16s ease, transform 0.16s var(--ease-out);
+  transition: opacity var(--transition-fast), transform var(--ease-out) 0.16s;
 }
 
 .icon-swap-leave-active {
-  transition: opacity 0.1s ease, transform 0.1s ease;
+  transition: opacity 0.1s ease, transform 0.1s ease; /* 保留：图标离场的快速淡出，换慢档会拖泥带水 */
 }
 
 .icon-swap-enter-from,

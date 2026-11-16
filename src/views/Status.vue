@@ -430,7 +430,7 @@ function updateTrafficChart() {
   border: 1px solid var(--border-light);
   border-radius: 10px;
   box-shadow: var(--shadow-light);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color var(--transition-slow), border-color var(--transition-slow), box-shadow var(--transition-slow);
 }
 
 .summary-card {
@@ -439,7 +439,7 @@ function updateTrafficChart() {
   border: 1px solid var(--border-light);
   border-radius: 10px;
   box-shadow: var(--shadow-light);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color var(--transition-slow), border-color var(--transition-slow), box-shadow var(--transition-slow);
 }
 
 .summary-grid {
@@ -500,7 +500,7 @@ function updateTrafficChart() {
   border: 1px solid var(--border-light);
   border-radius: 10px;
   box-shadow: var(--shadow-light);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color var(--transition-slow), border-color var(--transition-slow), box-shadow var(--transition-slow);
 }
 
 .traffic-chart-section {
@@ -533,7 +533,7 @@ function updateTrafficChart() {
   border: 1px solid var(--border-light);
   border-radius: 8px;
   /* 悬浮轻微抬升 + 柔和阴影过渡（提升统计卡片的可交互感知） */
-  transition: border-color 0.2s ease, transform 0.18s var(--ease-out), box-shadow 0.2s ease;
+  transition: border-color var(--transition-base), transform var(--ease-out) 0.18s, box-shadow var(--transition-base);
 }
 
 .traffic-stat:hover {
@@ -606,6 +606,6 @@ function updateTrafficChart() {
   border: 1px solid var(--border-light);
   border-radius: 10px;
   box-shadow: var(--shadow-light);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color var(--transition-slow), border-color var(--transition-slow), box-shadow var(--transition-slow);
 }
 </style>

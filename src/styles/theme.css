@@ -294,14 +294,15 @@ html.theme-transition,
 html.theme-transition *,
 html.theme-transition *::before,
 html.theme-transition *::after {
-  transition: background-color 0.28s ease, color 0.28s ease,
-    border-color 0.28s ease, box-shadow 0.28s ease, fill 0.28s ease,
-    stroke 0.28s ease !important;
+  /* 时长统一走 --transition-slow：主题切换是全页面级的慢速过渡，与卡片/容器同档 */
+  transition: background-color var(--transition-slow), color var(--transition-slow),
+    border-color var(--transition-slow), box-shadow var(--transition-slow), fill var(--transition-slow),
+    stroke var(--transition-slow) !important;
 }
 
 /* 滚动条滑块也随主题过渡（Chromium 支持 scrollbar 伪元素上的 background 过渡） */
 html.theme-transition ::-webkit-scrollbar-thumb {
-  transition: background-color 0.28s ease !important;
+  transition: background-color var(--transition-slow) !important;
 }
 
 /* 输入框焦点外发光：Naive UI 自带的焦点光晕偏内收，在弹窗里左右两侧容易显得被留白“吃掉”。
@@ -344,7 +345,7 @@ a[href]:focus-visible,
    在过渡期间叠加成残影。配合 keep-alive 页面已常驻，瞬时切换最干净。
    ========================================= */
 .fade-in-enter-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--transition-base);
 }
 
 .fade-in-enter-from {

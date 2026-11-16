@@ -187,7 +187,7 @@ function onDrop(event: DragEvent) {
   flex-direction: column;
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color var(--transition-slow), color var(--transition-slow);
 }
 
 /* Windows 标题栏按钮预留空间 */
@@ -253,11 +253,11 @@ function onDrop(event: DragEvent) {
 
 /* 覆盖层淡入动画 */
 .fade-in-enter-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--transition-base);
 }
 
 .fade-in-leave-active {
-  transition: opacity 0.15s ease;
+  transition: opacity var(--transition-fast);
 }
 
 .fade-in-enter-from,

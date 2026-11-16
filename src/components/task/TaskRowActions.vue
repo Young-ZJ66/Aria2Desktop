@@ -213,7 +213,7 @@ const isPausedSeeding = computed(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s ease;
+  transition: background-color var(--transition-base);
   min-width: 30px;
   min-height: 30px;
 }
@@ -239,7 +239,7 @@ const isPausedSeeding = computed(() => {
 .action-icon {
   font-size: 18px;
   color: var(--text-secondary);
-  transition: color 0.2s ease, transform 0.18s var(--ease-out);
+  transition: color var(--transition-base), transform var(--ease-out) 0.18s;
 }
 
 /* 悬浮时图标轻微放大 + 上浮，按压时轻微回缩，提供明确的按钮反馈 */

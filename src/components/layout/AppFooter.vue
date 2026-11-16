@@ -143,7 +143,7 @@ async function handleLimitPreset(key: string | number) {
   padding: 0 16px;
   font-size: 12px;
   color: var(--text-regular);
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  transition: background-color var(--transition-slow), border-color var(--transition-slow), color var(--transition-slow);
 }
 
 .speed-limit-btn {
@@ -159,7 +159,7 @@ async function handleLimitPreset(key: string | number) {
   font-size: 12px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: color 0.2s ease, background-color 0.2s ease;
+  transition: color var(--transition-base), background-color var(--transition-base);
 }
 
 .speed-limit-btn:hover {

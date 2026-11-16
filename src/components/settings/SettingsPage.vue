@@ -230,7 +230,7 @@ onBeforeUnmount(() => {
 
 .float-actions-enter-active,
 .float-actions-leave-active {
-  transition: opacity 0.15s ease;
+  transition: opacity var(--transition-fast);
 }
 
 .float-actions-enter-from,

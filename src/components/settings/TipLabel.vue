@@ -67,7 +67,7 @@ function showTooltip(show: boolean) {
   font-size: 15px;
   color: var(--text-secondary);
   cursor: help;
-  transition: color 0.2s ease;
+  transition: color var(--transition-base);
   flex-shrink: 0;
 }
 

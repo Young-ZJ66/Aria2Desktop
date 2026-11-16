@@ -816,7 +816,7 @@ watch(visible, (show) => {
   font-size: 14px;
   line-height: 22px;
   border-radius: 8px;
-  transition: background-color 0.16s ease, color 0.16s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab:hover) {

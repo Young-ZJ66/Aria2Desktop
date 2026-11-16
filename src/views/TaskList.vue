@@ -1565,7 +1565,7 @@ watch(
   border: 1px solid var(--border-light);
   border-radius: 10px;
   box-shadow: var(--shadow-light);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color var(--transition-slow), border-color var(--transition-slow), box-shadow var(--transition-slow);
 }
 
 .task-stats {
@@ -1611,7 +1611,7 @@ watch(
   background: transparent;
   border-bottom: 1px solid var(--border-light);
   gap: 12px;
-  transition: border-color 0.3s ease;
+  transition: border-color var(--transition-slow);
 }
 
 .action-left {
@@ -1688,7 +1688,7 @@ watch(
   height: 30px;
   border-radius: 8px;
   font-weight: 500;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform var(--ease-out) 0.18s, box-shadow var(--ease-out) 0.18s;
 }
 
 :deep(.app-action-btn:hover:not([disabled])) {

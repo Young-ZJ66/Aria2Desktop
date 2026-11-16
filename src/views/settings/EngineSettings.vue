@@ -555,7 +555,7 @@ onMounted(async () => {
 .control-buttons :deep(.n-button) {
   border-radius: 8px;
   font-weight: 500;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform var(--ease-out) 0.18s, box-shadow var(--ease-out) 0.18s;
 }
 
 .control-buttons :deep(.n-button:hover:not([disabled])) {

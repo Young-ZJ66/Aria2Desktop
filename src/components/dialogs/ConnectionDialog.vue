@@ -515,7 +515,7 @@ function handleDeleteProfile() {
   border: 1px solid var(--border-light);
   border-radius: 10px;
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.18s var(--ease-out);
+  transition: border-color var(--transition-base), background-color var(--transition-base), box-shadow var(--transition-base), transform var(--ease-out) 0.18s;
 }
 
 .profile-item:hover {
@@ -588,7 +588,7 @@ function handleDeleteProfile() {
   height: 30px;
   border-radius: 8px;
   font-weight: 500;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform var(--ease-out) 0.18s, box-shadow var(--ease-out) 0.18s;
 }
 
 :deep(.app-action-btn:hover:not([disabled])) {

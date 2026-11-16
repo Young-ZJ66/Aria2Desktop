@@ -110,7 +110,7 @@ function openItem(item: AppNotification) {
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .notification-item:hover {

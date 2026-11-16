@@ -360,7 +360,7 @@ defineExpose({
   background-color: var(--bg-tertiary);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+  transition: border-color var(--transition-base), background-color var(--transition-base), color var(--transition-base);
 }
 
 .file-drop-area:hover,

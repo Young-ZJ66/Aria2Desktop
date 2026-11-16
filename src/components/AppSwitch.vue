@@ -74,7 +74,7 @@ function toggle() {
   border-radius: 9px;
   background-color: var(--border-base);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
-  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+  transition: background-color var(--transition-slow), box-shadow var(--transition-slow);
 }
 
 .app-switch--active .app-switch__rail {
@@ -91,7 +91,7 @@ function toggle() {
   border-radius: 5px;
   background-color: #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
-  transition: left 0.28s cubic-bezier(0.34, 1.45, 0.64, 1), width 0.2s ease;
+  transition: left 0.28s cubic-bezier(0.34, 1.45, 0.64, 1), width var(--transition-base);
 }
 
 .app-switch--active .app-switch__knob {
@@ -113,7 +113,7 @@ function toggle() {
   color: #ffffff;
   opacity: 0;
   transform: scale(0.4);
-  transition: opacity 0.2s ease, transform 0.22s ease;
+  transition: opacity var(--transition-base), transform 0.22s var(--ease-smooth);
 }
 
 .app-switch--active .app-switch__check {
