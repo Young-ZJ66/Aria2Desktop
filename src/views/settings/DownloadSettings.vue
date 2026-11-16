@@ -183,13 +183,13 @@
             <span style="color: var(--ds-text-muted);">-</span>
             <n-time-picker v-model:value="rule.endTimestamp" format="HH:mm" size="small" style="width: 100px;" :placeholder="t('settings.download.endTime')" />
             <n-input-number v-model:value="rule.downloadLimitKB" :min="0" size="small" style="width: 120px;" :suffix="t('settings.download.kbPerSec')" :placeholder="t('settings.download.downloadLimit')" />
-            <!-- 纯图标删除按钮：复用已有 i18n key settings.download.category.deleteRule（各语言包均已存在「删除」），避免新增文案 -->
+            <!-- 纯图标删除按钮：复用已有 i18n key settings.category.deleteRule（各语言包均已存在「删除」），避免新增文案 -->
             <n-button
               size="small"
               quaternary
               type="error"
-              :aria-label="t('settings.download.category.deleteRule')"
-              :title="t('settings.download.category.deleteRule')"
+              :aria-label="t('settings.category.deleteRule')"
+              :title="t('settings.category.deleteRule')"
               @click="removeScheduleRule(index)"
             >
               <template #icon><n-icon><TrashOutline /></n-icon></template>
@@ -223,8 +223,8 @@
               size="small"
               quaternary
               type="error"
-              :aria-label="t('settings.download.category.deleteRule')"
-              :title="t('settings.download.category.deleteRule')"
+              :aria-label="t('settings.category.deleteRule')"
+              :title="t('settings.category.deleteRule')"
               @click="removeDlScheduleRule(index)"
             >
               <template #icon><n-icon><TrashOutline /></n-icon></template>
