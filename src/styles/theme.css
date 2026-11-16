@@ -307,7 +307,34 @@ html.theme-transition ::-webkit-scrollbar-thumb {
 /* 输入框焦点外发光：Naive UI 自带的焦点光晕偏内收，在弹窗里左右两侧容易显得被留白“吃掉”。
    这里再补一层柔和外发光，让四边的焦点提示都完整可见 */
 .n-input--focus {
-  box-shadow: 0 0 0 3px rgba(79, 110, 242, 0.16);
+  box-shadow: 0 0 0 3px rgba(69, 96, 224, 0.16);
+}
+
+/* =========================================
+   键盘焦点环（WCAG 2.4.7）
+   ---------------------------------------------------------------
+   Naive UI 的按钮 :focus 只把边框/底色换成 hover 同款颜色，键盘用户几乎
+   分辨不出焦点落在哪个控件上（鼠标用户本来也不需要）。这里给它补一圈
+   2px 主色描边，只在 :focus-visible 生效，鼠标点击不会出现。
+
+   复选框 / 单选 / 开关 / 选择器不在这里列：它们自带 boxShadowFocus
+   焦点外环，再叠一层描边会变成双圈。
+   ========================================= */
+.n-button:focus-visible,
+.n-base-close:focus-visible,
+.n-menu-item:focus-visible,
+button:focus-visible,
+a[href]:focus-visible,
+[role='button']:focus-visible:not(.n-checkbox):not(.n-radio):not(.n-switch) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 输入框的焦点环画在包裹层上：直接给内部 input 描边会贴着文字，很难看 */
+.n-input:has(.n-input__input-el:focus-visible),
+.n-input:has(.n-input__textarea-el:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
 }
 
 /* =========================================
