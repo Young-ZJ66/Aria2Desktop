@@ -3,7 +3,9 @@
     "downloadManager": "Downloadbeheer",
     "settings": "Instellingen",
     "toggleTheme": "Thema wisselen",
-    "githubRepo": "GitHub-repository"
+    "githubRepo": "GitHub-repository",
+    "collapseSidebar": "Zijbalk inklappen",
+    "expandSidebar": "Zijbalk uitklappen"
   },
   "nav": {
     "downloading": "Downloads",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Snelheidslimiet aan",
     "speedLimitOff": "Snelheidslimiet uit",
     "speedLimitNoEngine": "Nog niet verbonden met de aria2-engine, dus de snelheidslimiet kan niet worden in- of uitgeschakeld",
-    "speedLimitToggleFailed": "Snelheidslimiet in- of uitschakelen mislukt. Controleer de engine-verbinding."
+    "speedLimitToggleFailed": "Snelheidslimiet in- of uitschakelen mislukt. Controleer de engine-verbinding.",
+    "speedLimit": "Snelheidslimiet"
   },
   "notification": {
     "downloadComplete": "Download voltooid",
@@ -406,6 +409,7 @@
     "clear": "Wissen"
   },
   "statusPage": {
+    "trafficCollecting": "Snelheidsgegevens verzamelen…",
     "title": "Aria2-status",
     "subtitle": "Runtime-status van de aria2-engine en overzicht van downloadtaken",
     "connectionStatus": "Verbindingsstatus",
@@ -1512,6 +1516,7 @@
     "refresh": "Status vernieuwen"
   },
   "common": {
+    "loading": "Laden…",
     "confirm": "Bevestigen",
     "cancel": "Annuleren",
     "ok": "OK",
@@ -1533,6 +1538,9 @@
     "refresh": "Vernieuwen"
   },
   "queue": {
+    "settings": "Wachtrij-instellingen",
+    "emptyHint": "Wachtende taken verschijnen hier in wachtrijvolgorde zodra je een nieuwe download start.",
+    "disconnectedHint": "Wachtrijgegevens komen van aria2. Maak verbinding om wachtende taken te bekijken en te herordenen.",
     "title": "Wachtrij",
     "description": "Wachtende downloads in de wachtrij van aria2. Pas de prioriteit aan zonder taken te herstarten.",
     "refresh": "Vernieuwen",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "s"
   },
   "instances": {
+    "add": "Instantie toevoegen",
     "title": "Beheer van meerdere instanties",
     "description": "Beheer en wissel snel tussen meerdere aria2-instanties, met controle van verbinding en versie.",
     "testAll": "Alle testen",
@@ -1656,6 +1665,8 @@
     "loading": "Laden…"
   },
   "automation": {
+    "loadErrorTitle": "Kan automatiseringsinstellingen niet lezen",
+    "loadErrorHint": "De desktop-engine reageert niet. Controleer of deze draait en probeer het opnieuw. Details zijn vastgelegd in de ontwikkelaarsconsole.",
     "title": "Automatisering",
     "description": "RSS-abonnementen en bewaakte mappen maken automatisch downloadtaken",
     "refresh": "Vernieuwen",

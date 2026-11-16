@@ -3,7 +3,9 @@
     "downloadManager": "Download-Manager",
     "settings": "Einstellungen",
     "toggleTheme": "Design wechseln",
-    "githubRepo": "GitHub-Repository"
+    "githubRepo": "GitHub-Repository",
+    "collapseSidebar": "Seitenleiste einklappen",
+    "expandSidebar": "Seitenleiste ausklappen"
   },
   "nav": {
     "downloading": "Downloads",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Geschwindigkeitslimit an",
     "speedLimitOff": "Geschwindigkeitslimit aus",
     "speedLimitNoEngine": "Noch nicht mit der aria2-Engine verbunden, daher kann das Geschwindigkeitslimit nicht umgeschaltet werden",
-    "speedLimitToggleFailed": "Geschwindigkeitslimit konnte nicht umgeschaltet werden. Prüfen Sie die Engine-Verbindung."
+    "speedLimitToggleFailed": "Geschwindigkeitslimit konnte nicht umgeschaltet werden. Prüfen Sie die Engine-Verbindung.",
+    "speedLimit": "Geschwindigkeitslimit"
   },
   "notification": {
     "downloadComplete": "Download abgeschlossen",
@@ -406,6 +409,7 @@
     "clear": "Leeren"
   },
   "statusPage": {
+    "trafficCollecting": "Geschwindigkeitsdaten werden erfasst…",
     "title": "Aria2-Status",
     "subtitle": "Laufzeitstatus der Aria2-Engine und Übersicht der Download-Aufgaben",
     "connectionStatus": "Verbindungsstatus",
@@ -1512,6 +1516,7 @@
     "refresh": "Status aktualisieren"
   },
   "common": {
+    "loading": "Wird geladen…",
     "confirm": "Bestätigen",
     "cancel": "Abbrechen",
     "ok": "OK",
@@ -1533,6 +1538,9 @@
     "refresh": "Aktualisieren"
   },
   "queue": {
+    "settings": "Warteschlangeneinstellungen",
+    "emptyHint": "Sobald ein neuer Download startet, erscheinen wartende Aufgaben hier in Warteschlangenreihenfolge.",
+    "disconnectedHint": "Warteschlangendaten stammen von aria2. Stelle zuerst eine Verbindung her, um wartende Aufgaben zu sehen und umzusortieren.",
     "title": "Warteschlangenverwaltung",
     "description": "Wartende Downloads in der aria2-Warteschlange. Priorität ändern, ohne Aufgaben neu zu starten.",
     "refresh": "Aktualisieren",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "s"
   },
   "instances": {
+    "add": "Instanz hinzufügen",
     "title": "Multi-Instanz-Verwaltung",
     "description": "Mehrere aria2-Instanzen verwalten, Verbindung und Version prüfen und schnell wechseln.",
     "testAll": "Alle testen",
@@ -1656,6 +1665,8 @@
     "loading": "Lädt…"
   },
   "automation": {
+    "loadErrorTitle": "Automatisierungseinstellungen nicht lesbar",
+    "loadErrorHint": "Die Desktop-Engine antwortet nicht. Prüfe, ob sie läuft, und versuche es erneut. Details wurden in der Entwicklerkonsole protokolliert.",
     "title": "Automatisierung",
     "description": "RSS-Feeds und überwachte Ordner erstellen Download-Aufgaben automatisch",
     "refresh": "Aktualisieren",

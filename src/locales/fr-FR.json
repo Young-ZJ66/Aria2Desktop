@@ -3,7 +3,9 @@
     "downloadManager": "Gestionnaire de téléchargements",
     "settings": "Paramètres",
     "toggleTheme": "Changer de thème",
-    "githubRepo": "Dépôt GitHub"
+    "githubRepo": "Dépôt GitHub",
+    "collapseSidebar": "Réduire la barre latérale",
+    "expandSidebar": "Développer la barre latérale"
   },
   "nav": {
     "downloading": "Téléchargements",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Limite de vitesse activée",
     "speedLimitOff": "Limite de vitesse désactivée",
     "speedLimitNoEngine": "Pas encore connecté au moteur aria2, la limite de vitesse ne peut pas être modifiée",
-    "speedLimitToggleFailed": "Échec de la modification de la limite de vitesse. Vérifiez la connexion au moteur."
+    "speedLimitToggleFailed": "Échec de la modification de la limite de vitesse. Vérifiez la connexion au moteur.",
+    "speedLimit": "Limite de vitesse"
   },
   "notification": {
     "downloadComplete": "Téléchargement terminé",
@@ -406,6 +409,7 @@
     "clear": "Effacer"
   },
   "statusPage": {
+    "trafficCollecting": "Collecte des données de vitesse…",
     "title": "État d'aria2",
     "subtitle": "État d'exécution du moteur aria2 et aperçu des tâches de téléchargement",
     "connectionStatus": "État de la connexion",
@@ -1512,6 +1516,7 @@
     "refresh": "Actualiser l'état"
   },
   "common": {
+    "loading": "Chargement…",
     "confirm": "Confirmer",
     "cancel": "Annuler",
     "ok": "OK",
@@ -1533,6 +1538,9 @@
     "refresh": "Actualiser"
   },
   "queue": {
+    "settings": "Paramètres de la file d'attente",
+    "emptyHint": "Les tâches en attente apparaîtront ici dans l'ordre de la file dès qu'un nouveau téléchargement démarre.",
+    "disconnectedHint": "Les données de la file proviennent d'aria2. Connectez-vous pour voir les tâches en attente et les réordonner.",
     "title": "Gestion de la file d'attente",
     "description": "Téléchargements en attente dans la file d'aria2. Modifiez la priorité sans redémarrer les tâches.",
     "refresh": "Actualiser",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "s"
   },
   "instances": {
+    "add": "Ajouter une instance",
     "title": "Gestion multi-instances",
     "description": "Gérez et basculez rapidement entre plusieurs instances aria2, avec test de connectivité et de version.",
     "testAll": "Tout tester",
@@ -1656,6 +1665,8 @@
     "loading": "Chargement…"
   },
   "automation": {
+    "loadErrorTitle": "Impossible de lire les paramètres d'automatisation",
+    "loadErrorHint": "Le moteur de bureau ne répond pas. Vérifiez qu'il est démarré, puis réessayez. Les détails ont été consignés dans la console de développement.",
     "title": "Automatisation",
     "description": "Flux RSS et dossiers surveillés créant automatiquement des téléchargements",
     "refresh": "Actualiser",

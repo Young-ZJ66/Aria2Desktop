@@ -3,7 +3,9 @@
     "downloadManager": "İndirme Yöneticisi",
     "settings": "Ayarlar",
     "toggleTheme": "Temayı Değiştir",
-    "githubRepo": "GitHub Deposu"
+    "githubRepo": "GitHub Deposu",
+    "collapseSidebar": "Kenar çubuğunu daralt",
+    "expandSidebar": "Kenar çubuğunu genişlet"
   },
   "nav": {
     "downloading": "İndirmeler",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Hız Sınırı Açık",
     "speedLimitOff": "Hız Sınırı Kapalı",
     "speedLimitNoEngine": "Henüz aria2 motoruna bağlanılmadı, bu yüzden hız sınırı değiştirilemez",
-    "speedLimitToggleFailed": "Hız sınırı değiştirilemedi. Motor bağlantısını kontrol edin."
+    "speedLimitToggleFailed": "Hız sınırı değiştirilemedi. Motor bağlantısını kontrol edin.",
+    "speedLimit": "Hız sınırı"
   },
   "notification": {
     "downloadComplete": "İndirme Tamamlandı",
@@ -406,6 +409,7 @@
     "clear": "Temizle"
   },
   "statusPage": {
+    "trafficCollecting": "Hız verileri toplanıyor…",
     "title": "Aria2 Durumu",
     "subtitle": "Aria2 motoru çalışma durumu ve indirme görevlerine genel bakış",
     "connectionStatus": "Bağlantı Durumu",
@@ -1512,6 +1516,7 @@
     "refresh": "Durumu yenile"
   },
   "common": {
+    "loading": "Yükleniyor…",
     "confirm": "Onayla",
     "cancel": "İptal",
     "ok": "Tamam",
@@ -1533,6 +1538,9 @@
     "refresh": "Yenile"
   },
   "queue": {
+    "settings": "Kuyruk ayarları",
+    "emptyHint": "Yeni bir indirme başlattığınızda bekleyen görevler kuyruk sırasına göre burada görünür.",
+    "disconnectedHint": "Kuyruk verileri aria2'den gelir. Bekleyen görevleri görmek ve sıralamak için bağlanın.",
     "title": "Kuyruk",
     "description": "aria2 kuyruğunda bekleyen indirmeler. Görevleri yeniden başlatmadan önceliği ayarlayın.",
     "refresh": "Yenile",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "sn"
   },
   "instances": {
+    "add": "Örnek ekle",
     "title": "Çoklu Örnek Yöneticisi",
     "description": "Birden fazla aria2 örneğini yönetin ve aralarında hızlıca geçiş yapın; bağlantı ve sürüm kontrolleriyle.",
     "testAll": "Tümünü test et",
@@ -1656,6 +1665,8 @@
     "loading": "Yükleniyor…"
   },
   "automation": {
+    "loadErrorTitle": "Otomasyon ayarları okunamıyor",
+    "loadErrorHint": "Masaüstü motoru yanıt vermiyor. Çalıştığından emin olup yeniden deneyin. Ayrıntılar geliştirici konsoluna kaydedildi.",
     "title": "Otomasyon",
     "description": "RSS abonelikleri ve izlenen klasörlerle indirme görevlerini otomatik oluşturun",
     "refresh": "Yenile",

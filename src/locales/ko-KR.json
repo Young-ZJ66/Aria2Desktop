@@ -3,7 +3,9 @@
     "downloadManager": "다운로드 관리자",
     "settings": "설정",
     "toggleTheme": "테마 전환",
-    "githubRepo": "GitHub 저장소"
+    "githubRepo": "GitHub 저장소",
+    "collapseSidebar": "사이드바 접기",
+    "expandSidebar": "사이드바 펼치기"
   },
   "nav": {
     "downloading": "다운로드",
@@ -388,7 +390,8 @@
     "speedLimitOn": "속도 제한 켜짐",
     "speedLimitOff": "속도 제한 꺼짐",
     "speedLimitNoEngine": "아직 aria2 엔진에 연결되지 않아 속도 제한을 전환할 수 없습니다",
-    "speedLimitToggleFailed": "속도 제한을 전환하지 못했습니다. 엔진 연결을 확인하세요."
+    "speedLimitToggleFailed": "속도 제한을 전환하지 못했습니다. 엔진 연결을 확인하세요.",
+    "speedLimit": "속도 제한"
   },
   "notification": {
     "downloadComplete": "다운로드 완료",
@@ -406,6 +409,7 @@
     "clear": "지우기"
   },
   "statusPage": {
+    "trafficCollecting": "속도 데이터 수집 중…",
     "title": "Aria2 상태",
     "subtitle": "Aria2 엔진 런타임 상태 및 다운로드 작업 개요",
     "connectionStatus": "연결 상태",
@@ -1512,6 +1516,7 @@
     "refresh": "상태 새로고침"
   },
   "common": {
+    "loading": "불러오는 중…",
     "confirm": "확인",
     "cancel": "취소",
     "ok": "확인",
@@ -1533,6 +1538,9 @@
     "refresh": "새로 고침"
   },
   "queue": {
+    "settings": "대기열 설정",
+    "emptyHint": "새 다운로드를 시작하면 대기 중인 작업이 대기열 순서대로 여기에 표시됩니다.",
+    "disconnectedHint": "대기열 데이터는 aria2에서 가져옵니다. 연결하면 대기 중인 작업을 확인하고 순서를 바꿀 수 있습니다.",
     "title": "대기열 관리",
     "description": "aria2 대기열 순서대로 대기 중인 작업을 표시합니다. 작업을 다시 시작하지 않고 우선순위를 조정할 수 있습니다.",
     "refresh": "새로고침",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "초"
   },
   "instances": {
+    "add": "인스턴스 추가",
     "title": "다중 인스턴스 관리",
     "description": "여러 aria2 인스턴스를 관리하고 연결 상태와 버전을 확인하며 빠르게 전환합니다.",
     "testAll": "모두 테스트",
@@ -1656,6 +1665,8 @@
     "loading": "불러오는 중…"
   },
   "automation": {
+    "loadErrorTitle": "자동화 설정을 읽을 수 없습니다",
+    "loadErrorHint": "데스크톱 엔진이 응답하지 않습니다. 실행 중인지 확인한 후 다시 시도하세요. 자세한 내용은 개발자 콘솔에 기록되었습니다.",
     "title": "자동화",
     "description": "RSS 구독과 감시 폴더로 다운로드 작업을 자동 생성",
     "refresh": "새로 고침",

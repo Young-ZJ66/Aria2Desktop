@@ -3,7 +3,9 @@
     "downloadManager": "下载管理",
     "settings": "设置",
     "toggleTheme": "切换主题",
-    "githubRepo": "GitHub 仓库"
+    "githubRepo": "GitHub 仓库",
+    "collapseSidebar": "折叠侧栏",
+    "expandSidebar": "展开侧栏"
   },
   "nav": {
     "downloading": "下载任务",
@@ -388,7 +390,8 @@
     "speedLimitOn": "限速已开启",
     "speedLimitOff": "限速已关闭",
     "speedLimitNoEngine": "还没有连上 aria2 引擎，限速开关暂不可用",
-    "speedLimitToggleFailed": "切换限速失败，请检查引擎连接"
+    "speedLimitToggleFailed": "切换限速失败，请检查引擎连接",
+    "speedLimit": "限速"
   },
   "notification": {
     "downloadComplete": "下载完成",
@@ -406,6 +409,7 @@
     "clear": "清空"
   },
   "statusPage": {
+    "trafficCollecting": "正在采集速度数据…",
     "title": "Aria2 状态",
     "subtitle": "Aria2 引擎运行状态与下载任务概览",
     "connectionStatus": "连接状态",
@@ -1512,6 +1516,7 @@
     "refresh": "刷新状态"
   },
   "common": {
+    "loading": "加载中…",
     "confirm": "确认",
     "cancel": "取消",
     "ok": "确定",
@@ -1533,6 +1538,9 @@
     "refresh": "刷新"
   },
   "queue": {
+    "settings": "队列设置",
+    "emptyHint": "开始新下载后，等待中的任务会按队列顺序出现在这里。",
+    "disconnectedHint": "队列数据来自 aria2，连接后才能查看等待任务并调整顺序。",
     "title": "队列管理",
     "description": "按 aria2 队列顺序排列的等待任务，可直接调整优先级而无需重新开始任务。",
     "refresh": "刷新",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "秒"
   },
   "instances": {
+    "add": "新增实例",
     "title": "多实例管理",
     "description": "管理并快速切换多个 aria2 实例，随时测试连通性与版本。",
     "testAll": "全部测试",
@@ -1656,6 +1665,8 @@
     "loading": "加载中…"
   },
   "automation": {
+    "loadErrorTitle": "暂时读不到自动化配置",
+    "loadErrorHint": "桌面引擎没有响应，请确认引擎已启动后重试。详细信息已记录在开发者控制台。",
     "title": "自动化",
     "description": "RSS 订阅与监听文件夹，自动创建下载任务",
     "refresh": "刷新",

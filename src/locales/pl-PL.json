@@ -3,7 +3,9 @@
     "downloadManager": "Menedżer pobierania",
     "settings": "Ustawienia",
     "toggleTheme": "Przełącz motyw",
-    "githubRepo": "Repozytorium GitHub"
+    "githubRepo": "Repozytorium GitHub",
+    "collapseSidebar": "Zwiń pasek boczny",
+    "expandSidebar": "Rozwiń pasek boczny"
   },
   "nav": {
     "downloading": "Pobierane",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Limit prędkości włączony",
     "speedLimitOff": "Limit prędkości wyłączony",
     "speedLimitNoEngine": "Nie połączono jeszcze z silnikiem aria2, więc nie można przełączyć limitu prędkości",
-    "speedLimitToggleFailed": "Nie udało się przełączyć limitu prędkości. Sprawdź połączenie z silnikiem."
+    "speedLimitToggleFailed": "Nie udało się przełączyć limitu prędkości. Sprawdź połączenie z silnikiem.",
+    "speedLimit": "Limit prędkości"
   },
   "notification": {
     "downloadComplete": "Pobieranie ukończone",
@@ -406,6 +409,7 @@
     "clear": "Wyczyść"
   },
   "statusPage": {
+    "trafficCollecting": "Zbieranie danych o prędkości…",
     "title": "Status Aria2",
     "subtitle": "Stan działania silnika Aria2 i przegląd zadań pobierania",
     "connectionStatus": "Stan połączenia",
@@ -1512,6 +1516,7 @@
     "refresh": "Odśwież stan"
   },
   "common": {
+    "loading": "Ładowanie…",
     "confirm": "Potwierdź",
     "cancel": "Anuluj",
     "ok": "OK",
@@ -1533,6 +1538,9 @@
     "refresh": "Odśwież"
   },
   "queue": {
+    "settings": "Ustawienia kolejki",
+    "emptyHint": "Oczekujące zadania pojawią się tutaj w kolejności kolejki po rozpoczęciu nowego pobierania.",
+    "disconnectedHint": "Dane kolejki pochodzą z aria2. Połącz się, aby zobaczyć oczekujące zadania i zmienić ich kolejność.",
     "title": "Kolejka",
     "description": "Oczekujące pobrania w kolejce aria2. Zmieniaj priorytet bez restartowania zadań.",
     "refresh": "Odśwież",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "s"
   },
   "instances": {
+    "add": "Dodaj instancję",
     "title": "Menedżer wielu instancji",
     "description": "Zarządzaj wieloma instancjami aria2 i szybko przełączaj się między nimi, z kontrolą połączenia i wersji.",
     "testAll": "Testuj wszystkie",
@@ -1656,6 +1665,8 @@
     "loading": "Ładowanie…"
   },
   "automation": {
+    "loadErrorTitle": "Nie można odczytać ustawień automatyzacji",
+    "loadErrorHint": "Silnik pulpitu nie odpowiada. Sprawdź, czy działa, i spróbuj ponownie. Szczegóły zapisano w konsoli deweloperskiej.",
     "title": "Automatyzacja",
     "description": "Subskrypcje RSS i obserwowane foldery automatycznie tworzą zadania pobierania",
     "refresh": "Odśwież",

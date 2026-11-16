@@ -3,7 +3,9 @@
     "downloadManager": "下載管理員",
     "settings": "設定",
     "toggleTheme": "切換主題",
-    "githubRepo": "GitHub 儲存庫"
+    "githubRepo": "GitHub 儲存庫",
+    "collapseSidebar": "收合側邊欄",
+    "expandSidebar": "展開側邊欄"
   },
   "nav": {
     "downloading": "下載",
@@ -388,7 +390,8 @@
     "speedLimitOn": "速度限制已開啟",
     "speedLimitOff": "速度限制已關閉",
     "speedLimitNoEngine": "尚未連線至 aria2 引擎，因此無法切換速度限制",
-    "speedLimitToggleFailed": "切換速度限制失敗。請檢查引擎連線。"
+    "speedLimitToggleFailed": "切換速度限制失敗。請檢查引擎連線。",
+    "speedLimit": "限速"
   },
   "notification": {
     "downloadComplete": "下載完成",
@@ -406,6 +409,7 @@
     "clear": "清除"
   },
   "statusPage": {
+    "trafficCollecting": "正在蒐集速度資料…",
     "title": "Aria2 狀態",
     "subtitle": "Aria2 引擎執行狀態與下載任務概覽",
     "connectionStatus": "連線狀態",
@@ -1512,6 +1516,7 @@
     "refresh": "重新整理狀態"
   },
   "common": {
+    "loading": "載入中…",
     "confirm": "確認",
     "cancel": "取消",
     "ok": "確定",
@@ -1533,6 +1538,9 @@
     "refresh": "重新整理"
   },
   "queue": {
+    "settings": "佇列設定",
+    "emptyHint": "開始新下載後，等待中的任務會依佇列順序出現在這裡。",
+    "disconnectedHint": "佇列資料來自 aria2，連線後才能查看等待任務並調整順序。",
     "title": "佇列",
     "description": "aria2 佇列中等待下載的任務。調整優先順序而不需重新啟動任務。",
     "refresh": "重新整理",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "秒"
   },
   "instances": {
+    "add": "新增執行個體",
     "title": "多執行個體管理員",
     "description": "管理並快速切換多個 aria2 執行個體，並提供連線與版本檢查。",
     "testAll": "全部測試",
@@ -1656,6 +1665,8 @@
     "loading": "載入中…"
   },
   "automation": {
+    "loadErrorTitle": "暫時讀不到自動化設定",
+    "loadErrorHint": "桌面引擎沒有回應，請確認引擎已啟動後重試。詳細資訊已記錄在開發者主控台。",
     "title": "自動化",
     "description": "RSS 訂閱與監控資料夾，自動建立下載任務",
     "refresh": "重新整理",

@@ -3,7 +3,9 @@
     "downloadManager": "Gestore download",
     "settings": "Impostazioni",
     "toggleTheme": "Cambia tema",
-    "githubRepo": "Repository GitHub"
+    "githubRepo": "Repository GitHub",
+    "collapseSidebar": "Comprimi barra laterale",
+    "expandSidebar": "Espandi barra laterale"
   },
   "nav": {
     "downloading": "Download",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Limite velocità attivo",
     "speedLimitOff": "Limite velocità disattivo",
     "speedLimitNoEngine": "Non ancora connesso al motore aria2, impossibile attivare o disattivare il limite di velocità",
-    "speedLimitToggleFailed": "Impossibile attivare/disattivare il limite di velocità. Controlla la connessione al motore."
+    "speedLimitToggleFailed": "Impossibile attivare/disattivare il limite di velocità. Controlla la connessione al motore.",
+    "speedLimit": "Limite di velocità"
   },
   "notification": {
     "downloadComplete": "Download completato",
@@ -406,6 +409,7 @@
     "clear": "Cancella"
   },
   "statusPage": {
+    "trafficCollecting": "Raccolta dei dati di velocità…",
     "title": "Stato Aria2",
     "subtitle": "Stato di esecuzione del motore Aria2 e panoramica delle attività di download",
     "connectionStatus": "Stato connessione",
@@ -1512,6 +1516,7 @@
     "refresh": "Aggiorna stato"
   },
   "common": {
+    "loading": "Caricamento…",
     "confirm": "Conferma",
     "cancel": "Annulla",
     "ok": "OK",
@@ -1533,6 +1538,9 @@
     "refresh": "Aggiorna"
   },
   "queue": {
+    "settings": "Impostazioni della coda",
+    "emptyHint": "Le attività in attesa compariranno qui nell'ordine della coda quando avvii un nuovo download.",
+    "disconnectedHint": "I dati della coda provengono da aria2. Connettiti per vedere le attività in attesa e riordinarle.",
     "title": "Coda",
     "description": "Download in attesa nella coda di aria2. Regola la priorità senza riavviare le attività.",
     "refresh": "Aggiorna",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "s"
   },
   "instances": {
+    "add": "Aggiungi istanza",
     "title": "Gestione multi-istanza",
     "description": "Gestisci e passa rapidamente tra più istanze aria2, con verifiche di connettività e versione.",
     "testAll": "Verifica tutte",
@@ -1656,6 +1665,8 @@
     "loading": "Caricamento…"
   },
   "automation": {
+    "loadErrorTitle": "Impossibile leggere le impostazioni di automazione",
+    "loadErrorHint": "Il motore desktop non risponde. Verifica che sia avviato e riprova. I dettagli sono stati registrati nella console di sviluppo.",
     "title": "Automazione",
     "description": "Feed RSS e cartelle monitorate che creano download automaticamente",
     "refresh": "Aggiorna",

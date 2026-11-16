@@ -3,7 +3,9 @@
     "downloadManager": "Trình quản lý tải xuống",
     "settings": "Cài đặt",
     "toggleTheme": "Chuyển giao diện",
-    "githubRepo": "Kho GitHub"
+    "githubRepo": "Kho GitHub",
+    "collapseSidebar": "Thu gọn thanh bên",
+    "expandSidebar": "Mở rộng thanh bên"
   },
   "nav": {
     "downloading": "Tải xuống",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Đã bật giới hạn tốc độ",
     "speedLimitOff": "Đã tắt giới hạn tốc độ",
     "speedLimitNoEngine": "Chưa kết nối tới engine aria2 nên không thể bật/tắt giới hạn tốc độ",
-    "speedLimitToggleFailed": "Không thể bật/tắt giới hạn tốc độ. Hãy kiểm tra kết nối engine."
+    "speedLimitToggleFailed": "Không thể bật/tắt giới hạn tốc độ. Hãy kiểm tra kết nối engine.",
+    "speedLimit": "Giới hạn tốc độ"
   },
   "notification": {
     "downloadComplete": "Tải xuống hoàn tất",
@@ -406,6 +409,7 @@
     "clear": "Xóa hết"
   },
   "statusPage": {
+    "trafficCollecting": "Đang thu thập dữ liệu tốc độ…",
     "title": "Trạng thái Aria2",
     "subtitle": "Trạng thái hoạt động của engine Aria2 và tổng quan tác vụ tải xuống",
     "connectionStatus": "Trạng thái kết nối",
@@ -1512,6 +1516,7 @@
     "refresh": "Làm mới trạng thái"
   },
   "common": {
+    "loading": "Đang tải…",
     "confirm": "Xác nhận",
     "cancel": "Hủy",
     "ok": "OK",
@@ -1533,6 +1538,9 @@
     "refresh": "Làm mới"
   },
   "queue": {
+    "settings": "Cài đặt hàng đợi",
+    "emptyHint": "Tác vụ đang chờ sẽ xuất hiện ở đây theo thứ tự hàng đợi khi bạn bắt đầu tải xuống mới.",
+    "disconnectedHint": "Dữ liệu hàng đợi đến từ aria2. Hãy kết nối để xem tác vụ đang chờ và sắp xếp lại.",
     "title": "Hàng đợi",
     "description": "Các tải xuống đang chờ trong hàng đợi của aria2. Điều chỉnh mức ưu tiên mà không cần khởi động lại tác vụ.",
     "refresh": "Làm mới",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "giây"
   },
   "instances": {
+    "add": "Thêm phiên bản",
     "title": "Quản lý đa phiên bản",
     "description": "Quản lý và nhanh chóng chuyển đổi giữa nhiều phiên bản aria2, kèm kiểm tra kết nối và phiên bản.",
     "testAll": "Kiểm tra tất cả",
@@ -1656,6 +1665,8 @@
     "loading": "Đang tải…"
   },
   "automation": {
+    "loadErrorTitle": "Không đọc được cài đặt tự động hóa",
+    "loadErrorHint": "Engine máy tính không phản hồi. Hãy kiểm tra xem nó đã chạy chưa rồi thử lại. Chi tiết đã được ghi vào bảng điều khiển dành cho nhà phát triển.",
     "title": "Tự động hóa",
     "description": "Đăng ký RSS và thư mục theo dõi, tự động tạo tác vụ tải xuống",
     "refresh": "Làm mới",

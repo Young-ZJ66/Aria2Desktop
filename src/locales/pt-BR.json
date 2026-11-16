@@ -3,7 +3,9 @@
     "downloadManager": "Gerenciador de Downloads",
     "settings": "Configurações",
     "toggleTheme": "Alternar Tema",
-    "githubRepo": "Repositório no GitHub"
+    "githubRepo": "Repositório no GitHub",
+    "collapseSidebar": "Recolher barra lateral",
+    "expandSidebar": "Expandir barra lateral"
   },
   "nav": {
     "downloading": "Downloads",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Limite de Velocidade Ativado",
     "speedLimitOff": "Limite de Velocidade Desativado",
     "speedLimitNoEngine": "Ainda não conectado ao mecanismo aria2; o limite de velocidade não pode ser alternado",
-    "speedLimitToggleFailed": "Falha ao alternar o limite de velocidade. Verifique a conexão com o mecanismo."
+    "speedLimitToggleFailed": "Falha ao alternar o limite de velocidade. Verifique a conexão com o mecanismo.",
+    "speedLimit": "Limite de velocidade"
   },
   "notification": {
     "downloadComplete": "Download Concluído",
@@ -406,6 +409,7 @@
     "clear": "Limpar"
   },
   "statusPage": {
+    "trafficCollecting": "Coletando dados de velocidade…",
     "title": "Status do Aria2",
     "subtitle": "Status de execução do mecanismo Aria2 e visão geral das tarefas de download",
     "connectionStatus": "Status da Conexão",
@@ -1512,6 +1516,7 @@
     "refresh": "Atualizar status"
   },
   "common": {
+    "loading": "Carregando…",
     "confirm": "Confirmar",
     "cancel": "Cancelar",
     "ok": "OK",
@@ -1533,6 +1538,9 @@
     "refresh": "Atualizar"
   },
   "queue": {
+    "settings": "Configurações da fila",
+    "emptyHint": "As tarefas em espera aparecerão aqui na ordem da fila quando você iniciar um novo download.",
+    "disconnectedHint": "Os dados da fila vêm do aria2. Conecte-se para ver as tarefas em espera e reordená-las.",
     "title": "Fila",
     "description": "Downloads aguardando na fila do aria2. Ajuste a prioridade sem reiniciar as tarefas.",
     "refresh": "Atualizar",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "s"
   },
   "instances": {
+    "add": "Adicionar instância",
     "title": "Gerenciador de Múltiplas Instâncias",
     "description": "Gerencie e alterne rapidamente entre várias instâncias do aria2, com verificações de conectividade e versão.",
     "testAll": "Testar todas",
@@ -1656,6 +1665,8 @@
     "loading": "Carregando…"
   },
   "automation": {
+    "loadErrorTitle": "Não foi possível ler as configurações de automação",
+    "loadErrorHint": "O mecanismo da área de trabalho não está respondendo. Verifique se ele está em execução e tente novamente. Os detalhes foram registrados no console do desenvolvedor.",
     "title": "Automação",
     "description": "Assinaturas RSS e pastas monitoradas criando downloads automaticamente",
     "refresh": "Atualizar",

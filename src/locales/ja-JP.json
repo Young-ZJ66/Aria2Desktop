@@ -3,7 +3,9 @@
     "downloadManager": "ダウンロードマネージャー",
     "settings": "設定",
     "toggleTheme": "テーマを切り替え",
-    "githubRepo": "GitHub リポジトリ"
+    "githubRepo": "GitHub リポジトリ",
+    "collapseSidebar": "サイドバーを折りたたむ",
+    "expandSidebar": "サイドバーを展開"
   },
   "nav": {
     "downloading": "ダウンロード",
@@ -388,7 +390,8 @@
     "speedLimitOn": "速度制限オン",
     "speedLimitOff": "速度制限オフ",
     "speedLimitNoEngine": "まだ aria2 エンジンに接続していないため、速度制限を切り替えられません",
-    "speedLimitToggleFailed": "速度制限の切り替えに失敗しました。エンジンの接続を確認してください。"
+    "speedLimitToggleFailed": "速度制限の切り替えに失敗しました。エンジンの接続を確認してください。",
+    "speedLimit": "速度制限"
   },
   "notification": {
     "downloadComplete": "ダウンロード完了",
@@ -406,6 +409,7 @@
     "clear": "クリア"
   },
   "statusPage": {
+    "trafficCollecting": "速度データを収集中…",
     "title": "Aria2 ステータス",
     "subtitle": "Aria2 エンジンの実行状態とダウンロードタスクの概要",
     "connectionStatus": "接続状態",
@@ -1512,6 +1516,7 @@
     "refresh": "状態を更新"
   },
   "common": {
+    "loading": "読み込み中…",
     "confirm": "確認",
     "cancel": "キャンセル",
     "ok": "OK",
@@ -1533,6 +1538,9 @@
     "refresh": "更新"
   },
   "queue": {
+    "settings": "キューの設定",
+    "emptyHint": "新しいダウンロードを開始すると、待機中のタスクがキューの順にここへ表示されます。",
+    "disconnectedHint": "キューのデータは aria2 から取得します。接続すると待機中のタスクを表示して並べ替えできます。",
     "title": "キューの管理",
     "description": "aria2 のキュー順に待機中のタスクを表示します。タスクを再開せずに優先度を変更できます。",
     "refresh": "更新",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "秒"
   },
   "instances": {
+    "add": "インスタンスを追加",
     "title": "マルチインスタンス管理",
     "description": "複数の aria2 インスタンスを管理し、接続性とバージョンを確認して素早く切り替えます。",
     "testAll": "すべてテスト",
@@ -1656,6 +1665,8 @@
     "loading": "読み込み中…"
   },
   "automation": {
+    "loadErrorTitle": "自動化設定を読み込めません",
+    "loadErrorHint": "デスクトップエンジンが応答していません。起動していることを確認してから再試行してください。詳細は開発者コンソールに記録されています。",
     "title": "自動化",
     "description": "RSS 購読と監視フォルダーでダウンロードタスクを自動作成",
     "refresh": "更新",

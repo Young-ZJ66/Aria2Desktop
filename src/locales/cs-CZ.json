@@ -3,7 +3,9 @@
     "downloadManager": "Správce stahování",
     "settings": "Nastavení",
     "toggleTheme": "Přepnout motiv",
-    "githubRepo": "Repozitář GitHub"
+    "githubRepo": "Repozitář GitHub",
+    "collapseSidebar": "Sbalit postranní panel",
+    "expandSidebar": "Rozbalit postranní panel"
   },
   "nav": {
     "downloading": "Stahování",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Limit rychlosti zapnut",
     "speedLimitOff": "Limit rychlosti vypnut",
     "speedLimitNoEngine": "Zatím nejste připojeni k enginu aria2, proto nelze limit rychlosti přepnout",
-    "speedLimitToggleFailed": "Přepnutí limitu rychlosti se nezdařilo. Zkontrolujte připojení k enginu."
+    "speedLimitToggleFailed": "Přepnutí limitu rychlosti se nezdařilo. Zkontrolujte připojení k enginu.",
+    "speedLimit": "Omezení rychlosti"
   },
   "notification": {
     "downloadComplete": "Stahování dokončeno",
@@ -406,6 +409,7 @@
     "clear": "Vymazat"
   },
   "statusPage": {
+    "trafficCollecting": "Shromažďování dat o rychlosti…",
     "title": "Stav Aria2",
     "subtitle": "Stav běhu enginu Aria2 a přehled úloh stahování",
     "connectionStatus": "Stav připojení",
@@ -1512,6 +1516,7 @@
     "refresh": "Obnovit stav"
   },
   "common": {
+    "loading": "Načítání…",
     "confirm": "Potvrdit",
     "cancel": "Zrušit",
     "ok": "OK",
@@ -1533,6 +1538,9 @@
     "refresh": "Obnovit"
   },
   "queue": {
+    "settings": "Nastavení fronty",
+    "emptyHint": "Čekající úlohy se zde zobrazí v pořadí fronty po spuštění nového stahování.",
+    "disconnectedHint": "Data fronty pocházejí z aria2. Připojte se, abyste viděli čekající úlohy a mohli měnit jejich pořadí.",
     "title": "Fronta",
     "description": "Čekající stahování ve frontě aria2. Upravte prioritu bez restartování úloh.",
     "refresh": "Obnovit",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "s"
   },
   "instances": {
+    "add": "Přidat instanci",
     "title": "Správce více instancí",
     "description": "Spravujte a rychle přepínejte mezi více instancemi aria2 s kontrolou připojení a verze.",
     "testAll": "Otestovat vše",
@@ -1656,6 +1665,8 @@
     "loading": "Načítání…"
   },
   "automation": {
+    "loadErrorTitle": "Nastavení automatizace nelze načíst",
+    "loadErrorHint": "Desktopový engine neodpovídá. Ověřte, že běží, a zkuste to znovu. Podrobnosti byly zapsány do vývojářské konzole.",
     "title": "Automatizace",
     "description": "Odběry RSS a sledované složky automaticky vytvářejí úlohy stahování",
     "refresh": "Obnovit",

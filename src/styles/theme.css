@@ -1,142 +1,116 @@
 /* =========================================
-   全局设计令牌与基础样式（Naive UI 主题）
+   设计语言 v2 基础层
+   - 令牌：tokens.generated.css（由 src/styles/designSystem.ts 生成，勿手改）
+   - 本文件：兼容别名 + 基础排版 + Naive UI 补丁 + 工具类
    ========================================= */
+@import './tokens.generated.css';
 
+/* ---------- v1 变量兼容层 ----------
+   组件逐个迁移到 --ds-* 期间，旧变量名指向新角色，保证迁移过程中页面不闪不崩。
+   全部组件迁移完成后删除本段；designSystem.test.ts 会统计残留引用数，防止它变成永久债。 */
 :root {
-  /* 浅色主题 */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f6f7f9;
-  --bg-tertiary: #eef0f3;
-  --bg-hover: #f0f4ff;
-  --text-primary: #1a1f2b;
-  --text-regular: #4a5266;
-  --text-secondary: #6b7280;
-  /* 比 secondary 更弱一档，用于「版本号」「统计标签」等辅助信息。
-     必须真实定义：此前有 4 处引用 --text-tertiary 但令牌从未定义，
-     回落到 #999（白底 2.85:1），低于 AA。
-     取值在白底 4.89:1、卡片底 #f6f7f9 上 4.56:1，仍满足正文级 AA。 */
-  --text-tertiary: #68727e;
-  --text-placeholder: #626a76;
-  --border-light: #ececf1;
-  --border-base: #dde0e7;
-  --border-dark: #c2c7d1;
-  /* 主色：白底 5.25:1、选中底色 #f0f4ff 上 4.77:1，满足 WCAG AA。
-     旧的 #4f6ef2 只有 4.33 / 3.94，而主色用在侧边栏当前项、页签、主按钮上，
-     覆盖面很大，所以整体压深一档。 */
-  --color-primary: #4560e0;
-  /* 主色作为「文字」使用时的值（浅色与主色一致；深色需要更亮的蓝才能过 AA） */
-  --color-primary-text: #4560e0;
-  /* 浅色悬停底色：用于 Tracker 来源等小卡片背景 */
-  --hover-color: #f5f5f5;
-  --color-success: #22c55e;
-  --color-warning: #d97706;
-  --color-danger: #ef4444;
-  --color-info: #64748b;
-  /* 语义色的「文字版」：图标/填充可用鲜艳色，文字必须过 AA。
-     例：连接状态用 --color-success 做图标，文字改用 --color-success-text。 */
-  --color-success-text: #15803d;
-  --color-warning-text: #b45309;
-  --color-danger-text: #dc2626;
-  /* 间距 token */
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 16px;
-  --space-lg: 24px;
-  /* 字号 token */
-  --font-size-xs: 11px;
-  --font-size-sm: 12px;
-  --font-size-md: 13px;
-  --font-size-lg: 14px;
-  /* 圆角 token */
-  --radius-sm: 6px;
+  --bg-primary: var(--ds-bg-surface);
+  --bg-secondary: var(--ds-bg-app);
+  --bg-tertiary: var(--ds-bg-sunken);
+  --bg-hover: var(--ds-bg-hover);
+
+  --text-primary: var(--ds-text-strong);
+  --text-regular: var(--ds-text-base);
+  --text-secondary: var(--ds-text-muted);
+  --text-tertiary: var(--ds-text-muted);
+  --text-placeholder: var(--ds-text-muted);
+
+  --border-light: var(--ds-border-subtle);
+  --border-base: var(--ds-border-base);
+  --border-dark: var(--ds-border-strong);
+
+  --color-primary: var(--ds-accent);
+  --color-primary-text: var(--ds-accent-text);
+  --hover-color: var(--ds-bg-hover);
+
+  --color-success: var(--ds-status-success-solid);
+  --color-warning: var(--ds-status-warning-solid);
+  --color-danger: var(--ds-status-danger-solid);
+  --color-info: var(--ds-status-info-solid);
+  --color-success-text: var(--ds-status-success-text);
+  --color-warning-text: var(--ds-status-warning-text);
+  --color-danger-text: var(--ds-status-danger-text);
+
+  --space-xs: var(--ds-space-4);
+  --space-sm: var(--ds-space-8);
+  --space-md: var(--ds-space-16);
+  --space-lg: var(--ds-space-24);
+
+  --font-size-xs: var(--ds-text-micro-size);
+  --font-size-sm: var(--ds-text-small-size);
+  --font-size-md: var(--ds-text-body-size);
+  --font-size-lg: var(--ds-text-body-lg-size);
+
+  --radius-sm: var(--ds-radius-sm);
   --radius-md: 10px;
-  --radius-lg: 14px;
-  /* 动效 token */
-  --transition-fast: 0.15s ease;
-  --transition-base: 0.2s ease;
-  --transition-slow: 0.3s ease;
-  /* 缓动曲线 token：--ease-out 用于入场/位移（快起慢收），--ease-smooth 用于通用状态过渡 */
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-  --shadow-light: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
-  --shadow-base: 0 4px 16px rgba(16, 24, 40, 0.08);
-  --shadow-dark: 0 8px 28px rgba(16, 24, 40, 0.14);
+  --radius-lg: var(--ds-radius-lg);
+
+  --transition-fast: var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
+  --transition-base: var(--ds-motion-dur-3) var(--ds-motion-ease-in-out);
+  --transition-slow: var(--ds-motion-dur-4) var(--ds-motion-ease-in-out);
+  --ease-out: var(--ds-motion-ease-out);
+  --ease-smooth: var(--ds-motion-ease-in-out);
+
+  --shadow-light: var(--ds-elev-1);
+  --shadow-base: var(--ds-elev-2);
+  --shadow-dark: var(--ds-elev-3);
 }
 
-/* 深色主题：占位符文本保证 3:1+ 的可读底线（深底不需过亮，避免炫光） */
-[data-theme="dark"] {
-  --bg-primary: #171a21;
-  --bg-secondary: #1e222b;
-  --bg-tertiary: #262b36;
-  /* 悬停态略微亮于区块底色、独立于内嵌色 tertiary，保证交互反馈可感知 */
-  --bg-hover: #252d3c;
-  --text-primary: #e6e9ef;
-  --text-regular: #b4bac8;
-  --text-secondary: #8b93a5;
-  /* 深色下的第三级文字：必须比 secondary 更淡但仍过 4.5:1
-     （#8891a3 对 #1e222b 5.02、对 #171a21 5.49、对卡片 #262b36 4.47） */
-  --text-tertiary: #919aad;
-  --text-placeholder: #98a1b3;
-  --border-light: #2c323e;
-  --border-base: #3a4150;
-  --border-dark: #4b5465;
-  --color-primary: #6c86f5;
-  --color-primary-text: #93a8ff;
-  --hover-color: #2f3038;
-  --color-success: #34d399;
-  --color-warning: #fbbf24;
-  --color-danger: #f87171;
-  --color-info: #94a3b8;
-  /* 深色下语义色本身就足够亮（success 9.06 / danger 6.29 / warning 10.43），
-     文字版直接沿用，无需再压深 */
-  --color-success-text: #34d399;
-  --color-warning-text: #fbbf24;
-  --color-danger-text: #f87171;
-  /* 间距 token（与浅色主题一致） */
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 16px;
-  --space-lg: 24px;
-  /* 字号 token */
-  --font-size-xs: 11px;
-  --font-size-sm: 12px;
-  --font-size-md: 13px;
-  --font-size-lg: 14px;
-  /* 圆角 token */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  /* 动效 token */
-  --transition-fast: 0.15s ease;
-  --transition-base: 0.2s ease;
-  --transition-slow: 0.3s ease;
-  /* 阴影：深色背景下纯黑阴影不可见，用更低透明度 + 更大模糊制造柔和浮起感（层级主要靠 border 表达） */
-  --shadow-light: 0 1px 3px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.22);
-  --shadow-base: 0 3px 14px rgba(0, 0, 0, 0.4);
-  --shadow-dark: 0 8px 26px rgba(0, 0, 0, 0.5);
+/* ---------- 基础排版 ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
-/* 全局基础 */
 html,
-body,
-#app {
-  height: 100%;
+body {
   margin: 0;
   padding: 0;
+  height: 100%;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
+  font-family: var(--ds-font-sans);
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
+  color: var(--ds-text-base);
+  background: var(--ds-bg-app);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* 滚动条 */
+#app {
+  height: 100vh;
+  overflow: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  margin: 0;
+  color: var(--ds-text-strong);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--ds-accent-subtle);
+  color: var(--ds-text-strong);
+}
+
+/* ---------- 滚动条：细、无声、跟随主题 ---------- */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -144,13 +118,102 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-base);
-  border-radius: 8px;
+  background: var(--ds-border-strong);
+  border: 2px solid transparent;
+  border-radius: var(--ds-radius-pill);
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-dark);
+  background: var(--ds-text-faint);
+  background-clip: content-box;
 }
+
+/* ---------- 工具类 ---------- */
+.ds-tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 数字/哈希用等宽：BT 的 info hash、文件大小、速度在小数位对齐时才像仪表盘 */
+.ds-num {
+  font-family: var(--ds-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-surface {
+  background: var(--ds-bg-surface);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-elev-1);
+}
+
+/* 按下反馈：整站统一的「物理感」，reduced-motion 下由全局兜底关掉 */
+.ds-press:active:not([disabled]) {
+  transform: scale(0.97);
+}
+
+/* ---------- Naive UI 补丁（v2） ---------- */
+/* 卡片标题默认 18px，会与页面 h1 抢层级；收到 16px 的「区块标题」档 */
+.n-card-header__main {
+  font-size: var(--ds-text-title-size);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* 数据表：表头是一层「标签带」，行是内容层——v1 两者几乎同色，读起来没有结构 */
+.n-data-table .n-data-table-th {
+  background: var(--ds-bg-sunken);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-small-size);
+  font-weight: 500;
+}
+
+.n-data-table .n-data-table-td {
+  border-color: var(--ds-border-subtle);
+}
+
+/* 排序箭头常驻 = 每一列表头都挂一个 ↓，7 列就是 7 个噪声符号。
+   改成悬停/键盘聚焦/已排序时才出现，表头只留列名。 */
+.n-data-table .n-data-table-sorter {
+  opacity: 0;
+  transition: opacity var(--ds-motion-dur-2) var(--ds-motion-ease-out);
+}
+
+.n-data-table .n-data-table-th:hover .n-data-table-sorter,
+.n-data-table .n-data-table-th:focus-within .n-data-table-sorter,
+.n-data-table .n-data-table-th--sorting .n-data-table-sorter {
+  opacity: 1;
+}
+
+/* 触屏/无 hover 设备上不能靠悬停才看见排序能力，直接常显 */
+@media (hover: none) {
+  .n-data-table .n-data-table-sorter {
+    opacity: 1;
+  }
+}
+
+.n-data-table .n-data-table-tr:hover .n-data-table-td {
+  background: var(--ds-bg-hover);
+}
+
+/* 选中行整行着色：v1 只有 48px 复选框列在变，1400px 宽表里等于没有反馈 */
+.n-data-table .n-data-table-tr.ds-row-selected .n-data-table-td {
+  background: var(--ds-bg-selected);
+}
+
+.n-data-table .n-data-table-tr.ds-row-selected:hover .n-data-table-td {
+  background: var(--ds-bg-selected);
+}
+
+/* =========================================
+   以下为 v1 已验收的无障碍补丁，逐条保留（内容未改，仅随 v2 变量生效）
+   ========================================= */
 
 /* 默认（白色）按钮沿用 Naive UI 的既有反馈：白底灰边、深色文字，
    鼠标悬浮时文字与边框变蓝，和蓝色主按钮形成明确层级。

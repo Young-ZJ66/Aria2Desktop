@@ -3,7 +3,9 @@
     "downloadManager": "Gestor de descargas",
     "settings": "Configuración",
     "toggleTheme": "Cambiar tema",
-    "githubRepo": "Repositorio de GitHub"
+    "githubRepo": "Repositorio de GitHub",
+    "collapseSidebar": "Contraer barra lateral",
+    "expandSidebar": "Expandir barra lateral"
   },
   "nav": {
     "downloading": "Descargas",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Límite de velocidad activado",
     "speedLimitOff": "Límite de velocidad desactivado",
     "speedLimitNoEngine": "Aún no está conectado al motor aria2, por lo que no se puede alternar el límite de velocidad",
-    "speedLimitToggleFailed": "No se pudo alternar el límite de velocidad. Compruebe la conexión con el motor."
+    "speedLimitToggleFailed": "No se pudo alternar el límite de velocidad. Compruebe la conexión con el motor.",
+    "speedLimit": "Límite de velocidad"
   },
   "notification": {
     "downloadComplete": "Descarga completada",
@@ -406,6 +409,7 @@
     "clear": "Borrar"
   },
   "statusPage": {
+    "trafficCollecting": "Recopilando datos de velocidad…",
     "title": "Estado de Aria2",
     "subtitle": "Estado de ejecución del motor Aria2 y resumen de tareas de descarga",
     "connectionStatus": "Estado de la conexión",
@@ -1512,6 +1516,7 @@
     "refresh": "Actualizar estado"
   },
   "common": {
+    "loading": "Cargando…",
     "confirm": "Confirmar",
     "cancel": "Cancelar",
     "ok": "Aceptar",
@@ -1533,6 +1538,9 @@
     "refresh": "Actualizar"
   },
   "queue": {
+    "settings": "Ajustes de la cola",
+    "emptyHint": "Las tareas en espera aparecerán aquí en el orden de la cola cuando inicies una nueva descarga.",
+    "disconnectedHint": "Los datos de la cola provienen de aria2. Conéctate para ver las tareas en espera y reordenarlas.",
     "title": "Cola",
     "description": "Descargas en espera en la cola de aria2. Ajuste la prioridad sin reiniciar las tareas.",
     "refresh": "Actualizar",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "s"
   },
   "instances": {
+    "add": "Añadir instancia",
     "title": "Gestor de instancias múltiples",
     "description": "Gestione y cambie rápidamente entre varias instancias de aria2, con comprobaciones de conectividad y versión.",
     "testAll": "Probar todas",
@@ -1656,6 +1665,8 @@
     "loading": "Cargando…"
   },
   "automation": {
+    "loadErrorTitle": "No se puede leer la configuración de automatización",
+    "loadErrorHint": "El motor de escritorio no responde. Comprueba que esté en marcha y vuelve a intentarlo. Los detalles se registraron en la consola de desarrollo.",
     "title": "Automatización",
     "description": "Suscripciones RSS y carpetas vigiladas que crean descargas automáticamente",
     "refresh": "Actualizar",

@@ -3,7 +3,9 @@
     "downloadManager": "Manajer Unduhan",
     "settings": "Pengaturan",
     "toggleTheme": "Ubah Tema",
-    "githubRepo": "Repositori GitHub"
+    "githubRepo": "Repositori GitHub",
+    "collapseSidebar": "Ciutkan bilah sisi",
+    "expandSidebar": "Perluas bilah sisi"
   },
   "nav": {
     "downloading": "Unduhan",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Batas Kecepatan Aktif",
     "speedLimitOff": "Batas Kecepatan Nonaktif",
     "speedLimitNoEngine": "Belum terhubung ke mesin aria2, sehingga batas kecepatan tidak dapat diubah",
-    "speedLimitToggleFailed": "Gagal mengubah batas kecepatan. Periksa koneksi mesin."
+    "speedLimitToggleFailed": "Gagal mengubah batas kecepatan. Periksa koneksi mesin.",
+    "speedLimit": "Batas kecepatan"
   },
   "notification": {
     "downloadComplete": "Unduhan Selesai",
@@ -406,6 +409,7 @@
     "clear": "Bersihkan"
   },
   "statusPage": {
+    "trafficCollecting": "Mengumpulkan data kecepatan…",
     "title": "Status Aria2",
     "subtitle": "Status runtime mesin Aria2 dan ringkasan tugas unduhan",
     "connectionStatus": "Status Koneksi",
@@ -1512,6 +1516,7 @@
     "refresh": "Segarkan status"
   },
   "common": {
+    "loading": "Memuat…",
     "confirm": "Konfirmasi",
     "cancel": "Batal",
     "ok": "OK",
@@ -1533,6 +1538,9 @@
     "refresh": "Segarkan"
   },
   "queue": {
+    "settings": "Pengaturan antrean",
+    "emptyHint": "Tugas yang menunggu akan muncul di sini sesuai urutan antrean setelah Anda memulai unduhan baru.",
+    "disconnectedHint": "Data antrean berasal dari aria2. Hubungkan dulu untuk melihat tugas yang menunggu dan mengubah urutannya.",
     "title": "Antrean",
     "description": "Unduhan yang menunggu di antrean aria2. Sesuaikan prioritas tanpa memulai ulang tugas.",
     "refresh": "Segarkan",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "detik"
   },
   "instances": {
+    "add": "Tambah instans",
     "title": "Manajer Multi-instans",
     "description": "Kelola dan beralih dengan cepat antara beberapa instans aria2, dengan pemeriksaan konektivitas dan versi.",
     "testAll": "Uji semua",
@@ -1656,6 +1665,8 @@
     "loading": "Memuat…"
   },
   "automation": {
+    "loadErrorTitle": "Tidak dapat membaca pengaturan otomatisasi",
+    "loadErrorHint": "Mesin desktop tidak merespons. Pastikan sudah berjalan, lalu coba lagi. Detail telah dicatat di konsol pengembang.",
     "title": "Otomatisasi",
     "description": "Langganan RSS dan folder yang dipantau membuat tugas unduhan secara otomatis",
     "refresh": "Muat ulang",

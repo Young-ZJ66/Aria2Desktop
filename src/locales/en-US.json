@@ -3,7 +3,9 @@
     "downloadManager": "Download Manager",
     "settings": "Settings",
     "toggleTheme": "Toggle Theme",
-    "githubRepo": "GitHub Repository"
+    "githubRepo": "GitHub Repository",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar"
   },
   "nav": {
     "downloading": "Downloads",
@@ -388,7 +390,8 @@
     "speedLimitOn": "Speed Limit On",
     "speedLimitOff": "Speed Limit Off",
     "speedLimitNoEngine": "Not connected to the aria2 engine yet, so the speed limit cannot be toggled",
-    "speedLimitToggleFailed": "Failed to toggle the speed limit. Check the engine connection."
+    "speedLimitToggleFailed": "Failed to toggle the speed limit. Check the engine connection.",
+    "speedLimit": "Speed limit"
   },
   "notification": {
     "downloadComplete": "Download Complete",
@@ -406,6 +409,7 @@
     "clear": "Clear"
   },
   "statusPage": {
+    "trafficCollecting": "Collecting speed data…",
     "title": "Aria2 Status",
     "subtitle": "Aria2 engine runtime status and download task overview",
     "connectionStatus": "Connection Status",
@@ -1512,6 +1516,7 @@
     "refresh": "Refresh status"
   },
   "common": {
+    "loading": "Loading…",
     "confirm": "Confirm",
     "cancel": "Cancel",
     "ok": "OK",
@@ -1533,6 +1538,9 @@
     "refresh": "Refresh"
   },
   "queue": {
+    "settings": "Queue settings",
+    "emptyHint": "Waiting tasks will appear here in queue order once you start a new download.",
+    "disconnectedHint": "Queue data comes from aria2. Connect first to see waiting tasks and reorder them.",
     "title": "Queue",
     "description": "Waiting downloads in aria2's queue. Adjust priority without restarting tasks.",
     "refresh": "Refresh",
@@ -1615,6 +1623,7 @@
     "webhookRetryDelayUnit": "s"
   },
   "instances": {
+    "add": "Add instance",
     "title": "Multi-instance Manager",
     "description": "Manage and quickly switch between multiple aria2 instances, with connectivity and version checks.",
     "testAll": "Test all",
@@ -1656,6 +1665,8 @@
     "loading": "Loading…"
   },
   "automation": {
+    "loadErrorTitle": "Can't read automation settings right now",
+    "loadErrorHint": "The desktop engine isn't responding. Make sure it's running, then try again. Details were written to the developer console.",
     "title": "Automation",
     "description": "RSS feeds and watched folders that create download tasks automatically",
     "refresh": "Refresh",
