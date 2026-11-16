@@ -697,7 +697,7 @@ onMounted(() => {
   gap: var(--ds-space-12);
   margin-bottom: var(--ds-space-16);
   padding: var(--ds-space-10) var(--ds-space-12);
-  background: var(--ds-bg-sunken));
+  background: var(--ds-bg-sunken);
   border-left: 3px solid var(--ds-status-warning-text);
   border-radius: var(--ds-radius-md);
   font-size: var(--ds-text-small-size);
