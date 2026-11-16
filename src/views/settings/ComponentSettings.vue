@@ -438,15 +438,11 @@ async function openExtensionStore() {
 </script>
 
 <style scoped>
-.setting-group {
-  margin-bottom: 16px;
-}
-
 .component-item {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--ds-space-16);
 }
 
 .component-info {
@@ -457,14 +453,14 @@ async function openExtensionStore() {
 .component-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-8);
   min-width: 0;
 }
 
 .component-name {
   flex: none;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: var(--ds-text-body-size);
   font-weight: 600;
 }
 
@@ -476,36 +472,36 @@ async function openExtensionStore() {
 }
 
 .component-version {
-  margin: 4px 0 0;
-  font-size: 12px;
+  margin: var(--ds-space-4) 0 0;
+  font-size: var(--ds-text-small-size);
   line-height: 1.5;
-  color: var(--text-secondary);
+  color: var(--ds-text-muted);
   word-break: break-all;
 }
 
 .component-hint {
-  margin: 6px 0 0;
-  font-size: 12px;
+  margin: var(--ds-space-6) 0 0;
+  font-size: var(--ds-text-small-size);
   line-height: 1.5;
-  color: var(--text-secondary);
+  color: var(--ds-text-muted);
 }
 
 .component-progress {
-  margin-top: 8px;
+  margin-top: var(--ds-space-8);
 }
 
 .component-actions {
   flex: none;
-  padding-top: 2px;
+  padding-top: var(--ds-space-2);
 }
 
 .component-divider {
-  margin: 18px 0;
+  margin: var(--ds-space-16) 0;
 }
 
 .pending-hint {
-  color: var(--text-secondary);
-  font-size: 13px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-body-size);
 }
 
 /* MCP 接入信息：端点与示例配置用等宽字体，便于肉眼核对/复制 */
@@ -515,26 +511,26 @@ async function openExtensionStore() {
 
 .mcp-endpoint {
   display: block;
-  padding: 10px 40px 10px 12px;
-  border-radius: 6px;
-  background: var(--bg-secondary);
+  padding: var(--ds-space-10) var(--ds-space-40) var(--ds-space-10) var(--ds-space-12);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-bg-sunken);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--ds-text-small-size);
   line-height: 1.5;
-  color: var(--text-regular);
+  color: var(--ds-text-base);
   overflow-x: auto;
   white-space: nowrap;
 }
 
 .mcp-json {
   margin: 0;
-  padding: 10px 40px 10px 12px;
-  border-radius: 6px;
-  background: var(--bg-secondary);
+  padding: var(--ds-space-10) var(--ds-space-40) var(--ds-space-10) var(--ds-space-12);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-bg-sunken);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--ds-text-small-size);
   line-height: 1.5;
-  color: var(--text-regular);
+  color: var(--ds-text-base);
   overflow-x: auto;
   white-space: pre;
 }
@@ -543,18 +539,18 @@ async function openExtensionStore() {
   position: absolute;
   top: 6px;
   right: 6px;
-  background: var(--bg-primary);
+  background: var(--ds-bg-surface);
 }
 
 /* 扩展连接状态：中性信息在左，重新检测在右，整行不抢按钮视觉重量 */
 .extension-status {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 12px 0 0;
-  font-size: 13px;
+  gap: var(--ds-space-8);
+  margin: var(--ds-space-12) 0 0;
+  font-size: var(--ds-text-body-size);
   line-height: 1.6;
-  color: var(--text-secondary);
+  color: var(--ds-text-muted);
 }
 
 .extension-status-text {
@@ -563,29 +559,29 @@ async function openExtensionStore() {
 }
 
 .extension-status.is-warn {
-  color: var(--color-warning);
+  color: var(--ds-status-warning-text);
 }
 
 .extension-status.is-ok .extension-status-text {
-  color: var(--color-success);
+  color: var(--ds-status-success-text);
 }
 
 /* loading 时固定按钮高度，避免整行与后续卡片边框上下跳动 */
 .extension-status-refresh {
-  height: 20px;
-  line-height: 20px;
+  height: var(--ds-space-20);
+  line-height: var(--ds-space-20);
 }
 
 .extension-status-refresh :deep(.n-button__content) {
-  line-height: 20px;
+  line-height: var(--ds-space-20);
 }
 
 /* MCP 配置：示例 / 当前配置切换 */
 .mcp-config-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 10px 0 8px;
+  gap: var(--ds-space-10);
+  margin: var(--ds-space-10) 0 var(--ds-space-8);
 }
 
 .mcp-config-switch {
@@ -593,7 +589,7 @@ async function openExtensionStore() {
 }
 
 .mcp-config-note {
-  color: var(--color-warning);
-  font-size: 12px;
+  color: var(--ds-status-warning-text);
+  font-size: var(--ds-text-small-size);
 }
 </style>

@@ -890,44 +890,40 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.setting-group {
-  margin-bottom: 16px;
-}
-
 .upnp-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--ds-space-10);
   flex-wrap: wrap;
 }
 
 .upnp-status {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
 .upnp-status.upnp-ok {
-  color: var(--success-color, #18a058);
+  color: var(--ds-status-success-text);
 }
 
 .upnp-status.upnp-unsupported,
 .upnp-status.upnp-error {
-  color: var(--warning-color, #f0a020);
+  color: var(--ds-status-warning-text);
 }
 
 .tracker-official-sources {
   display: flex;
   flex-direction: row;
-  gap: 16px;
+  gap: var(--ds-space-16);
 }
 
 .tracker-source-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: var(--hover-color, #f5f5f5);
-  border-radius: 6px;
+  gap: var(--ds-space-8);
+  padding: var(--ds-space-6) var(--ds-space-12);
+  background: var(--ds-bg-hover);
+  border-radius: var(--ds-radius-sm);
   cursor: pointer;
 }
 
@@ -938,14 +934,14 @@ onMounted(async () => {
 .tracker-custom-sources {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--ds-space-8);
   width: 100%;
 }
 
 .tracker-source-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-8);
 }
 
 .tracker-source-row .n-input {
@@ -954,30 +950,30 @@ onMounted(async () => {
 
 .tracker-expand-btn {
   align-self: flex-start;
-  font-size: 12px;
-  color: var(--color-primary-text);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-accent-text);
 }
 
 .tracker-expand-btn:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
-  color: var(--color-primary-text);
+  color: var(--ds-accent-text);
 }
 
 .tracker-source-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-8);
 }
 
 .tracker-update-section {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--ds-space-16);
 }
 
 .tracker-update-meta {
-  font-size: 12px;
-  color: var(--text-secondary, #888);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 </style>

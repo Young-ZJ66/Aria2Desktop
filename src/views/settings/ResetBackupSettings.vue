@@ -243,13 +243,13 @@ async function confirmImportSettings(): Promise<void> {
 <style scoped>
 .setting-hint {
   margin: 0;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
 /* 备份区：勾选框与操作按钮的间距 */
 .backup-secrets-checkbox {
-  margin-bottom: 12px;
+  margin-bottom: var(--ds-space-12);
 }
 
 .backup-actions {

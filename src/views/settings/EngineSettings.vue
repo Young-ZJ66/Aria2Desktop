@@ -514,48 +514,48 @@ onMounted(async () => {
 
 <style scoped>
 .status-content {
-  margin-bottom: 16px;
+  margin-bottom: var(--ds-space-16);
 }
 
 /* 统一服务状态标签的圆角，避免不同尺寸标签默认圆角不一致 */
 .status-content :deep(.n-tag) {
-  border-radius: 6px;
+  border-radius: var(--ds-radius-sm);
 }
 
 .status-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: var(--ds-space-12);
+  margin-bottom: var(--ds-space-10);
 }
 
 .status-label {
   min-width: 100px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
 }
 
 .status-value {
-  color: var(--text-regular);
+  color: var(--ds-text-base);
 }
 
 .control-buttons {
-  padding-top: 16px;
-  border-top: 1px solid var(--border-light);
+  padding-top: var(--ds-space-16);
+  border-top: 1px solid var(--ds-border-subtle);
 }
 
 .config-actions {
   display: flex;
   justify-content: flex-start;
-  gap: 12px;
-  padding-top: 8px;
+  gap: var(--ds-space-12);
+  padding-top: var(--ds-space-8);
 }
 
 /* 统一现代化操作按钮：与系统风格一致，圆角、语义色光晕、悬停轻微浮起 */
 .control-buttons :deep(.n-button) {
-  border-radius: 8px;
+  border-radius: var(--ds-radius-md);
   font-weight: 500;
-  transition: transform var(--ease-out) 0.18s, box-shadow var(--ease-out) 0.18s;
+  transition: transform var(--ds-motion-ease-out) 0.18s, box-shadow var(--ds-motion-ease-out) 0.18s;
 }
 
 .control-buttons :deep(.n-button:hover:not([disabled])) {
@@ -570,20 +570,20 @@ onMounted(async () => {
    仅覆盖文字色：启动默认蓝字，停止默认红字。
    悬浮时边框与字体自动变蓝（naive-ui default 按钮默认行为，与「保存会话」一致） */
 .control-buttons :deep(.status-btn-start) {
-  color: var(--color-primary-text) !important;
+  color: var(--ds-accent-text) !important;
 }
 
 .control-buttons :deep(.status-btn-stop) {
-  color: var(--color-danger-text) !important;
+  color: var(--ds-status-danger-text) !important;
 }
 
 .control-buttons :deep(.status-btn-stop:hover:not([disabled])) {
-  color: var(--color-danger-text) !important;
+  color: var(--ds-status-danger-text) !important;
 }
 
 /* 停止按钮悬浮时边框同步变红 */
 .control-buttons :deep(.status-btn-stop:hover:not([disabled]) .n-button__state-border) {
-  border-color: var(--color-danger);
+  border-color: var(--ds-status-danger-solid);
 }
 
 /* 点击后的 focus 状态不显示蓝色边框（避免残留看起来像默认蓝边框），

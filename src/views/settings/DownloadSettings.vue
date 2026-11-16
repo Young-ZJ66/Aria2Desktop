@@ -180,10 +180,18 @@
             <n-input v-model:value="rule.name" :placeholder="t('settings.download.scheduleRuleName')" size="small" style="width: 120px;" />
             <n-select v-model:value="rule.days" :options="dayOptions" multiple size="small" style="min-width: 180px;" :placeholder="t('settings.download.everyDay')" />
             <n-time-picker v-model:value="rule.startTimestamp" format="HH:mm" size="small" style="width: 100px;" :placeholder="t('settings.download.startTime')" />
-            <span style="color: var(--text-secondary);">-</span>
+            <span style="color: var(--ds-text-muted);">-</span>
             <n-time-picker v-model:value="rule.endTimestamp" format="HH:mm" size="small" style="width: 100px;" :placeholder="t('settings.download.endTime')" />
             <n-input-number v-model:value="rule.downloadLimitKB" :min="0" size="small" style="width: 120px;" :suffix="t('settings.download.kbPerSec')" :placeholder="t('settings.download.downloadLimit')" />
-            <n-button size="small" quaternary type="error" @click="removeScheduleRule(index)">
+            <!-- 纯图标删除按钮：复用已有 i18n key settings.download.category.deleteRule（各语言包均已存在「删除」），避免新增文案 -->
+            <n-button
+              size="small"
+              quaternary
+              type="error"
+              :aria-label="t('settings.download.category.deleteRule')"
+              :title="t('settings.download.category.deleteRule')"
+              @click="removeScheduleRule(index)"
+            >
               <template #icon><n-icon><TrashOutline /></n-icon></template>
             </n-button>
           </div>
@@ -208,10 +216,17 @@
             <n-input v-model:value="rule.name" :placeholder="t('settings.download.scheduleRuleName')" size="small" style="width: 120px;" />
             <n-select v-model:value="rule.days" :options="dayOptions" multiple size="small" style="min-width: 180px;" :placeholder="t('settings.download.everyDay')" />
             <n-time-picker v-model:value="rule.startTimestamp" format="HH:mm" size="small" style="width: 100px;" :placeholder="t('settings.download.startTime')" />
-            <span style="color: var(--text-secondary);">-</span>
+            <span style="color: var(--ds-text-muted);">-</span>
             <n-time-picker v-model:value="rule.endTimestamp" format="HH:mm" size="small" style="width: 100px;" :placeholder="t('settings.download.endTime')" />
             <span class="dl-schedule-action">{{ t('settings.download.downloadScheduleResume') }}</span>
-            <n-button size="small" quaternary type="error" @click="removeDlScheduleRule(index)">
+            <n-button
+              size="small"
+              quaternary
+              type="error"
+              :aria-label="t('settings.download.category.deleteRule')"
+              :title="t('settings.download.category.deleteRule')"
+              @click="removeDlScheduleRule(index)"
+            >
               <template #icon><n-icon><TrashOutline /></n-icon></template>
             </n-button>
           </div>
@@ -1066,29 +1081,25 @@ function removeDlScheduleRule(index: number) {
 </script>
 
 <style scoped>
-.setting-group {
-  margin-bottom: 16px;
-}
-
 .category-setup {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--ds-space-8);
   width: 100%;
 }
 
 .category-rule-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-8);
   /* 与设置页其他输入框同宽（80%），下拉+按钮整体对齐 */
   width: 100%;
 }
 
 .category-field-label {
-  font-size: 13px;
+  font-size: var(--ds-text-body-size);
   line-height: 1.4;
-  color: var(--text-secondary);
+  color: var(--ds-text-muted);
   margin-bottom: -4px;
 }
 
@@ -1097,9 +1108,9 @@ function removeDlScheduleRule(index: number) {
 .category-filetype-box {
   box-sizing: border-box;
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--border-base);
-  border-radius: 6px;
+  padding: var(--ds-space-8) var(--ds-space-10);
+  border: 1px solid var(--ds-border-base);
+  border-radius: var(--ds-radius-sm);
 }
 
 .category-filetype-box :deep(.n-dynamic-tags) {
@@ -1107,31 +1118,31 @@ function removeDlScheduleRule(index: number) {
 }
 
 .category-filetype-title {
-  font-size: 12px;
+  font-size: var(--ds-text-small-size);
   line-height: 1.4;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
+  color: var(--ds-text-muted);
+  margin-bottom: var(--ds-space-8);
   user-select: none;
 }
 
 .schedule-rules {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--ds-space-8);
 }
 
 .dl-schedule-action {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
 .schedule-rule {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-8);
   flex-wrap: wrap;
-  padding: 8px;
-  background: var(--bg-secondary);
-  border-radius: 6px;
+  padding: var(--ds-space-8);
+  background: var(--ds-bg-sunken);
+  border-radius: var(--ds-radius-sm);
 }
 </style>

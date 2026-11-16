@@ -56,7 +56,12 @@
             </div>
           </div>
 
-          <n-empty v-if="!loading && plugins.length === 0" :description="t('settings.plugins.empty')" size="small" style="padding: 32px 0;" />
+          <UiEmpty
+            v-if="!loading && plugins.length === 0"
+            size="sm"
+            :icon="ExtensionPuzzleOutline"
+            :title="t('settings.plugins.empty')"
+          />
           <div v-else class="plugin-list">
             <div v-for="plugin in plugins" :key="plugin.manifest.id" class="plugin-item">
               <div class="plugin-main">
@@ -153,11 +158,11 @@
             {{ marketErrorText }}
           </DismissibleAlert>
           <n-spin :show="marketLoading">
-            <n-empty
+            <UiEmpty
               v-if="!marketLoading && marketPlugins.length === 0"
-              :description="marketError === 'MARKET_DISABLED' ? t('settings.plugins.marketDisabledEmpty') : t('settings.plugins.marketEmpty')"
-              size="small"
-              style="padding: 24px 0;"
+              size="sm"
+              :icon="StorefrontOutline"
+              :title="marketError === 'MARKET_DISABLED' ? t('settings.plugins.marketDisabledEmpty') : t('settings.plugins.marketEmpty')"
             />
             <div v-else class="plugin-list">
               <div v-for="item in marketPlugins" :key="item.id" class="plugin-item">
@@ -202,8 +207,9 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { CloseOutline, FolderOpenOutline } from '@vicons/ionicons5'
+import { CloseOutline, ExtensionPuzzleOutline, FolderOpenOutline, StorefrontOutline } from '@vicons/ionicons5'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
+import { UiEmpty } from '@/components/ui'
 import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import { message, confirm } from '@/utils/feedback'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -548,45 +554,45 @@ onMounted(() => {
 
 <style scoped>
 .market-settings {
-  margin-bottom: 14px;
+  margin-bottom: var(--ds-space-12);
 }
 
 .market-settings :deep(.n-collapse-item__header) {
-  font-size: 13px;
+  font-size: var(--ds-text-body-size);
   font-weight: 600;
 }
 
 .market-settings-divider {
-  margin: 14px 0 12px;
+  margin: var(--ds-space-12) 0 var(--ds-space-12);
 }
 
 .market-publishers-title {
-  margin-bottom: 4px;
-  font-size: 13px;
+  margin-bottom: var(--ds-space-4);
+  font-size: var(--ds-text-body-size);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
 }
 
 .market-config {
   margin-bottom: 0;
-  padding: 12px 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
+  padding: var(--ds-space-12) var(--ds-space-12);
+  background: var(--ds-bg-sunken);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-md);
 }
 
 .market-config-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+  gap: var(--ds-space-12);
+  margin-bottom: var(--ds-space-8);
 }
 
 .market-config-label {
   flex: none;
   width: 150px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
 .market-config-actions {
@@ -597,7 +603,7 @@ onMounted(() => {
 .publishers-actions {
   display: flex;
   justify-content: flex-start;
-  margin-top: 8px;
+  margin-top: var(--ds-space-8);
 }
 
 .plugin-tabs {
@@ -605,24 +611,24 @@ onMounted(() => {
 }
 
 .plugin-tabs :deep(.n-tabs-nav) {
-  margin-bottom: 2px;
+  margin-bottom: var(--ds-space-2);
 }
 
 .plugin-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--ds-space-10);
 }
 
 .plugin-item {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
+  gap: var(--ds-space-12);
+  padding: var(--ds-space-12) var(--ds-space-12);
+  background: var(--ds-bg-sunken);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-md);
 }
 
 .plugin-main {
@@ -633,36 +639,36 @@ onMounted(() => {
 .plugin-name-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-8);
 }
 
 .plugin-name {
-  font-size: 13.5px;
+  font-size: var(--ds-text-body-size);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
 }
 
 .plugin-version {
-  font-size: 11px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-micro-size);
+  color: var(--ds-text-muted);
   font-family: 'Monaco', 'Menlo', monospace;
 }
 
 .plugin-desc {
-  margin-top: 3px;
-  font-size: 12px;
+  margin-top: var(--ds-space-4);
+  font-size: var(--ds-text-small-size);
   line-height: 1.5;
-  color: var(--text-secondary);
+  color: var(--ds-text-muted);
   word-break: break-word;
 }
 
 .plugin-meta {
-  margin-top: 5px;
+  margin-top: var(--ds-space-4);
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
-  font-size: 11px;
-  color: var(--text-secondary);
+  gap: var(--ds-space-4) var(--ds-space-12);
+  font-size: var(--ds-text-micro-size);
+  color: var(--ds-text-muted);
 }
 
 .plugin-perms {
@@ -671,9 +677,9 @@ onMounted(() => {
 }
 
 .plugin-error {
-  margin-top: 5px;
-  font-size: 11.5px;
-  color: var(--color-danger-text, #dc2626);
+  margin-top: var(--ds-space-4);
+  font-size: var(--ds-text-micro-size);
+  color: var(--ds-status-danger-text);
   word-break: break-word;
 }
 
@@ -682,21 +688,21 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: var(--ds-space-8);
 }
 
 .plugin-hint {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding: 10px 12px;
-  background: var(--bg-tertiary, rgba(128, 128, 128, 0.06));
-  border-left: 3px solid var(--color-warning, #d97706);
-  border-radius: 8px;
-  font-size: 12px;
+  gap: var(--ds-space-12);
+  margin-bottom: var(--ds-space-16);
+  padding: var(--ds-space-10) var(--ds-space-12);
+  background: var(--ds-bg-sunken));
+  border-left: 3px solid var(--ds-status-warning-text);
+  border-radius: var(--ds-radius-md);
+  font-size: var(--ds-text-small-size);
   line-height: 1.7;
-  color: var(--text-secondary);
+  color: var(--ds-text-muted);
 }
 
 .plugin-hint-main {
@@ -705,7 +711,7 @@ onMounted(() => {
 }
 
 .plugin-hint-main p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--ds-space-4);
 }
 
 .plugin-hint-main p:last-child {
@@ -713,7 +719,7 @@ onMounted(() => {
 }
 
 .plugin-hint-warning {
-  color: var(--color-warning, #d97706);
+  color: var(--ds-status-warning-text);
   font-weight: 600;
 }
 
@@ -727,6 +733,6 @@ onMounted(() => {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--ds-space-4);
 }
 </style>

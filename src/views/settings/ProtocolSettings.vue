@@ -428,9 +428,3 @@ async function selectFile(field: 'caCertificate' | 'certificate' | 'privateKey',
   }
 }
 </script>
-
-<style scoped>
-.setting-group {
-  margin-bottom: 16px;
-}
-</style>

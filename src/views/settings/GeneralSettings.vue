@@ -626,10 +626,6 @@ async function restartAndInstall() {
 </script>
 
 <style scoped>
-.setting-group {
-  margin-bottom: 16px;
-}
-
 .general-form {
   max-width: 100%;
 }
@@ -639,20 +635,20 @@ async function restartAndInstall() {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--ds-space-6);
   width: 100%;
 }
 
 .update-control {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--ds-space-12);
   flex-wrap: wrap;
 }
 
 .current-version {
-  font-size: 12px;
-  color: var(--text-tertiary, #999);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
   user-select: text;
 }
 

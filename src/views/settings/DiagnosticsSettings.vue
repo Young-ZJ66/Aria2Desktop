@@ -342,73 +342,73 @@ onMounted(runDiagnostics)
 .diagnostics-page {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 4px 0 16px;
+  gap: var(--ds-space-12);
+  padding: var(--ds-space-4) 0 var(--ds-space-16);
 }
 .diagnostics-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--ds-space-16);
 }
 .diagnostics-title {
-  margin: 0 0 4px;
-  font-size: 16px;
+  margin: 0 0 var(--ds-space-4);
+  font-size: var(--ds-text-title-size);
   font-weight: 600;
 }
 .diagnostics-desc {
   margin: 0;
-  color: var(--text-color-3);
-  font-size: 13px;
+  color: var(--ds-text-faint);
+  font-size: var(--ds-text-body-size);
 }
 .diagnostics-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--ds-space-8);
   flex-shrink: 0;
 }
 .diagnostics-summary {
-  margin-top: 4px;
+  margin-top: var(--ds-space-4);
 }
 .diagnostics-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--ds-space-8);
 }
 .diagnostic-row {
   display: flex;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--card-color);
+  gap: var(--ds-space-10);
+  padding: var(--ds-space-10) var(--ds-space-12);
+  border: 1px solid var(--ds-border-base);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-bg-surface);
 }
 .diagnostic-row.diagnostic-fail {
-  border-color: rgba(208, 48, 80, 0.35);
+  border-color: color-mix(in srgb, var(--ds-status-danger-text) 35%, transparent);
 }
 .diagnostic-row.diagnostic-warn {
-  border-color: rgba(240, 160, 32, 0.35);
+  border-color: color-mix(in srgb, var(--ds-status-warning-text) 35%, transparent);
 }
 .diagnostic-body {
   min-width: 0;
 }
 .diagnostic-label {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--ds-text-body-size);
 }
 .diagnostic-detail {
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--text-color-2);
+  margin-top: var(--ds-space-2);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
   word-break: break-all;
 }
 .diagnostic-hint {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--text-color-3);
+  margin-top: var(--ds-space-4);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-faint);
 }
 .diagnostics-time {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--text-color-3);
+  margin: var(--ds-space-4) 0 0;
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-faint);
 }
 </style>

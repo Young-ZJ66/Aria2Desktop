@@ -549,9 +549,3 @@ const { loading, saving, reloading, loadSettings, handleSave, handleReset } = us
   validate
 })
 </script>
-
-<style scoped>
-.setting-group {
-  margin-bottom: 16px;
-}
-</style>

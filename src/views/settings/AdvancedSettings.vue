@@ -317,15 +317,3 @@ async function selectLogFile() {
   }
 }
 </script>
-
-<style scoped>
-.setting-group {
-  margin-bottom: 16px;
-}
-
-
-
-
-
-
-</style>

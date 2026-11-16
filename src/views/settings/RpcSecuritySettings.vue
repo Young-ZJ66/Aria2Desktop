@@ -309,9 +309,3 @@ async function selectFile(field: 'rpcCertificate' | 'rpcPrivateKey', title: stri
   }
 }
 </script>
-
-<style scoped>
-.setting-group {
-  margin-bottom: 16px;
-}
-</style>

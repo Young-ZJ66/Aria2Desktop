@@ -55,46 +55,46 @@ function showTooltip(show: boolean) {
 .tip-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ds-space-6);
   line-height: 1.2;
 }
 
 .tip-label-text {
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
 }
 
 .tip-icon {
-  font-size: 15px;
-  color: var(--text-secondary);
+  font-size: var(--ds-text-body-size);
+  color: var(--ds-text-muted);
   cursor: help;
-  transition: color var(--transition-base);
+  transition: color var(--ds-motion-dur-3) var(--ds-motion-ease-in-out);
   flex-shrink: 0;
 }
 
 .tip-icon:hover {
-  color: var(--color-primary-text);
+  color: var(--ds-accent-text);
 }
 
 .tip-icon:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--ds-accent);
   outline-offset: 2px;
-  border-radius: 4px;
-  color: var(--color-primary-text);
+  border-radius: var(--ds-radius-xs);
+  color: var(--ds-accent-text);
 }
 
 .tip-content {
   max-width: 320px;
-  font-size: 12px;
+  font-size: var(--ds-text-small-size);
   line-height: 1.7;
   white-space: pre-line;
   word-break: break-word;
 }
 
 .restart-hint {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px dashed var(--border-light);
-  color: var(--color-warning);
-  font-size: 11px;
+  margin-top: var(--ds-space-6);
+  padding-top: var(--ds-space-6);
+  border-top: 1px dashed var(--ds-border-subtle);
+  color: var(--ds-status-warning-text);
+  font-size: var(--ds-text-micro-size);
 }
 </style>

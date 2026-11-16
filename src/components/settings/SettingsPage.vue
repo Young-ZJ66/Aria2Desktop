@@ -1,5 +1,5 @@
 <template>
-  <div ref="pageRef" class="settings-page" :class="{ 'settings-page--with-actions': showActions }">
+  <div class="settings-page" :class="{ 'settings-page--with-actions': showActions }">
     <div class="settings-header">
       <h2>{{ title }}</h2>
       <p v-if="description" class="settings-description">{{ description }}</p>
@@ -37,37 +37,10 @@
         </n-tooltip>
       </n-space>
     </div>
-
-    <!-- 悬浮操作按钮：仅当页面内容超出滚动区域、未到达底部时显示 -->
-    <div class="float-actions-anchor">
-      <transition name="float-actions">
-        <div v-if="showActions && showFloatActions" class="float-actions-bar">
-          <div class="float-actions-bar__inner">
-            <n-space>
-              <n-button type="primary" :loading="saving" :disabled="disabled" @click="$emit('save')">
-                {{ t('settings.save') }}
-              </n-button>
-              <n-button :loading="reloading" :disabled="disabled" @click="$emit('reload')">
-                {{ t('settings.reload') }}
-              </n-button>
-              <n-tooltip trigger="hover">
-                <template #trigger>
-                  <n-button :disabled="disabled" @click="$emit('reset')">
-                    {{ t('settings.restoreDefaults') }}
-                  </n-button>
-                </template>
-                {{ t('settings.restoreDefaultsTip') }}
-              </n-tooltip>
-            </n-space>
-          </div>
-        </div>
-      </transition>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 
@@ -91,152 +64,60 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
-
-const pageRef = ref<HTMLElement | null>(null)
-const showFloatActions = ref(false)
-let scrollContainer: HTMLElement | null = null
-let scrollHandler: (() => void) | null = null
-
-// 向上查找最近的滚动容器（兼容路由页面与设置对话框两种承载方式）
-function findScrollContainer(el: HTMLElement): HTMLElement | null {
-  let node = el.parentElement
-  while (node) {
-    const style = getComputedStyle(node)
-    if (/(auto|scroll|overlay)/.test(style.overflowY)) return node
-    node = node.parentElement
-  }
-  return null
-}
-
-// 悬浮操作栏只在「页面内容超出可视区、且尚未滚到底部」时出现。
-// 用滚动位置直接计算而不是 IntersectionObserver：设置页在弹窗/页签里可能处于
-// 隐藏容器中，观察器的初始回调时机不稳定，会出现该显示时不显示。
-function updateFloatActions(): void {
-  if (!scrollContainer) return
-  const scrollable = scrollContainer.scrollHeight > scrollContainer.clientHeight + 4
-  const atBottom = scrollContainer.scrollTop + scrollContainer.clientHeight >= scrollContainer.scrollHeight - 8
-  showFloatActions.value = scrollable && !atBottom
-}
-
-onMounted(() => {
-  if (!props.showActions || !pageRef.value) return
-  scrollContainer = findScrollContainer(pageRef.value)
-  if (!scrollContainer) return
-  // 捕获为局部常量：闭包里 TS 无法保证外部 let 变量仍非空
-  const container = scrollContainer
-  scrollHandler = () => updateFloatActions()
-  container.addEventListener('scroll', scrollHandler, { passive: true })
-  requestAnimationFrame(updateFloatActions)
-})
-
-onBeforeUnmount(() => {
-  if (scrollContainer && scrollHandler) {
-    scrollContainer.removeEventListener('scroll', scrollHandler)
-  }
-  scrollHandler = null
-  scrollContainer = null
-})
 </script>
 
 <style scoped>
+/* 与 SettingsDialog 外壳保持一致：宽度交给弹窗内容区，页面自身不再限宽 */
 .settings-page {
   width: 100%;
-  max-width: 860px;
+  max-width: 100%;
   margin: 0 auto;
-  padding: 2px 0 10px;
+  padding: var(--ds-space-2) 0 var(--ds-space-4);
 }
 
 /* 带底部操作栏的页面：给悬浮栏留出高度，否则滚动时最后一行会被浮条压住。
    悬浮栏约 56px（按钮 34 + 内边距/阴影），多留一点余量。 */
 .settings-page.settings-page--with-actions {
-  padding-bottom: 72px;
+  padding-bottom: var(--ds-space-24);
 }
 
 .settings-header {
-  margin-bottom: 18px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-light);
+  margin-bottom: var(--ds-space-16);
+  padding-bottom: var(--ds-space-12);
+  border-bottom: 1px solid var(--ds-border-subtle);
 }
 
 .settings-header h2 {
-  margin: 0 0 5px 0;
-  font-size: 18px;
+  margin: 0 0 var(--ds-space-4) 0;
+  font-size: var(--ds-text-title-size);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ds-text-strong);
 }
 
 .settings-description {
   margin: 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
 }
 
 .connect-alert {
-  margin-bottom: 16px;
+  margin-bottom: var(--ds-space-16);
 }
 
+/* 吸底操作条：数值与 SettingsDialog 外壳一致，避免两处规则互相覆盖时视觉跳动 */
 .settings-actions {
-  margin-top: 24px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border-light);
-  display: flex;
-  justify-content: center;
-}
-
-/* 悬浮操作按钮栏：零高度锚点吸附在滚动区底部，按钮在锚点内绝对定位。
-   这样到达底部时悬浮栏只会就地淡出，而不会被推到操作按钮下方造成闪烁 */
-.float-actions-anchor {
   position: sticky;
-  bottom: 16px;
-  height: 0;
-  z-index: 10;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-}
-
-/* 悬浮保存条：铺满内容区宽度，用一条向上淡出的底色承接滚动内容，
-   避免按钮条像「压在某一行的文字上」。只有药丸本身接收点击。 */
-.float-actions-bar {
-  position: absolute;
   bottom: 0;
-  left: 0;
-  right: 0;
+  z-index: 2;
   display: flex;
-  justify-content: center;
-  padding: 20px 0 10px;
-  pointer-events: none;
-  background: linear-gradient(to top, var(--bg-primary) 58%, transparent);
+  justify-content: flex-end;
+  margin-top: var(--ds-space-16);
+  padding: var(--ds-space-12) 0;
+  border-top: 1px solid var(--ds-border-subtle);
+  background: var(--ds-bg-raised);
 }
 
-.float-actions-bar__inner {
-  pointer-events: auto;
-  padding: 8px 14px;
-  border-radius: 12px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
-  white-space: nowrap;
-}
-
-.float-actions-bar__inner :deep(.n-space) {
-  flex-wrap: nowrap;
-}
-
-.float-actions-bar__inner :deep(.n-button) {
-  white-space: nowrap;
-}
-
-.float-actions-enter-active,
-.float-actions-leave-active {
-  transition: opacity var(--transition-fast);
-}
-
-.float-actions-enter-from,
-.float-actions-leave-to {
-  opacity: 0;
-}
 </style>
 
 <style>
@@ -270,9 +151,20 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-/* 统一设置项之间的垂直间距，保证输入框/选择框行之间不紧贴 */
+/* 统一设置项之间的垂直间距。数值与 SettingsDialog 的 160px/1fr 表单栅格一致，
+   两处规则谁生效结果都相同，避免出现 12px 与 24px 打架 */
 .settings-page .n-form-item {
-  margin-bottom: 24px;
+  margin-bottom: var(--ds-space-12);
+}
+
+/* 控件尺寸统一：表单行内的输入框 / 选择器 / 数字框统一为 md 控件高度，
+   行内垂直居中由外壳的 160px + 1fr 栅格负责。textarea 与工具条里的 size="small"
+   紧凑控件不受影响（工具条本来就该比表单行更矮）。 */
+.settings-page .n-form-item .n-input:not(.n-input--textarea),
+.settings-page .n-form-item .n-select,
+.settings-page .n-form-item .n-input-number {
+  --n-height: var(--ds-control-height-md);
+  height: var(--ds-control-height-md);
 }
 
 /* 设置分组改为扁平小节：去掉一层层白卡边框/阴影，用标题与分隔线建立层级。
@@ -286,19 +178,21 @@ onBeforeUnmount(() => {
 }
 
 .settings-page .setting-group.n-card + .setting-group.n-card {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border-light);
+  margin-top: var(--ds-space-20);
+  padding-top: var(--ds-space-16);
+  border-top: 1px solid var(--ds-border-subtle);
 }
 
 .settings-page .setting-group .n-card-header {
-  padding: 0 0 10px;
+  padding: 0 0 var(--ds-space-8);
 }
 
+/* 分组标题与外壳定义的小节标题同款：小号字 + 弱化色 + 字距，建立层级而不抢注意力 */
 .settings-page .setting-group .n-card-header__main {
-  font-size: 14px;
+  font-size: var(--ds-text-small-size);
   font-weight: 600;
-  color: var(--text-primary);
+  letter-spacing: 0.04em;
+  color: var(--ds-text-muted);
 }
 
 .settings-page .setting-group .n-card__content {

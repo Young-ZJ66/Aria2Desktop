@@ -145,7 +145,7 @@
             </tr>
           </tbody>
         </n-table>
-        <n-empty v-else :description="t('settings.webConsole.tokenEmpty')" size="small" class="token-empty" />
+        <UiEmpty v-else size="sm" :icon="KeyOutline" :title="t('settings.webConsole.tokenEmpty')" />
       </n-card>
     </n-form>
 
@@ -201,8 +201,10 @@
 import { computed, ref, reactive, onMounted, onActivated } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from '@/utils/feedback'
+import { KeyOutline } from '@vicons/ionicons5'
 import { useSettingsStore } from '@/stores/settingsStore'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
+import { UiEmpty } from '@/components/ui'
 import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { withMinimumDuration, ensureMinimumDuration } from '@/composables/useMinimumLoading'
@@ -451,27 +453,19 @@ onActivated(() => {
 </script>
 
 <style scoped>
-.setting-group {
-  margin-bottom: 16px;
-}
-
 .form-actions {
-  margin-top: 4px;
+  margin-top: var(--ds-space-4);
 }
 
 .runtime-url,
 .runtime-token {
-  font-size: 12px;
-  color: var(--text-color-3);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-faint);
   word-break: break-all;
 }
 
 .web-console-audit {
-  margin-top: 12px;
-}
-
-.token-empty {
-  padding: 8px 0;
+  margin-top: var(--ds-space-12);
 }
 
 .token-action-col {

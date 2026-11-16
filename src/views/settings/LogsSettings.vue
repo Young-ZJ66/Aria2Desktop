@@ -39,7 +39,9 @@
 
       <n-spin :show="loading">
         <div ref="viewerRef" class="log-viewer">
-          <div v-if="!filteredLines.length" class="log-empty">{{ t('settings.logs.empty') }}</div>
+          <div v-if="!filteredLines.length" class="log-empty">
+            <UiEmpty size="sm" :icon="DocumentTextOutline" :title="t('settings.logs.empty')" />
+          </div>
           <div
             v-for="(line, index) in filteredLines"
             :key="index"
@@ -55,8 +57,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { DocumentTextOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
+import { UiEmpty } from '@/components/ui'
 
 const { t } = useI18n()
 
@@ -168,15 +172,15 @@ onUnmounted(() => { stopAutoRefresh() })
 
 <style scoped>
 .log-card {
-  margin-bottom: 16px;
+  margin-bottom: var(--ds-space-16);
 }
 
 .log-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--ds-space-12);
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: var(--ds-space-10);
 }
 
 .log-level {
@@ -191,10 +195,10 @@ onUnmounted(() => { stopAutoRefresh() })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-  font-size: 12px;
-  color: var(--text-color-3);
+  gap: var(--ds-space-12);
+  margin-bottom: var(--ds-space-8);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-faint);
 }
 
 .log-path {
@@ -207,27 +211,27 @@ onUnmounted(() => { stopAutoRefresh() })
   min-height: 220px;
   max-height: 760px;
   overflow: auto;
-  padding: 12px;
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
-  background: var(--bg-primary);
+  padding: var(--ds-space-12);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-bg-surface);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--ds-text-small-size);
   line-height: 1.6;
 }
 
 .log-line {
   white-space: pre-wrap;
   word-break: break-all;
-  color: var(--text-regular);
+  color: var(--ds-text-base);
 }
 
 .log-line--warn {
-  color: var(--color-warning-text, #b45309);
+  color: var(--ds-status-warning-text);
 }
 
 .log-line--error {
-  color: var(--color-danger-text);
+  color: var(--ds-status-danger-text);
 }
 
 .log-empty {
@@ -235,6 +239,5 @@ onUnmounted(() => { stopAutoRefresh() })
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--text-color-3);
 }
 </style>
