@@ -417,6 +417,10 @@ a[href]:focus-visible,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
     transition-duration: 0.01ms !important;
+    /* 只压 duration 不够：带 delay 的过渡仍会「先等一下再跳」，观感上还是动画 */
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -104,7 +104,14 @@
           </tbody>
         </n-table>
         <div v-else class="queue-empty">
-          <n-empty size="small" :description="t('queue.empty')" />
+          <!-- 断连时队列同样被清空，空态要说明是「未连接」而不是「队列为空」 -->
+          <n-empty size="small" :description="emptyDescription">
+            <template #extra>
+              <n-button v-if="isDisconnected" size="small" type="primary" @click="openConnectionDialog">
+                {{ t('connection.connect') }}
+              </n-button>
+            </template>
+          </n-empty>
         </div>
       </div>
     </n-card>
@@ -128,6 +135,15 @@ const message = useMessage()
 const taskStore = useTaskStore()
 const settingsStore = useSettingsStore()
 const connectionStore = useConnectionStore()
+
+// 断连时队列会被清空，空态需说明是「未连接」并给出连接入口，而不是笼统的「队列为空」
+const isDisconnected = computed(() => !connectionStore.isConnected)
+const emptyDescription = computed(() =>
+  isDisconnected.value ? t('settings.notConnectedTitle') : t('queue.empty')
+)
+function openConnectionDialog(): void {
+  connectionStore.showConnectionDialog = true
+}
 
 const maxConcurrent = ref(settingsStore.settings.download?.maxConcurrentDownloads ?? 5)
 const retryEnabled = ref(settingsStore.settings.queue?.retryEnabled ?? false)

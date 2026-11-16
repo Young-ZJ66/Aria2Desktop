@@ -78,7 +78,13 @@
 
       <!-- 无 BT 任务（或未选中任务）时的稳定空态：与列表页一致，图标在容器内垂直居中 -->
       <div v-else class="bt-empty">
-        <n-empty :description="hasBtTasks ? t('btInsights.selectTask') : t('btInsights.noBtTasks')" />
+        <n-empty :description="emptyDescription">
+          <template #extra>
+            <n-button v-if="isDisconnected" size="small" type="primary" @click="openConnectionDialog">
+              {{ t('connection.connect') }}
+            </n-button>
+          </template>
+        </n-empty>
       </div>
     </section>
   </div>
@@ -97,6 +103,16 @@ import { getTaskDisplayName, formatSpeed } from '@/utils/taskFormatters'
 const { t } = useI18n()
 const taskStore = useTaskStore()
 const connectionStore = useConnectionStore()
+
+// 断连时任务列表被清空，空态要说明是「未连接」而不是「没有 BT 任务」
+const isDisconnected = computed(() => !connectionStore.isConnected)
+const emptyDescription = computed(() => {
+  if (isDisconnected.value) return t('settings.notConnectedTitle')
+  return hasBtTasks.value ? t('btInsights.selectTask') : t('btInsights.noBtTasks')
+})
+function openConnectionDialog(): void {
+  connectionStore.showConnectionDialog = true
+}
 
 const selectedGid = ref<string | null>(null)
 const pageVisible = ref(true)

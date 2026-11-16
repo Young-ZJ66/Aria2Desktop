@@ -83,9 +83,12 @@
         <!-- 稳定空态（非加载中）单独渲染：表格在 x 轴可滚动时会把空态塞进表格节点，
              无法垂直撑满；独立容器才能让提示真正落在列表区域的垂直中间 -->
         <div v-if="!filteredTasks.length && !loading" class="task-empty">
-          <n-empty :description="t('task.noTasks')" size="small">
+          <n-empty :description="emptyDescription" size="small">
             <template #extra>
-              <span class="empty-hint">{{ t('task.emptyHint') }}</span>
+              <n-button v-if="isDisconnected" size="small" type="primary" @click="openConnectionDialog">
+                {{ t('connection.connect') }}
+              </n-button>
+              <span v-else class="empty-hint">{{ t('task.emptyHint') }}</span>
             </template>
           </n-empty>
         </div>
@@ -109,9 +112,12 @@
           <template #empty>
             <!-- 空状态出现时淡入（避免搜索结果/空列表切换时生硬闪出） -->
             <transition name="fade-in">
-              <n-empty :description="t('task.noTasks')" size="small">
+              <n-empty :description="emptyDescription" size="small">
                 <template #extra>
-                  <span class="empty-hint">{{ t('task.emptyHint') }}</span>
+                  <n-button v-if="isDisconnected" size="small" type="primary" @click="openConnectionDialog">
+                    {{ t('connection.connect') }}
+                  </n-button>
+                  <span v-else class="empty-hint">{{ t('task.emptyHint') }}</span>
                 </template>
               </n-empty>
             </transition>
@@ -196,6 +202,16 @@ const streamTaskStore = useStreamTaskStore()
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
 
+// 断连时列表是被清空的，不能沿用「没有找到匹配的任务」——那会让用户以为是筛选问题，
+// 实际是根本没连上服务器。这里区分两种空态，并直接给出连接入口。
+const isDisconnected = computed(() => !connectionStore.isConnected)
+const emptyDescription = computed(() =>
+  isDisconnected.value ? t('settings.notConnectedTitle') : t('task.noTasks')
+)
+function openConnectionDialog(): void {
+  connectionStore.showConnectionDialog = true
+}
+
 // 批量删除对话框状态
 const showBatchDeleteDialog = ref(false)
 const tasksToDelete = ref<Aria2Task[]>([])
@@ -229,7 +245,20 @@ const {
 } = useTaskSelection()
 
 // 状态
-const loading = ref(false)
+// 首次加载态：只反映「第一次拿数据」这一段时间。taskStore.isLoading 每秒轮询都会翻转，
+// 直接绑它会让表格一直闪加载圈，所以用一次性闸门——第一次从加载中回到空闲后就永久放行。
+// 断连时列表本来就是空的、也没有请求在飞，不能一直挂着加载圈。
+const hasLoadedOnce = ref(false)
+const loading = computed(
+  () => !hasLoadedOnce.value && taskStore.isLoading && connectionStore.isConnected
+)
+watch(
+  () => taskStore.isLoading,
+  (value, previous) => {
+    // 从「加载中」回到「空闲」即视为完成过一次加载：首次就是 0 个任务时也能正确收尾
+    if (previous === true && value === false) hasLoadedOnce.value = true
+  }
+)
 const searchText = ref('')
 const selectedCategory = ref<string | null>(null)
 const selectedKind = ref<TaskKind | null>(null)
