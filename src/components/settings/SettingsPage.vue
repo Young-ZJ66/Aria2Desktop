@@ -82,23 +82,26 @@ const { t } = useI18n()
 }
 
 .settings-header {
-  margin-bottom: var(--ds-space-16);
-  padding-bottom: var(--ds-space-12);
-  border-bottom: 1px solid var(--ds-border-subtle);
+  margin-bottom: var(--ds-space-20);
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .settings-header h2 {
-  margin: 0 0 var(--ds-space-4) 0;
-  font-size: var(--ds-text-title-size);
-  font-weight: 600;
+  margin: 0;
+  font-size: var(--ds-text-h1-size);
+  line-height: var(--ds-text-h1-leading);
+  font-weight: 650;
+  letter-spacing: -0.01em;
   color: var(--ds-text-strong);
 }
 
 .settings-description {
-  margin: 0;
+  margin: var(--ds-space-6) 0 0;
   color: var(--ds-text-muted);
   font-size: var(--ds-text-body-size);
   line-height: var(--ds-text-body-leading);
+  max-width: 68ch;
 }
 
 .connect-alert {
@@ -187,12 +190,13 @@ const { t } = useI18n()
   padding: 0 0 var(--ds-space-8);
 }
 
-/* 分组标题与外壳定义的小节标题同款：小号字 + 弱化色 + 字距，建立层级而不抢注意力 */
+/* 分组标题：比正文强半级、比页标题弱一级。此前用 12px 弱化色，
+   与 20px 页标题之间出现断层，整页只剩一堆漂浮的表单行。 */
 .settings-page .setting-group .n-card-header__main {
-  font-size: var(--ds-text-small-size);
+  font-size: var(--ds-text-body-size);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--ds-text-muted);
+  letter-spacing: 0;
+  color: var(--ds-text-regular);
 }
 
 .settings-page .setting-group .n-card__content {

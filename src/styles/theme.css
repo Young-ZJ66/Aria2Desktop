@@ -368,12 +368,6 @@ html.theme-transition ::-webkit-scrollbar-thumb {
   transition: background-color var(--transition-slow) !important;
 }
 
-/* 输入框焦点外发光：Naive UI 自带的焦点光晕偏内收，在弹窗里左右两侧容易显得被留白“吃掉”。
-   这里再补一层柔和外发光，让四边的焦点提示都完整可见 */
-.n-input--focus {
-  box-shadow: 0 0 0 3px rgba(69, 96, 224, 0.16);
-}
-
 /* =========================================
    键盘焦点环（WCAG 2.4.7）
    ---------------------------------------------------------------

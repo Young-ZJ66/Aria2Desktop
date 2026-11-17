@@ -2,51 +2,58 @@
   <n-modal
     v-model:show="visible"
     preset="card"
-    :title="t('app.settings')"
     :bordered="false"
     :mask-closable="true"
     :auto-focus="false"
+    class="settings-modal"
     style="width: min(1040px, calc(100vw - 48px));"
     content-style="padding: 0;"
   >
-    <div ref="bodyRef" class="settings-dialog-body">
-      <!-- 设置弹窗自身的一级标题：n-modal 的 title 只是文本节点，不产生 heading。
-           设置内各页的标题保持 h2，层级才对（/ui-taste 审计 P3）。 -->
-      <h1 class="sr-only">{{ t('app.settings') }}</h1>
-      <!-- 设置项模糊搜索：跨页签按名称/说明匹配，点击结果直接跳转并高亮 -->
-      <div class="settings-search">
-        <n-input
-          v-model:value="searchQuery"
-          class="settings-search-input"
-          clearable
-          :placeholder="t('settings.searchPlaceholder')"
-          @keydown.enter="jumpToFirstResult"
-        >
-          <template #prefix>
-            <n-icon><SearchOutline /></n-icon>
-          </template>
-        </n-input>
-        <div v-if="searchQuery.trim()" class="settings-search-panel">
-          <button
-            v-for="item in searchResults"
-            :key="item.id"
-            type="button"
-            class="settings-search-item"
-            @mousedown.prevent
-            @click="jumpTo(item)"
+    <!-- 弹窗头：标题在左，搜索并排靠右。搜索不再单独占一整条通栏，
+         也不再是「左上角一只小框」的孤立控件（/ui-taste 评审）。 -->
+    <template #header>
+      <div class="settings-head">
+        <h1 class="settings-head__title">{{ t('app.settings') }}</h1>
+        <div class="settings-search">
+          <n-input
+            v-model:value="searchQuery"
+            class="settings-search-input"
+            clearable
+            :placeholder="t('settings.searchPlaceholder')"
+            @keydown.enter="jumpToFirstResult"
           >
-            <span class="settings-search-label">{{ item.label }}</span>
-            <span class="settings-search-tab">{{ item.tabLabel }}</span>
-          </button>
-          <div v-if="searchPending" class="settings-search-empty">
-            {{ t('settings.searchLoading') }}
-          </div>
-          <div v-else-if="searchResults.length === 0" class="settings-search-empty">
-            {{ t('settings.searchNoResult') }}
+            <template #prefix>
+              <n-icon><SearchOutline /></n-icon>
+            </template>
+          </n-input>
+          <div v-if="searchQuery.trim()" class="settings-search-panel">
+            <button
+              v-for="(item, index) in searchResults"
+              :key="item.id"
+              type="button"
+              class="settings-search-item"
+              @mousedown.prevent
+              @click="jumpTo(item)"
+            >
+              <span class="settings-search-label">{{ item.label }}</span>
+              <!-- 同一页签的连续结果只在第一行标注归属，避免整列重复同一个词 -->
+              <span
+                v-if="index === 0 || item.tabLabel !== searchResults[index - 1]?.tabLabel"
+                class="settings-search-tab"
+              >{{ item.tabLabel }}</span>
+            </button>
+            <div v-if="searchPending" class="settings-search-empty">
+              {{ t('settings.searchLoading') }}
+            </div>
+            <div v-else-if="searchResults.length === 0" class="settings-search-empty">
+              {{ t('settings.searchNoResult') }}
+            </div>
           </div>
         </div>
       </div>
+    </template>
 
+    <div ref="bodyRef" class="settings-dialog-body">
       <n-tabs
         v-model:value="activeGroup"
         class="settings-main-tabs"
@@ -721,26 +728,51 @@ watch(visible, (show) => {
   flex-direction: column;
 }
 
-/* 搜索框固定在页签上方通栏；高度/圆角/焦点环由 themeTokens 的 Input 覆盖提供 */
+/* 弹窗头：标题与搜索同排。搜索是工具控件，不再占据整条通栏 */
+.settings-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-24);
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-head__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ds-text-strong);
+  white-space: nowrap;
+}
+
 .settings-search {
   position: relative;
-  z-index: 2;
-  flex: none;
-  padding: var(--ds-space-20) var(--ds-space-24) var(--ds-space-12);
+  z-index: 5;
+  flex: 0 1 320px;
+  width: 320px;
+  max-width: 46%;
+  margin-left: auto;
 }
 
 .settings-search .n-input {
   width: 100%;
-  /* 搜索框通栏铺满 1100px 会显得像主输入区，按「工具控件」而非「主表单」定宽 */
-  max-width: 420px;
+  /* sunken 底 + 无描边，像工具控件而不是主表单输入框 */
+  --n-color: var(--ds-bg-sunken);
+  --n-color-focus: var(--ds-bg-surface);
+  --n-border: 1px solid transparent;
+  --n-border-hover: 1px solid var(--ds-border-base);
+  --n-border-focus: 1px solid var(--ds-accent);
+  --n-height: 32px;
+  border-radius: var(--ds-radius-md);
 }
 
 .settings-search-panel {
   position: absolute;
-  top: calc(100% - var(--ds-space-8));
-  left: var(--ds-space-24);
-  width: min(420px, calc(100% - var(--ds-space-48)));
-  right: auto;
+  top: calc(100% + var(--ds-space-6));
+  right: 0;
+  width: 100%;
+  left: auto;
   max-height: 320px;
   overflow-y: auto;
   padding: var(--ds-space-4);
@@ -811,6 +843,7 @@ watch(visible, (show) => {
   width: 208px;
   padding: var(--ds-space-8) var(--ds-space-12);
   border-right: 1px solid var(--ds-border-subtle);
+  background: var(--ds-bg-sunken);
   overflow-y: auto;
 }
 
@@ -899,7 +932,7 @@ watch(visible, (show) => {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--ds-space-20) var(--ds-space-24) var(--ds-space-16);
+  padding: var(--ds-space-24) var(--ds-space-24) var(--ds-space-20);
 }
 
 /* 二级分组页签：v2 的分段控件（sunken 轨道 + surface 选中块 + accent-text） */
@@ -912,6 +945,10 @@ watch(visible, (show) => {
 }
 
 .settings-dialog-body :deep(.settings-subtabs .n-tabs-rail) {
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  padding: 2px;
   background: var(--ds-bg-sunken);
   border-radius: var(--ds-radius-md);
 }
@@ -923,9 +960,10 @@ watch(visible, (show) => {
 }
 
 .settings-dialog-body :deep(.settings-subtabs .n-tabs-tab) {
+  flex: 0 0 auto;
   height: var(--ds-control-height-sm);
-  padding: 0 var(--ds-space-12);
-  font-size: var(--ds-text-small-size);
+  padding: 0 var(--ds-space-16);
+  font-size: var(--ds-text-body-size);
   color: var(--ds-text-muted);
 }
 
@@ -1000,11 +1038,15 @@ watch(visible, (show) => {
   box-shadow: var(--ds-elev-2);
 }
 
-/* 设置弹窗里一级/二级页签已说明当前页面，隐藏子页面重复的大标题；
-   保留页面描述与卡片标题，减少空白层级。
-   注意用「视觉隐藏」而不是 display:none：后者会把标题从无障碍树里移除，
-   导致每个设置页在文档大纲和读屏里都没有标题（/ui-taste 审计 P3）。 */
-.settings-dialog-body :deep(.settings-page .settings-header) {
+/* 二级页签（网络与协议 / 工具与插件 / 安全与维护）本身已经是当前页标题：
+   把重复的 h2 视觉隐藏（保留在无障碍树里），只显示该页描述。 */
+.settings-dialog-body :deep(.settings-subtabs .settings-header) {
+  margin: calc(var(--ds-space-8) * -1) 0 var(--ds-space-16);
+  padding: 0;
+  border: 0;
+}
+
+.settings-dialog-body :deep(.settings-subtabs .settings-header h2) {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1024,6 +1066,15 @@ watch(visible, (show) => {
 
 <style>
 /* 全局样式：高亮类加到子页面（异步组件）的 DOM 上，scoped 样式作用不到 */
+.settings-modal.n-card > .n-card-header {
+  padding: var(--ds-space-16) var(--ds-space-24) var(--ds-space-14);
+  border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.settings-modal.n-card > .n-card-header .n-card-header__main {
+  min-width: 0;
+}
+
 .settings-search-hit {
   outline: 2px solid var(--ds-accent);
   outline-offset: var(--ds-space-4);
