@@ -95,6 +95,16 @@
             {{ isActive(profile) ? t('connection.disconnect') : t('instances.connect') }}
           </n-button>
           <n-button size="small" @click="edit(profile)">{{ t('instances.edit') }}</n-button>
+          <n-button
+            class="instance-card__delete"
+            size="small"
+            quaternary
+            type="error"
+            :disabled="connectionStore.profiles.length <= 1 || connectionStore.isConnecting || connectingId === profile.id"
+            @click="removeInstance(profile)"
+          >
+            {{ t('connection.deleteProfile') }}
+          </n-button>
         </div>
       </article>
 
@@ -120,7 +130,7 @@ import { useConnectionStore } from '@/stores/connectionStore'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import { withMinimumDuration } from '@/composables/useMinimumLoading'
 
-import { message } from '@/utils/feedback'
+import { confirm, message } from '@/utils/feedback'
 import { getUserFriendlyError } from '@/utils/errorMessages'
 import type { ConnectionProfile } from '@/types/aria2'
 
@@ -278,6 +288,31 @@ async function activate(profile: ConnectionProfile) {
 function edit(profile: ConnectionProfile) {
   connectionStore.setActiveProfile(profile.id)
   openConnectionDialog()
+}
+
+/** 从实例卡直接删除配置；至少保留一个实例，删除正在使用的实例前先断开连接 */
+function removeInstance(profile: ConnectionProfile) {
+  if (connectionStore.profiles.length <= 1) return
+  const name = displayName(profile)
+  confirm({
+    title: t('connection.deleteProfileTitle'),
+    content: t('connection.confirmDeleteProfile', { name }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        // 删除当前正在使用的实例前先断开：否则 activeProfileId 会切到剩余实例，
+        // 但 service 仍连着已删除的端点，界面会把另一张卡误标成「当前/已连接」。
+        if (isActive(profile)) connectionStore.disconnect()
+        await connectionStore.deleteProfile(profile.id)
+        delete probes[profile.id]
+        delete testing[profile.id]
+      } catch (error) {
+        console.error('Failed to delete instance:', error)
+        message.error(getUserFriendlyError(error))
+      }
+    }
+  })
 }
 
 function openConnectionDialog() {
@@ -504,6 +539,11 @@ function hideNoteForever(): void {
   gap: var(--ds-space-8);
   margin-top: auto;
   padding-top: var(--ds-space-4);
+}
+
+/* 删除属于低频破坏性操作，放在操作行最右，和常用操作拉开距离 */
+.instance-card__delete {
+  margin-left: auto;
 }
 
 .instance-note {
