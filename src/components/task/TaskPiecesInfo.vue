@@ -335,7 +335,7 @@ onBeforeUnmount(() => {
 }
 
 .pieces-stat-value {
-  font-size: 16px;
+  font-size: var(--ds-text-title-size);
   font-weight: 600;
   color: var(--ds-text-strong);
   font-variant-numeric: tabular-nums;
@@ -350,7 +350,7 @@ onBeforeUnmount(() => {
 
 .pieces-visual-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--ds-text-body-lg-size);
   font-weight: 600;
 }
 

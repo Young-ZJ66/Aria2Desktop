@@ -112,8 +112,6 @@ import {
   ListOutline,
   CheckmarkDoneOutline,
   CloudDoneOutline,
-  SyncOutline,
-  CloudOfflineOutline,
   SettingsOutline,
   SunnyOutline,
   MoonOutline,
@@ -241,11 +239,6 @@ const connectionStatusText = computed(() => {
   return connectionStore.isConnected ? t('header.connected') : t('header.disconnected')
 })
 
-const connectionIcon = computed(() => {
-  if (connectionStore.isConnected) return CloudDoneOutline
-  return connectionStore.isConnecting ? SyncOutline : CloudOfflineOutline
-})
-void connectionIcon
 
 async function toggleTheme() {
   const next = settingsStore.settings.theme === 'dark' ? 'light' : 'dark'
@@ -303,7 +296,7 @@ async function toggleTheme() {
 }
 
 .sidebar__name {
-  font-size: 15px;
+  font-size: var(--ds-text-title-size);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--ds-text-strong);

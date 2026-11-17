@@ -491,7 +491,7 @@ async function openFileInFolder(filePath: string) {
 }
 
 .speed-peak {
-  font-size: 9px;
+  font-size: var(--ds-text-micro-size);
   fill: var(--ds-text-muted);
 }
 

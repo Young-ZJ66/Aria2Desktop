@@ -1770,7 +1770,7 @@ watch(
   border-radius: var(--ds-radius-xs);
   background: var(--ds-bg-surface);
   font-family: var(--ds-font-mono);
-  font-size: 10px;
+  font-size: var(--ds-text-micro-size);
   line-height: 14px;
   text-align: center;
   color: var(--ds-text-muted);

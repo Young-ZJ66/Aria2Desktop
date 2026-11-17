@@ -5,7 +5,7 @@
  * v2 只做一件事：把 designSystem 里的角色映射到 naive 的键上，深浅色共用同一段逻辑。
  */
 import type { GlobalThemeOverrides } from 'naive-ui'
-import { roles, radius, control, font, fontWeight } from './designSystem'
+import { roles, radius, control, font, fontWeight, text } from './designSystem'
 
 export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
   const r = isDark ? roles.dark : roles.light
@@ -53,7 +53,15 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       borderRadiusSmall: radius.sm,
       fontFamily: font.sans,
       fontFamilyMono: font.mono,
-      fontSize: '13px',
+      // 字号阶梯：与 designSystem.text 对齐。naive 默认 Small/Medium 都是 14px，
+      // 会让按钮、输入框、下拉的文字比正文（13px）和表格（13px）大一号。
+      fontSize: text.body.size,
+      fontSizeMini: text.micro.size,
+      fontSizeTiny: text.small.size,
+      fontSizeSmall: text.body.size,
+      fontSizeMedium: text.body.size,
+      fontSizeLarge: text.bodyLg.size,
+      fontSizeHuge: text.title.size,
       fontWeightStrong: '600',
       heightMedium: control.heightMd,
       heightLarge: control.heightLg,
@@ -72,15 +80,27 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       titleFontWeight: '600',
       paddingMedium: '20px'
     },
+    Form: {
+      // 表单标签与反馈文案跟随字号阶梯：body(13) / small(12)，不再沿用 naive 默认 14。
+      labelFontSizeLeftSmall: text.small.size,
+      labelFontSizeLeftMedium: text.body.size,
+      labelFontSizeLeftLarge: text.bodyLg.size,
+      labelFontSizeTopSmall: text.small.size,
+      labelFontSizeTopMedium: text.body.size,
+      labelFontSizeTopLarge: text.bodyLg.size,
+      feedbackFontSizeSmall: text.small.size,
+      feedbackFontSizeMedium: text.small.size,
+      feedbackFontSizeLarge: text.small.size
+    },
     Button: {
       borderRadiusTiny: radius.sm,
       borderRadiusSmall: radius.sm,
       borderRadiusMedium: radius.md,
       borderRadiusLarge: radius.md,
       heightTiny: '24px',
-      heightSmall: '28px',
-      heightMedium: '34px',
-      heightLarge: '38px',
+      heightSmall: control.heightSm,
+      heightMedium: control.heightMd,
+      heightLarge: control.heightLg,
       fontWeight: '500',
       // 实心主按钮：底色 accent + 白字（深色主题的 accent 已按白字 4.96:1 校准）
       colorPrimary: r.accent,

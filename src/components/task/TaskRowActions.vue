@@ -258,7 +258,7 @@ function handleMoreSelect(key: string): void {
 }
 
 .action-icon {
-  font-size: 16px;
+  font-size: var(--ds-text-title-size);
   color: var(--ds-text-muted);
   transition: color var(--ds-motion-dur-1) var(--ds-motion-ease-out);
 }

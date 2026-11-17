@@ -195,7 +195,7 @@ const { t } = useI18n()
 }
 
 .settings-page .setting-group .n-card-header__main {
-  font-size: 14px;
+  font-size: var(--ds-text-body-lg-size);
   font-weight: 600;
   letter-spacing: 0;
   color: var(--ds-text-strong);
