@@ -815,6 +815,7 @@ watch(visible, (show) => {
   width: 100%;
   padding: 0;
   margin: 0 0 var(--ds-space-4);
+  border-right: none;
 }
 
 /* 左侧导航固定宽度，右侧内容区独占剩余空间 */
