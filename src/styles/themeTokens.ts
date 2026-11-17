@@ -121,6 +121,8 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       borderHover: '1px solid ' + r.borderStrong,
       borderFocus: '1px solid ' + r.accent,
       boxShadowFocus: 'none',
+      boxShadowFocusError: 'none',
+      boxShadowFocusWarning: 'none',
       borderRadius: radius.md,
       heightMedium: control.heightMd,
       textColor: r.textStrong,
