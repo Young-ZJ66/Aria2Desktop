@@ -613,6 +613,7 @@ const minSplitSizeOptions = [
 const fileAllocationOptions = computed(() => [
   { label: t('settings.download.fileAllocNone'), value: 'none' },
   { label: t('settings.download.fileAllocPrealloc'), value: 'prealloc' },
+  { label: t('settings.download.fileAllocTrunc'), value: 'trunc' },
   { label: t('settings.download.fileAllocFalloc'), value: 'falloc' }
 ])
 
