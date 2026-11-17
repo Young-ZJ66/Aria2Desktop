@@ -12,18 +12,22 @@
         </template>
 
         <!-- 空态统一成「标题 + 一句解释 + 主操作」：只写「暂无模板」时用户不知道该点哪里 -->
-        <UiEmpty
+        <UiPanel
           v-if="templates.length === 0"
-          :title="t('workflow.noTemplates')"
-          :description="t('workflow.templatesDesc')"
-          :icon="AlbumsOutline"
+          class="section-panel section-panel--fill section-panel--empty"
         >
-          <template #actions>
-            <n-button size="small" type="primary" @click="addTemplate">
-              {{ t('workflow.addTemplate') }}
-            </n-button>
-          </template>
-        </UiEmpty>
+          <UiEmpty
+            :title="t('workflow.noTemplates')"
+            :description="t('workflow.templatesDesc')"
+            :icon="AlbumsOutline"
+          >
+            <template #actions>
+              <n-button size="small" type="primary" @click="addTemplate">
+                {{ t('workflow.addTemplate') }}
+              </n-button>
+            </template>
+          </UiEmpty>
+        </UiPanel>
         <UiPanel v-else class="section-panel section-panel--fill" :hint="t('workflow.templatesDesc')">
           <template #actions>
             <n-button size="small" type="primary" @click="addTemplate">
@@ -91,18 +95,22 @@
           </span>
         </template>
 
-        <UiEmpty
+        <UiPanel
           v-if="rules.length === 0"
-          :title="t('workflow.noRules')"
-          :description="t('workflow.rulesDesc')"
-          :icon="GitBranchOutline"
+          class="section-panel section-panel--fill section-panel--empty"
         >
-          <template #actions>
-            <n-button size="small" type="primary" @click="addRule">
-              {{ t('workflow.addRule') }}
-            </n-button>
-          </template>
-        </UiEmpty>
+          <UiEmpty
+            :title="t('workflow.noRules')"
+            :description="t('workflow.rulesDesc')"
+            :icon="GitBranchOutline"
+          >
+            <template #actions>
+              <n-button size="small" type="primary" @click="addRule">
+                {{ t('workflow.addRule') }}
+              </n-button>
+            </template>
+          </UiEmpty>
+        </UiPanel>
         <UiPanel v-else class="section-panel section-panel--fill" :hint="t('workflow.rulesDesc')">
           <template #actions>
             <n-button size="small" type="primary" @click="addRule">
@@ -207,19 +215,28 @@
           </span>
         </template>
 
-        <div v-if="queueLoading && queueEntries.length === 0" class="panel-state">{{ t('common.loading') }}</div>
-        <UiEmpty
-          v-else-if="queueEntries.length === 0"
-          :title="t('settings.webhookQueue.empty')"
-          :description="t('settings.webhookQueue.description')"
-          :icon="CloudUploadOutline"
+        <UiPanel
+          v-if="queueLoading && queueEntries.length === 0"
+          class="section-panel section-panel--fill section-panel--empty"
         >
-          <template #actions>
-            <n-button size="small" :loading="queueLoading" @click="refreshQueue()">
-              {{ t('settings.webhookQueue.refresh') }}
-            </n-button>
-          </template>
-        </UiEmpty>
+          <div class="panel-state">{{ t('common.loading') }}</div>
+        </UiPanel>
+        <UiPanel
+          v-else-if="queueEntries.length === 0"
+          class="section-panel section-panel--fill section-panel--empty"
+        >
+          <UiEmpty
+            :title="t('settings.webhookQueue.empty')"
+            :description="t('settings.webhookQueue.description')"
+            :icon="CloudUploadOutline"
+          >
+            <template #actions>
+              <n-button size="small" :loading="queueLoading" @click="refreshQueue()">
+                {{ t('settings.webhookQueue.refresh') }}
+              </n-button>
+            </template>
+          </UiEmpty>
+        </UiPanel>
         <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('settings.webhookQueue.description')">
           <template #actions>
             <n-space>
@@ -682,6 +699,12 @@ onUnmounted(() => {
 
 .section-panel--fill :deep(.ui-panel__body) {
   overflow: auto;
+}
+
+.section-panel--empty :deep(.ui-panel__body) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .section-panel :deep(.n-data-table-th),

@@ -34,19 +34,28 @@
             <span class="tab-count ds-tnum">{{ autoImportStore.subscriptions.length }}</span>
           </span>
         </template>
-        <div v-if="autoImportStore.loading && autoImportStore.subscriptions.length === 0" class="panel-state">{{ t('common.loading') }}</div>
-        <UiEmpty
-          v-else-if="autoImportStore.subscriptions.length === 0"
-          :title="t('automation.rssEmpty')"
-          :description="t('automation.rssDescription')"
-          :icon="RadioOutline"
+        <UiPanel
+          v-if="autoImportStore.loading && autoImportStore.subscriptions.length === 0"
+          class="section-panel section-panel--fill section-panel--empty"
         >
-          <template #actions>
-            <n-button size="small" type="primary" @click="openRssForm()">
-              {{ t('automation.rssAdd') }}
-            </n-button>
-          </template>
-        </UiEmpty>
+          <div class="panel-state">{{ t('common.loading') }}</div>
+        </UiPanel>
+        <UiPanel
+          v-else-if="autoImportStore.subscriptions.length === 0"
+          class="section-panel section-panel--fill section-panel--empty"
+        >
+          <UiEmpty
+            :title="t('automation.rssEmpty')"
+            :description="t('automation.rssDescription')"
+            :icon="RadioOutline"
+          >
+            <template #actions>
+              <n-button size="small" type="primary" @click="openRssForm()">
+                {{ t('automation.rssAdd') }}
+              </n-button>
+            </template>
+          </UiEmpty>
+        </UiPanel>
         <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('automation.rssDescription')">
           <template #actions>
             <n-button size="small" type="primary" @click="openRssForm()">
@@ -71,19 +80,28 @@
             <span class="tab-count ds-tnum">{{ autoImportStore.watchFolders.length }}</span>
           </span>
         </template>
-        <div v-if="autoImportStore.loading && autoImportStore.watchFolders.length === 0" class="panel-state">{{ t('common.loading') }}</div>
-        <UiEmpty
-          v-else-if="autoImportStore.watchFolders.length === 0"
-          :title="t('automation.watchEmpty')"
-          :description="t('automation.watchDescription')"
-          :icon="FolderOpenOutline"
+        <UiPanel
+          v-if="autoImportStore.loading && autoImportStore.watchFolders.length === 0"
+          class="section-panel section-panel--fill section-panel--empty"
         >
-          <template #actions>
-            <n-button size="small" type="primary" @click="openWatchForm()">
-              {{ t('automation.watchAdd') }}
-            </n-button>
-          </template>
-        </UiEmpty>
+          <div class="panel-state">{{ t('common.loading') }}</div>
+        </UiPanel>
+        <UiPanel
+          v-else-if="autoImportStore.watchFolders.length === 0"
+          class="section-panel section-panel--fill section-panel--empty"
+        >
+          <UiEmpty
+            :title="t('automation.watchEmpty')"
+            :description="t('automation.watchDescription')"
+            :icon="FolderOpenOutline"
+          >
+            <template #actions>
+              <n-button size="small" type="primary" @click="openWatchForm()">
+                {{ t('automation.watchAdd') }}
+              </n-button>
+            </template>
+          </UiEmpty>
+        </UiPanel>
         <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('automation.watchDescription')">
           <template #actions>
             <n-button size="small" type="primary" @click="openWatchForm()">
@@ -108,13 +126,22 @@
             <span class="tab-count ds-tnum">{{ autoImportStore.logEntries.length }}</span>
           </span>
         </template>
-        <div v-if="autoImportStore.loading && autoImportStore.logEntries.length === 0" class="panel-state">{{ t('common.loading') }}</div>
-        <UiEmpty
+        <UiPanel
+          v-if="autoImportStore.loading && autoImportStore.logEntries.length === 0"
+          class="section-panel section-panel--fill section-panel--empty"
+        >
+          <div class="panel-state">{{ t('common.loading') }}</div>
+        </UiPanel>
+        <UiPanel
           v-else-if="autoImportStore.logEntries.length === 0"
-          :title="t('automation.logEmpty')"
-          :description="t('automation.logDescription')"
-          :icon="ReceiptOutline"
-        />
+          class="section-panel section-panel--fill section-panel--empty"
+        >
+          <UiEmpty
+            :title="t('automation.logEmpty')"
+            :description="t('automation.logDescription')"
+            :icon="ReceiptOutline"
+          />
+        </UiPanel>
         <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('automation.logDescription')">
           <n-data-table
             :columns="logColumns"
@@ -966,6 +993,12 @@ onUnmounted(() => {
 
 .section-panel--fill :deep(.ui-panel__body) {
   overflow: auto;
+}
+
+.section-panel--empty :deep(.ui-panel__body) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .section-panel :deep(.n-data-table-th),
