@@ -12,12 +12,6 @@
     :header-style="{
       padding: '16px 24px 14px'
     }"
-    :title-style="{
-      fontSize: '18px',
-      fontWeight: '650',
-      letterSpacing: '-0.01em',
-      color: 'var(--ds-text-strong)'
-    }"
   >
     <div ref="bodyRef" class="settings-dialog-body">
       <h1 class="sr-only">{{ t('app.settings') }}</h1>
@@ -993,6 +987,15 @@ watch(visible, (show) => {
 </style>
 
 <style>
+/* 设置弹窗标题规格：18px/650。n-modal preset="card" 没有 titleStyle prop，
+   只能覆盖 card header 内部标题节点；全局规则的特异性高于 theme.css 的 16px/600。 */
+.settings-modal.n-card > .n-card-header .n-card-header__main {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ds-text-strong);
+}
+
 /* 全局样式：高亮类加到子页面（异步组件）的 DOM 上，scoped 样式作用不到 */
 .settings-search-hit {
   outline: 2px solid var(--ds-accent);

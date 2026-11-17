@@ -906,11 +906,6 @@ onUnmounted(() => {
   min-height: 0;
 }
 
-/* PageHeader 自带 20px 下边距，这里统一走 flex gap，避免叠成 36px */
-.automation-view :deep(.page-header) {
-  margin-bottom: 0;
-}
-
 /* ---------------- 加载失败横幅 ---------------- */
 .load-error__body {
   display: flex;

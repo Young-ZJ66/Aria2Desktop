@@ -326,11 +326,6 @@ onBeforeUnmount(() => {
   gap: var(--ds-space-16);
 }
 
-/* PageHeader 自带 20px 下边距（v1 流式布局），这里改用 gap 统一节奏，避免叠加成 36px */
-.queue-view .page-head {
-  margin-bottom: 0;
-}
-
 .metric-band {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -1655,7 +1655,7 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--ds-space-4);
+  gap: var(--ds-space-16);
 }
 
 /* 主表面：v2 里阴影只属于浮层，面板靠 1px 描边 + 表面色分层。

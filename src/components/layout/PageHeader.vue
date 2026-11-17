@@ -18,12 +18,12 @@ defineProps<{
 </script>
 
 <style scoped>
+/* 页面间距由父容器的 flex gap 统一控制，PageHeader 自身不携带外边距 */
 .page-header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--ds-space-24);
-  margin-bottom: var(--ds-space-20);
 }
 
 .page-header__text {

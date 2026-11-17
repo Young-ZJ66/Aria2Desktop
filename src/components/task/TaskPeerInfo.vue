@@ -2,7 +2,7 @@
   <n-card class="info-card" :class="{ 'info-card--flat': flat }" size="small" :bordered="false">
     <div v-if="peers.length" class="peer-toolbar" :class="{ 'peer-toolbar--flat': flat }">
       <!-- flat 模式下分区标题里已显示数量，这里不再重复 -->
-      <span v-if="!flat" class="peer-count">{{ t('taskDetail.peerInfo', { count: peers.length }) }}</span>
+      <span v-if="!flat && showCount" class="peer-count">{{ t('taskDetail.peerInfo', { count: peers.length }) }}</span>
       <n-button size="tiny" secondary :loading="locating" @click="lookupLocations">
         {{ t('taskPeer.lookupLocation') }}
       </n-button>
@@ -41,9 +41,11 @@ interface Props {
   peers: Aria2Peer[]
   /** 不渲染自带卡片外壳，由调用方提供分区容器（BT 洞察页使用） */
   flat?: boolean
+  /** 是否在工具栏显示数量。详情抽屉的 tab 已显示数量时传 false，避免重复。 */
+  showCount?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { showCount: true })
 const { t } = useI18n()
 
 const locations = ref<Record<string, { country: string; countryCode: string }>>({})

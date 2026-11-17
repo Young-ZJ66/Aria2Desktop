@@ -391,11 +391,6 @@ onBeforeUnmount(() => {
   gap: var(--ds-space-16);
 }
 
-/* PageHeader 自带 20px 下边距（v1 流式布局），这里改用 gap 统一节奏，避免叠加成 36px */
-.bt-insights-view .page-head {
-  margin-bottom: 0;
-}
-
 /* 内容在容器内滚动，页头固定不动（与改造前行为一致，只是去掉了外层 v1 大盒子） */
 .bt-body {
   flex: 1;

@@ -17,6 +17,9 @@
           <!-- v2：标题右侧带 gid 片段。详情抽屉经常是「从列表点进来又想确认看的是哪个」的场景，
                而 gid 是唯一稳定标识（文件名可能重复）。 -->
           <code v-if="gid" class="drawer-gid" :title="gid">{{ gid.slice(0, 8) }}</code>
+          <n-tag v-if="task?.status" :type="getStatusType(task.status)" size="small">
+            {{ t('status.' + task.status) }}
+          </n-tag>
           <span class="drawer-header__spacer" />
           <n-button size="small" quaternary :loading="refreshing" :aria-label="t('common.refresh')" @click="refresh">
             <template #icon>
@@ -47,7 +50,7 @@
             </n-tab-pane>
 
             <n-tab-pane v-if="task.bittorrent" :name="'peers'" :tab="t('taskDetail.peerInfo', { count: taskPeers.length })">
-              <TaskPeerInfo :peers="taskPeers" />
+              <TaskPeerInfo :peers="taskPeers" :show-count="false" />
             </n-tab-pane>
 
             <n-tab-pane :name="'pieces'" :tab="t('taskDetail.piecesInfo')">
@@ -96,6 +99,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
 import type { Aria2Task, Aria2Uri, Aria2Server, Aria2Peer } from '@/types/aria2'
+import { getStatusType } from '@/utils/taskFormatters'
 import TaskBasicInfo from '@/components/task/TaskBasicInfo.vue'
 import TaskFilesInfo from '@/components/task/TaskFilesInfo.vue'
 import TaskServerInfo from '@/components/task/TaskServerInfo.vue'

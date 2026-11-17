@@ -379,11 +379,6 @@ function hideNoteForever(): void {
   gap: var(--ds-space-16);
 }
 
-/* PageHeader 自带 20px 下边距（v1 流式布局），这里改用 gap 统一节奏，避免叠加成 36px */
-.instances-view .page-head {
-  margin-bottom: 0;
-}
-
 /* 空态本身没有表面，套一层与卡片同款的面，避免文字直接浮在 app 背景上 */
 .instances-empty {
   flex: 1;

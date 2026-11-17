@@ -2,15 +2,6 @@
   <div>
     <!-- 任务信息卡片 -->
     <n-card class="info-card" size="small" :bordered="false">
-      <template #header>
-        <div class="card-header">
-          <span>{{ t('taskDetail.basicInfo') }}</span>
-          <n-tag v-if="task.status" :type="getStatusType(task.status)" size="small">
-            {{ t('status.' + task.status) }}
-          </n-tag>
-        </div>
-      </template>
-
       <n-descriptions :column="2" label-placement="left" class="task-descriptions">
         <n-descriptions-item :label="t('task.gid')">
           <div class="field-with-action">
@@ -196,7 +187,6 @@ import {
   formatSpeed,
   formatRemainingTime,
   getProgress,
-  getStatusType,
   getFileName
 } from '@/utils/taskFormatters'
 

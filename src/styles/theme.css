@@ -166,6 +166,11 @@ h5 {
   letter-spacing: -0.005em;
 }
 
+/* 抽屉与弹窗同属浮层：标题区不画分隔线，保持与 modal 一致 */
+.n-drawer .n-drawer-content .n-drawer-header {
+  border-bottom: none;
+}
+
 /* 数据表：表头是一层「标签带」，行是内容层——v1 两者几乎同色，读起来没有结构 */
 .n-data-table .n-data-table-th {
   background: var(--ds-bg-sunken);

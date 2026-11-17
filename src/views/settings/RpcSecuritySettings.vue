@@ -13,6 +13,7 @@
     @reload="loadSettings(true)"
     @reset="handleReset"
   >
+    <!-- 该页最长标签「启用 RPC 加密（HTTPS）」实测 175.7px，180px 内容区仅 168px 会换行，故单独保留 190px -->
     <n-form
       ref="formRef"
       :model="settings"

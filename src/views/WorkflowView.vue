@@ -630,11 +630,6 @@ onUnmounted(() => {
   min-height: 0;
 }
 
-/* PageHeader 自带 20px 下边距，这里统一走 flex gap，避免叠成 36px */
-.workflow-view :deep(.page-header) {
-  margin-bottom: 0;
-}
-
 /* ---------------- tab 栏 ---------------- */
 .workflow-tabs {
   display: flex;

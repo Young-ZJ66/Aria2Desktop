@@ -554,11 +554,6 @@ function updateTrafficChart() {
   gap: var(--ds-space-16);
 }
 
-/* PageHeader 自带 20px 下边距，这里改用 gap 统一节奏，避免叠加 */
-.status-page .page-head {
-  margin-bottom: 0;
-}
-
 /* ── 服务信息带 ── */
 .info-grid {
   display: grid;
