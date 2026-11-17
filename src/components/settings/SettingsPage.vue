@@ -116,7 +116,7 @@ const { t } = useI18n()
   justify-content: center;
   gap: var(--ds-space-12);
   width: fit-content;
-  margin: var(--ds-space-24) auto 0;
+  margin: var(--ds-space-8) auto 0;
   padding: var(--ds-space-8) var(--ds-space-16);
   border: 1px solid color-mix(in srgb, var(--ds-border-base) 72%, transparent);
   border-radius: var(--ds-radius-lg);
@@ -200,11 +200,13 @@ const { t } = useI18n()
   color: var(--ds-text-strong);
 }
 
-.settings-page .setting-group .n-card__content {
-  padding: 0;
-}
-
 .settings-page .n-form-item:last-child {
   margin-bottom: 0;
+}
+
+/* Naive UI 实际类名是 n-card-content（连字符）；旧 .n-card__content 未命中，
+   分组内容底部会多出 20px，把保存条推得离最后一项过远。 */
+.settings-page .setting-group .n-card-content {
+  padding-bottom: 0 !important;
 }
 </style>

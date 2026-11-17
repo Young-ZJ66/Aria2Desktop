@@ -934,6 +934,11 @@ watch(visible, (show) => {
   }
 }
 
+/* 有底部保存条的设置页：面板底部内边距与保存条外边距统一为 8px，避免上下空白过大 */
+.settings-dialog-body :deep(.settings-main-pane:has(.settings-actions)) {
+  padding-bottom: var(--ds-space-8);
+}
+
 /* 二级分组页签：v2 的分段控件（sunken 轨道 + surface 选中块 + accent-text） */
 .settings-dialog-body :deep(.settings-subtabs) {
   margin: 0 0 var(--ds-space-24);
