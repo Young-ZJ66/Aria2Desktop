@@ -68,17 +68,6 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('generalSettings.keepWindowState')" />
-          </template>
-          <AppSwitch
-            v-model:value="form.keepWindowState"
-            :disabled="true"
-            @update:value="handleKeepWindowStateChange"
-          />
-        </n-form-item>
-
-        <n-form-item>
-          <template #label>
             <TipLabel :label="t('generalSettings.autoLaunch')" />
           </template>
           <AppSwitch
@@ -96,17 +85,6 @@
             v-model:value="form.downloadCompleteAction"
             :options="downloadCompleteActionOptions"
             @update:value="handleDownloadCompleteActionChange"
-          />
-        </n-form-item>
-
-        <n-form-item>
-          <template #label>
-            <TipLabel :label="t('generalSettings.clipboardMonitor')" />
-          </template>
-          <AppSwitch
-            v-model:value="form.clipboardMonitorEnabled"
-            :disabled="true"
-            @update:value="handleClipboardMonitorChange"
           />
         </n-form-item>
 
@@ -201,12 +179,10 @@ const form = reactive({
   refreshInterval: 1000,
   autoConnect: true,
   minimizeToTray: true,
-  keepWindowState: true,
   autoLaunch: false,
   autoExtract: false,
   autoDeleteArchive: false,
-  downloadCompleteAction: 'none' as 'none' | 'shutdown' | 'hibernate' | 'close' | 'open-folder' | 'open-file',
-  clipboardMonitorEnabled: true
+  downloadCompleteAction: 'none' as 'none' | 'shutdown' | 'hibernate' | 'close' | 'open-folder' | 'open-file'
 })
 
 // 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
@@ -274,7 +250,7 @@ const refreshIntervalOptions = computed(() => [
   { label: t('generalSettings.refreshInterval10s'), value: 10000 }
 ])
 
-// 监听设置变化：只盯本页表单用到的 7 个字段（与 loadFormData 一一对应）。
+// 监听设置变化：只盯本页表单用到的字段（与 loadFormData 一一对应）。
 //
 // 为什么不用 deep watch 整个 settings：设置弹窗用 n-tabs 同时挂载多个页面，
 // 任何一个设置页保存（改分类规则、改连接预设、改限速计划……）都会让整个 settings 变化；
@@ -287,10 +263,8 @@ watch(
     settingsStore.settings.refreshInterval,
     settingsStore.settings.autoConnect,
     settingsStore.settings.minimizeToTray,
-    settingsStore.settings.keepWindowState,
     settingsStore.settings.autoLaunch,
     settingsStore.settings.downloadCompleteAction,
-    settingsStore.settings.clipboardMonitorEnabled,
     settingsStore.settings.download?.autoExtract,
     settingsStore.settings.download?.autoDeleteArchive
   ],
@@ -308,13 +282,10 @@ function loadFormData() {
     refreshInterval: settingsStore.settings.refreshInterval,
     autoConnect: settingsStore.settings.autoConnect,
     minimizeToTray: settingsStore.settings.minimizeToTray,
-    // 固定开启项：设置服务会把旧配置/导入的 false 强制回 true
-    keepWindowState: true,
     autoLaunch: settingsStore.settings.autoLaunch,
     autoExtract: settingsStore.settings.download?.autoExtract === true,
     autoDeleteArchive: settingsStore.settings.download?.autoDeleteArchive === true,
-    downloadCompleteAction: settingsStore.settings.downloadCompleteAction || 'none',
-    clipboardMonitorEnabled: true
+    downloadCompleteAction: settingsStore.settings.downloadCompleteAction || 'none'
   })
 }
 
@@ -476,22 +447,6 @@ async function handleTraySettingChange() {
   }
 }
 
-async function handleKeepWindowStateChange() {
-  try {
-    // 主进程在下次启动时读取该值：关闭后不再保存/恢复窗口位置与大小
-    await settingsStore.updateSetting('keepWindowState', form.keepWindowState)
-    message.success(
-      form.keepWindowState
-        ? t('generalSettings.keepWindowStateOn')
-        : t('generalSettings.keepWindowStateOff')
-    )
-  } catch (error) {
-    console.error('Window state setting change error:', error)
-    form.keepWindowState = settingsStore.settings.keepWindowState !== false
-    message.error(t('generalSettings.keepWindowStateFailed', { error: error instanceof Error ? error.message : t('settings.unknownError') }))
-  }
-}
-
 // 开机自启变化处理
 async function handleAutoLaunchChange() {
   try {
@@ -525,20 +480,6 @@ async function handleDownloadCompleteActionChange(value: string) {
     console.error('Download complete action change error:', error)
     form.downloadCompleteAction = previous
     message.error(t('generalSettings.downloadCompleteActionFailed', {
-      error: error instanceof Error ? error.message : t('settings.unknownError')
-    }))
-  }
-}
-
-// 剪贴板监控开关：隐私敏感项，保存失败要回滚并把真实错误展示出来
-async function handleClipboardMonitorChange(value: boolean) {
-  const previous = settingsStore.settings.clipboardMonitorEnabled === true
-  form.clipboardMonitorEnabled = value
-  try {
-    await settingsStore.updateSetting('clipboardMonitorEnabled', value)
-  } catch (error) {
-    form.clipboardMonitorEnabled = previous
-    message.error(t('generalSettings.clipboardMonitorFailed', {
       error: error instanceof Error ? error.message : t('settings.unknownError')
     }))
   }
