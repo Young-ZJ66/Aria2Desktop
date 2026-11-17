@@ -93,7 +93,7 @@
         <div v-if="!filteredTasks.length && !loading" class="task-empty">
           <UiEmpty
             :title="emptyDescription"
-            :description="isDisconnected ? undefined : t('task.emptyHint')"
+            :description="emptyHintText"
             :icon="DocumentOutline"
           >
             <template #actions>
@@ -125,7 +125,7 @@
             <transition name="fade-in">
               <UiEmpty
                 :title="emptyDescription"
-                :description="isDisconnected ? undefined : t('task.emptyHint')"
+                :description="emptyHintText"
                 :icon="DocumentOutline"
               >
                 <template #actions>
@@ -232,9 +232,20 @@ const { t } = useI18n()
 // 断连时列表是被清空的，不能沿用「没有找到匹配的任务」——那会让用户以为是筛选问题，
 // 实际是根本没连上服务器。这里区分两种空态，并直接给出连接入口。
 const isDisconnected = computed(() => !connectionStore.isConnected)
-const emptyDescription = computed(() =>
-  isDisconnected.value ? t('settings.notConnectedTitle') : t('task.noTasks')
+// 三种空态语义完全不同：没连上服务器 / 被搜索或筛选排除了 / 真的一个任务都没有。
+// 之前共用 noTasks（「没有找到匹配的任务」），空列表时等于告诉用户「你的筛选把任务藏起来了」，
+// 但他根本没筛过——第一印象就是列表坏了。
+const isFiltering = computed(() =>
+  Boolean(searchText.value.trim() || selectedCategory.value || selectedKind.value)
 )
+const emptyDescription = computed(() => {
+  if (isDisconnected.value) return t('settings.notConnectedTitle')
+  return isFiltering.value ? t('task.noTasks') : t('task.emptyList')
+})
+const emptyHintText = computed(() => {
+  if (isDisconnected.value) return undefined
+  return isFiltering.value ? t('task.emptyFilterHint') : t('task.emptyHint')
+})
 function openConnectionDialog(): void {
   connectionStore.showConnectionDialog = true
 }

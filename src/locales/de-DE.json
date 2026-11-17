@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "Streaming",
     "noTasks": "Keine passenden Aufgaben gefunden",
+    "emptyList": "Noch keine Aufgaben",
+    "emptyFilterHint": "Suche oder Filter zurücksetzen",
     "emptyHint": "Klicken Sie oben auf „Neuer Download“ oder ziehen Sie einen Link/eine Datei zum Starten in das Fenster",
     "totalTasks": "{count} Aufgaben insgesamt",
     "showingTasks": "({count} angezeigt)",

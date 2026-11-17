@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "Transmisión",
     "noTasks": "No se encontraron tareas coincidentes",
+    "emptyList": "Aún no hay tareas",
+    "emptyFilterHint": "Prueba a borrar la búsqueda o los filtros",
     "emptyHint": "Haga clic en «Nueva descarga» arriba o arrastre un enlace/archivo a la ventana para empezar",
     "totalTasks": "{count} tareas en total",
     "showingTasks": "(mostrando {count})",

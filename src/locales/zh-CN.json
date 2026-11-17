@@ -53,6 +53,8 @@
     "typeMagnet": "磁力",
     "typeStream": "流媒体",
     "noTasks": "没有找到匹配的任务",
+    "emptyList": "还没有下载任务",
+    "emptyFilterHint": "试试清空搜索词或筛选条件",
     "emptyHint": "点击上方「新建下载」按钮，或拖拽链接/文件到窗口开始下载",
     "totalTasks": "共 {count} 个任务",
     "showingTasks": "(显示 {count} 个)",

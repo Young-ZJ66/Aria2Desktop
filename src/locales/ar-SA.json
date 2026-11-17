@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "البث",
     "noTasks": "لا توجد مهام مطابقة",
+    "emptyList": "لا توجد تنزيلات بعد",
+    "emptyFilterHint": "جرّب مسح كلمة البحث أو عوامل التصفية",
     "emptyHint": "انقر على \"تنزيل جديد\" أعلاه، أو اسحب رابطًا أو ملفًا إلى النافذة للبدء",
     "totalTasks": "إجمالي المهام: {count}",
     "showingTasks": "(عرض {count})",

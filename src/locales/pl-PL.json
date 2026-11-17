@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "Strumieniowanie",
     "noTasks": "Nie znaleziono pasujących zadań",
+    "emptyList": "Brak zadań",
+    "emptyFilterHint": "Wyczyść wyszukiwanie lub filtry",
     "emptyHint": "Kliknij „Nowe pobieranie” powyżej albo przeciągnij link/plik do okna, aby rozpocząć",
     "totalTasks": "Łącznie zadań: {count}",
     "showingTasks": "(wyświetlono {count})",

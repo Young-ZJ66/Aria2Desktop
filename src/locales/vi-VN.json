@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "Streaming",
     "noTasks": "Không tìm thấy tác vụ phù hợp",
+    "emptyList": "Chưa có tác vụ nào",
+    "emptyFilterHint": "Hãy thử xóa từ khóa tìm kiếm hoặc bộ lọc",
     "emptyHint": "Nhấp vào \"Tải xuống mới\" ở trên, hoặc kéo liên kết/tệp vào cửa sổ để bắt đầu",
     "totalTasks": "Tổng cộng {count} tác vụ",
     "showingTasks": "(hiển thị {count})",

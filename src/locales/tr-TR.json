@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "Akış",
     "noTasks": "Eşleşen görev bulunamadı",
+    "emptyList": "Henüz görev yok",
+    "emptyFilterHint": "Aramayı veya filtreleri temizlemeyi deneyin",
     "emptyHint": "Yukarıdaki \"Yeni İndirme\" düğmesine tıklayın veya başlamak için pencereye bir bağlantı/dosya sürükleyin",
     "totalTasks": "Toplam {count} görev",
     "showingTasks": "({count} gösteriliyor)",

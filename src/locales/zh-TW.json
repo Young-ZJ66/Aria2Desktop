@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "串流",
     "noTasks": "找不到符合的任務",
+    "emptyList": "還沒有下載任務",
+    "emptyFilterHint": "試試清空搜尋詞或篩選條件",
     "emptyHint": "點按上方的「新下載」，或將連結/檔案拖曳到視窗中開始",
     "totalTasks": "共 {count} 個任務",
     "showingTasks": "（顯示 {count} 個）",

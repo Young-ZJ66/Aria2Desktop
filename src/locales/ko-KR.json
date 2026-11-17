@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "스트리밍",
     "noTasks": "일치하는 작업이 없습니다",
+    "emptyList": "아직 작업이 없습니다",
+    "emptyFilterHint": "검색어나 필터를 지워 보세요",
     "emptyHint": "위의 \"새 다운로드\"를 클릭하거나 링크/파일을 창으로 끌어다 놓아 시작하세요",
     "totalTasks": "총 {count}개 작업",
     "showingTasks": "({count}개 표시)",

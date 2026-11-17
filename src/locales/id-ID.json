@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "Streaming",
     "noTasks": "Tidak ada tugas yang cocok",
+    "emptyList": "Belum ada tugas",
+    "emptyFilterHint": "Coba hapus pencarian atau filter",
     "emptyHint": "Klik \"Unduhan Baru\" di atas, atau seret tautan/file ke jendela untuk memulai",
     "totalTasks": "{count} tugas total",
     "showingTasks": "({count} ditampilkan)",

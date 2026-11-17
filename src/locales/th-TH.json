@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "สตรีมมิ่ง",
     "noTasks": "ไม่พบงานที่ตรงกัน",
+    "emptyList": "ยังไม่มีงาน",
+    "emptyFilterHint": "ลองล้างคำค้นหาหรือตัวกรอง",
     "emptyHint": "คลิก \"ดาวน์โหลดใหม่\" ด้านบน หรือลากลิงก์/ไฟล์มาวางในหน้าต่างเพื่อเริ่ม",
     "totalTasks": "งานทั้งหมด {count} รายการ",
     "showingTasks": "(แสดง {count})",

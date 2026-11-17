@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "Streaming",
     "noTasks": "Nenhuma tarefa encontrada",
+    "emptyList": "Nenhuma tarefa ainda",
+    "emptyFilterHint": "Tente limpar a busca ou os filtros",
     "emptyHint": "Clique em \"Novo Download\" acima ou arraste um link/arquivo para a janela para começar",
     "totalTasks": "{count} tarefas no total",
     "showingTasks": "({count} exibidas)",

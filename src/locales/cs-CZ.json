@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "Streamování",
     "noTasks": "Nebyly nalezeny žádné odpovídající úlohy",
+    "emptyList": "Zatím žádné úlohy",
+    "emptyFilterHint": "Zkuste vymazat hledaný výraz nebo filtry",
     "emptyHint": "Klikněte nahoře na „Nové stahování“ nebo přetáhněte odkaz/soubor do okna",
     "totalTasks": "{count} úloh celkem",
     "showingTasks": "(zobrazeno {count})",

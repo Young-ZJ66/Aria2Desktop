@@ -53,6 +53,8 @@
     "typeMagnet": "Magnet",
     "typeStream": "Streaming",
     "noTasks": "Geen overeenkomende taken gevonden",
+    "emptyList": "Nog geen taken",
+    "emptyFilterHint": "Probeer de zoekopdracht of filters te wissen",
     "emptyHint": "Klik hierboven op \"Nieuwe download\" of sleep een link/bestand in het venster om te beginnen",
     "totalTasks": "{count} taken in totaal",
     "showingTasks": "({count} getoond)",
