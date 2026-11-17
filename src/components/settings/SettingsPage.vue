@@ -183,7 +183,8 @@ const { t } = useI18n()
   box-shadow: none;
 }
 
-.settings-page .setting-group + .setting-group {
+.settings-page .setting-group + .setting-group,
+.settings-page .n-form + .setting-group {
   margin-top: var(--ds-space-20);
   padding-top: var(--ds-space-20);
   border-top: 1px solid var(--ds-border-subtle);
