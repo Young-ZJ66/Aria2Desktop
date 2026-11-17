@@ -438,7 +438,7 @@
     "downloadSpeed": "Скорость скачивания"
   },
   "settings": {
-    "searchPlaceholder": "Поиск настроек (можно несколько ключевых слов)",
+    "searchPlaceholder": "Поиск настроек",
     "searchNoResult": "Подходящих настроек нет",
     "searchLoading": "Загрузка настроек…",
     "save": "Сохранить настройки",

@@ -438,7 +438,7 @@
     "downloadSpeed": "Velocità di download"
   },
   "settings": {
-    "searchPlaceholder": "Cerca nelle impostazioni (più parole chiave consentite)",
+    "searchPlaceholder": "Cerca nelle impostazioni",
     "searchNoResult": "Nessuna impostazione corrispondente",
     "searchLoading": "Caricamento impostazioni…",
     "save": "Salva impostazioni",

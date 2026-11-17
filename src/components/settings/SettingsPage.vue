@@ -76,7 +76,8 @@ const { t } = useI18n()
 }
 
 .settings-page.settings-page--with-actions {
-  padding-bottom: 72px;
+  /* 保存条位于文档流末尾，不再额外预留大块底部空白 */
+  padding-bottom: 0;
 }
 
 .settings-header {
@@ -105,22 +106,24 @@ const { t } = useI18n()
   margin-bottom: var(--ds-space-16);
 }
 
-/* 底部操作：恢复悬浮胶囊，滚动时贴着内容区底部，终态仍回到页面末尾 */
+/* 底部操作：居中的亚克力胶囊，滚动时贴在内容区底部，终态仍回到页面末尾 */
 .settings-actions {
   position: sticky;
-  bottom: var(--ds-space-16);
+  bottom: 0;
   z-index: 3;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: var(--ds-space-12);
   width: fit-content;
-  margin: var(--ds-space-24) 0 0 auto;
-  padding: var(--ds-space-8) var(--ds-space-12);
-  border: 1px solid var(--ds-border-subtle);
+  margin: var(--ds-space-24) auto 0;
+  padding: var(--ds-space-8) var(--ds-space-16);
+  border: 1px solid color-mix(in srgb, var(--ds-border-base) 72%, transparent);
   border-radius: var(--ds-radius-lg);
-  background: var(--ds-bg-raised);
+  background: color-mix(in srgb, var(--ds-bg-raised) 76%, transparent);
   box-shadow: var(--ds-elev-2);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
 }
 
 </style>

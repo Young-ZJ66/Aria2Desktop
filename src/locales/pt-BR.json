@@ -438,7 +438,7 @@
     "downloadSpeed": "Velocidade de Download"
   },
   "settings": {
-    "searchPlaceholder": "Pesquisar configurações (várias palavras-chave permitidas)",
+    "searchPlaceholder": "Pesquisar configurações",
     "searchNoResult": "Nenhuma configuração correspondente",
     "searchLoading": "Carregando configurações…",
     "save": "Salvar Configurações",

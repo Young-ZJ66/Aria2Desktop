@@ -438,7 +438,7 @@
     "downloadSpeed": "Rychlost stahování"
   },
   "settings": {
-    "searchPlaceholder": "Hledat v nastavení (lze zadat více klíčových slov)",
+    "searchPlaceholder": "Hledat v nastavení",
     "searchNoResult": "Žádné odpovídající nastavení",
     "searchLoading": "Načítání nastavení…",
     "save": "Uložit nastavení",

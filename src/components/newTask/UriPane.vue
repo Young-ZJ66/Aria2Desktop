@@ -1,7 +1,7 @@
 <template>
   <n-form ref="formRef" :model="form" :rules="rules">
     <div class="pane-section">
-      <n-form-item path="uris" :label="t('newTask.urisLabel')" label-placement="top">
+      <n-form-item class="uri-form-item" path="uris" :label="t('newTask.urisLabel')" label-placement="top">
         <!-- 固定 6 行：既不会随输入内容拉伸，也不允许手动拖拽改高。
              链接格式说明直接作为占位文案显示在输入框内，用户一输入即让位给内容。 -->
         <n-input
@@ -590,5 +590,19 @@ defineExpose({
   font-size: var(--ds-text-small-size);
   line-height: var(--ds-text-small-leading);
   color: var(--ds-text-muted);
+}
+
+/* 下载链接是唯一带必填校验的字段：字段与下一分区之间本来就留有一段间距，
+ * 错误文案用绝对定位占用这段间距，不再在错误态额外撑高一行、把下方内容整体推下去。 */
+.uri-form-item {
+  position: relative;
+}
+.uri-form-item :deep(.n-form-item-feedback-wrapper) {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  pointer-events: none;
 }
 </style>

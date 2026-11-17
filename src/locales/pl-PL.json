@@ -438,7 +438,7 @@
     "downloadSpeed": "Prędkość pobierania"
   },
   "settings": {
-    "searchPlaceholder": "Szukaj w ustawieniach (można użyć wielu słów kluczowych)",
+    "searchPlaceholder": "Szukaj w ustawieniach",
     "searchNoResult": "Nie znaleziono pasującego ustawienia",
     "searchLoading": "Ładowanie ustawień…",
     "save": "Zapisz ustawienia",

@@ -438,7 +438,7 @@
     "downloadSpeed": "ความเร็วดาวน์โหลด"
   },
   "settings": {
-    "searchPlaceholder": "ค้นหาการตั้งค่า (ใช้หลายคำค้นได้)",
+    "searchPlaceholder": "ค้นหาการตั้งค่า",
     "searchNoResult": "ไม่พบการตั้งค่าที่ตรงกัน",
     "searchLoading": "กำลังโหลดการตั้งค่า…",
     "save": "บันทึกการตั้งค่า",

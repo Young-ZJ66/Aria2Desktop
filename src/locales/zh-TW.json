@@ -438,7 +438,7 @@
     "downloadSpeed": "下載速度"
   },
   "settings": {
-    "searchPlaceholder": "搜尋設定（可輸入多個關鍵字）",
+    "searchPlaceholder": "搜尋設定",
     "searchNoResult": "找不到符合的設定",
     "searchLoading": "正在載入設定…",
     "save": "儲存設定",

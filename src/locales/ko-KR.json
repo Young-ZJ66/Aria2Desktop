@@ -438,7 +438,7 @@
     "downloadSpeed": "다운로드 속도"
   },
   "settings": {
-    "searchPlaceholder": "설정 검색(여러 키워드 입력 가능)",
+    "searchPlaceholder": "설정 검색",
     "searchNoResult": "일치하는 설정이 없습니다",
     "searchLoading": "설정 불러오는 중…",
     "save": "설정 저장",

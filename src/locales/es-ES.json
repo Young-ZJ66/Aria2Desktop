@@ -438,7 +438,7 @@
     "downloadSpeed": "Velocidad de descarga"
   },
   "settings": {
-    "searchPlaceholder": "Buscar ajustes (se permiten varias palabras clave)",
+    "searchPlaceholder": "Buscar ajustes",
     "searchNoResult": "No se encontró ningún ajuste",
     "searchLoading": "Cargando ajustes…",
     "save": "Guardar configuración",

@@ -438,7 +438,7 @@
     "downloadSpeed": "下载速度"
   },
   "settings": {
-    "searchPlaceholder": "搜索设置项（支持多关键词）",
+    "searchPlaceholder": "搜索设置项",
     "searchNoResult": "没有匹配的设置项",
     "searchLoading": "正在加载设置项…",
     "save": "保存设置",

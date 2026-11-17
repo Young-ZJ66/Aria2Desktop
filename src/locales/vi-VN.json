@@ -438,7 +438,7 @@
     "downloadSpeed": "Tốc độ tải xuống"
   },
   "settings": {
-    "searchPlaceholder": "Tìm kiếm cài đặt (cho phép nhiều từ khóa)",
+    "searchPlaceholder": "Tìm kiếm cài đặt",
     "searchNoResult": "Không có cài đặt phù hợp",
     "searchLoading": "Đang tải cài đặt…",
     "save": "Lưu cài đặt",

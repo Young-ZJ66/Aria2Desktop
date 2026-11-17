@@ -438,7 +438,7 @@
     "downloadSpeed": "İndirme Hızı"
   },
   "settings": {
-    "searchPlaceholder": "Ayarlarda ara (birden fazla anahtar sözcük kullanılabilir)",
+    "searchPlaceholder": "Ayarlarda ara",
     "searchNoResult": "Eşleşen ayar yok",
     "searchLoading": "Ayarlar yükleniyor…",
     "save": "Ayarları Kaydet",

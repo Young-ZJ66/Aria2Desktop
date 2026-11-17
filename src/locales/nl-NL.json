@@ -438,7 +438,7 @@
     "downloadSpeed": "Downloadsnelheid"
   },
   "settings": {
-    "searchPlaceholder": "Instellingen zoeken (meerdere trefwoorden mogelijk)",
+    "searchPlaceholder": "Instellingen zoeken",
     "searchNoResult": "Geen overeenkomende instelling",
     "searchLoading": "Instellingen laden…",
     "save": "Instellingen opslaan",

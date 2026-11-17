@@ -438,7 +438,7 @@
     "downloadSpeed": "डाउनलोड गति"
   },
   "settings": {
-    "searchPlaceholder": "सेटिंग्स खोजें (कई कीवर्ड की अनुमति है)",
+    "searchPlaceholder": "सेटिंग्स खोजें",
     "searchNoResult": "कोई मेल खाती सेटिंग नहीं",
     "searchLoading": "सेटिंग्स लोड हो रही हैं…",
     "save": "सेटिंग्स सहेजें",

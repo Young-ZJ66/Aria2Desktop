@@ -438,7 +438,7 @@
     "downloadSpeed": "Kecepatan Unduh"
   },
   "settings": {
-    "searchPlaceholder": "Cari pengaturan (beberapa kata kunci diperbolehkan)",
+    "searchPlaceholder": "Cari pengaturan",
     "searchNoResult": "Tidak ada pengaturan yang cocok",
     "searchLoading": "Memuat pengaturan…",
     "save": "Simpan Pengaturan",

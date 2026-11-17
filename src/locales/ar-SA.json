@@ -438,7 +438,7 @@
     "downloadSpeed": "سرعة التنزيل"
   },
   "settings": {
-    "searchPlaceholder": "البحث في الإعدادات (يمكن استخدام عدة كلمات مفتاحية)",
+    "searchPlaceholder": "البحث في الإعدادات",
     "searchNoResult": "لا يوجد إعداد مطابق",
     "searchLoading": "جارٍ تحميل الإعدادات…",
     "save": "حفظ الإعدادات",

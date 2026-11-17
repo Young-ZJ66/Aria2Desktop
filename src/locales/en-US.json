@@ -438,7 +438,7 @@
     "downloadSpeed": "Download Speed"
   },
   "settings": {
-    "searchPlaceholder": "Search settings (multiple keywords allowed)",
+    "searchPlaceholder": "Search settings",
     "searchNoResult": "No matching setting",
     "searchLoading": "Loading settings…",
     "save": "Save Settings",

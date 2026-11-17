@@ -438,7 +438,7 @@
     "downloadSpeed": "Vitesse de téléchargement"
   },
   "settings": {
-    "searchPlaceholder": "Rechercher dans les paramètres (plusieurs mots-clés possibles)",
+    "searchPlaceholder": "Rechercher dans les paramètres",
     "searchNoResult": "Aucun paramètre correspondant",
     "searchLoading": "Chargement des paramètres…",
     "save": "Enregistrer les paramètres",
