@@ -44,7 +44,7 @@
   --font-size-xs: var(--ds-text-micro-size);
   --font-size-sm: var(--ds-text-small-size);
   --font-size-md: var(--ds-text-body-size);
-  --font-size-lg: var(--ds-text-body-lg-size);
+  --font-size-lg: var(--ds-text-bodyLg-size);
 
   --radius-sm: var(--ds-radius-sm);
   --radius-md: 10px;

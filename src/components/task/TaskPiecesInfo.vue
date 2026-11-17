@@ -350,7 +350,7 @@ onBeforeUnmount(() => {
 
 .pieces-visual-header h4 {
   margin: 0;
-  font-size: var(--ds-text-body-lg-size);
+  font-size: var(--ds-text-bodyLg-size);
   font-weight: 600;
 }
 
