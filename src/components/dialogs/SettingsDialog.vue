@@ -944,7 +944,7 @@ watch(visible, (show) => {
 }
 
 .settings-dialog-body :deep(.settings-subtabs > .n-tabs-nav) {
-  margin-bottom: 0;
+  margin-bottom: var(--ds-space-16);
 }
 
 .settings-dialog-body :deep(.settings-subtabs .n-tabs-rail) {
