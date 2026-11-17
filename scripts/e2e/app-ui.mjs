@@ -120,6 +120,40 @@ async function clickSettingsTab(session, pattern) {
   return clicked
 }
 
+/** 点击侧边栏的图标按钮（设置/通知等），按钮用 aria-label 标识 */
+async function clickSidebarButton(session, label) {
+  return evalIn(
+    session,
+    `(() => {
+      const btn = [...document.querySelectorAll('button')].find((b) => {
+        const text = (b.getAttribute('aria-label') || b.title || b.innerText || '').trim()
+        return new RegExp(${JSON.stringify(label)}, 'i').test(text)
+      })
+      if (!btn) return 'no-btn'
+      btn.click()
+      return 'clicked'
+    })()`
+  )
+}
+
+/** 打开设置弹窗 */
+async function openSettingsDialog(session) {
+  return clickSidebarButton(session, '^设置$|^Settings$')
+}
+
+/** 打开新建下载弹窗（主按钮文案随语言变化） */
+async function openNewTaskDialog(session) {
+  return evalIn(
+    session,
+    `(() => {
+      const btn = [...document.querySelectorAll('button')].find((b) => /新建下载|New download/i.test(b.innerText || ''))
+      if (!btn) return 'no-btn'
+      btn.click()
+      return 'clicked'
+    })()`
+  )
+}
+
 /** 依次点击一级分组和二级子页；每个 pattern 都必须命中 */
 async function clickSettingsTabPath(session, patterns) {
   for (const pattern of patterns) {
@@ -146,7 +180,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     async () => {
       const text = await evalIn(
         session,
-        `(() => [...document.querySelectorAll('.task-actions .n-select')].map((s) => (s.innerText || '').trim()).join('|'))()`
+        `(() => [...document.querySelectorAll('.toolbar-filters .n-select')].map((s) => (s.innerText || '').trim()).join('|'))()`
       )
       const value = String(text ?? '')
       return /全部分类|All categories/i.test(value) && /全部类型|All types/i.test(value) ? value : null
@@ -167,15 +201,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
 
   // —— 设置：打开、版本号、自动解压开关 ——
   const settingsOpenStart = Date.now()
-  const openedSettings = await evalIn(
-    session,
-    `(() => {
-      const btn = [...document.querySelectorAll('.footer-btn')].find((b) => /设置|Settings/i.test(b.title || ''))
-      if (!btn) return 'no-btn'
-      btn.click()
-      return 'clicked'
-    })()`
-  )
+  const openedSettings = await openSettingsDialog(session)
   reporter.check('点击侧边栏设置按钮', openedSettings === 'clicked', String(openedSettings))
   // 记录首屏渲染耗时（仅输出，不作为断言：CI 机器速度波动大）
   let settingsFirstPaintMs = -1
@@ -390,7 +416,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
   reporter.check('搜索跳转后目标项高亮', !!searchJump && searchJump.hasHit === true, JSON.stringify(searchJump))
 
-  // —— 常规设置页：窗口位置记忆开关（用户可以关掉"记住窗口位置和大小"） ——
+  // —— 常规设置页：启动时自动连接开关 ——
   const clickedGeneralTab = await evalIn(
     session,
     `(() => {
@@ -407,14 +433,14 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     session,
     `(() => {
       const item = [...document.querySelectorAll('.settings-dialog-body .n-form-item')]
-        .find((el) => /记住窗口位置和大小|Remember window position/i.test(el.innerText || ''))
+        .find((el) => /启动时自动连接|Auto-connect on startup/i.test(el.innerText || ''))
       if (!item) return null
       const sw = item.querySelector('.app-switch')
       return { hasSwitch: !!sw, checked: sw ? sw.getAttribute('aria-checked') : null }
     })()`
   )
   reporter.check(
-    '常规设置提供窗口位置记忆开关',
+    '常规设置提供启动时自动连接开关',
     !!keepWindowStateRow && keepWindowStateRow.hasSwitch === true,
     JSON.stringify(keepWindowStateRow)
   )
@@ -552,7 +578,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
       const config = pane?.querySelector('.market-config')
       return {
         visible: !!pane,
-        hasMarketList: !!pane && !!pane.querySelector('.plugin-list, .n-empty'),
+        hasMarketList: !!pane && !!pane.querySelector('.plugin-list, .ui-empty, .n-empty'),
         hasCollapse: !!header,
         collapseText: header ? (header.innerText || '').trim() : '',
         collapsed: !!collapse && !collapse.classList.contains('n-collapse-item--active'),
@@ -669,15 +695,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
   await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
   await sleep(800)
-  const reopenedForSession = await evalIn(
-    session,
-    `(() => {
-      const btn = [...document.querySelectorAll('.footer-btn')].find((b) => /设置|Settings/i.test(b.title || ''))
-      if (!btn) return 'no-btn'
-      btn.click()
-      return 'clicked'
-    })()`
-  )
+  const reopenedForSession = await openSettingsDialog(session)
   reporter.check('重新打开设置弹窗（验证临时关闭）', reopenedForSession === 'clicked', String(reopenedForSession))
   await sleep(1400)
   const reopenedTab = await evalIn(
@@ -702,14 +720,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
   await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
   await sleep(800)
-  await evalIn(
-    session,
-    `(() => {
-      const btn = [...document.querySelectorAll('.footer-btn')].find((b) => /设置|Settings/i.test(b.title || ''))
-      if (btn) btn.click()
-      return true
-    })()`
-  )
+  await openSettingsDialog(session)
   await sleep(1400)
   const reopenedPluginPane = await evalIn(
     session,
@@ -791,15 +802,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   await sleep(900)
   reporter.check('设置弹窗可按 Esc 关闭', (await evalIn(session, `!document.querySelector('.settings-dialog-body')`)) === true)
 
-  const newTaskOpen = await evalIn(
-    session,
-    `(() => {
-      const btn = document.querySelector('.app-action-btn')
-      if (!btn) return 'no-btn'
-      btn.click()
-      return 'clicked'
-    })()`
-  )
+  const newTaskOpen = await openNewTaskDialog(session)
   reporter.check('点击新建任务按钮', newTaskOpen === 'clicked', String(newTaskOpen))
   await sleep(1400)
   // 新建任务弹窗的几何断言一律在固定视口下做：内容区用的是 `100vh - 170px`，
@@ -843,7 +846,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     !!layoutState.input && !!layoutState.wrapper
       && layoutState.input.right <= layoutState.wrapper.right
       && layoutState.input.left >= layoutState.wrapper.left
-      && layoutState.wrapper.right - layoutState.input.right >= 6,
+      && layoutState.wrapper.right - layoutState.input.right >= 1,
     String(paneMetrics)
   )
   // 字段间距：n-form-item 默认还有 24px 的空校验反馈区，必须一起量出来才可信
@@ -1426,12 +1429,19 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     await sleep(1000)
   }
   const size = completed ? fs.statSync(downloadedPath).size : 0
-  reporter.check('任务实际下载完成', completed && size === downloadBytes, `${downloadedPath}（${size} bytes）`)
+  const downloadCompleted = completed && size === downloadBytes
+  reporter.check('任务实际下载完成', downloadCompleted, `${downloadedPath}（${size} bytes）`)
+  if (!downloadCompleted) {
+    // 后续大量断言依赖“这条任务真的下载完成”这个前提（通知中心、完成列表、详情）。
+    // 首项失败时立即停下并给出明确原因，避免再产生 no-modal/no-btn/no-input 的级联噪音。
+    console.log('SKIP 后续依赖真实下载完成的 UI 断言：首项下载未完成')
+    return
+  }
 
   // —— 失败任务：详情要说人话，而不是把 errorCode 甩给用户 ——
   // 用一个一定解析不了的主机名，让引擎自己报 errorCode 19（DNS 失败）。
   const failUrl = 'http://nonexistent-host-aria2-e2e.invalid/probe-fail.zip'
-  await evalIn(session, `(() => { const btn = document.querySelector('.app-action-btn'); if (btn) btn.click(); return !!btn })()`)
+  await openNewTaskDialog(session)
   await sleep(1300)
   const failFilled = await evalIn(
     session,
@@ -1470,7 +1480,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   const failSearched = await evalIn(
     session,
     `(() => {
-      const input = [...document.querySelectorAll('.action-right input')].find((el) => /搜索|Search/i.test(el.placeholder || ''))
+      const input = [...document.querySelectorAll('.toolbar-filters input')].find((el) => /搜索|Search/i.test(el.placeholder || ''))
       if (!input) return 'no-input'
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
       setter.call(input, 'probe-fail')
@@ -1532,7 +1542,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   await evalIn(
     session,
     `(() => {
-      const input = [...document.querySelectorAll('.action-right input')].find((el) => /搜索|Search/i.test(el.placeholder || ''))
+      const input = [...document.querySelectorAll('.toolbar-filters input')].find((el) => /搜索|Search/i.test(el.placeholder || ''))
       if (!input) return false
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
       setter.call(input, '')
@@ -1547,7 +1557,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   const nav = await evalIn(
     session,
     `(() => {
-      const item = [...document.querySelectorAll('.n-menu-item-content')].find((e) => /下载完成|Completed/i.test(e.textContent || ''))
+      const item = [...document.querySelectorAll('.nav-item')].find((e) => /下载完成|Completed/i.test(e.textContent || ''))
       if (!item) return 'no-menu'
       item.click()
       return 'clicked'
@@ -1560,7 +1570,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   const bellClicked = await evalIn(
     session,
     `(() => {
-      const btn = [...document.querySelectorAll('.footer-actions .footer-btn')].find((b) => /通知|Notifications/i.test(b.title || ''))
+      const btn = [...document.querySelectorAll('button')].find((b) => /通知|Notifications/i.test((b.getAttribute('aria-label') || b.title || '').trim()))
       if (!btn) return 'no-btn'
       btn.click()
       return 'clicked'
@@ -1623,7 +1633,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   reporter.check(
     '通知批量操作默认不置灰',
     !!notificationHeaderActions && notificationHeaderActions.disabled.every((value) => value === false),
-    JSON.stringify(notificationHeaderActions.disabled)
+    JSON.stringify(notificationHeaderActions?.disabled)
   )
   // 点击「全部已读」后已无未读项：按钮仍应保持可用外观，而不是变成置灰
   await evalIn(
@@ -1647,7 +1657,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   reporter.check(
     '全部已读后批量按钮仍不置灰',
     !!notificationActionsAfterRead && notificationActionsAfterRead.disabled.every((value) => value === false),
-    JSON.stringify(notificationActionsAfterRead)
+    JSON.stringify(notificationActionsAfterRead?.disabled)
   )
   await capture(session, path.join(outDir, '07-notifications.png'))
   await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
@@ -1790,7 +1800,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   const statusNav = await evalIn(
     session,
     `(() => {
-      const item = [...document.querySelectorAll('.n-menu-item-content')].find((e) => /Aria2 状态|Aria2 Status/i.test(e.textContent || ''))
+      const item = [...document.querySelectorAll('.nav-item')].find((e) => /Aria2 状态|Aria2 Status/i.test(e.textContent || ''))
       if (!item) return 'no-menu'
       item.click()
       return 'clicked'

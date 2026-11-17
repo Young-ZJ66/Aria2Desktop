@@ -182,7 +182,7 @@ Project structure and development conventions (logging, type checking, dependenc
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md) for the v1.3.x direction, scope and acceptance criteria.
+See [docs/roadmap.md](docs/roadmap.md) for the v1.4.x direction, scope and acceptance criteria.
 
 ## Contributing
 

@@ -9,6 +9,7 @@ import { URL } from 'url'
 import { compareVersions } from '../utils/version'
 // tag / 更新日志的解析是纯字符串判定，抽到 releaseFeed 后可按真实报文固化边界用例
 import { extractReleaseNotes, parseStableTagFromLocation } from '../utils/releaseFeed'
+import { isStaleUpdateFile } from '../utils/updateFiles'
 import { downloadDelta, saveDeltaCache, discardDeltaCache } from '../services/deltaUpdater'
 import { createLogger } from '../utils/logger'
 import { isPackagedApp } from '../utils/appEnv'
@@ -403,15 +404,12 @@ export class UpdateController {
     return UpdateController.AUTO_INSTALL_SUPPORTED
   }
 
-  /** 删除 temp 目录里**其它版本**的半截下载文件（本版本的正是续传要用的，不能删） */
+  /** 删除 temp 目录里**其它版本**的半截下载与已完成安装包（本版本的目标/续传文件不能删） */
   private async cleanStaleDownloads(keepFileName: string): Promise<void> {
     try {
       const dir = app.getPath('temp')
       const entries = await fs.promises.readdir(dir)
-      const stale = entries.filter(name =>
-        name.startsWith('Aria2Desktop-') &&
-        name.endsWith('.download') &&
-        name !== `${keepFileName}.download`)
+      const stale = entries.filter(name => isStaleUpdateFile(name, keepFileName))
       for (const name of stale) {
         await fs.promises.unlink(path.join(dir, name)).catch(() => { /* 清理失败不阻断下载 */ })
       }

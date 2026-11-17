@@ -183,7 +183,7 @@ npm run dist:linux:arm64  # 打包 Linux arm64 安装包
 
 ## 路线图
 
-v1.3.x 的迭代方向、交付范围与验收标准见 [docs/roadmap.md](docs/roadmap.md)。
+v1.4.x 的迭代方向、交付范围与验收标准见 [docs/roadmap.md](docs/roadmap.md)。
 
 ## 贡献
 
