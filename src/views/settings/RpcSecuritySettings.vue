@@ -18,7 +18,7 @@
       :model="settings"
       :rules="rules"
       label-placement="left"
-      :label-width="180"
+      :label-width="190"
       label-align="left"
       :show-feedback="false"
     >
