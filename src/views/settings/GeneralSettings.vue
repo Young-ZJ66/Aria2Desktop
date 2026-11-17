@@ -68,10 +68,11 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('generalSettings.keepWindowState')" :tip="t('generalSettings.keepWindowStateTip')" />
+            <TipLabel :label="t('generalSettings.keepWindowState')" />
           </template>
           <AppSwitch
             v-model:value="form.keepWindowState"
+            :disabled="true"
             @update:value="handleKeepWindowStateChange"
           />
         </n-form-item>
@@ -100,11 +101,11 @@
 
         <n-form-item>
           <template #label>
-            <TipLabel :label="t('generalSettings.clipboardMonitor')" :tip="t('generalSettings.clipboardMonitorTip')" />
+            <TipLabel :label="t('generalSettings.clipboardMonitor')" />
           </template>
           <AppSwitch
             v-model:value="form.clipboardMonitorEnabled"
-            :disabled="!isElectronAvailable"
+            :disabled="true"
             @update:value="handleClipboardMonitorChange"
           />
         </n-form-item>
@@ -205,7 +206,7 @@ const form = reactive({
   autoExtract: false,
   autoDeleteArchive: false,
   downloadCompleteAction: 'none' as 'none' | 'shutdown' | 'hibernate' | 'close' | 'open-folder' | 'open-file',
-  clipboardMonitorEnabled: false
+  clipboardMonitorEnabled: true
 })
 
 // 选项标签跟随语言实时切换，避免切换语言后下拉框文案不更新
@@ -307,13 +308,13 @@ function loadFormData() {
     refreshInterval: settingsStore.settings.refreshInterval,
     autoConnect: settingsStore.settings.autoConnect,
     minimizeToTray: settingsStore.settings.minimizeToTray,
-    // 缺省视为开启：与主进程 WindowController 的 `!== false` 判定保持一致
-    keepWindowState: settingsStore.settings.keepWindowState !== false,
+    // 固定开启项：设置服务会把旧配置/导入的 false 强制回 true
+    keepWindowState: true,
     autoLaunch: settingsStore.settings.autoLaunch,
     autoExtract: settingsStore.settings.download?.autoExtract === true,
     autoDeleteArchive: settingsStore.settings.download?.autoDeleteArchive === true,
     downloadCompleteAction: settingsStore.settings.downloadCompleteAction || 'none',
-    clipboardMonitorEnabled: settingsStore.settings.clipboardMonitorEnabled === true
+    clipboardMonitorEnabled: true
   })
 }
 

@@ -171,9 +171,9 @@ export class WindowController {
     // 完全移除应用菜单栏
     Menu.setApplicationMenu(null)
 
-    // 如果启用，恢复窗口状态
-    const settings = getSettings()
-    const keepWindowState = settings.keepWindowState !== false
+    // 窗口位置与大小记忆固定开启（设置页只展示、不允许修改）。
+    // 不再读取 keepWindowState：旧配置里的 false 会让主进程首次启动就跳过恢复，
+    // 仅靠渲染层强制 true 来不及。
     const savedState = this.store.get('windowState') as WindowState
 
     // 标题栏使用系统默认样式（如需自定义标题栏，可在此扩展 hidden/hiddenInset + overlay 配置）
@@ -186,7 +186,7 @@ export class WindowController {
       minHeight: 600,
       show: false, // 不立即显示 - 由 AppLifecycle 控制
       autoHideMenuBar: false,
-      center: !keepWindowState || !savedState, // 仅在没有保存状态时居中
+      center: !savedState, // 仅在没有保存状态时居中
       resizable: true,
       titleBarStyle,
       // 图标统一由 resolvePaths 解析（此前生产分支指向不存在的 dist/electron/build/Icon.ico）
@@ -201,7 +201,7 @@ export class WindowController {
     }
 
     // 如果可用，应用保存的边界
-    if (keepWindowState && savedState?.bounds) {
+    if (savedState?.bounds) {
       const { bounds } = savedState
 
       // 验证边界是否在屏幕区域内
@@ -223,7 +223,7 @@ export class WindowController {
     this.mainWindow = new BrowserWindow(windowOptions)
 
     // 恢复最大化/全屏状态
-    if (keepWindowState && savedState) {
+    if (savedState) {
       if (savedState.isMaximized) {
         this.mainWindow.maximize()
       }
@@ -391,10 +391,7 @@ export class WindowController {
   private setupWindowStatePersistence() {
     if (!this.mainWindow) return
 
-    const settings = getSettings()
-    const keepWindowState = settings.keepWindowState !== false
-
-    if (!keepWindowState) return
+    // 窗口状态记忆固定开启：不再读取 keepWindowState，旧配置里的 false 也照常保存
 
     let saveTimeout: NodeJS.Timeout | null = null
     // 最近一次在"正常态"下观测到的边界。最大化时 getBounds() 给的是最大化后的

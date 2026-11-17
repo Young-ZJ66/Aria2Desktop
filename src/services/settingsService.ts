@@ -18,7 +18,7 @@ export const defaultSettings: AppSettings = {
   keepWindowState: true,
   autoLaunch: false,
   downloadCompleteAction: 'none',
-  clipboardMonitorEnabled: false,
+  clipboardMonitorEnabled: true,
 
   aria2: {
     host: 'localhost',
@@ -127,6 +127,9 @@ class SettingsService {
     return {
       ...defaultSettings,
       ...saved,
+      // 固定开启项：旧配置/导入文件里的 false 不允许生效
+      keepWindowState: true,
+      clipboardMonitorEnabled: true,
       aria2: { ...defaultSettings.aria2, ...(saved.aria2 || {}) },
       download: { ...defaultSettings.download, ...(saved.download || {}) },
       category: {
@@ -211,6 +214,9 @@ class SettingsService {
     if (patch.activeProfileId !== undefined) {
       merged.activeProfileId = patch.activeProfileId
     }
+    // 固定开启项：即使调用方/导入文件传 false，也不允许关闭
+    merged.keepWindowState = true
+    merged.clipboardMonitorEnabled = true
     return merged
   }
 
