@@ -963,12 +963,19 @@ watch(visible, (show) => {
 <style>
 /* 全局样式：高亮类加到子页面（异步组件）的 DOM 上，scoped 样式作用不到 */
 .settings-modal.n-card > .n-card-header {
-  padding: var(--ds-space-16) var(--ds-space-24) var(--ds-space-14);
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: var(--ds-space-16) var(--ds-space-24) var(--ds-space-14) !important;
   border-bottom: 1px solid var(--ds-border-subtle);
 }
 
 .settings-modal.n-card > .n-card-header .n-card-header__main {
   min-width: 0;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--ds-text-strong);
 }
 
 .settings-search-hit {

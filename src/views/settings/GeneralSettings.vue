@@ -3,8 +3,8 @@
     :title="t('generalSettings.title')"
     :description="t('generalSettings.description')"
   >
-    <!-- 通用设置：页面标题已说明「常规设置」，卡片不再重复一遍「通用」 -->
-    <n-card class="setting-group">
+    <!-- 通用设置 -->
+    <n-card :title="t('generalSettings.groupGeneral')" class="setting-group">
       <n-form
         :model="form"
         label-placement="left"
