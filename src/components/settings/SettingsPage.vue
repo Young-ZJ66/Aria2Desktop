@@ -44,7 +44,7 @@
 import { useI18n } from 'vue-i18n'
 import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 
-const props = defineProps<{
+defineProps<{
   title: string
   description?: string
   showConnectAlert?: boolean
@@ -67,40 +67,37 @@ const { t } = useI18n()
 </script>
 
 <style scoped>
-/* 与 SettingsDialog 外壳保持一致：宽度交给弹窗内容区，页面自身不再限宽 */
+/* 页内仍是改版前的扁平结构：标题下方一条细线，分组靠留白与分隔线区分，不用卡片 */
 .settings-page {
   width: 100%;
-  max-width: 100%;
+  max-width: 860px;
   margin: 0 auto;
-  padding: var(--ds-space-2) 0 var(--ds-space-4);
+  padding: var(--ds-space-2) 0 var(--ds-space-10);
 }
 
-/* 带底部操作栏的页面：给悬浮栏留出高度，否则滚动时最后一行会被浮条压住。
-   悬浮栏约 56px（按钮 34 + 内边距/阴影），多留一点余量。 */
 .settings-page.settings-page--with-actions {
-  padding-bottom: var(--ds-space-24);
+  padding-bottom: var(--ds-space-16);
 }
 
 .settings-header {
-  margin-bottom: var(--ds-space-20);
-  padding-bottom: 0;
-  border-bottom: 0;
+  margin-bottom: 18px;
+  padding-bottom: var(--ds-space-12);
+  border-bottom: 1px solid var(--ds-border-subtle);
 }
 
 .settings-header h2 {
   margin: 0;
-  font-size: var(--ds-text-h1-size);
-  line-height: var(--ds-text-h1-leading);
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0;
   color: var(--ds-text-strong);
 }
 
 .settings-description {
   margin: var(--ds-space-6) 0 0;
   color: var(--ds-text-muted);
-  font-size: var(--ds-text-body-size);
-  line-height: var(--ds-text-body-leading);
+  font-size: var(--ds-text-small-size);
+  line-height: var(--ds-text-small-leading);
   max-width: 68ch;
 }
 
@@ -108,17 +105,14 @@ const { t } = useI18n()
   margin-bottom: var(--ds-space-16);
 }
 
-/* 吸底操作条：数值与 SettingsDialog 外壳一致，避免两处规则互相覆盖时视觉跳动 */
+/* 底部操作：与改版前一致，居中排列，靠一条分隔线与表单分开 */
 .settings-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
   display: flex;
-  justify-content: flex-end;
-  margin-top: var(--ds-space-16);
-  padding: var(--ds-space-12) 0;
+  justify-content: center;
+  gap: var(--ds-space-12);
+  margin-top: var(--ds-space-24);
+  padding-top: 18px;
   border-top: 1px solid var(--ds-border-subtle);
-  background: var(--ds-bg-raised);
 }
 
 </style>
@@ -154,10 +148,9 @@ const { t } = useI18n()
   min-width: 0;
 }
 
-/* 统一设置项之间的垂直间距。数值与 SettingsDialog 的 160px/1fr 表单栅格一致，
-   两处规则谁生效结果都相同，避免出现 12px 与 24px 打架 */
+/* 统一设置项之间的垂直间距，使用改版前的 24px 行距 */
 .settings-page .n-form-item {
-  margin-bottom: var(--ds-space-12);
+  margin-bottom: var(--ds-space-24);
 }
 
 /* 控件尺寸统一：表单行内的输入框 / 选择器 / 数字框统一为 md 控件高度，
@@ -170,33 +163,30 @@ const { t } = useI18n()
   height: var(--ds-control-height-md);
 }
 
-/* 设置分组改为扁平小节：去掉一层层白卡边框/阴影，用标题与分隔线建立层级。
-   弹窗本身已是白色表面，卡片套卡片会产生过多边框和无效留白。 */
+/* 设置分组：透明、无边框，和改版前一样用一条分隔线连接 */
 .settings-page .setting-group.n-card {
-  margin-bottom: 0;
+  margin: 0;
   background: transparent;
   border: none;
   border-radius: 0;
   box-shadow: none;
 }
 
-.settings-page .setting-group.n-card + .setting-group.n-card {
+.settings-page .setting-group + .setting-group {
   margin-top: var(--ds-space-20);
-  padding-top: var(--ds-space-16);
+  padding-top: var(--ds-space-20);
   border-top: 1px solid var(--ds-border-subtle);
 }
 
 .settings-page .setting-group .n-card-header {
-  padding: 0 0 var(--ds-space-8);
+  padding: 0 0 var(--ds-space-10);
 }
 
-/* 分组标题：比正文强半级、比页标题弱一级。此前用 12px 弱化色，
-   与 20px 页标题之间出现断层，整页只剩一堆漂浮的表单行。 */
 .settings-page .setting-group .n-card-header__main {
-  font-size: var(--ds-text-body-size);
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0;
-  color: var(--ds-text-regular);
+  color: var(--ds-text-strong);
 }
 
 .settings-page .setting-group .n-card__content {
