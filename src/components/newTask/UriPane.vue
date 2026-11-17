@@ -3,20 +3,15 @@
     <div class="pane-section">
       <n-form-item path="uris" :label="t('newTask.urisLabel')" label-placement="top">
         <!-- 固定 6 行：既不会随输入内容拉伸，也不允许手动拖拽改高。
-             占位提示只留一句示例：原先把「协议说明 + 两条示例」整段塞进 placeholder，
-             一输入就全部消失；说明改为字段下方常显文本，并用 aria-describedby 关联。 -->
+             链接格式说明直接作为占位文案显示在输入框内，用户一输入即让位给内容。 -->
         <n-input
           v-model:value="form.uris"
           type="textarea"
           :rows="6"
           :resizable="false"
-          placeholder="https://example.com/file.zip"
-          :input-props="{ 'aria-describedby': URIS_HELP_ID }"
+          :placeholder="t('newTask.urlsPlaceholder')"
           @blur="parseCurlIfPresent"
         />
-        <div :id="URIS_HELP_ID" class="field-helper field-helper--preline">
-          {{ t('newTask.urlsPlaceholder') }}
-        </div>
       </n-form-item>
     </div>
     <div class="pane-section">
@@ -160,9 +155,6 @@ const { t } = useI18n()
 const taskStore = useTaskStore()
 const settingsStore = useSettingsStore()
 const { submitting, runSubmit } = useNewTaskSubmit()
-
-/** 链接输入框与字段下方常显说明的关联 id（aria-describedby 指向 helper） */
-const URIS_HELP_ID = 'new-task-uris-help'
 
 const formRef = ref<FormInst>()
 
