@@ -23,7 +23,7 @@
       </template>
     </PageHeader>
 
-    <section class="task-surface">
+    <section class="task-surface" :class="{ 'task-surface--fill': !filteredTasks.length && !loading }">
       <!-- 操作栏与任务表同处一个表面，减少空白卡片堆叠 -->
       <div class="task-toolbar" :class="{ 'is-selecting': hasSelection }">
         <div class="toolbar-actions">
@@ -1705,10 +1705,21 @@ watch(
   min-height: 0;
 }
 
+/* 空态时让面板吃掉剩余高度：卡片贴着空态内容收口（约 370px）会在页面下半屏留下
+   一整片背景色，看起来像没渲染完。有任务时仍保持 flex 0 1 auto，卡片贴内容收口。 */
+.task-surface--fill {
+  flex: 1 1 auto;
+}
+
+.task-surface--fill .task-list-content {
+  flex: 1;
+  min-height: 0;
+}
+
 /* 空状态：铺满列表区域并在垂直方向居中 */
 .task-empty {
-  flex: none;
-  height: 320px;
+  flex: 1;
+  min-height: 320px;
   display: flex;
   align-items: center;
   justify-content: center;
