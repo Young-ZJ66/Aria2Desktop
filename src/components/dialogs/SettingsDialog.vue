@@ -729,6 +729,7 @@ watch(visible, (show) => {
   height: min(82vh, 900px);
   max-height: calc(100vh - 112px);
   overflow: hidden;
+  border-radius: 0 0 var(--ds-radius-lg) var(--ds-radius-lg);
   display: flex;
   flex-direction: column;
 }
