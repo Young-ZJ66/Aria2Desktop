@@ -131,35 +131,40 @@
 
     <!-- 字幕：只有 yt-dlp 下载路径支持（aria2 直链没有字幕概念） -->
     <n-form class="pane-section">
-      <n-form-item :label="t('newTask.streamSubtitlesLabel')" label-placement="top" :show-feedback="false">
-        <div class="subtitle-row">
+      <div class="stream-field">
+        <div class="stream-field__head">
+          <span class="stream-field__label">{{ t('newTask.streamSubtitlesLabel') }}</span>
           <n-switch v-model:value="subtitleEnabled" size="small" :disabled="streamDownloading || streamStarting" />
+        </div>
+        <div v-if="subtitleEnabled" class="subtitle-row">
           <n-input
             v-model:value="subtitleLanguages"
             :placeholder="t('newTask.streamSubtitleLangsPlaceholder')"
-            :disabled="!subtitleEnabled || streamDownloading || streamStarting"
+            :disabled="streamDownloading || streamStarting"
             size="small"
             clearable
           />
           <n-checkbox
             v-model:checked="subtitleAuto"
             size="small"
-            :disabled="!subtitleEnabled || streamDownloading || streamStarting"
+            :disabled="streamDownloading || streamStarting"
           >
             {{ t('newTask.streamSubtitleAuto') }}
           </n-checkbox>
         </div>
-      </n-form-item>
+      </div>
 
       <!-- Cookie 文件：需要登录态的站点（会员视频等）把浏览器导出的 cookies.txt 交给 yt-dlp -->
-      <n-form-item :label="t('newTask.streamCookieLabel')" label-placement="top" :show-feedback="false">
-        <div class="cookie-row">
+      <div class="stream-field">
+        <div class="stream-field__head">
+          <span class="stream-field__label">{{ t('newTask.streamCookieLabel') }}</span>
           <n-button size="small" :disabled="streamDownloading || streamStarting" @click="pickCookieFile">
             {{ t('newTask.streamCookiePick') }}
           </n-button>
-          <span class="cookie-path" :title="cookieFile">{{ cookieFile || t('newTask.streamCookieNone') }}</span>
+        </div>
+        <div v-if="cookieFile" class="cookie-row">
+          <span class="cookie-path" :title="cookieFile">{{ cookieFile }}</span>
           <n-button
-            v-if="cookieFile"
             size="tiny"
             quaternary
             type="error"
@@ -169,7 +174,7 @@
             {{ t('newTask.streamCookieClear') }}
           </n-button>
         </div>
-      </n-form-item>
+      </div>
     </n-form>
   </template>
 </template>
@@ -763,11 +768,34 @@ function sanitizeFileName(name: string): string {
   color: var(--ds-text-muted);
 }
 
+.stream-field {
+  margin-bottom: var(--ds-space-16);
+}
+
+.stream-field:last-child {
+  margin-bottom: 0;
+}
+
+.stream-field__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-12);
+  width: 100%;
+}
+
+.stream-field__label {
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
+  color: var(--ds-text-base);
+}
+
 .subtitle-row {
   display: flex;
   align-items: center;
   gap: var(--ds-space-12);
   width: 100%;
+  margin-top: var(--ds-space-8);
 }
 
 .subtitle-row .n-input {
@@ -779,6 +807,7 @@ function sanitizeFileName(name: string): string {
   align-items: center;
   gap: var(--ds-space-12);
   width: 100%;
+  margin-top: var(--ds-space-8);
 }
 
 .cookie-path {

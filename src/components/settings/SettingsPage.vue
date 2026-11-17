@@ -76,7 +76,7 @@ const { t } = useI18n()
 }
 
 .settings-page.settings-page--with-actions {
-  padding-bottom: var(--ds-space-16);
+  padding-bottom: 72px;
 }
 
 .settings-header {
@@ -105,14 +105,22 @@ const { t } = useI18n()
   margin-bottom: var(--ds-space-16);
 }
 
-/* 底部操作：与改版前一致，居中排列，靠一条分隔线与表单分开 */
+/* 底部操作：恢复悬浮胶囊，滚动时贴着内容区底部，终态仍回到页面末尾 */
 .settings-actions {
+  position: sticky;
+  bottom: var(--ds-space-16);
+  z-index: 3;
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--ds-space-12);
-  margin-top: var(--ds-space-24);
-  padding-top: 18px;
-  border-top: 1px solid var(--ds-border-subtle);
+  width: fit-content;
+  margin: var(--ds-space-24) 0 0 auto;
+  padding: var(--ds-space-8) var(--ds-space-12);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-bg-raised);
+  box-shadow: var(--ds-elev-2);
 }
 
 </style>

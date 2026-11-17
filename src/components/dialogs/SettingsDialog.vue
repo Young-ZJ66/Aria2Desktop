@@ -9,45 +9,19 @@
     class="settings-modal"
     style="width: min(1040px, calc(100vw - 48px));"
     content-style="padding: 0;"
+    :header-style="{
+      padding: '16px 24px 14px',
+      borderBottom: '1px solid var(--ds-border-subtle)'
+    }"
+    :title-style="{
+      fontSize: '18px',
+      fontWeight: '650',
+      letterSpacing: '-0.01em',
+      color: 'var(--ds-text-strong)'
+    }"
   >
     <div ref="bodyRef" class="settings-dialog-body">
       <h1 class="sr-only">{{ t('app.settings') }}</h1>
-      <div class="settings-search">
-        <n-input
-          v-model:value="searchQuery"
-          size="small"
-          clearable
-          :placeholder="t('settings.searchPlaceholder')"
-          @keydown.enter="jumpToFirstResult"
-        >
-          <template #prefix>
-            <n-icon><SearchOutline /></n-icon>
-          </template>
-        </n-input>
-        <div v-if="searchQuery.trim()" class="settings-search-panel">
-          <button
-            v-for="(item, index) in searchResults"
-            :key="item.id"
-            type="button"
-            class="settings-search-item"
-            @mousedown.prevent
-            @click="jumpTo(item)"
-          >
-            <span class="settings-search-label">{{ item.label }}</span>
-            <!-- 同一页签的连续结果只在第一行标注归属，避免整列重复同一个词 -->
-            <span
-              v-if="index === 0 || item.tabLabel !== searchResults[index - 1]?.tabLabel"
-              class="settings-search-tab"
-            >{{ item.tabLabel }}</span>
-          </button>
-          <div v-if="searchPending" class="settings-search-empty">
-            {{ t('settings.searchLoading') }}
-          </div>
-          <div v-else-if="searchResults.length === 0" class="settings-search-empty">
-            {{ t('settings.searchNoResult') }}
-          </div>
-        </div>
-      </div>
       <n-tabs
         v-model:value="activeGroup"
         class="settings-main-tabs"
@@ -56,6 +30,44 @@
         animated
         size="small"
       >
+        <template #prefix>
+          <div class="settings-search">
+            <n-input
+              v-model:value="searchQuery"
+              size="small"
+              clearable
+              :placeholder="t('settings.searchPlaceholder')"
+              @keydown.enter="jumpToFirstResult"
+            >
+              <template #prefix>
+                <n-icon><SearchOutline /></n-icon>
+              </template>
+            </n-input>
+            <div v-if="searchQuery.trim()" class="settings-search-panel">
+              <button
+                v-for="(item, index) in searchResults"
+                :key="item.id"
+                type="button"
+                class="settings-search-item"
+                @mousedown.prevent
+                @click="jumpTo(item)"
+              >
+                <span class="settings-search-label">{{ item.label }}</span>
+                <!-- 同一页签的连续结果只在第一行标注归属，避免整列重复同一个词 -->
+                <span
+                  v-if="index === 0 || item.tabLabel !== searchResults[index - 1]?.tabLabel"
+                  class="settings-search-tab"
+                >{{ item.tabLabel }}</span>
+              </button>
+              <div v-if="searchPending" class="settings-search-empty">
+                {{ t('settings.searchLoading') }}
+              </div>
+              <div v-else-if="searchResults.length === 0" class="settings-search-empty">
+                {{ t('settings.searchNoResult') }}
+              </div>
+            </div>
+          </div>
+        </template>
         <n-tab-pane
           class="settings-main-pane settings-leaf-pane"
           data-settings-tab="general"
@@ -87,7 +99,7 @@
           <DownloadSettings />
         </n-tab-pane>
         <n-tab-pane class="settings-main-pane" :display-directive="paneDirective('network')" name="network" :tab="t('nav.networkProtocolGroup')">
-          <n-tabs v-model:value="networkSubTab" class="settings-subtabs" type="segment" size="small" pane-style="padding: 0;">
+          <n-tabs v-model:value="networkSubTab" class="settings-subtabs" type="segment" size="small" justify-content="center" pane-style="padding: 0;">
             <n-tab-pane
               class="settings-leaf-pane"
               data-settings-tab="network"
@@ -131,7 +143,7 @@
           <BtSettings />
         </n-tab-pane>
         <n-tab-pane class="settings-main-pane" :display-directive="paneDirective('components')" name="components" :tab="t('nav.toolsPluginsGroup')">
-          <n-tabs v-model:value="componentsSubTab" class="settings-subtabs" type="segment" size="small" pane-style="padding: 0;">
+          <n-tabs v-model:value="componentsSubTab" class="settings-subtabs" type="segment" size="small" justify-content="center" pane-style="padding: 0;">
             <n-tab-pane
               class="settings-leaf-pane"
               data-settings-tab="components"
@@ -185,7 +197,7 @@
           <ResetBackupSettings />
         </n-tab-pane>
         <n-tab-pane class="settings-main-pane" :display-directive="paneDirective('rpc-security')" name="security" :tab="t('nav.securityMaintenanceGroup')">
-          <n-tabs v-model:value="securitySubTab" class="settings-subtabs" type="segment" size="small" pane-style="padding: 0;">
+          <n-tabs v-model:value="securitySubTab" class="settings-subtabs" type="segment" size="small" justify-content="center" pane-style="padding: 0;">
             <n-tab-pane
               class="settings-leaf-pane"
               data-settings-tab="rpc-security"
@@ -724,9 +736,10 @@ watch(visible, (show) => {
 /* 搜索框沿用改版前的通栏位置：放在页签上方，不挤进标题行 */
 .settings-search {
   position: relative;
-  z-index: 5;
+  z-index: 6;
   flex: none;
-  padding: 0 var(--ds-space-24) var(--ds-space-10);
+  width: 100%;
+  padding: 0 0 var(--ds-space-8);
 }
 
 .settings-search .n-input {
@@ -736,8 +749,10 @@ watch(visible, (show) => {
 .settings-search-panel {
   position: absolute;
   top: calc(100% - 2px);
-  left: var(--ds-space-24);
-  right: var(--ds-space-24);
+  left: 0;
+  right: auto;
+  width: 260px;
+  max-width: 72vw;
   max-height: 320px;
   overflow-y: auto;
   padding: var(--ds-space-4);
@@ -794,6 +809,14 @@ watch(visible, (show) => {
   color: var(--ds-text-muted);
 }
 
+/* 搜索框挂在左侧导航的 prefix 里；下拉需要溢出到内容区，所以 nav 本身不裁切 */
+.settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-nav__prefix) {
+  flex: none;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 var(--ds-space-4);
+}
+
 /* 左侧导航固定宽度，右侧内容区独占剩余空间 */
 .settings-dialog-body :deep(.settings-main-tabs) {
   flex: 1;
@@ -809,7 +832,9 @@ watch(visible, (show) => {
   padding: var(--ds-space-8) var(--ds-space-12);
   border-right: 1px solid var(--ds-border-subtle);
   background: var(--ds-bg-surface);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
 }
 
 /* naive 自带的细竖线指示器隐藏，改用条目内部的 3px 主色条 */
@@ -897,19 +922,19 @@ watch(visible, (show) => {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--ds-space-32) var(--ds-space-40) var(--ds-space-24);
+  padding: var(--ds-space-8) var(--ds-space-40) var(--ds-space-24);
   background: var(--ds-bg-surface);
 }
 
 @media (max-width: 900px) {
   .settings-dialog-body :deep(.settings-main-pane) {
-    padding: var(--ds-space-24) var(--ds-space-24) var(--ds-space-20);
+    padding: var(--ds-space-8) var(--ds-space-24) var(--ds-space-20);
   }
 }
 
 /* 二级分组页签：v2 的分段控件（sunken 轨道 + surface 选中块 + accent-text） */
 .settings-dialog-body :deep(.settings-subtabs) {
-  margin: 0 0 var(--ds-space-16);
+  margin: 0 0 var(--ds-space-24);
 }
 
 .settings-dialog-body :deep(.settings-subtabs > .n-tabs-nav) {
@@ -917,9 +942,10 @@ watch(visible, (show) => {
 }
 
 .settings-dialog-body :deep(.settings-subtabs .n-tabs-rail) {
-  display: inline-flex;
-  width: auto;
+  display: flex;
+  width: fit-content;
   max-width: 100%;
+  margin: 0 auto;
   padding: 2px;
   background: var(--ds-bg-sunken);
   border-radius: var(--ds-radius-md);
@@ -962,22 +988,6 @@ watch(visible, (show) => {
 
 <style>
 /* 全局样式：高亮类加到子页面（异步组件）的 DOM 上，scoped 样式作用不到 */
-.settings-modal.n-card > .n-card-header {
-  min-height: 56px;
-  box-sizing: border-box;
-  padding: var(--ds-space-16) var(--ds-space-24) var(--ds-space-14) !important;
-  border-bottom: 1px solid var(--ds-border-subtle);
-}
-
-.settings-modal.n-card > .n-card-header .n-card-header__main {
-  min-width: 0;
-  font-size: 18px;
-  font-weight: 650;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-  color: var(--ds-text-strong);
-}
-
 .settings-search-hit {
   outline: 2px solid var(--ds-accent);
   outline-offset: var(--ds-space-4);

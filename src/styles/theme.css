@@ -378,21 +378,13 @@ html.theme-transition ::-webkit-scrollbar-thumb {
    复选框 / 单选 / 开关 / 选择器不在这里列：它们自带 boxShadowFocus
    焦点外环，再叠一层描边会变成双圈。
    ========================================= */
-.n-button:focus-visible,
-.n-base-close:focus-visible,
+/* 输入框与按钮只保留组件自身的边框/底色变化，不再叠加额外焦点环。
+   导航链接和菜单项仍保留键盘焦点环。 */
 .n-menu-item:focus-visible,
-button:focus-visible,
 a[href]:focus-visible,
 [role='button']:focus-visible:not(.n-checkbox):not(.n-radio):not(.n-switch) {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
-}
-
-/* 输入框的焦点环画在包裹层上：直接给内部 input 描边会贴着文字，很难看 */
-.n-input:has(.n-input__input-el:focus-visible),
-.n-input:has(.n-input__textarea-el:focus-visible) {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 1px;
 }
 
 /* =========================================

@@ -354,11 +354,11 @@ function handleFileInputChange(event: Event) {
   border-radius: var(--ds-radius-pill);
 }
 
-/* 底部操作条：主操作靠右；重置会清空已填内容，降级为左侧文字按钮，
-   不再和主按钮同排同权重（原先紧邻，误点即丢输入） */
+/* 底部操作条：主操作与重置都靠右，重置紧挨主按钮左侧 */
 .dialog-footer {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--ds-space-12);
   width: 100%;
 }
@@ -369,7 +369,7 @@ function handleFileInputChange(event: Event) {
   --n-text-color-focus: var(--ds-text-strong);
 }
 .dialog-footer__primary {
-  margin-left: auto;
+  margin-left: 0;
 }
 
 /* —— 四个 tab 共用的组节奏 ——
@@ -401,8 +401,15 @@ function handleFileInputChange(event: Event) {
   color: var(--ds-text-muted);
 }
 
-/* 字段下方常显说明：替代原先塞进 placeholder 的多行文字（输入后不会消失） */
+/* 字段下方常显说明：替代原先塞进 placeholder 的多行文字（输入后不会消失）。
+   占满整行，不能和输入框并排漂浮在右侧。 */
+.dialog-tabs :deep(.n-form-item-blank) {
+  flex-wrap: wrap;
+}
+
 .dialog-tabs :deep(.field-helper) {
+  flex: 0 0 100%;
+  width: 100%;
   margin-top: var(--ds-space-4);
   font-size: var(--ds-text-small-size);
   line-height: 1.5;

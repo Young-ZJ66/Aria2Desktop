@@ -120,7 +120,7 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       border: '1px solid ' + r.borderBase,
       borderHover: '1px solid ' + r.borderStrong,
       borderFocus: '1px solid ' + r.accent,
-      boxShadowFocus: '0 0 0 3px ' + r.accentSubtle,
+      boxShadowFocus: 'none',
       borderRadius: radius.md,
       heightMedium: control.heightMd,
       textColor: r.textStrong,
@@ -134,8 +134,8 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       borderHover: '1px solid ' + r.borderStrong,
       borderActive: '1px solid ' + r.accent,
       borderFocus: '1px solid ' + r.accent,
-      boxShadowActive: '0 0 0 3px ' + r.accentSubtle,
-      boxShadowFocus: '0 0 0 3px ' + r.accentSubtle,
+      boxShadowActive: 'none',
+      boxShadowFocus: 'none',
       borderRadius: radius.md,
       heightMedium: control.heightMd,
       textColor: r.textStrong,
@@ -253,13 +253,13 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       border: '1px solid ' + r.borderStrong,
       borderHover: '1px solid ' + r.accent,
       borderFocus: '1px solid ' + r.accent,
-      boxShadowFocus: '0 0 0 3px ' + r.accentSubtle,
+      boxShadowFocus: 'none',
       borderRadius: radius.xs
     },
     Switch: {
       railColorActive: r.accent,
       railColor: r.borderStrong,
-      boxShadowFocus: '0 0 0 3px ' + r.accentSubtle
+      boxShadowFocus: 'none'
     },
     Progress: {
       railColor: r.bgSunken,
