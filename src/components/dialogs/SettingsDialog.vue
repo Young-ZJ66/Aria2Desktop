@@ -10,8 +10,7 @@
     style="width: min(1040px, calc(100vw - 48px));"
     content-style="padding: 0;"
     :header-style="{
-      padding: '16px 24px 14px',
-      borderBottom: '1px solid var(--ds-border-subtle)'
+      padding: '16px 24px 14px'
     }"
     :title-style="{
       fontSize: '18px',
