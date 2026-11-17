@@ -6,7 +6,7 @@
     style="width: 620px; max-width: 92vw"
     header-style="padding: 20px 24px 8px;"
     content-style="max-height: calc(100vh - 170px); overflow-y: auto; scrollbar-gutter: stable; padding: 8px 24px 8px;"
-    footer-style="padding: 12px 36px 20px 24px; border-top: 1px solid var(--ds-border-subtle);"
+    footer-style="padding: 12px 36px 20px 24px;"
     :bordered="false"
     :mask-closable="true"
     display-directive="show"
