@@ -779,7 +779,7 @@ function sanitizeFileName(name: string): string {
 .stream-field__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: var(--ds-space-12);
   width: 100%;
 }
