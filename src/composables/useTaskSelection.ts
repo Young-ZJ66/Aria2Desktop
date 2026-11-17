@@ -1,12 +1,24 @@
-import { ref, computed } from 'vue'
+import { ref, computed, type Ref } from 'vue'
 import type { Aria2Task } from '@/types/aria2'
 
-// 全局选择状态（模块级单例，所有使用该 composable 的组件共享同一份状态）
+// 按列表类型隔离的选择状态。下载页与完成页是 keep-alive 的两个 TaskList 实例，
+// 共用一份 Map 时，下载页每秒轮询触发的 cleanupNonExistentTasks 会按下载页的
+// gid 把完成页的勾选全部清掉。scope 由调用方传入 props.taskType。
 // 用 ref(new Map()) 替代 reactive(Map)：Vue 3.5 对 reactive Map 的响应式支持不可靠，
 // 所有 set/delete 通过"创建新 Map 再整体赋值"触发响应式更新
-const selectedTasksMap = ref(new Map<string, Aria2Task>())
+const selectionStores = new Map<string, Ref<Map<string, Aria2Task>>>()
 
-export function useTaskSelection() {
+function getSelectionStore(scope: string): Ref<Map<string, Aria2Task>> {
+  let store = selectionStores.get(scope)
+  if (!store) {
+    store = ref(new Map<string, Aria2Task>())
+    selectionStores.set(scope, store)
+  }
+  return store
+}
+
+export function useTaskSelection(scope = 'default') {
+  const selectedTasksMap = getSelectionStore(scope)
   // 计算属性
   const selectedCount = computed(() => selectedTasksMap.value.size)
   const hasSelection = computed(() => selectedTasksMap.value.size > 0)

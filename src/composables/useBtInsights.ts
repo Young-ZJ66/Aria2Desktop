@@ -81,6 +81,8 @@ export function useBtInsights(
   let timer: ReturnType<typeof setTimeout> | null = null
   let polling = false
   let disposed = false
+  // 每次 stop/start 递增：已在途的 setTimeout 回调据此放弃，避免快速切换任务叠加多条轮询链
+  let pollVersion = 0
 
   async function refreshOnce(): Promise<void> {
     const id = gid.value
@@ -119,14 +121,16 @@ export function useBtInsights(
 
   function scheduleNext(): void {
     if (disposed || !enabled.value || !gid.value) return
+    const version = pollVersion
     timer = setTimeout(async () => {
+      if (version !== pollVersion) return
       if (polling) return scheduleNext()
       polling = true
       try {
         await refreshOnce()
       } finally {
         polling = false
-        if (!disposed) scheduleNext()
+        if (!disposed && version === pollVersion) scheduleNext()
       }
     }, BT_INSIGHTS_POLL_MS)
   }
@@ -145,6 +149,7 @@ export function useBtInsights(
   }
 
   function stop(): void {
+    pollVersion++
     if (timer) {
       clearTimeout(timer)
       timer = null

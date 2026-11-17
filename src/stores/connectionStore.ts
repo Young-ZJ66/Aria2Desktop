@@ -184,6 +184,7 @@ export const useConnectionStore = defineStore('connection', () => {
 
     isConnecting.value = true
     connectionError.value = null
+    let targetService: Aria2Service | null = null
 
     try {
       if (service.value) {
@@ -197,7 +198,7 @@ export const useConnectionStore = defineStore('connection', () => {
 
       // 用局部变量持有本次连接的服务实例：并发发起第二次连接会改写 service.value，
       // 若这里始终读 service.value，第一次的 await 会落到第二次的实例上，相互串扰
-      const targetService = new Aria2Service(targetConfig)
+      targetService = new Aria2Service(targetConfig)
       service.value = targetService
 
       // 设置基本监听器
@@ -239,13 +240,25 @@ export const useConnectionStore = defineStore('connection', () => {
 
       // 连接成功后才切换当前预设并持久化：失败或作废的尝试不会改动它
       if (targetProfile) activeProfileId.value = targetProfile.id
-      await persistProfiles()
+      try {
+        await persistProfiles()
+      } catch (persistError) {
+        // 预设写盘失败不应拆掉已经建立的可用连接，只记录日志
+        console.warn('Failed to persist connection profiles after connect:', persistError)
+      }
 
       return true
 
     } catch (error) {
       // 被更新的连接取代：不报错、不改状态，让最新一次尝试自己汇报结果
       if (token !== connectToken) return false
+      // 连接失败时必须销毁本次创建的 service：否则 WebSocket 已 onopen 后 getVersion
+      // 失败（鉴权/版本不兼容）会留下 shouldReconnect=true 的实例，在后台无限重连。
+      if (targetService && service.value === targetService) {
+        try { targetService.disconnect() } catch { /* 清理失败不影响错误上报 */ }
+        service.value = null
+        useTaskStore().clearTasks()
+      }
       connectionError.value = error instanceof Error ? error.message : 'Connection failed'
       isConnected.value = false
       throw error

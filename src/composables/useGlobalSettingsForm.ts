@@ -75,6 +75,8 @@ export function useGlobalSettingsForm<T extends object>(
   const reloading = ref(false)
   // 最近一次保存是否真的落地（供下面的快照逻辑与弹窗关闭确认判断）
   let lastSaveOk = true
+  // 最近一次加载是否成功：重载失败时不能把快照对齐当前值，否则脏标记会被清掉
+  let lastLoadOk = false
 
   // 用已缓存的服务端配置初始化表单，首次渲染直接显示真实值，避免异步加载闪烁
   const cached = statsStore.globalOptions
@@ -97,12 +99,16 @@ export function useGlobalSettingsForm<T extends object>(
     // 本机读取配置常在几毫秒内完成，补齐最短时长让「重载」按钮的加载动画可见
     const startedAt = Date.now()
     if (showLoading) loading.value = true
+    lastLoadOk = false
     // 手动重载（force=true）时按钮自己也要转圈：首次加载由页面级 n-spin 表达，
     // 这里只标记用户点击触发的这一次，避免首屏加载时按钮跟着转。
     if (force) reloading.value = true
     try {
       const opts = await statsStore.getGlobalOptions(force)
-      if (opts) options.applyOptions(opts)
+      if (opts) {
+        options.applyOptions(opts)
+        lastLoadOk = true
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : t('settings.unknownError')
       message.error(t(options.loadErrorKey || 'settings.loadFailed', { error: errorMessage }))
@@ -236,7 +242,7 @@ export function useGlobalSettingsForm<T extends object>(
       if (was && !s && lastSaveOk) snapshot = serialize()
     })
     watch(loading, (l, was) => {
-      if (was && !l) snapshot = serialize()
+      if (was && !l && lastLoadOk) snapshot = serialize()
     })
     onBeforeUnmount(() => {
       dirtyPages.delete(pageId)

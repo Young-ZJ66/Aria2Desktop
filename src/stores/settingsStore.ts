@@ -50,19 +50,32 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  // 设置保存串行化：多个设置页同时提交时按调用顺序落盘，
+  // 避免后发的 saveSettings 先完成、先发的后完成造成旧值覆盖新值
+  let saveQueue: Promise<void> = Promise.resolve()
+  let pendingSaves = 0
+
   // 更新设置
   async function updateSettings(newSettings: Partial<AppSettings>) {
+    pendingSaves++
     isLoading.value = true
     error.value = null
 
-    try {
+    const run = saveQueue.then(async () => {
       await settingsService.saveSettings(newSettings)
       settings.value = settingsService.getSettings()
+    })
+    // 队列本身不因单次失败中断；失败由当前调用方感知
+    saveQueue = run.catch(() => {})
+
+    try {
+      await run
     } catch (err) {
       error.value = err instanceof Error ? err.message : '保存设置失败'
       throw err
     } finally {
-      isLoading.value = false
+      pendingSaves--
+      if (pendingSaves === 0) isLoading.value = false
     }
   }
 

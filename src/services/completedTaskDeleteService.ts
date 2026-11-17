@@ -177,6 +177,10 @@ class CompletedTaskDeleteService {
         }
       }
 
+      // 文件删除失败时保留任务记录，让用户能看到错误并重试；
+      // 不能先清本地记录再报 success，否则文件成了无入口的孤儿。
+      if (result.errors.length > 0) return result
+
       // 删除任务记录
       try {
         // 1. 从持久化存储中删除

@@ -62,22 +62,25 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   let engineGaveUpMessage: { destroy: () => void } | null = null
 
   // Windows 任务栏进度条：活动任务数 > 0 时显示整体进度
+  // 轮询每秒都会替换 activeTasks 数组；按整数百分比去重，避免没变化也每秒发一次 IPC。
+  let lastTaskbarPercent = -2
   function updateTaskbarProgress() {
     if (!window.electronAPI?.setTaskbarProgress) return
     const tasks = taskStore.activeTasks
-    if (tasks.length === 0) {
-      window.electronAPI.setTaskbarProgress(-1) // 清除
-      return
+    let percent = -1
+    if (tasks.length > 0) {
+      // 计算所有活动任务的整体进度
+      let totalSize = 0
+      let completedSize = 0
+      for (const task of tasks) {
+        totalSize += parseInt(task.totalLength, 10) || 0
+        completedSize += parseInt(task.completedLength, 10) || 0
+      }
+      percent = totalSize > 0 ? Math.round((completedSize / totalSize) * 100) : 0
     }
-    // 计算所有活动任务的整体进度
-    let totalSize = 0
-    let completedSize = 0
-    for (const task of tasks) {
-      totalSize += parseInt(task.totalLength, 10) || 0
-      completedSize += parseInt(task.completedLength, 10) || 0
-    }
-    const progress = totalSize > 0 ? completedSize / totalSize : 0
-    window.electronAPI.setTaskbarProgress(progress)
+    if (percent === lastTaskbarPercent) return
+    lastTaskbarPercent = percent
+    window.electronAPI.setTaskbarProgress(percent < 0 ? -1 : percent / 100)
   }
   // 监听活动任务列表变化（引用变化时触发，每次轮询都会替换数组）
   watch(() => taskStore.activeTasks, updateTaskbarProgress)
@@ -149,6 +152,10 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
 
   /** 下载完成的统一处理：应用内记录 + 系统通知 + 可选自动解压 */
   function handleTaskDownloadComplete(gid: string): void {
+    // 只有真正收到完成事件的 gid 才算“完成”；用于下载全部完成后的关机/休眠/退出判定，
+    // 避免断线重连加载历史完成任务、或用户删除最后一个活动任务时被误判为下载完成。
+    batchTaskGids.add(gid)
+    completedBatchGids.add(gid)
     notificationStore.push({ type: 'complete', gid, name: getNotificationTaskName(gid) })
     const task = taskStore.allTasks.find(t => t.gid === gid)
     downloadHistoryStore.record(Number(task?.totalLength) || 0)
@@ -164,6 +171,11 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   // 3 秒后真的关机/退出。
   let hadActiveTasks = false
   let downloadCompleteActionPending = false
+  // 当前批次出现过的任务 gid，以及其中真正收到完成事件的 gid。
+  // 只有“本批次所有任务都确实完成”才允许触发关机/休眠/退出：断线重连、删除任务、
+  // 任务失败都不会把它们加入 completedBatchGids，因此不会误触发。
+  const batchTaskGids = new Set<string>()
+  const completedBatchGids = new Set<string>()
   // Windows 关机带 /t 60 的系统级 60 秒宽限；期间用户若又加了新任务，替他撤销
   let shutdownArmedAt = 0
   watch(
@@ -171,9 +183,21 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       [taskStore.activeTasks.length, taskStore.waitingTasks.length, connectionStore.isConnected, taskStore.completedTasks.length] as const,
     ([activeCount, waitingCount, isConnected, completedCount]) => {
       const taskCount = activeCount + waitingCount
+      // 断线时列表会被 clearTasks 清空，不能把它当成“下载完成”；同时丢弃上一批状态，
+      // 防止重连后持久化的完成任务数量变化触发历史误判。
+      if (!isConnected) {
+        hadActiveTasks = false
+        downloadCompleteActionPending = false
+        batchTaskGids.clear()
+        completedBatchGids.clear()
+        return
+      }
       if (taskCount > 0) {
         hadActiveTasks = true
         downloadCompleteActionPending = false
+        for (const task of [...taskStore.activeTasks, ...taskStore.waitingTasks]) {
+          batchTaskGids.add(task.gid)
+        }
         if (shouldCancelPendingShutdown(shutdownArmedAt, Date.now(), taskCount)) {
           shutdownArmedAt = 0
           void window.electronAPI?.systemCancelShutdown?.().then((result) => {
@@ -184,7 +208,14 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
       }
       const decision = evaluateDownloadCompletion({ hadActiveTasks, activeCount, waitingCount, isConnected, completedCount })
       if (decision !== 'fire') return
+      // 双重校验：本批次每个任务都必须有完成事件，删除/失败的任务会让条件不成立
+      if (batchTaskGids.size === 0) return
+      for (const gid of batchTaskGids) {
+        if (!completedBatchGids.has(gid)) return
+      }
       hadActiveTasks = false
+      batchTaskGids.clear()
+      completedBatchGids.clear()
       const action = settingsStore.getSetting('downloadCompleteAction') || 'none'
       if (action === 'none') return
       // 延迟 3 秒执行，给用户时间看到完成状态

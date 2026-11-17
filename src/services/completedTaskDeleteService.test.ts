@@ -89,6 +89,27 @@ describe('删除已完成任务时与引擎的配合', () => {
     expect(removePersistedTask).toHaveBeenCalledWith('gid-1')
   })
 
+  it('文件删除失败时保留任务记录并返回失败，方便用户重试', async () => {
+    deleteFilesMock.mockResolvedValueOnce({
+      success: true,
+      results: [{ path: 'D:/Downloads/movie.mkv', success: false, error: 'EPERM' }]
+    })
+    const service = {
+      removeDownloadResult: async () => 'OK',
+      remove: async () => 'OK',
+      tellStatus: async () => {
+        throw new Error('GID gid-1 is not found')
+      }
+    }
+
+    const result = await completedTaskDeleteService.deleteCompletedTask(task, true, service)
+
+    expect(result.success).toBe(false)
+    expect(result.errors.join(' ')).toContain('EPERM')
+    expect(removePersistedTask).not.toHaveBeenCalled()
+    expect(removeTaskTime).not.toHaveBeenCalled()
+  })
+
   it('文件本来就不在（下载失败、一个字节都没写）时仍算删除成功', async () => {
     // 主进程对"已经不存在的路径"返回 success + missing：用户要的结果已经成立。
     // 早期主进程返回 Not found，渲染层据此拒绝删除整个任务——失败任务因此删不掉。

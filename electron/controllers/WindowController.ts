@@ -463,6 +463,13 @@ export class WindowController {
     // 窗口销毁时清理未触发的防抖保存，避免向已销毁窗口写入状态
     this.mainWindow.on('closed', () => {
       if (saveTimeout) clearTimeout(saveTimeout)
+      if (this.pendingShowTimer) {
+        clearTimeout(this.pendingShowTimer)
+        this.pendingShowTimer = null
+      }
+      // 必须置空：否则 getMainWindow() 会一直返回已销毁的窗口，
+      // macOS 的 activate 永远走 show() 分支而无法重建窗口
+      this.mainWindow = null
     })
   }
 

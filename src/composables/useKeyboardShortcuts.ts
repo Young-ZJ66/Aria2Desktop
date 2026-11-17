@@ -66,7 +66,7 @@ export function useKeyboardShortcuts() {
     // Escape: 关闭当前弹窗（优先级：新建 > 设置 > 连接 > 任务详情 > 更新）
     if (event.key === 'Escape') {
       if (uiStore.showNewTask) { uiStore.closeNewTask(); return }
-      if (uiStore.showSettings) { uiStore.closeSettings(); return }
+      if (uiStore.showSettings) { uiStore.requestCloseSettings(); return }
       if (uiStore.showTaskDetail) { uiStore.closeTaskDetail(); return }
       if (uiStore.showUpdateDialog) { uiStore.closeUpdateDialog(); return }
     }

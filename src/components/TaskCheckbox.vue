@@ -15,11 +15,13 @@ import type { Aria2Task } from '@/types/aria2'
 
 interface Props {
   task: Aria2Task
+  /** 与所属 TaskList 的 props.taskType 一致，隔离下载页与完成页的勾选状态 */
+  selectionScope?: string
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { selectionScope: 'default' })
 
-const { isTaskSelected, toggleTask } = useTaskSelection()
+const { isTaskSelected, toggleTask } = useTaskSelection(props.selectionScope)
 
 // 计算是否选中
 const isSelected = computed(() => isTaskSelected(props.task.gid))

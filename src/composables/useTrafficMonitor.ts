@@ -30,6 +30,9 @@ let timeoutId: ReturnType<typeof setTimeout> | null = null
 
 /** 采集一个数据点 */
 function collectPoint() {
+  // 窗口隐藏时自动刷新已暂停，globalStat 不再更新；若继续采样只会把同一个旧速度
+  // 重复写进 600 点历史，回到前台时曲线会是一条假的水平线。
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
   // 惰性获取并缓存 store 实例：模块加载时 pinia 尚未安装，不能在此处直接调用 useStatsStore()
   if (!statsStore) statsStore = useStatsStore()
   const now = new Date()

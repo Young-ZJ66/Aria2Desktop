@@ -238,6 +238,8 @@ class SettingsService {
         localStorage.setItem('aria2-desktop-settings', JSON.stringify(this.settings))
       }
     } catch (error) {
+      // 保存失败时回滚内存：否则界面继续用未落盘的新值，下次读取又变回旧值
+      this.settings = before
       console.error('Failed to save settings:', error)
       throw error
     }

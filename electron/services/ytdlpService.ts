@@ -236,6 +236,8 @@ async function performInstall(
 
   const targetPath = path.join(downloadDir(), asset.executable)
   const tempPath = `${targetPath}.download`
+  const backupPath = `${targetPath}.bak`
+  let hadBackup = false
   let installed = false
 
   try {
@@ -261,8 +263,13 @@ async function performInstall(
       }
     }
 
-    // 原子替换：Windows 的 rename 不能覆盖已存在文件，先移除旧版本
-    fs.rmSync(targetPath, { force: true })
+    // 原子替换：Windows 的 rename 不能覆盖已存在文件，先把旧版本挪到备份位
+    if (fs.existsSync(targetPath)) {
+      fs.rmSync(backupPath, { force: true })
+      fs.renameSync(targetPath, backupPath)
+      hadBackup = true
+    }
+    fs.rmSync(tempPath, { force: true })
     fs.renameSync(tempPath, targetPath)
     installed = true
     if (process.platform !== 'win32') fs.chmodSync(targetPath, 0o755)
@@ -270,12 +277,19 @@ async function performInstall(
     // 真正执行一次，确认不是"下载成功但跑不起来"（如 glibc 不兼容/被拦截）
     const version = (await execYtdlp(['--version'], targetPath)).trim()
     logger.info(`yt-dlp 安装完成: ${version}`)
+    if (hadBackup) fs.rmSync(backupPath, { force: true })
     return { success: true, version }
   } catch (error) {
     fs.rmSync(tempPath, { force: true })
     if (installed) {
       // 装了但验证失败：不要留下一个"存在却不可用"的文件，否则界面会一直判定异常
       fs.rmSync(targetPath, { force: true })
+    }
+    // 自检失败时恢复更新前的旧版本，避免一次失败更新把 yt-dlp 整个弄丢
+    if (hadBackup && fs.existsSync(backupPath)) {
+      try { fs.renameSync(backupPath, targetPath) } catch (restoreError) {
+        logger.warn('yt-dlp 旧版本恢复失败:', restoreError)
+      }
     }
     logger.warn('yt-dlp 安装失败:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }

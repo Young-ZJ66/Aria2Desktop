@@ -11,6 +11,7 @@
           <div
             class="app-container"
             :class="{ 'windows-titlebar': isWindowsPlatform }"
+            @dragenter.prevent="onDragEnter"
             @dragover.prevent="onDragOver"
             @dragleave.prevent="onDragLeave"
             @drop.prevent="onDrop"
@@ -138,16 +139,29 @@ const isWindowsPlatform = computed(() => {
 const isDragging = ref(false)
 let dragCounter = 0 // 嵌套 dragenter/leave 计数，避免子元素触发闪烁
 
+function onDragEnter(event: DragEvent) {
+  // dragenter/dragleave 会在经过每个子元素时各触发一次，必须成对计数；
+  // 只在真正带着文件/文本进入时统计，避免页内普通拖拽把覆盖层算出来。
+  const types = event.dataTransfer?.types
+  if (types && (types.includes('Files') || types.includes('text/plain'))) {
+    dragCounter++
+  }
+}
+
 function onDragOver(event: DragEvent) {
   // 仅在拖入了文件或文本时显示覆盖层
   const types = event.dataTransfer?.types
   if (types && (types.includes('Files') || types.includes('text/plain'))) {
     event.dataTransfer.dropEffect = 'copy'
-    if (!isDragging.value) isDragging.value = true
+    if (!isDragging.value) {
+      isDragging.value = true
+      if (dragCounter <= 0) dragCounter = 1
+    }
   }
 }
 
 function onDragLeave() {
+  if (!isDragging.value) return
   dragCounter--
   if (dragCounter <= 0) {
     isDragging.value = false

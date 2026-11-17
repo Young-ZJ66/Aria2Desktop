@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => {
     readonly config: unknown
     readonly connectGate = deferred<void>()
     readonly versionGate = deferred<{ version: string }>()
+    disconnectCalls = 0
     private readonly handlers = new Map<string, Array<(payload?: unknown) => void>>()
 
     constructor(config: unknown) {
@@ -50,7 +51,7 @@ const mocks = vi.hoisted(() => {
     }
 
     disconnect(): void {
-      // 假实现不需要真正关闭连接
+      this.disconnectCalls++
     }
 
     connect(): Promise<void> {
@@ -177,6 +178,9 @@ describe('connectionStore 连接切换竞态', () => {
     expect(store.activeProfileId).toBe('default')
     expect(store.isConnected).toBe(false)
     expect(store.connectionError).toBe('Connection refused')
+    // 失败后必须销毁本次连接的服务实例，避免残留 WebSocket 在后台无限重连
+    expect(service.disconnectCalls).toBe(1)
+    expect(store.service).toBeNull()
   })
 
   it('连接过程中手动断开，未完成的尝试作废且不再置为已连接', async () => {
@@ -194,5 +198,23 @@ describe('connectionStore 连接切换竞态', () => {
 
     expect(store.isConnected).toBe(false)
     expect(store.activeProfileId).toBe('default')
+  })
+
+  it('连接成功但预设写盘失败时保持连接可用', async () => {
+    mocks.updateSettings.mockRejectedValueOnce(new Error('disk full'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const store = await createStore()
+
+    const pending = store.connect(undefined, 'backup')
+    const service = mocks.FakeAria2Service.instances[0]!
+    service.connectGate.resolve()
+    await flush()
+    service.versionGate.resolve({ version: '1.37.0' })
+
+    await expect(pending).resolves.toBe(true)
+    expect(store.isConnected).toBe(true)
+    expect(store.service).toBe(service)
+    expect(service.disconnectCalls).toBe(0)
+    warn.mockRestore()
   })
 })

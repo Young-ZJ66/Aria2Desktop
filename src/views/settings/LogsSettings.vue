@@ -33,7 +33,7 @@
       <div class="log-meta">
         <span class="log-path">{{ t('settings.logs.filePath', { path: filePath || '—' }) }}</span>
         <span v-if="truncated" class="log-truncated">
-          {{ t('settings.logs.truncated', { count: totalLines }) }}
+          {{ t('settings.logs.truncated', { count: lines.length }) }}
         </span>
       </div>
 
@@ -72,7 +72,6 @@ const lines = ref<string[]>([])
 const filePath = ref('')
 const loading = ref(false)
 const truncated = ref(false)
-const totalLines = ref(0)
 const autoRefresh = ref(true)
 const level = ref<'all' | 'info' | 'warn' | 'error'>('all')
 const keyword = ref('')
@@ -110,6 +109,9 @@ function lineClass(line: string): string {
 async function loadLogs(silent = false): Promise<void> {
   if (!silent) loading.value = true
   try {
+    // 用户向上翻查历史时不要强行拽回底部；只有原本就贴着底部才跟随最新日志
+    const stickToBottom = !viewerRef.value
+      || viewerRef.value.scrollTop + viewerRef.value.clientHeight >= viewerRef.value.scrollHeight - 4
     const result = await window.electronAPI?.readLogFile?.(MAX_LINES)
     if (!result?.success) {
       if (!silent) message.error(result?.error || t('settings.logs.loadFailed'))
@@ -118,10 +120,8 @@ async function loadLogs(silent = false): Promise<void> {
     lines.value = result.lines ?? []
     filePath.value = result.path ?? ''
     truncated.value = result.truncated === true
-    totalLines.value = result.totalLines ?? lines.value.length
     await nextTick()
-    // 日志页默认盯最新内容，刷新后滚到底部
-    if (viewerRef.value) viewerRef.value.scrollTop = viewerRef.value.scrollHeight
+    if (stickToBottom && viewerRef.value) viewerRef.value.scrollTop = viewerRef.value.scrollHeight
   } catch (error) {
     console.error('[LogsSettings] 读取日志失败:', error)
     if (!silent) message.error(t('settings.logs.loadFailed'))
@@ -142,7 +142,10 @@ async function openLogDir(): Promise<void> {
 
 function startAutoRefresh(): void {
   if (refreshTimer !== null) return
-  refreshTimer = setInterval(() => { void loadLogs(true) }, AUTO_REFRESH_MS)
+  refreshTimer = setInterval(() => {
+    // 最小化/托盘驻留时不要每 3 秒唤醒主进程读日志
+    if (document.visibilityState === 'visible') void loadLogs(true)
+  }, AUTO_REFRESH_MS)
 }
 
 function stopAutoRefresh(): void {
@@ -221,6 +224,9 @@ onUnmounted(() => { stopAutoRefresh() })
 }
 
 .log-line {
+  /* 2000 行日志里只有视口附近需要真正排版，降低每次刷新后的渲染成本 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 19px;
   white-space: pre-wrap;
   word-break: break-all;
   color: var(--ds-text-base);

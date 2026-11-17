@@ -610,9 +610,13 @@ function preloadSettingsChunks() {
 
 onMounted(() => {
   document.addEventListener('mousedown', handleOutsideClick)
+  uiStore.registerSettingsCloseGuard(requestClose)
   preloadSettingsChunks()
 })
-onBeforeUnmount(() => document.removeEventListener('mousedown', handleOutsideClick))
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleOutsideClick)
+  uiStore.unregisterSettingsCloseGuard()
+})
 
 watch(searchQuery, (value) => {
   if (value.trim()) void ensureSearchIndex()

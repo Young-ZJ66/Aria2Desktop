@@ -7,6 +7,7 @@ import { taskPersistenceService } from '@/services/taskPersistenceService'
 import { taskSourceService, type TaskSource } from '@/services/taskSourceService'
 import { sessionManager } from '@/services/sessionManager'
 import { completedTaskDeleteService } from '@/services/completedTaskDeleteService'
+import { removeFromEngine } from '@/services/taskRemovalCore'
 import { getTaskName } from '@/utils/taskUtils'
 import { computeTaskListFingerprint } from '@/utils/fingerprint'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
@@ -63,6 +64,8 @@ export const useTaskStore = defineStore('task', () => {
   let reloadDepth = 0
   /** 进行中的全量刷新：并发调用复用它，而不是静默丢弃（见 loadAllTasks 的说明） */
   let loadAllInFlight: Promise<void> | null = null
+  /** 进行中的轻量刷新：与全量刷新分开记账，避免两者互相清掉对方的 isLoading */
+  let loadLightInFlight: Promise<void> | null = null
   /** 进行中刷新所属的连接代次；连接切换后旧请求的返回一律丢弃 */
   let loadAllGeneration = -1
   /**
@@ -100,6 +103,10 @@ export const useTaskStore = defineStore('task', () => {
   async function loadAllTasks(): Promise<void> {
     const service = connectionStore.service
     if (!service) return
+    // 轻量刷新只拉 active 列表；先等它收尾，避免两个响应交错覆盖同一份 activeTasks
+    if (loadLightInFlight) {
+      try { await loadLightInFlight } catch { /* 轻量刷新失败不影响本次全量 */ }
+    }
     const generation = connectionGeneration
     if (loadAllInFlight && loadAllGeneration === generation) return loadAllInFlight
 
@@ -243,17 +250,36 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   /**
-   * 高频轻量刷新：仅拉取活动/等待任务（速度等实时字段）。
-   * stopped 列表由低频全量刷新与 WS 下载事件负责，降低大任务列表时的轮询开销。
+   * 高频轻量刷新：只拉取活动任务（速度/进度等每秒变化的字段）。
+   * 等待队列没有实时数据，状态变化已有 WS 事件与 30s 全量兜底；每秒拉取最多 5000 条
+   * 完整 waiting 任务（含 files/uris/bittorrent）纯属浪费，且会与全量刷新并发写同一列表。
    */
-  async function loadLightTasks() {
+  async function loadLightTasks(): Promise<void> {
     const service = connectionStore.service
     if (!service) return
-    if (isLoading.value) return
     const generation = connectionGeneration
-    loadingGeneration = generation
-    isLoading.value = true
+    // 全量刷新会一并更新 active，没必要再叠一次轻量请求
+    if (loadAllInFlight && loadAllGeneration === generation) return loadAllInFlight
+    // 同一时刻只允许一个轻量刷新；重复调用复用同一个 Promise
+    if (loadLightInFlight) return loadLightInFlight
 
+    const tracked: Promise<void> = doLoadLightTasks(generation, service)
+      .finally(() => {
+        if (loadLightInFlight === tracked) loadLightInFlight = null
+      })
+      // 轻量刷新期间到达的 WS 事件（如 downloadError 把任务移入 stopped 列表）
+      // 在轻量刷新里看不到；等它收尾后补刷一次全量。
+      .then(() => {
+        if (generation === connectionGeneration) scheduleReloadIfNeeded()
+      })
+    loadLightInFlight = tracked
+    return tracked
+  }
+
+  async function doLoadLightTasks(
+    generation: number,
+    service: NonNullable<typeof connectionStore.service>
+  ): Promise<void> {
     try {
       // 确保本地持久化任务已加载，避免首次轻量刷新时持久化任务未合并
       await taskPersistenceService.ensureLoaded()
@@ -263,42 +289,18 @@ export const useTaskStore = defineStore('task', () => {
 
     try {
       if (generation !== connectionGeneration || connectionStore.service !== service) return
-      // Promise.allSettled：单个列表拉取失败不影响另一个，与 loadAllTasks 容错策略一致
-      const [activeResult, waitingResult] = await Promise.allSettled([
-        service.tellActive(),
-        service.tellWaiting(0, MAX_TELL_COUNT)
-      ])
-
+      const active = await service.tellActive()
       if (generation !== connectionGeneration || connectionStore.service !== service) return
 
-      if (activeResult.status === 'fulfilled') {
-        const active = activeResult.value
-        const previousActive = new Set(activeTasks.value.map(task => task.gid))
-        active.forEach(task => {
-          if (!previousActive.has(task.gid)) {
-            taskTimeService.recordTaskAdd(task.gid, getTaskName(task))
-          }
-        })
-        activeTasks.value = active
-      } else {
-        console.warn('Failed to load active tasks:', activeResult.reason)
-      }
-
-      if (waitingResult.status === 'fulfilled') {
-        setWaitingIfChanged(waitingResult.value)
-      } else {
-        console.warn('Failed to load waiting tasks:', waitingResult.reason)
-      }
+      const previousActive = new Set(activeTasks.value.map(task => task.gid))
+      active.forEach(task => {
+        if (!previousActive.has(task.gid)) {
+          taskTimeService.recordTaskAdd(task.gid, getTaskName(task))
+        }
+      })
+      activeTasks.value = active
     } catch (error) {
       console.error('Failed to load active tasks:', error)
-    } finally {
-      if (loadingGeneration === generation) {
-        isLoading.value = false
-      }
-      // 轻量轮询期间到达的 WS 事件（如 downloadError 把任务移入 stopped 列表）在
-      // 轻量刷新里看不到，若不消费要等下一次 30s 全量才反映——这里补刷一次全量。
-      // 复用 scheduleReloadIfNeeded 的深度限制，避免事件密集时无界循环。
-      scheduleReloadIfNeeded()
     }
   }
 
@@ -439,12 +441,12 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
-  /** 清理 Aria2 侧任务记录（removeDownloadResult 可能失败，忽略） */
+  /** 清理 Aria2 侧任务记录：确认引擎里确实不存在才算成功，避免"删了又回来" */
   async function removeTaskRecord(gid: string): Promise<void> {
-    try {
-      await connectionStore.service!.removeDownloadResult(gid)
-    } catch {
-      // removeDownloadResult 可能失败（任务已不存在），忽略
+    const outcome = await removeFromEngine(connectionStore.service!, gid)
+    if (!outcome.ok) {
+      const reason = outcome.error instanceof Error ? outcome.error.message : String(outcome.error)
+      throw new Error(`删除任务记录失败: ${reason}`)
     }
   }
 
@@ -456,6 +458,7 @@ export const useTaskStore = defineStore('task', () => {
 
     taskPersistenceService.removePersistedTask(gid)
     taskTimeService.removeTaskTime(gid)
+    cancelAutoRetry(gid)
   }
 
   async function removeTask(gid: string, deleteFiles = false) {
@@ -496,7 +499,18 @@ export const useTaskStore = defineStore('task', () => {
       try {
         await connectionStore.service.forceRemove(gid)
       } catch (e) {
-        console.warn('forceRemove failed:', e)
+        // forceRemove 失败不一定代表任务还在（可能刚好被别处删掉）。
+        // 只有 tellStatus 还能查到时才中止；否则继续走后面的清理。
+        let stillExists = true
+        try {
+          await connectionStore.service.tellStatus(gid)
+        } catch {
+          stillExists = false
+        }
+        if (stillExists) {
+          const reason = e instanceof Error ? e.message : String(e)
+          throw new Error(`停止任务失败: ${reason}`)
+        }
       }
     }
 
@@ -558,6 +572,15 @@ export const useTaskStore = defineStore('task', () => {
   // 记录“同一原始来源”发起的重试次数：重试会生成新 gid，因此按新 gid 继承计数。
   const autoRetryAttempts = new Map<string, number>()
   const autoRetryScheduled = new Set<string>()
+  const autoRetryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  /** 删除任务/断开连接时取消尚未触发的自动重试，避免对已不存在的任务发起请求 */
+  function cancelAutoRetry(gid: string): void {
+    const timer = autoRetryTimers.get(gid)
+    if (timer !== undefined) clearTimeout(timer)
+    autoRetryTimers.delete(gid)
+    autoRetryScheduled.delete(gid)
+  }
 
   /**
    * 扫描本次刷新新出现的失败任务：仅对“刚才还在下载/队列中”的任务自动重试，
@@ -583,9 +606,11 @@ export const useTaskStore = defineStore('task', () => {
       const attempts = autoRetryAttempts.get(task.gid) ?? 0
       if (attempts >= maxAttempts) continue
       autoRetryScheduled.add(task.gid)
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         void (async () => {
           try {
+            // 延时期间用户可能已关闭自动重试；触发前再确认一次
+            if (!useSettingsStore().settings.queue?.retryEnabled) return
             const newGid = await retryErrorTask(task.gid)
             autoRetryAttempts.set(newGid, attempts + 1)
             // 在状态页速度曲线上标记本次自动重试，便于对照失败/重试时刻
@@ -595,9 +620,11 @@ export const useTaskStore = defineStore('task', () => {
             console.warn('Auto retry failed:', task.gid, error)
           } finally {
             autoRetryScheduled.delete(task.gid)
+            autoRetryTimers.delete(task.gid)
           }
         })()
       }, delayMs)
+      autoRetryTimers.set(task.gid, timer)
     }
   }
 
@@ -700,6 +727,11 @@ export const useTaskStore = defineStore('task', () => {
     loadingGeneration = -1
     needsReload = false
     isLoading.value = false
+    loadLightInFlight = null
+    for (const timer of autoRetryTimers.values()) clearTimeout(timer)
+    autoRetryTimers.clear()
+    autoRetryScheduled.clear()
+    autoRetryAttempts.clear()
     activeTasks.value = []
     waitingTasks.value = []
     stoppedTasks.value = []
@@ -810,6 +842,7 @@ export const useTaskStore = defineStore('task', () => {
     loadingGeneration = -1
     needsReload = false
     isLoading.value = false
+    loadLightInFlight = null
     if (oldService) {
       downloadEvents.forEach(evt => oldService.off(evt, handleDownloadEvent))
       oldService.off('downloadComplete', handleDownloadComplete)

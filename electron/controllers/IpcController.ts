@@ -138,6 +138,8 @@ export class IpcController {
 
   /** 关闭插件管理器与应用退出时的收尾（应用退出时调用） */
   public shutdown(): void {
+    this.historyDatabase?.close()
+    this.historyDatabase = null
     this.pluginManager.shutdown()
     this.updateController.stopScheduledCheck()
   }
@@ -1108,15 +1110,31 @@ export class IpcController {
     // 读取应用日志末尾若干行，供设置里的「日志」页直接查看（无需用户自己去翻 userData）
     registerSecureHandler('read-log-file', async (_event, maxLines?: number) => {
       const { file } = getLogFilePaths()
-      // 上限做硬限制：日志文件 5MB 轮转，整文件读取也不会失控；返回行数按 UI 需要裁剪
+      // 上限做硬限制：日志文件 5MB 轮转；只读取末尾 1MB，避免每 3 秒把整文件读进内存再 split
       const limit = Math.min(5000, Math.max(50, Number(maxLines) || 1000))
+      const MAX_TAIL_BYTES = 1024 * 1024
       try {
-        const content = await fs.promises.readFile(file, 'utf8')
-        const all = content.split(/\r?\n/)
-        // 文件通常以换行结尾，split 会多出一个空串，去掉以免界面上出现一条空白行
-        if (all.length > 0 && all[all.length - 1] === '') all.pop()
-        const lines = all.slice(-limit)
-        return { success: true, path: file, lines, truncated: all.length > lines.length, totalLines: all.length }
+        const handle = await fs.promises.open(file, 'r')
+        try {
+          const { size } = await handle.stat()
+          const readSize = Math.min(size, MAX_TAIL_BYTES)
+          const buffer = Buffer.alloc(readSize)
+          const { bytesRead } = await handle.read(buffer, 0, readSize, size - readSize)
+          let content = buffer.subarray(0, bytesRead).toString('utf8')
+          const tailStartedMidFile = readSize < size
+          // 从文件中间开始读时，第一行大概率是半截；丢掉这一行，避免界面出现残缺日志
+          if (tailStartedMidFile) {
+            const firstNewline = content.indexOf('\n')
+            content = firstNewline >= 0 ? content.slice(firstNewline + 1) : ''
+          }
+          const all = content.split(/\r?\n/)
+          // 文件通常以换行结尾，split 会多出一个空串，去掉以免界面上出现一条空白行
+          if (all.length > 0 && all[all.length - 1] === '') all.pop()
+          const lines = all.slice(-limit)
+          return { success: true, path: file, lines, truncated: tailStartedMidFile || all.length > lines.length, totalLines: lines.length }
+        } finally {
+          await handle.close()
+        }
       } catch (e) {
         const code = (e as NodeJS.ErrnoException).code
         // 首次启动还没来得及写日志时文件不存在，视为空日志而不是错误

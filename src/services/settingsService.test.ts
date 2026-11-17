@@ -148,6 +148,18 @@ describe('局部保存', () => {
     expect(saved.download.autoStart).toBe(defaults.download?.autoStart)
   })
 
+  it('保存失败时回滚内存中的设置', async () => {
+    const { service, api } = await loadService()
+    const beforeTheme = service.getSettings().theme
+    api!.setStoreValue.mockRejectedValueOnce(new Error('disk full'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await expect(service.saveSettings({ theme: beforeTheme === 'dark' ? 'light' : 'dark' })).rejects.toThrow('disk full')
+
+    expect(service.getSettings().theme).toBe(beforeTheme)
+    error.mockRestore()
+  })
+
   it('数组是整体替换而不是逐项合并', async () => {
     const { service, api } = await loadService()
 

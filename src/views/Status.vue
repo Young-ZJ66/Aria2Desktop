@@ -320,11 +320,14 @@ watch(isDark, () => {
   if (trafficChart) updateTrafficChart()
 })
 
-// 是否为整分钟节点（某分钟的 :00 秒）
-function isMinuteBoundary(index: number): boolean {
-  const point = speedHistory.value[index]
-  return point ? point.time.endsWith(':00') : false
-}
+// 整分钟节点索引集合：每次历史变化只扫描一次，避免坐标轴逐点判断时 O(n²)
+const minuteBoundaryIndices = computed(() => {
+  const indices = new Set<number>()
+  speedHistory.value.forEach((point, index) => {
+    if (point.time.endsWith(':00')) indices.add(index)
+  })
+  return indices
+})
 
 /**
  * 横轴标签该落在哪些点上。
@@ -334,10 +337,10 @@ function isMinuteBoundary(index: number): boolean {
  * 窗口里还没有整分钟节点时，退化成「等分 6 份」的临时刻度。
  */
 function showAxisLabel(index: number): boolean {
-  const points = speedHistory.value
-  if (points.length === 0) return false
-  if (points.some(point => point.time.endsWith(':00'))) return isMinuteBoundary(index)
-  const step = Math.max(1, Math.ceil(points.length / 6))
+  const length = speedHistory.value.length
+  if (length === 0) return false
+  if (minuteBoundaryIndices.value.size > 0) return minuteBoundaryIndices.value.has(index)
+  const step = Math.max(1, Math.ceil(length / 6))
   return index % step === 0
 }
 

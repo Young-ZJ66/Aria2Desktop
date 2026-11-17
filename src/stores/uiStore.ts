@@ -70,6 +70,20 @@ export const useUiStore = defineStore('ui', () => {
     showSettings.value = false
   }
 
+  // 设置弹窗的关闭守卫（未保存修改确认）由 SettingsDialog 挂载时注册。
+  // Esc 等全局入口必须走它，不能直接 closeSettings 绕过脏页确认。
+  let settingsCloseGuard: (() => void | Promise<void>) | null = null
+  function registerSettingsCloseGuard(handler: () => void | Promise<void>) {
+    settingsCloseGuard = handler
+  }
+  function unregisterSettingsCloseGuard() {
+    settingsCloseGuard = null
+  }
+  function requestCloseSettings() {
+    if (settingsCloseGuard) void settingsCloseGuard()
+    else closeSettings()
+  }
+
   function openTaskDetail(gid: string) {
     taskDetailGid.value = gid
     showTaskDetail.value = true
@@ -123,6 +137,9 @@ export const useUiStore = defineStore('ui', () => {
     closeNewTask,
     openSettings,
     closeSettings,
+    registerSettingsCloseGuard,
+    unregisterSettingsCloseGuard,
+    requestCloseSettings,
     openTaskDetail,
     closeTaskDetail,
     openNotifications,

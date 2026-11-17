@@ -280,7 +280,7 @@ const {
   toggleTask,
   updateSelectedTasksData,
   cleanupNonExistentTasks
-} = useTaskSelection()
+} = useTaskSelection(props.taskType)
 
 // 状态
 // 首次加载态：只反映「第一次拿数据」这一段时间。taskStore.isLoading 每秒轮询都会翻转，
@@ -608,7 +608,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         'onUpdate:checked': handleSelectAllChange,
         'aria-label': t('task.selectAll')
       }),
-    render: (row: Aria2Task) => h(TaskCheckbox, { task: row })
+    render: (row: Aria2Task) => h(TaskCheckbox, { task: row, selectionScope: props.taskType })
   },
   {
     key: 'name',
@@ -1637,11 +1637,12 @@ function importTasks() {
 }
 
 // 监听任务数据变化，更新选中任务的数据
-// （filteredTasks 是每次返回新数组的 computed，浅层监听即可，deep 会每秒递归比较全量任务属性）
+// （allTasks 是每次返回新数组的 computed，浅层监听即可，deep 会每秒递归比较全量任务属性）
 // immediate: 挂载时立即同步一次，处理"选中任务在离开页面期间被删除"的情况
 watch(
-  filteredTasks,
+  allTasks,
   (newTasks) => {
+    // 用未过滤的 allTasks 同步与清理：搜索/分类筛选只是隐藏行，不应把选中项清掉。
     updateSelectedTasksData(newTasks)
     const existingGids = newTasks.map(task => task.gid)
     cleanupNonExistentTasks(existingGids)

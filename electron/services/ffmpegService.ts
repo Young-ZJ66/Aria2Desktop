@@ -202,7 +202,6 @@ async function performInstall(
   const tempRoot = path.join(app.getPath('temp'), `aria2-ffmpeg-${Date.now()}`)
   const archivePath = path.join(tempRoot, asset.fileName)
   const extractDir = path.join(tempRoot, 'extract')
-  let installed = false
 
   try {
     fs.mkdirSync(extractDir, { recursive: true })
@@ -250,7 +249,6 @@ async function performInstall(
     try {
       fs.mkdirSync(path.dirname(target), { recursive: true })
       fs.renameSync(staging, target)
-      installed = true
       if (process.platform !== 'win32') {
         fs.chmodSync(path.join(target, executableName()), 0o755)
         // ffprobe 也常被 yt-dlp 调用，缺失时一并修正权限
@@ -275,7 +273,7 @@ async function performInstall(
       throw installError
     }
   } catch (error) {
-    if (installed) fs.rmSync(ffmpegDir(), { recursive: true, force: true })
+    // 内层 catch 已负责回滚；这里不能再删 ffmpegDir()，否则会把刚恢复的旧版一并删掉
     logger.warn('ffmpeg 安装失败:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   } finally {

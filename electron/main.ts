@@ -471,7 +471,8 @@ if (!gotTheLock) {
   })
 
   app.on('activate', () => {
-    if (!windowController.getMainWindow()) {
+    const mainWindow = windowController.getMainWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) {
       windowController.createWindow()
     } else {
       windowController.show()

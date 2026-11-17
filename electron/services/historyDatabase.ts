@@ -49,6 +49,8 @@ function openSqlite(filePath: string): SqliteDatabase | null {
 export class HistoryDatabase {
   private db: SqliteDatabase | null = null
   private readonly legacyPath: string
+  /** 每写入 N 条才做一次容量裁剪，避免单条保存也跑 COUNT + DELETE 全表聚合 */
+  private insertsSinceTrim = 0
 
   constructor(private readonly dbPath: string, legacyPath?: string) {
     this.legacyPath = legacyPath ?? ''
@@ -150,6 +152,8 @@ export class HistoryDatabase {
         this.db.exec('ROLLBACK')
         throw error
       }
+      // 批量导入后立刻裁剪一次，避免一次写入把表顶到上限之上
+      this.trimToLimit()
       return { success: true }
     } catch (error) {
       logger.error('[HistoryDatabase] Failed to save history:', error)
@@ -177,7 +181,11 @@ export class HistoryDatabase {
         Number(record?.completedAt ?? 0),
         Number(record?.persistedAt ?? 0)
       )
-      this.trimToLimit()
+      this.insertsSinceTrim++
+      if (this.insertsSinceTrim >= 128) {
+        this.insertsSinceTrim = 0
+        this.trimToLimit()
+      }
       return { success: true }
     } catch (error) {
       logger.error('[HistoryDatabase] Failed to save one history row:', error)
