@@ -5,7 +5,7 @@
     preset="card"
     style="width: 620px; max-width: 92vw"
     content-style="max-height: calc(100vh - 170px); overflow-y: auto; scrollbar-gutter: stable; padding: 20px 24px 8px;"
-    footer-style="padding: 12px 34px 20px 24px; border-top: 1px solid var(--ds-border-subtle);"
+    footer-style="padding: 12px 36px 20px 24px; border-top: 1px solid var(--ds-border-subtle);"
     :bordered="false"
     :mask-closable="true"
     display-directive="show"
@@ -30,14 +30,14 @@
       />
     </div>
 
-    <!-- 页签有固定宽度：pane 内边距必须配 border-box，否则右侧会被撑出容器导致输入框被裁切 -->
+    <!-- 页签有固定宽度：pane 内边距必须配 border-box，否则右侧会被撑出容器导致输入框被裁切；左右留 2px 给输入框的焦点外发光/描边，避免被 .n-tabs-pane-wrapper 的 overflow: hidden 裁掉 -->
     <n-tabs
       v-model:value="activeTab"
       type="line"
       animated
       display-directive="show"
       class="dialog-tabs"
-      pane-style="padding: 16px 0 0; box-sizing: border-box;"
+      pane-style="padding: 16px 2px 0; box-sizing: border-box;"
     >
       <n-tab-pane name="uri" :tab="t('newTask.uriTab')">
         <UriPane
