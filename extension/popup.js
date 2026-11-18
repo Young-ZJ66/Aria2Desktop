@@ -35,11 +35,27 @@ function initI18n() {
   document.documentElement.lang = chrome.i18n.getUILanguage()
 
   $('quickSendTitle').textContent = i18n('quickSendTitle')
-  $('quickUrlLabel').textContent = i18n('quickSendTitle')
-  $('quickUrl').placeholder = i18n('quickSendPlaceholder')
-  $('sendBtn').textContent = i18n('sendBtn')
+  $('newDownloadBtnText').textContent = i18n('newDownload')
+  $('quickSendHint').textContent = i18n('newDownloadHint')
   $('pasteBtn').textContent = i18n('paste')
   $('pasteBtn').title = i18n('paste')
+  $('newDownloadTitle').textContent = i18n('newDownload')
+  $('newDownloadDesc').textContent = i18n('newDownloadDesc')
+  $('newDownloadClose').setAttribute('aria-label', i18n('close'))
+  $('newDownloadUrlLabel').textContent = i18n('downloadUrlLabel')
+  $('newTaskUrl').placeholder = i18n('downloadUrlPlaceholder')
+  $('newDownloadNameLabel').textContent = i18n('fileNameLabel')
+  $('newTaskName').placeholder = i18n('fileNamePlaceholder')
+  $('saveToLabel').textContent = i18n('saveToLabel')
+  $('saveToValue').textContent = i18n('saveToDefault')
+  $('requestOptions').textContent = i18n('requestOptions')
+  $('userAgentLabel').textContent = i18n('userAgentLabel')
+  $('newTaskUserAgent').placeholder = i18n('userAgentPlaceholder')
+  $('refererLabel').textContent = i18n('refererLabel')
+  $('newTaskReferer').placeholder = i18n('refererPlaceholder')
+  $('newDownloadCancel').textContent = i18n('cancel')
+  $('newDownloadSubmitText').textContent = i18n('addDownload')
+  $('newTaskError').textContent = i18n('invalidDownloadUrl')
 
   $('pairingTitle').textContent = i18n('sectionPairing')
   $('pairBtn').textContent = i18n('pairWithApp')
@@ -127,9 +143,7 @@ function applyPairingUi(paired) {
   $('pairHint').textContent = i18n(paired ? 'unpairHint' : 'pairHint')
   $('pairBanner').hidden = paired
   $('pageVideoBtn').disabled = !paired
-  $('sendBtn').disabled = !paired
-  $('quickUrl').disabled = !paired
-  $('pasteBtn').disabled = !paired
+  $('newDownloadBtn').disabled = !paired
 }
 
 /**
@@ -147,18 +161,15 @@ function switchTab(name) {
   }
 }
 
-/** 当前标签页地址：既用于预填，也作为发送时的 Referer（仅同源时） */
+/** 当前标签页地址：作为下载请求的默认 Referer（仅同源时） */
 let activeTabUrl = ''
 
-/** 读取当前标签页地址填入快捷发送框（仅 http/https，避免填入 chrome:// 这类无意义地址） */
+/** 记录当前标签页地址；仅 http/https，避免 chrome:// 这类无意义地址 */
 async function prefillFromActiveTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     const url = tab?.url || ''
-    if (/^https?:\/\//i.test(url)) {
-      activeTabUrl = url
-      $('quickUrl').value = url
-    }
+    if (/^https?:\/\//i.test(url)) activeTabUrl = url
   } catch { /* 无权限或取不到时留空即可 */ }
 }
 
@@ -240,37 +251,86 @@ async function refreshStatusViaRpc() {
   }
 }
 
-/** 粘贴剪贴板内容到输入框（manifest 已声明 clipboardRead） */
+const newDownloadDialog = $('newDownloadDialog')
+const newDownloadForm = $('newDownloadForm')
+const newTaskUrl = $('newTaskUrl')
+const newTaskError = $('newTaskError')
+
+function clearDialogError() {
+  newTaskError.hidden = true
+  newTaskUrl.removeAttribute('aria-invalid')
+  for (const input of [newTaskUrl, $('newTaskName'), $('newTaskUserAgent'), $('newTaskReferer')]) {
+    input.removeAttribute('aria-invalid')
+  }
+}
+
+function showDialogError(message, field) {
+  newTaskError.textContent = message
+  newTaskError.hidden = false
+  field.setAttribute('aria-invalid', 'true')
+  field.focus()
+}
+
+/** 打开新建下载弹窗；原生 dialog 自带焦点陷阱与 Esc 关闭 */
+function openDownloadDialog() {
+  if (!isPaired || newDownloadDialog.open) return
+  clearDialogError()
+  $('newDownloadBtn').setAttribute('aria-expanded', 'true')
+  newDownloadDialog.showModal()
+  window.requestAnimationFrame(() => newTaskUrl.focus())
+}
+
+function closeDownloadDialog() {
+  if (newDownloadDialog.open) newDownloadDialog.close()
+}
+
+/** 粘贴剪贴板内容到弹窗输入框（manifest 已声明 clipboardRead） */
 async function pasteFromClipboard() {
   try {
     const text = await navigator.clipboard.readText()
     if (!text?.trim()) {
-      showFeedback(i18n('pasteEmpty'), true)
+      showDialogError(i18n('pasteEmpty'), newTaskUrl)
       return
     }
-    $('quickUrl').value = text.trim()
-    $('quickUrl').focus()
+    newTaskUrl.value = text.trim()
+    clearDialogError()
+    newTaskUrl.focus()
   } catch {
-    showFeedback(i18n('pasteFailed'), true)
+    showDialogError(i18n('pasteFailed'), newTaskUrl)
   }
 }
 
-/** 发送一个下载链接到 Aria2（弹窗里的主要动作） */
-async function sendCurrentUrl() {
-  const url = $('quickUrl').value.trim()
-  if (!url) {
-    showFeedback(i18n('sendEmpty'), true)
+/** 提交新建下载：链接必填；文件名与请求头交给 App/引擎侧净化 */
+async function submitDownload() {
+  const url = newTaskUrl.value.trim()
+  if (!/^(?:https?:\/\/|magnet:\?)/i.test(url)) {
+    showDialogError(i18n('invalidDownloadUrl'), newTaskUrl)
+    return
+  }
+  const referer = $('newTaskReferer').value.trim()
+  if (referer && !/^https?:\/\//i.test(referer)) {
+    showDialogError(i18n('invalidReferer'), $('newTaskReferer'))
     return
   }
 
-  const btn = $('sendBtn')
+  const btn = $('newDownloadSubmit')
+  const btnText = $('newDownloadSubmitText')
   btn.disabled = true
-  btn.textContent = i18n('sending')
+  btnText.textContent = i18n('sending')
   try {
+    const fileName = $('newTaskName').value.trim()
+    const userAgent = $('newTaskUserAgent').value.trim()
+    const options = {}
+    if (fileName) options.out = fileName
+    const headers = []
+    if (userAgent) headers.push('User-Agent: ' + userAgent)
+
     const response = await chrome.runtime.sendMessage({
       action: 'sendToAria2',
       url,
-      pageUrl: refererFor(url)
+      options,
+      pageUrl: referer || refererFor(url),
+      headers
     })
     if (response?.success) {
       // 结果直接可见：重名改名 > 分类子目录 > 未识别到分类，不让人猜
@@ -281,15 +341,17 @@ async function sendCurrentUrl() {
       } else {
         showFeedback(i18n('sendSuccessUnclassified'))
       }
-      $('quickUrl').value = ''
+      newDownloadForm.reset()
+      clearDialogError()
+      closeDownloadDialog()
     } else {
-      showFeedback(response?.error || i18n('errUnknown'), true)
+      showDialogError(response?.error || i18n('errUnknown'), newTaskUrl)
     }
   } catch {
-    showFeedback(i18n('errUnknown'), true)
+    showDialogError(i18n('errUnknown'), newTaskUrl)
   } finally {
     btn.disabled = false
-    btn.textContent = i18n('sendBtn')
+    btnText.textContent = i18n('addDownload')
   }
 }
 
@@ -728,10 +790,29 @@ function renderMedia(items, pageUrl) {
 }
 
 // Event listeners
-$('sendBtn').addEventListener('click', sendCurrentUrl)
-$('quickUrl').addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') sendCurrentUrl()
+$('newDownloadBtn').addEventListener('click', openDownloadDialog)
+$('newDownloadClose').addEventListener('click', closeDownloadDialog)
+$('newDownloadCancel').addEventListener('click', closeDownloadDialog)
+newDownloadDialog.addEventListener('click', (event) => {
+  if (event.target !== newDownloadDialog) return
+  const rect = newDownloadDialog.getBoundingClientRect()
+  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
+    closeDownloadDialog()
+  }
 })
+newDownloadDialog.addEventListener('close', () => {
+  $('newDownloadBtn').setAttribute('aria-expanded', 'false')
+  $('newDownloadBtn').focus()
+})
+newDownloadForm.addEventListener('submit', (event) => {
+  event.preventDefault()
+  submitDownload()
+})
+for (const input of [newTaskUrl, $('newTaskName'), $('newTaskUserAgent'), $('newTaskReferer')]) {
+  input.addEventListener('input', () => {
+    if (!newTaskError.hidden) clearDialogError()
+  })
+}
 $('pasteBtn').addEventListener('click', pasteFromClipboard)
 $('tabSend').addEventListener('click', () => switchTab('send'))
 $('grabBtn').addEventListener('click', grabPageLinks)

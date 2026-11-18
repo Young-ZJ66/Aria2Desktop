@@ -238,11 +238,65 @@
     .row { display: flex; gap: 8px; }
     .row .form-group { flex: 1; }
 
-    /* 输入框 + 发送按钮同一行：少一行高度，日常操作路径更短 */
-    .send-row { display: flex; gap: 8px; }
-    .send-row .input-wrap { flex: 1; min-width: 0; }
-    .send-row .input-wrap input { padding-right: 58px; }
-    .send-row .btn { flex: none; width: auto; min-width: 68px; padding: 0 14px; }
+    /* 新建下载入口：整行主按钮，弹窗承载链接与可选请求参数 */
+    .new-download-btn { display: flex; align-items: center; justify-content: center; gap: 7px; }
+    .new-download-btn svg { width: 15px; height: 15px; }
+    .new-download-hint { margin-top: 6px; }
+
+    /* 新建下载弹窗：与 App 内新建任务保持同一套表单语言。
+       原生 <dialog> 负责焦点陷阱与 Esc 关闭，遮罩点击由脚本处理。 */
+    .download-dialog {
+      width: calc(100% - 28px);
+      max-width: 372px;
+      max-height: calc(100% - 28px);
+      margin: auto;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--bg);
+      color: var(--text);
+      box-shadow: 0 18px 50px rgba(9, 14, 24, .3);
+      overflow: hidden;
+    }
+    .download-dialog::backdrop { background: rgba(9, 12, 18, .46); backdrop-filter: blur(2px); }
+    @media (prefers-color-scheme: dark) {
+      .download-dialog::backdrop { background: rgba(3, 5, 9, .64); }
+    }
+    .download-dialog[open] { display: flex; flex-direction: column; }
+    .dialog-header { display: flex; align-items: flex-start; gap: 12px; padding: 16px 16px 10px; flex: none; }
+    .dialog-heading { flex: 1; min-width: 0; }
+    .dialog-title { font-size: 16px; line-height: 1.25; font-weight: 650; letter-spacing: -.01em; }
+    .dialog-desc { margin-top: 3px; font-size: 11.5px; line-height: 1.45; color: var(--text-dim); }
+    .dialog-close { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--text-dim); cursor: pointer; }
+    .dialog-close:hover { background: var(--secondary); color: var(--text); }
+    .dialog-close svg { width: 15px; height: 15px; }
+    .dialog-body { display: flex; flex-direction: column; gap: 12px; min-height: 0; padding: 2px 16px 14px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    .dialog-field { min-width: 0; }
+    .dialog-field .field-label { display: block; margin-bottom: 6px; font-size: 11.5px; color: var(--text-dim); }
+    .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .field-label-row .field-label { margin-bottom: 0; }
+    .text-btn { padding: 2px 5px; border: 0; border-radius: 5px; background: transparent; color: var(--primary); font: inherit; font-size: 11.5px; cursor: pointer; }
+    .text-btn:hover { background: var(--secondary); }
+    .dialog-textarea, .dialog-input { width: 100%; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; transition: border-color .15s, box-shadow .15s; }
+    .dialog-textarea { min-height: 84px; max-height: 132px; padding: 9px 11px; line-height: 1.45; resize: vertical; display: block; }
+    .dialog-input { height: 34px; padding: 0 11px; }
+    .dialog-textarea::placeholder, .dialog-input::placeholder { color: var(--text-dim); }
+    .dialog-textarea:focus, .dialog-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 110, 242, .18); }
+    .dialog-textarea[aria-invalid="true"], .dialog-input[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-bg); }
+    .dialog-error { margin: 6px 1px 0; font-size: 11.5px; line-height: 1.4; color: var(--danger); }
+    .dir-field { width: 100%; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: var(--text-dim); font-size: 12.5px; text-align: left; }
+    .dir-field svg { width: 15px; height: 15px; flex: none; }
+    .dir-field .dir-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dialog-advanced { border-top: 1px solid var(--border); padding-top: 8px; }
+    .dialog-advanced summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 1px; font-size: 12px; color: var(--text-dim); cursor: pointer; list-style: none; }
+    .dialog-advanced summary::-webkit-details-marker { display: none; }
+    .dialog-advanced summary .chevron { width: 14px; height: 14px; transition: transform .15s; }
+    .dialog-advanced[open] summary .chevron { transform: rotate(180deg); }
+    .advanced-body { display: flex; flex-direction: column; gap: 10px; padding: 5px 0 2px; }
+    .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 2px 16px 16px; flex: none; }
+    .dialog-footer .btn { width: auto; height: 34px; padding: 0 15px; border-radius: 8px; font-size: 13px; }
+    .dialog-footer .btn-primary { display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 650; }
+    .dialog-footer .btn-primary svg { width: 14px; height: 14px; }
 
     .toggle-group {
       display: flex;
@@ -432,14 +486,11 @@
     </div>
     <div class="section">
       <div class="section-title" id="quickSendTitle"></div>
-      <div class="send-row">
-        <label for="quickUrl" class="visually-hidden" id="quickUrlLabel"></label>
-        <div class="input-wrap">
-          <input type="text" id="quickUrl" spellcheck="false">
-          <button class="input-suffix" id="pasteBtn" type="button" title=""></button>
-        </div>
-        <button class="btn btn-primary" id="sendBtn" type="button"></button>
-      </div>
+      <button class="btn btn-primary new-download-btn" id="newDownloadBtn" type="button" aria-haspopup="dialog" aria-controls="newDownloadDialog" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span id="newDownloadBtnText"></span>
+      </button>
+      <p class="hint new-download-hint" id="quickSendHint"></p>
     </div>
     <div class="section">
       <div class="section-title" id="mediaTitle"></div>
@@ -531,6 +582,61 @@
   </div>
 
   <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+
+  <dialog id="newDownloadDialog" class="download-dialog" aria-labelledby="newDownloadTitle" aria-describedby="newDownloadDesc">
+    <div class="dialog-header">
+      <div class="dialog-heading">
+        <h2 class="dialog-title" id="newDownloadTitle"></h2>
+        <p class="dialog-desc" id="newDownloadDesc"></p>
+      </div>
+      <button class="dialog-close" id="newDownloadClose" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <form class="dialog-body" id="newDownloadForm" novalidate>
+      <div class="dialog-field">
+        <div class="field-label-row">
+          <label class="field-label" for="newTaskUrl" id="newDownloadUrlLabel"></label>
+          <button class="text-btn" id="pasteBtn" type="button"></button>
+        </div>
+        <textarea class="dialog-textarea" id="newTaskUrl" rows="3" spellcheck="false" aria-describedby="newTaskError"></textarea>
+        <p class="dialog-error" id="newTaskError" role="alert" hidden></p>
+      </div>
+      <div class="dialog-field">
+        <label class="field-label" for="newTaskName" id="newDownloadNameLabel"></label>
+        <input class="dialog-input" id="newTaskName" type="text" autocomplete="off">
+      </div>
+      <div class="dialog-field">
+        <div class="field-label" id="saveToLabel"></div>
+        <div class="dir-field" role="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+          <span class="dir-name" id="saveToValue"></span>
+        </div>
+      </div>
+      <details class="dialog-advanced">
+        <summary><span id="requestOptions"></span>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <div class="advanced-body">
+          <div class="dialog-field">
+            <label class="field-label" for="newTaskUserAgent" id="userAgentLabel"></label>
+            <input class="dialog-input" id="newTaskUserAgent" type="text" autocomplete="off">
+          </div>
+          <div class="dialog-field">
+            <label class="field-label" for="newTaskReferer" id="refererLabel"></label>
+            <input class="dialog-input" id="newTaskReferer" type="text" autocomplete="off">
+          </div>
+        </div>
+      </details>
+    </form>
+    <div class="dialog-footer">
+      <button class="btn btn-secondary" id="newDownloadCancel" type="button"></button>
+      <button class="btn btn-primary" id="newDownloadSubmit" type="submit" form="newDownloadForm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span id="newDownloadSubmitText"></span>
+      </button>
+    </div>
+  </dialog>
 
   <script src="popup.js"></script>
 </body>

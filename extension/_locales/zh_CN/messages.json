@@ -75,6 +75,63 @@
   "sendEmpty": {
     "message": "请先输入下载链接"
   },
+  "newDownload": {
+    "message": "新建下载"
+  },
+  "newDownloadDesc": {
+    "message": "粘贴 HTTP、HTTPS 或 magnet 地址。"
+  },
+  "newDownloadHint": {
+    "message": "支持 HTTP、HTTPS 与 magnet 链接"
+  },
+  "downloadUrlLabel": {
+    "message": "下载链接"
+  },
+  "downloadUrlPlaceholder": {
+    "message": "https://example.com/file.zip 或 magnet:?xt=urn:btih:..."
+  },
+  "fileNameLabel": {
+    "message": "文件名（可选）"
+  },
+  "fileNamePlaceholder": {
+    "message": "自动从链接识别"
+  },
+  "saveToLabel": {
+    "message": "保存到"
+  },
+  "saveToDefault": {
+    "message": "由 App 的下载目录与自动分类决定"
+  },
+  "requestOptions": {
+    "message": "请求选项"
+  },
+  "userAgentLabel": {
+    "message": "User-Agent"
+  },
+  "userAgentPlaceholder": {
+    "message": "默认使用浏览器 UA"
+  },
+  "refererLabel": {
+    "message": "Referer"
+  },
+  "refererPlaceholder": {
+    "message": "默认使用当前页面地址"
+  },
+  "cancel": {
+    "message": "取消"
+  },
+  "close": {
+    "message": "关闭"
+  },
+  "addDownload": {
+    "message": "添加下载"
+  },
+  "invalidDownloadUrl": {
+    "message": "请输入有效的 HTTP、HTTPS 或 magnet 链接"
+  },
+  "invalidReferer": {
+    "message": "Referer 需要是完整的 http(s) 地址"
+  },
   "saveSettings": {
     "message": "保存设置"
   },

@@ -12,7 +12,7 @@
 ## 🧩 浏览器扩展
 
 - 扩展弹窗重新调整字号与间距：标题 15px / 650，正文 13px，辅助文字 11.5px，输入框与按钮高度约 32–33px；浅色主题辅助文字对比度提升，并补充键盘 focus-visible 可见边框。
-- 修复快捷发送框中「粘贴」按钮压住长链接文字的问题。
+- 新增 Motrix 风格「新建下载」弹窗：全宽入口，支持 URL、文件名、保存到默认目录与可折叠的请求选项（User-Agent / Referer），含网址校验、Esc / 遮罩关闭；发送时保留页面 Referer 并传递文件名与自定义请求头。
 
 ## 🛠 稳定性修复
 
@@ -61,7 +61,7 @@
 ## 🧩 Browser extension
 
 - The extension popup now uses a clearer type and spacing system: 15px / 650 title, 13px body, 11.5px secondary text, and approximately 32–33px inputs and buttons. Secondary text contrast is improved in the light theme and keyboard focus-visible outlines are visible.
-- Fixed the Paste button overlapping long links in the quick-send field.
+- Added a Motrix-style New Download dialog with a full-width entry, URL, file name, default save location and collapsible request options (User-Agent / Referer), plus URL validation and Esc / backdrop dismissal; sending preserves the page Referer and passes the file name and custom headers.
 
 ## 🛠 Stability fixes
 

@@ -186,25 +186,26 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
     reporter.check('popup 无运行时异常', collectErrors(session).length === 0)
     await capture(session, path.join(outDir, '07-extension-popup.png'))
 
-    // 发送页布局（未配对时默认停在「配对与设置」）：切过去校验操作按钮与输入框同排、页面紧凑
+    // 发送页布局（未配对时默认停在「配对与设置」）：切过去校验新建下载入口与弹窗
     await evalIn(session, `document.getElementById('tabSend').click()`)
     await sleep(400)
     const sendLayout = await evalIn(
       session,
       `(() => {
-        const input = document.getElementById('quickUrl').getBoundingClientRect()
-        const btn = document.getElementById('sendBtn').getBoundingClientRect()
+        const btn = document.getElementById('newDownloadBtn').getBoundingClientRect()
+        const body = document.body.getBoundingClientRect()
         const videoBtns = [...document.querySelectorAll('#pageVideoBtn')]
         return {
-          bodyHeight: Math.round(document.body.getBoundingClientRect().height),
-          bodyWidth: Math.round(document.body.getBoundingClientRect().width),
-          sendBtnSameRow: Math.abs(btn.top - input.top) <= 2 && Math.abs(btn.height - input.height) <= 6,
+          bodyHeight: Math.round(body.height),
+          bodyWidth: Math.round(body.width),
+          buttonFullWidth: btn.width >= body.width - 30,
+          buttonHeight: Math.round(btn.height),
           singleVideoButton: videoBtns.length === 1,
           videoButtonText: videoBtns[0] ? (videoBtns[0].innerText || '').trim() : ''
         }
       })()`
     )
-    reporter.check('发送按钮与链接输入框同一行', sendLayout?.sendBtnSameRow === true, JSON.stringify(sendLayout))
+    reporter.check('新建下载按钮占满内容宽度', sendLayout?.buttonFullWidth === true && sendLayout?.buttonHeight >= 32, JSON.stringify(sendLayout))
     reporter.check(
       '本页视频合并为单个通用按钮',
       sendLayout?.singleVideoButton === true && /下载本页视频|Download page video/i.test(String(sendLayout?.videoButtonText)),
@@ -212,6 +213,33 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
     )
     reporter.check('popup 发送页布局紧凑', sendLayout?.bodyHeight > 0 && sendLayout.bodyHeight <= 400, `body ${sendLayout?.bodyHeight}px`)
     await capture(session, path.join(outDir, '07b-extension-popup-send.png'))
+
+    // 弹窗是主要建任务入口：这里只验证真实渲染与尺寸，不依赖当前是否已配对
+    const dialogLayout = await evalIn(
+      session,
+      `(() => {
+        const dialog = document.getElementById('newDownloadDialog')
+        dialog.showModal()
+        const rect = dialog.getBoundingClientRect()
+        const body = document.querySelector('.dialog-body')
+        return {
+          open: dialog.open,
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          bodyOverflowX: body.scrollWidth - body.clientWidth,
+          title: document.getElementById('newDownloadTitle').innerText,
+          submitText: document.getElementById('newDownloadSubmitText').innerText
+        }
+      })()`
+    )
+    reporter.check(
+      '新建下载弹窗可打开且尺寸合理',
+      dialogLayout?.open === true && dialogLayout.width >= 280 && dialogLayout.width <= 340 && dialogLayout.height > 300 && dialogLayout.height <= 620,
+      JSON.stringify(dialogLayout)
+    )
+    reporter.check('新建下载弹窗无横向溢出', dialogLayout?.bodyOverflowX === 0, JSON.stringify(dialogLayout))
+    await capture(session, path.join(outDir, '07c-extension-popup-dialog.png'))
+    await evalIn(session, `document.getElementById('newDownloadDialog').close()`)
     session.close()
 
     return { skipped: false }

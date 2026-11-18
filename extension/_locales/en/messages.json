@@ -75,6 +75,63 @@
   "sendEmpty": {
     "message": "Enter a download link first"
   },
+  "newDownload": {
+    "message": "New download"
+  },
+  "newDownloadDesc": {
+    "message": "Paste an HTTP, HTTPS, or magnet link."
+  },
+  "newDownloadHint": {
+    "message": "HTTP, HTTPS and magnet links supported"
+  },
+  "downloadUrlLabel": {
+    "message": "Download link"
+  },
+  "downloadUrlPlaceholder": {
+    "message": "https://example.com/file.zip or magnet:?xt=urn:btih:..."
+  },
+  "fileNameLabel": {
+    "message": "File name (optional)"
+  },
+  "fileNamePlaceholder": {
+    "message": "Detected from the link"
+  },
+  "saveToLabel": {
+    "message": "Save to"
+  },
+  "saveToDefault": {
+    "message": "Determined by the app's download folder and category rules"
+  },
+  "requestOptions": {
+    "message": "Request options"
+  },
+  "userAgentLabel": {
+    "message": "User-Agent"
+  },
+  "userAgentPlaceholder": {
+    "message": "Uses the browser UA by default"
+  },
+  "refererLabel": {
+    "message": "Referer"
+  },
+  "refererPlaceholder": {
+    "message": "Uses the current page by default"
+  },
+  "cancel": {
+    "message": "Cancel"
+  },
+  "close": {
+    "message": "Close"
+  },
+  "addDownload": {
+    "message": "Add download"
+  },
+  "invalidDownloadUrl": {
+    "message": "Enter a valid HTTP, HTTPS, or magnet link"
+  },
+  "invalidReferer": {
+    "message": "Referer must be a complete http(s) URL"
+  },
   "saveSettings": {
     "message": "Save settings"
   },

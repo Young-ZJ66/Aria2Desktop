@@ -401,7 +401,7 @@ async function rpcCall(method, params, config, timeoutMs = RPC_TIMEOUT_MS) {
 }
 
 // Send download to Aria2
-async function sendToAria2(url, options = {}, fileNameHint = '', pageUrl = '') {
+async function sendToAria2(url, options = {}, fileNameHint = '', pageUrl = '', extraHeaders = []) {
   const config = await getConfig()
   if (!config.enabled) return { success: false, error: i18n('errDisabled') }
 
@@ -416,6 +416,12 @@ async function sendToAria2(url, options = {}, fileNameHint = '', pageUrl = '') {
 
     // 页面上下文（Referer + 可选 Cookie）：登录站点能否下载成功基本取决于它
     const headers = await collectRequestHeaders(url, pageUrl, config.allowCookies === true)
+    // 弹窗「请求选项」里用户显式填写的头（如自定义 User-Agent）；Referer 走 pageUrl，避免重复
+    if (Array.isArray(extraHeaders)) {
+      for (const header of extraHeaders) {
+        if (typeof header === 'string' && header.trim()) headers.push(header.trim())
+      }
+    }
 
     const callerSpecifiedDir = Object.keys(cleanOptions).includes('dir')
 
@@ -828,7 +834,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === 'sendToAria2') {
     // pageUrl：弹窗把当前标签页地址带上，作为 Referer（登录站点下载成功的关键）
-    sendToAria2(message.url, message.options || {}, '', message.pageUrl || '').then(sendResponse)
+    // options.out：新建下载弹窗填写的文件名，作为 App 侧 fileNameHint；headers：自定义请求头
+    sendToAria2(
+      message.url,
+      message.options || {},
+      message.options?.out || '',
+      message.pageUrl || '',
+      message.headers || []
+    ).then(sendResponse)
     return true
   }
 
