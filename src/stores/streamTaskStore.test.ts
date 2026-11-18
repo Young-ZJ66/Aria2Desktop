@@ -13,7 +13,9 @@ beforeEach(() => {
     electronAPI: {
       streamDownloadStart: vi.fn(async () => ({ success: true, id: 'sd-test-1' })),
       streamDownloadCancel: vi.fn(async () => true),
-      deleteFiles: vi.fn(async (paths: string[]) => ({ success: true, results: paths.map(path => ({ path, success: true })) })),
+      streamDownloadPause: vi.fn(async () => true),
+      streamDownloadResume: vi.fn(async () => true),
+      streamDownloadDeleteFile: vi.fn(async () => ({ success: true })),
       onStreamDownloadEvent: vi.fn((callback: (event: StreamDownloadEvent) => void) => {
         emit = callback
         return () => { emit = null }
@@ -149,7 +151,7 @@ describe('streamTaskStore', () => {
     expect(store.tasks).toHaveLength(0)
   })
 
-  it('removeTask 勾选删除文件时调用 deleteFiles，并把输出目录作为白名单参数', async () => {
+  it('removeTask 勾选删除文件时调用 streamDownloadDeleteFile，并传输出目录作为白名单参数', async () => {
     const store = useStreamTaskStore()
     await store.startTask({
       url: 'https://example.com/video',
@@ -163,7 +165,7 @@ describe('streamTaskStore', () => {
     const result = await store.removeTask('sd-test-1', true)
 
     expect(result.success).toBe(true)
-    expect(window.electronAPI!.deleteFiles).toHaveBeenCalledWith(['E:/Media/测试视频.mp4'], 'E:/Media')
+    expect(window.electronAPI!.streamDownloadDeleteFile).toHaveBeenCalledWith('E:/Media/测试视频.mp4', 'E:/Media')
     expect(store.tasks).toHaveLength(0)
   })
 
@@ -177,9 +179,9 @@ describe('streamTaskStore', () => {
       title: '测试视频'
     })
     emit?.({ type: 'completed', id: 'sd-test-1', filePath: 'D:/Downloads/测试视频.mp4' })
-    ;(window.electronAPI!.deleteFiles as ReturnType<typeof vi.fn>).mockResolvedValue({
-      success: true,
-      results: [{ path: 'D:/Downloads/测试视频.mp4', success: false, error: 'Access denied' }]
+    ;(window.electronAPI!.streamDownloadDeleteFile as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      error: 'Access denied'
     })
 
     const result = await store.removeTask('sd-test-1', true)
@@ -202,7 +204,74 @@ describe('streamTaskStore', () => {
 
     await store.removeTask('sd-test-1')
 
-    expect(window.electronAPI!.deleteFiles).not.toHaveBeenCalled()
+    expect(window.electronAPI!.streamDownloadDeleteFile).not.toHaveBeenCalled()
+    expect(store.tasks).toHaveLength(0)
+  })
+
+  it('pauseTask 只暂停 active 任务并清空速度/剩余时间；resumeTask 恢复 active', async () => {
+    const store = useStreamTaskStore()
+    await store.startTask({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads',
+      title: '测试视频'
+    })
+    emit?.({
+      type: 'progress',
+      id: 'sd-test-1',
+      percent: 42,
+      speed: '1.2MiB/s',
+      speedBytes: 1_258_291,
+      eta: '00:10',
+      totalBytes: 1_000_000,
+      downloadedBytes: 420_000
+    })
+
+    expect(await store.pauseTask('sd-test-1')).toBe(true)
+    expect(window.electronAPI!.streamDownloadPause).toHaveBeenCalledWith('sd-test-1')
+    expect(store.findByGid('sd-test-1')?.status).toBe('paused')
+    expect(store.findByGid('sd-test-1')?.speedBytes).toBe(0)
+    expect(store.findByGid('sd-test-1')?.speedText).toBe('')
+    expect(store.findByGid('sd-test-1')?.eta).toBe('')
+    expect(store.pausedTasks).toHaveLength(1)
+    expect(store.activeTasks).toHaveLength(0)
+
+    expect(await store.resumeTask('sd-test-1')).toBe(true)
+    expect(window.electronAPI!.streamDownloadResume).toHaveBeenCalledWith('sd-test-1')
+    expect(store.findByGid('sd-test-1')?.status).toBe('active')
+    expect(store.activeTasks).toHaveLength(1)
+    expect(store.pausedTasks).toHaveLength(0)
+  })
+
+  it('paused 事件把任务标记为 paused，而不是从列表移除', async () => {
+    const store = useStreamTaskStore()
+    await store.startTask({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads',
+      title: '测试视频'
+    })
+
+    emit?.({ type: 'paused', id: 'sd-test-1' })
+    expect(store.findByGid('sd-test-1')?.status).toBe('paused')
+    expect(store.tasks).toHaveLength(1)
+  })
+
+  it('removeTask 对已暂停的任务先取消再移除', async () => {
+    const store = useStreamTaskStore()
+    await store.startTask({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads',
+      title: '测试视频'
+    })
+    await store.pauseTask('sd-test-1')
+
+    await store.removeTask('sd-test-1')
+    expect(window.electronAPI!.streamDownloadCancel).toHaveBeenCalledWith('sd-test-1')
     expect(store.tasks).toHaveLength(0)
   })
 

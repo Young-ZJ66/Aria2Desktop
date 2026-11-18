@@ -51,6 +51,7 @@ export type StreamDownloadEvent =
     entryCount?: number
   }
   | { type: 'completed'; id: string; filePath: string }
+  | { type: 'paused'; id: string }
   | { type: 'failed'; id: string; error: string }
   | { type: 'cancelled'; id: string }
 
@@ -366,6 +367,9 @@ export interface ElectronAPI {
     extractAudio?: boolean
   }) => Promise<{ success: boolean; id?: string; code?: 'ffmpeg_missing' | 'invalid_request'; error?: string }>
   streamDownloadCancel: (id: string) => Promise<boolean>
+  streamDownloadPause: (id: string) => Promise<boolean>
+  streamDownloadResume: (id: string) => Promise<boolean>
+  streamDownloadDeleteFile: (filePath: string, outputDir: string) => Promise<{ success: boolean; error?: string }>
   onStreamDownloadEvent: (callback: (event: StreamDownloadEvent) => void) => () => void
 
   // 通知主进程渲染进程已就绪

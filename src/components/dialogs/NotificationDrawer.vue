@@ -99,7 +99,7 @@ function openItem(item: AppNotification) {
 .notification-list {
   display: flex;
   flex-direction: column;
-  gap: var(--ds-space-4);
+  gap: var(--ds-space-8);
 }
 
 .notification-item {
@@ -108,9 +108,9 @@ function openItem(item: AppNotification) {
   gap: var(--ds-space-10);
   width: 100%;
   padding: var(--ds-space-10) var(--ds-space-12);
-  border: 1px solid transparent;
+  border: 1px solid var(--ds-border-subtle);
   border-radius: var(--ds-radius-md);
-  background: transparent;
+  background: var(--ds-bg-surface);
   color: inherit;
   font-family: inherit;
   text-align: left;
@@ -124,6 +124,7 @@ function openItem(item: AppNotification) {
 
 /* 未读用左侧 3px 指示条 + 淡底，和侧栏导航的选中语言保持一致 */
 .notification-item.is-unread {
+  border-color: var(--ds-accent-border);
   background: var(--ds-accent-subtle);
   box-shadow: inset 3px 0 0 var(--ds-accent);
 }

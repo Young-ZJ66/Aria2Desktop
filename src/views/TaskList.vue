@@ -23,7 +23,7 @@
       </template>
     </PageHeader>
 
-    <section class="task-surface" :class="{ 'task-surface--fill': !filteredTasks.length && !loading }">
+    <section class="task-surface">
       <!-- 操作栏与任务表同处一个表面，减少空白卡片堆叠 -->
       <div class="task-toolbar" :class="{ 'is-selecting': hasSelection }">
         <div class="toolbar-actions">
@@ -87,7 +87,7 @@
         </div>
       </div>
 
-      <div class="task-list-content" :style="tableHeight ? { height: tableHeight + 'px' } : undefined">
+      <div class="task-list-content">
         <!-- 稳定空态（非加载中）单独渲染：表格在 x 轴可滚动时会把空态塞进表格节点，
              无法垂直撑满；独立容器才能让提示真正落在列表区域的垂直中间 -->
         <div v-if="!filteredTasks.length && !loading" class="task-empty">
@@ -145,9 +145,9 @@
       <div v-if="filteredTasks.length" class="task-footer">
         <span class="footer-count">{{ t('task.totalTasks', { count: filteredTasks.length }) }}</span>
         <span class="footer-hints">
-          <kbd>Ctrl</kbd><kbd>N</kbd><span>{{ t('task.newDownload') }}</span>
+          <kbd>Ctrl+N</kbd><span>{{ t('task.newDownload') }}</span>
           <span class="footer-dot" aria-hidden="true">·</span>
-          <kbd>Ctrl</kbd><kbd>F</kbd><span>{{ t('task.searchPlaceholder') }}</span>
+          <kbd>Ctrl+F</kbd><span>{{ t('task.searchPlaceholder') }}</span>
         </span>
       </div>
     </section>
@@ -178,8 +178,9 @@
 import { computed, h, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon, NProgress, NTag, NCheckbox, type DataTableColumns } from 'naive-ui'
-import { AddOutline, ArrowDownOutline, SearchOutline, VideocamOutline, MusicalNotesOutline, ImageOutline, ArchiveOutline, DocumentTextOutline, CodeSlashOutline, CubeOutline, DocumentOutline } from '@vicons/ionicons5'
+import { AddOutline, ArrowDownOutline, SearchOutline, VideocamOutline, MusicalNotesOutline, ImageOutline, DocumentTextOutline, CodeSlashOutline, CubeOutline, DocumentOutline } from '@vicons/ionicons5'
 import { ExportIcon, ImportIcon } from '@/components/icons/ExportImportIcons'
+import { FileZipIcon } from '@/components/icons/FileZipIcon'
 import { message, confirm } from '@/utils/feedback'
 import { getUserFriendlyError } from '@/utils/errorMessages'
 import { useTaskStore } from '@/stores/taskStore'
@@ -365,14 +366,14 @@ const pageDescription = computed(() =>
 const allTasks = computed(() => {
   let tasks: Aria2Task[] = []
   // yt-dlp 流媒体下载不在 aria2 队列里，但按用户预期一并显示在对应列表
-  const streamTasks = (statuses: Array<'active' | 'complete' | 'error'>) =>
+  const streamTasks = (statuses: Array<'active' | 'paused' | 'complete' | 'error'>) =>
     streamTaskStore.tasks
       .filter(task => statuses.includes(task.status))
       .map(task => streamTaskStore.toAria2Task(task))
 
   switch (props.taskType) {
     case 'active':
-      tasks = [...taskStore.activeTasks, ...streamTasks(['active'])]
+      tasks = [...taskStore.activeTasks, ...streamTasks(['active', 'paused'])]
       break
     case 'waiting':
       tasks = [...taskStore.waitingTasks]
@@ -390,7 +391,7 @@ const allTasks = computed(() => {
         ...taskStore.activeTasks,
         ...taskStore.waitingTasks,
         ...taskStore.stoppedTasks.filter(task => task.status === 'error'),
-        ...streamTasks(['active', 'error'])
+        ...streamTasks(['active', 'paused', 'error'])
       ]
       break
     default:
@@ -574,7 +575,8 @@ const CATEGORY_ICON_MAP: Record<string, Component> = {
   video: VideocamOutline,
   audio: MusicalNotesOutline,
   image: ImageOutline,
-  archive: ArchiveOutline,
+  // 压缩包用带拉链齿的文件轮廓：比通用收纳箱更像 zip/rar/7z 文件
+  archive: FileZipIcon,
   document: DocumentTextOutline,
   code: CodeSlashOutline,
   // 安装包/可执行文件用盒子图标：与文档（纸页）、压缩包（箱）一眼可分
@@ -613,7 +615,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'name',
     title: t('task.fileName'),
-    width: 260,
+    minWidth: 200,
     sorter: (a: Aria2Task, b: Aria2Task) => getTaskName(a).localeCompare(getTaskName(b)),
     render: (row: Aria2Task) => {
       const name = getTaskName(row)
@@ -632,7 +634,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'size',
     title: t('task.size'),
-    width: 88,
+    width: 80,
     // 数值列右对齐：v1 全部左对齐，5.5GB / 1.5GB / 12GB 的小数点与单位参差不齐，
     // 竖着扫一列数字时眼睛要不断重新对位。
     align: 'right',
@@ -642,7 +644,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'progress',
     title: t('task.progress'),
-    width: 124,
+    width: 116,
     sorter: (a: Aria2Task, b: Aria2Task) => getProgress(a) - getProgress(b),
     render: (row: Aria2Task) =>
       h(NProgress, {
@@ -659,7 +661,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'status',
     title: t('task.status'),
-    width: 92,
+    width: 84,
     sorter: (a: Aria2Task, b: Aria2Task) => a.status.localeCompare(b.status),
     render: (row: Aria2Task) =>
       h(NTag, { type: getStatusType(row.status), size: 'small' }, { default: () => t('status.' + row.status) })
@@ -672,7 +674,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
       {
         key: 'downloadSpeed',
         title: t('task.downloadSpeed'),
-        width: 104,
+        width: 96,
         align: 'right',
         sorter: (a: Aria2Task, b: Aria2Task) => (parseInt(a.downloadSpeed, 10) || 0) - (parseInt(b.downloadSpeed, 10) || 0),
         render: (row: Aria2Task) => h('span', { class: 'ds-tnum cell-num' }, formatSpeed(row.downloadSpeed))
@@ -690,7 +692,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     : {
       key: 'remainingTime',
       title: t('task.remainingTime'),
-      width: 116,
+      width: 104,
       align: 'right',
       sorter: (a: Aria2Task, b: Aria2Task) => {
         const aSpeed = parseInt(a.downloadSpeed, 10) || 0
@@ -704,7 +706,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
   {
     key: 'actions',
     title: t('task.actions'),
-    width: 164,
+    width: 148,
     fixed: 'right',
     align: 'center',
     render: (row: Aria2Task) => {
@@ -716,16 +718,16 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         showOpenLocation: props.taskType === 'stopped',
         // 已完成且文件存在时才显示“打开文件”（BT 多文件任务同样打开第一个文件）
         showOpenFile: props.taskType === 'stopped' && Boolean(row.files?.[0]?.path),
-        // 流媒体任务没有 aria2 详情（tellStatus 会失败），隐藏详情入口
-        showDetail: !isStreamTask,
+        // 流媒体任务详情由 TaskDetailDrawer 直接从 streamTaskStore 组装
+        showDetail: true,
         // 等待队列排序按钮仅在"下载任务"页显示（waiting 状态才有队列位置）
         showQueueActions: props.taskType === 'active-and-waiting',
         // BT 任务可导出已保存的 .torrent 元数据
         showTorrentExport: Boolean(row.bittorrent),
         task: row,
-        onUnpause: unpauseTask,
+        onUnpause: isStreamTask ? resumeStreamTask : unpauseTask,
         onRetry: isStreamTask ? retryStreamTask : retryTask,
-        onPause: isStreamTask ? cancelStreamTask : pauseTask,
+        onPause: isStreamTask ? pauseStreamTask : pauseTask,
         'onOpen-location': (task: Aria2Task) => openTaskLocation(task),
         'onOpen-file': (task: Aria2Task) => openTaskFile(task),
         onRemove: isStreamTask ? removeStreamTask : removeTask,
@@ -749,41 +751,13 @@ const NARROW_SCROLL_X = 688
 const NARROW_HIDDEN_KEYS = new Set(['size', 'downloadSpeed', 'remainingTime', 'completeTime'])
 const isNarrow = ref(false)
 
-/**
- * 表格高度按行数收敛。
- *
- * v1 用 flex:1 把表格拉满整页：6 个任务时卡片下方留着 250px 空白，
- * 看起来像「没渲染完」。数据网格填满视口是对的，但那只在行数够多时成立。
- * 这里取 min(内容高度, 可用高度)：行少时卡片贴着内容收口，行多时仍然满高 + 虚拟滚动。
- */
-const ROW_HEIGHT = 56
-/** 表头 + 边框 + 横向滚动条占位，给足余量：少算 3px 就会把最后一行裁掉一半 */
-const TABLE_HEADER_HEIGHT = 54
-/** 页面纵向被非表格元素占掉的高度：内容区 padding + PageHeader + 工具栏 + 表尾 + 卡片边框 */
-const TABLE_CHROME_HEIGHT = 248
-const tableHeight = ref<number | null>(null)
-
-function syncTableHeight(): void {
-  const rows = filteredTasks.value.length
-  if (rows === 0) {
-    tableHeight.value = null
-    return
-  }
-  const contentHeight = TABLE_HEADER_HEIGHT + rows * ROW_HEIGHT
-  const available = Math.max(240, window.innerHeight - TABLE_CHROME_HEIGHT)
-  tableHeight.value = Math.min(contentHeight, available)
-}
-
-watch(filteredTasks, syncTableHeight)
-
+/** 窄屏下隐藏次要列，避免出现横向滚动条。 */
 function syncNarrowLayout(): void {
   isNarrow.value = window.innerWidth <= NARROW_MAX_WIDTH
-  syncTableHeight()
 }
 
 onMounted(() => {
   syncNarrowLayout()
-  syncTableHeight()
   window.addEventListener('resize', syncNarrowLayout, { passive: true })
 })
 
@@ -800,7 +774,11 @@ const visibleColumns = computed<DataTableColumns<Aria2Task>>(() => {
 // 表格总宽按实际列宽求和：列集合会随 taskType（是否显示下载速度）与窄屏变化，
 // 写死一个数字会在少一列时让最后一列被拉宽、多一列时挤出横向滚动条。
 const tableScrollX = computed(() => {
-  const width = visibleColumns.value.reduce((sum, column) => sum + (Number(column.width) || 0), 0)
+  const width = visibleColumns.value.reduce((sum, column) => {
+    const columnWidth = Number((column as { width?: number }).width)
+    const columnMinWidth = Number((column as { minWidth?: number }).minWidth)
+    return sum + (columnWidth || columnMinWidth || 0)
+  }, 0)
   return isNarrow.value ? Math.min(width, NARROW_SCROLL_X) : width
 })
 
@@ -823,8 +801,6 @@ function rowProps(row: Aria2Task) {
     },
     onDblclick: (event: MouseEvent) => {
       if (isInteractiveTarget(event)) return
-      // 流媒体任务没有 aria2 详情（tellStatus 会失败），与行尾眼睛按钮的显隐条件保持一致
-      if (streamTaskStore.findByGid(row.gid)) return
       viewTaskDetail(row.gid)
     }
   }
@@ -904,18 +880,34 @@ async function retryTask(gid: string) {
 }
 
 /**
- * 流媒体任务（yt-dlp）：取消 / 重试 / 从列表移除。
+ * 流媒体任务（yt-dlp）：暂停 / 继续 / 重试 / 从列表移除。
  * 这些操作不经过 aria2，直接调用 streamTaskStore。
  */
-async function cancelStreamTask(gid: string) {
+async function pauseStreamTask(gid: string) {
   if (operatingTasks.value.has(gid)) return
   operatingTasks.value.add(gid)
   try {
-    const cancelled = await streamTaskStore.cancelTask(gid)
-    if (cancelled) message.success(t('task.streamCancelDone'))
+    const paused = await streamTaskStore.pauseTask(gid)
+    if (paused) message.success(t('task.taskPaused'))
+    else message.error(t('task.pauseFailed', { error: t('common.unknown') }))
   } catch (error: unknown) {
-    console.error('取消流媒体下载失败:', error)
+    console.error('暂停流媒体下载失败:', error)
     message.error(t('task.pauseFailed', { error: getUserFriendlyError(error) }))
+  } finally {
+    operatingTasks.value.delete(gid)
+  }
+}
+
+async function resumeStreamTask(gid: string) {
+  if (operatingTasks.value.has(gid)) return
+  operatingTasks.value.add(gid)
+  try {
+    const resumed = await streamTaskStore.resumeTask(gid)
+    if (resumed) message.success(t('task.taskStarted'))
+    else message.error(t('task.startFailed', { error: t('common.unknown') }))
+  } catch (error: unknown) {
+    console.error('继续流媒体下载失败:', error)
+    message.error(t('task.startFailed', { error: getUserFriendlyError(error) }))
   } finally {
     operatingTasks.value.delete(gid)
   }
@@ -947,7 +939,7 @@ async function removeStreamTask(gid: string) {
   }
 
   // 已完成且有最终文件时，和普通任务一样走带「同时删除文件」选项的对话框
-  const canDeleteFile = streamTask.status === 'complete' && !!streamTask.filePath && !!window.electronAPI?.deleteFiles
+  const canDeleteFile = streamTask.status === 'complete' && !!streamTask.filePath && !!window.electronAPI?.streamDownloadDeleteFile
   if (canDeleteFile) {
     streamTaskToDelete.value = streamTaskStore.toAria2Task(streamTask)
     showStreamDeleteDialog.value = true
@@ -1222,8 +1214,12 @@ async function batchStart() {
 
     let startedCount = 0
     for (const task of startableTasks) {
-      // 流媒体任务没有 aria2 队列：失败的任务用原 URL/格式重新发起（相当于重试）
+      // 流媒体任务没有 aria2 队列：暂停的任务直接继续，失败的任务用原 URL/格式重新发起
       if (streamTaskStore.findByGid(task.gid)) {
+        if (task.status === 'paused') {
+          if (await streamTaskStore.resumeTask(task.gid)) startedCount++
+          continue
+        }
         if (task.status !== 'error') continue
         const result = await streamTaskStore.retryTask(task.gid)
         if (result.success) startedCount++
@@ -1266,9 +1262,9 @@ async function batchPause() {
 
     let pausedCount = 0
     for (const task of pausableTasks) {
-      // 流媒体任务由 yt-dlp 子进程执行，「暂停」等价于取消（列表记录会被 cancelled 事件移除）
+      // 流媒体任务由 yt-dlp 子进程执行，暂停后保留记录并可继续
       if (streamTaskStore.findByGid(task.gid)) {
-        if (await streamTaskStore.cancelTask(task.gid)) pausedCount++
+        if (await streamTaskStore.pauseTask(task.gid)) pausedCount++
         continue
       }
       await taskStore.pauseTask(task.gid, true)
@@ -1660,10 +1656,9 @@ watch(
 }
 
 /* 主表面：v2 里阴影只属于浮层，面板靠 1px 描边 + 表面色分层。
-   注意 flex 用 0 1 auto 而不是 1：高度由内部表格算出来，卡片贴着内容收口，
-   否则行少时卡片会被拉满整页、下方留一大片白。 */
+   卡片始终吃满列表区域剩余高度，行少时由表尾收口，行多时表格内部滚动。 */
 .task-surface {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1702,8 +1697,7 @@ watch(
 }
 
 .task-list-content {
-  flex: none;
-  /* 高度由脚本按行数算好写进 style（见 syncTableHeight），这里只兜住空态 */
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1713,17 +1707,6 @@ watch(
 
 /* 让表格填满容器高度（配合 flex-height），横向滚动条固定在列表底部 */
 .task-list-content :deep(.n-data-table) {
-  flex: 1;
-  min-height: 0;
-}
-
-/* 空态时让面板吃掉剩余高度：卡片贴着空态内容收口（约 370px）会在页面下半屏留下
-   一整片背景色，看起来像没渲染完。有任务时仍保持 flex 0 1 auto，卡片贴内容收口。 */
-.task-surface--fill {
-  flex: 1 1 auto;
-}
-
-.task-surface--fill .task-list-content {
   flex: 1;
   min-height: 0;
 }
@@ -1775,6 +1758,10 @@ watch(
   line-height: 14px;
   text-align: center;
   color: var(--ds-text-muted);
+}
+
+.footer-hints > span:not(.footer-dot) {
+  margin-left: 2px;
 }
 
 .footer-dot {

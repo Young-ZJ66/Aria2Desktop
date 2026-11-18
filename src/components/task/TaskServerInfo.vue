@@ -6,7 +6,7 @@
       :data="rows"
       :bordered="false"
       :size="'small'"
-      :single-line="false"
+      :single-line="true"
       :row-key="(row: ServerRow) => row.key"
     >
       <template #empty>
@@ -142,7 +142,9 @@ const columns = computed<DataTableColumns<ServerRow>>(() => [
 }
 
 .info-card :deep(.n-data-table-th) {
-  font-weight: 600;
+  /* 与任务列表表头一致：表头是定位辅助，不与正文抢注意力 */
+  font-weight: 500;
+  color: var(--ds-text-muted);
 }
 
 .server-item {

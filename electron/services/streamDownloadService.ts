@@ -11,7 +11,7 @@
 import { spawn, spawnSync, type ChildProcess } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
-import { app, Notification } from 'electron'
+import { app, Notification, shell } from 'electron'
 import { getYtdlpExecutablePath } from './ytdlpService'
 import { checkFfmpegAvailable, getFfmpegLocation } from './ffmpegService'
 import { createLogger } from '../utils/logger'
@@ -91,6 +91,7 @@ export type StreamDownloadEvent =
     entryCount?: number
   }
   | { type: 'completed'; id: string; filePath: string }
+  | { type: 'paused'; id: string }
   | { type: 'failed'; id: string; error: string }
   | { type: 'cancelled'; id: string }
 
@@ -103,9 +104,18 @@ export interface StreamDownloadStartResult {
 }
 
 interface ActiveDownload {
-  proc: ChildProcess
+  proc: ChildProcess | null
   cancelled: boolean
+  paused: boolean
+  request: StreamDownloadRequest
+  selector: string
+  ffmpegLocation: string
+  finalPathFile: string
+  onEvent: (event: StreamDownloadEvent) => void
 }
+
+/** 本进程创建过的流媒体输出目录；删除文件只允许落在这些目录内 */
+const streamOutputRoots = new Set<string>()
 
 /**
  * 允许的格式选择器表达式（yt-dlp 完整 -f 语法）。
@@ -314,11 +324,7 @@ export async function startStreamDownload(
   const selector = !hasFormatId
     ? 'bv*+ba/b'
     : (merge && FORMAT_ID_PATTERN.test(rawFormat) ? rawFormat + '+bestaudio/best' : rawFormat)
-  const args = buildStreamArgs(
-    { ...request, merge },
-    selector,
-    { ffmpegLocation, finalPathFile }
-  )
+  const requestWithMerge: StreamDownloadRequest = { ...request, merge }
 
   logger.info(
     '开始 yt-dlp 下载: ' + request.url
@@ -330,13 +336,19 @@ export async function startStreamDownload(
     + '）'
   )
 
-  const proc = spawn(getYtdlpExecutablePath(), args, {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    windowsHide: true,
-    // POSIX 下自成进程组，取消时能一并结束 ffmpeg 子进程
-    detached: process.platform !== 'win32'
-  })
-  activeDownloads.set(id, { proc, cancelled: false })
+  const record: ActiveDownload = {
+    proc: null,
+    cancelled: false,
+    paused: false,
+    request: requestWithMerge,
+    selector,
+    ffmpegLocation,
+    finalPathFile,
+    onEvent
+  }
+  activeDownloads.set(id, record)
+  // 记录本进程使用过的输出目录：删除文件时只允许操作这些目录内的文件
+  streamOutputRoots.add(path.resolve(request.outputDir))
   onEvent({
     type: 'started',
     id,
@@ -347,6 +359,28 @@ export async function startStreamDownload(
     outputDir: request.outputDir
   })
 
+  launchStreamProcess(id, record)
+  return { success: true, id }
+}
+
+/**
+ * 启动（或恢复）一条 yt-dlp 子进程。
+ * 恢复时复用同一个任务 id、输出目录和最终路径标记，用户看到的是同一条任务。
+ */
+function launchStreamProcess(id: string, record: ActiveDownload): void {
+  const args = buildStreamArgs(record.request, record.selector, {
+    ffmpegLocation: record.ffmpegLocation,
+    finalPathFile: record.finalPathFile
+  })
+
+  const proc = spawn(getYtdlpExecutablePath(), args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+    // POSIX 下自成进程组，暂停/取消时能一并结束 ffmpeg 子进程
+    detached: process.platform !== 'win32'
+  })
+  record.proc = proc
+
   let stderrTail = ''
   let fallbackPath = ''
 
@@ -356,7 +390,7 @@ export async function startStreamDownload(
       const markerIndex = line.indexOf(PROGRESS_MARKER)
       if (markerIndex >= 0) {
         const progress = parseProgressLine(line.slice(markerIndex))
-        if (progress) onEvent({ type: 'progress', id, ...progress })
+        if (progress) record.onEvent({ type: 'progress', id, ...progress })
       } else if (path.isAbsolute(line.trim()) && fs.existsSync(line.trim())) {
         // --print-to-file 之外的兜底：某些版本会把最终路径直接打印到 stdout
         fallbackPath = line.trim()
@@ -369,9 +403,15 @@ export async function startStreamDownload(
   })
 
   proc.on('error', (error) => {
+    if (activeDownloads.get(id) !== record) return
+    if (record.paused) {
+      record.proc = null
+      return
+    }
     activeDownloads.delete(id)
-    fs.rmSync(finalPathFile, { force: true })
-    onEvent({
+    record.proc = null
+    fs.rmSync(record.finalPathFile, { force: true })
+    record.onEvent({
       type: 'failed',
       id,
       error: error.message.includes('ENOENT')
@@ -381,51 +421,119 @@ export async function startStreamDownload(
   })
 
   proc.on('exit', (code) => {
-    const record = activeDownloads.get(id)
-    activeDownloads.delete(id)
-    const cancelled = record?.cancelled === true
+    if (activeDownloads.get(id) !== record) return
+    // 暂停：进程由我们主动结束，保留任务记录，等 resume 重新拉起
+    if (record.paused) {
+      record.proc = null
+      fs.rmSync(record.finalPathFile, { force: true })
+      record.onEvent({ type: 'paused', id })
+      return
+    }
 
-    const printedPath = readFinalPath(finalPathFile)
-    fs.rmSync(finalPathFile, { force: true })
+    activeDownloads.delete(id)
+    record.proc = null
+    const cancelled = record.cancelled
+    const printedPath = readFinalPath(record.finalPathFile)
+    fs.rmSync(record.finalPathFile, { force: true })
     const filePath = printedPath || fallbackPath
 
     if (cancelled) {
-      onEvent({ type: 'cancelled', id })
+      record.onEvent({ type: 'cancelled', id })
       return
     }
     if (code !== 0) {
-      onEvent({ type: 'failed', id, error: stderrTail.trim() || `yt-dlp exited with code ${code}` })
+      record.onEvent({
+        type: 'failed',
+        id,
+        error: stderrTail.trim() || `yt-dlp exited with code ${code}`
+      })
       return
     }
     if (!filePath || !fs.existsSync(filePath)) {
-      onEvent({ type: 'failed', id, error: '下载完成但未找到输出文件' })
+      record.onEvent({ type: 'failed', id, error: '下载完成但未找到输出文件' })
       return
     }
 
     logger.info(`yt-dlp 下载完成: ${filePath}`)
-    onEvent({ type: 'completed', id, filePath })
+    record.onEvent({ type: 'completed', id, filePath })
     notifyCompleted(filePath)
   })
-
-  return { success: true, id }
 }
 
-/** 取消一条进行中的下载（结束整个进程树，含 ffmpeg） */
-export function cancelStreamDownload(id: string): boolean {
+/** 暂停一条进行中的下载（结束进程但保留任务记录，可继续） */
+export function pauseStreamDownload(id: string): boolean {
   const record = activeDownloads.get(id)
-  if (!record) return false
-  record.cancelled = true
+  if (!record || record.paused || record.cancelled || !record.proc) return false
+  record.paused = true
   killProcessTree(record.proc)
   return true
+}
+
+/** 继续一条已暂停的下载（重新拉起 yt-dlp，沿用原参数与输出目录） */
+export function resumeStreamDownload(id: string): boolean {
+  const record = activeDownloads.get(id)
+  if (!record || !record.paused || record.cancelled) return false
+  record.paused = false
+  fs.rmSync(record.finalPathFile, { force: true })
+  launchStreamProcess(id, record)
+  return true
+}
+
+/** 取消一条进行中/已暂停的下载（结束整个进程树，含 ffmpeg） */
+export function cancelStreamDownload(id: string): boolean {
+  const record = activeDownloads.get(id)
+  if (!record || record.cancelled) return false
+  record.cancelled = true
+  if (record.proc) {
+    killProcessTree(record.proc)
+  } else {
+    // 已暂停的任务没有子进程，直接结束并让上层移除任务
+    activeDownloads.delete(id)
+    record.onEvent({ type: 'cancelled', id })
+  }
+  return true
+}
+
+/** 删除流媒体任务的输出文件（只允许本进程创建过的输出目录，移入回收站） */
+export async function deleteStreamDownloadFile(
+  filePath: string,
+  outputDir: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!path.isAbsolute(filePath) || !path.isAbsolute(outputDir)) {
+    return { success: false, error: 'Invalid path' }
+  }
+  const root = path.resolve(outputDir)
+  if (!streamOutputRoots.has(root)) {
+    return { success: false, error: 'Unknown stream download directory' }
+  }
+  const target = path.resolve(filePath)
+  const relative = path.relative(root, target)
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    return { success: false, error: 'File is outside output directory' }
+  }
+  try {
+    const stat = await fs.promises.stat(target)
+    if (!stat.isFile()) return { success: false, error: 'Not a file' }
+    await shell.trashItem(target)
+    return { success: true }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { success: true }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    }
+  }
 }
 
 /** 应用退出时兜底清理，避免留下孤儿进程（Windows 不会随父进程回收子进程） */
 process.on('exit', () => {
   for (const record of activeDownloads.values()) {
+    const proc = record.proc
+    if (!proc) continue
     try {
-      record.proc.kill('SIGKILL')
-      if (process.platform === 'win32' && record.proc.pid) {
-        spawnSync('taskkill', ['/PID', String(record.proc.pid), '/T', '/F'], { stdio: 'ignore' })
+      proc.kill('SIGKILL')
+      if (process.platform === 'win32' && proc.pid) {
+        spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' })
       }
     } catch {
       // 退出路径上忽略一切失败

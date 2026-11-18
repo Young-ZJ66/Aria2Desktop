@@ -16,7 +16,7 @@ export interface StreamTask {
   outputDir: string
   /** 视频标题（列表展示名） */
   title: string
-  status: 'active' | 'complete' | 'error'
+  status: 'active' | 'paused' | 'complete' | 'error'
   percent: number
   speedBytes: number
   speedText: string

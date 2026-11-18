@@ -38,6 +38,7 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
   let unsubscribe: (() => void) | null = null
 
   const activeTasks = computed(() => tasks.value.filter(t => t.status === 'active'))
+  const pausedTasks = computed(() => tasks.value.filter(t => t.status === 'paused'))
   const completedTasks = computed(() => tasks.value.filter(t => t.status === 'complete'))
   const errorTasks = computed(() => tasks.value.filter(t => t.status === 'error'))
 
@@ -130,6 +131,14 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
       return
     }
 
+    if (event.type === 'paused') {
+      task.status = 'paused'
+      task.speedBytes = 0
+      task.speedText = ''
+      task.eta = ''
+      return
+    }
+
     if (event.type === 'completed') {
       task.status = 'complete'
       task.percent = 100
@@ -162,6 +171,29 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
     return await window.electronAPI.streamDownloadCancel(gid)
   }
 
+  /** 暂停进行中的下载（主进程结束子进程但保留任务记录） */
+  async function pauseTask(gid: string): Promise<boolean> {
+    const task = findByGid(gid)
+    if (!task || task.status !== 'active' || !window.electronAPI?.streamDownloadPause) return false
+    const paused = await window.electronAPI.streamDownloadPause(gid)
+    if (paused && task.status === 'active') {
+      task.status = 'paused'
+      task.speedBytes = 0
+      task.speedText = ''
+      task.eta = ''
+    }
+    return paused
+  }
+
+  /** 继续已暂停的下载（沿用原参数重新拉起 yt-dlp） */
+  async function resumeTask(gid: string): Promise<boolean> {
+    const task = findByGid(gid)
+    if (!task || task.status !== 'paused' || !window.electronAPI?.streamDownloadResume) return false
+    const resumed = await window.electronAPI.streamDownloadResume(gid)
+    if (resumed && task.status === 'paused') task.status = 'active'
+    return resumed
+  }
+
   /**
    * 从列表移除。
    * - 进行中的任务会先取消；
@@ -170,18 +202,17 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
    */
   async function removeTask(gid: string, deleteFiles = false): Promise<{ success: boolean; error?: string }> {
     const task = findByGid(gid)
-    if (task?.status === 'active') {
+    if (task?.status === 'active' || task?.status === 'paused') {
       const cancelled = await cancelTask(gid)
       if (!cancelled) return { success: false, error: 'Cancel failed' }
     }
 
-    if (deleteFiles && task?.status === 'complete' && task.filePath && window.electronAPI?.deleteFiles) {
+    if (deleteFiles && task?.status === 'complete' && task.filePath && window.electronAPI?.streamDownloadDeleteFile) {
       try {
-        // 第二个参数用于主进程放宽路径白名单：yt-dlp 的输出目录可能不是默认下载目录
-        const result = await window.electronAPI.deleteFiles([task.filePath], task.outputDir)
-        const failed = Array.isArray(result.results) ? result.results.find((item) => !item.success) : undefined
-        if (!result.success || failed) {
-          return { success: false, error: failed?.error || result.error || 'File deletion failed' }
+        // 专用通道只允许本进程创建过的输出目录，避免通用删除接口拒绝非默认下载目录
+        const result = await window.electronAPI.streamDownloadDeleteFile(task.filePath, task.outputDir)
+        if (!result.success) {
+          return { success: false, error: result.error || 'File deletion failed' }
         }
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) }
@@ -215,11 +246,14 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
   return {
     tasks,
     activeTasks,
+    pausedTasks,
     completedTasks,
     errorTasks,
     findByGid,
     startTask,
     cancelTask,
+    pauseTask,
+    resumeTask,
     removeTask,
     retryTask,
     toAria2Task: streamTaskToAria2Task

@@ -45,7 +45,7 @@
               <TaskFilesInfo :task="task" @changed="fetchAndMergeDetails" />
             </n-tab-pane>
 
-            <n-tab-pane :name="'servers'" :tab="t('taskDetail.serverInfo')">
+            <n-tab-pane v-if="!isStreamTask" :name="'servers'" :tab="t('taskDetail.serverInfo')">
               <TaskServerInfo :servers="taskServers" />
             </n-tab-pane>
 
@@ -53,7 +53,7 @@
               <TaskPeerInfo :peers="taskPeers" :show-count="false" />
             </n-tab-pane>
 
-            <n-tab-pane :name="'pieces'" :tab="t('taskDetail.piecesInfo')">
+            <n-tab-pane v-if="!isStreamTask" :name="'pieces'" :tab="t('taskDetail.piecesInfo')">
               <TaskPiecesInfo :task="task" />
             </n-tab-pane>
           </n-tabs>
@@ -98,6 +98,7 @@ import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 import { useUiStore } from '@/stores/uiStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
+import { useStreamTaskStore } from '@/stores/streamTaskStore'
 import type { Aria2Task, Aria2Uri, Aria2Server, Aria2Peer } from '@/types/aria2'
 import { getStatusType } from '@/utils/taskFormatters'
 import TaskBasicInfo from '@/components/task/TaskBasicInfo.vue'
@@ -111,6 +112,7 @@ const uiStore = useUiStore()
 const { t } = useI18n()
 const connectionStore = useConnectionStore()
 const taskStore = useTaskStore()
+const streamTaskStore = useStreamTaskStore()
 
 const task = ref<Aria2Task | null>(null)
 const loading = ref(false)
@@ -127,6 +129,7 @@ const activeTab = ref('basic')
 const isElectron = computed(() => !!window.electronAPI)
 
 const gid = computed(() => uiStore.taskDetailGid || '')
+const isStreamTask = computed(() => Boolean(gid.value && streamTaskStore.findByGid(gid.value)))
 
 // 抽屉开关状态同步（n-drawer 通过 update:show 通知）
 function handleShowChange(value: boolean) {
@@ -146,10 +149,14 @@ let interval: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
   // 抽屉打开期间定时刷新活动任务（上一轮未结束时跳过，避免请求叠加）
   interval = setInterval(() => {
-    if (uiStore.showTaskDetail && connectionStore.isConnected && gid.value && task.value && !loading.value) {
-      if (['active', 'waiting', 'paused'].includes(task.value.status)) {
-        loadTaskDetail()
-      }
+    if (!uiStore.showTaskDetail || !gid.value || !task.value || loading.value) return
+    // 流媒体任务详情来自本地 store，不依赖 aria2 连接，活动期间持续跟随进度
+    if (isStreamTask.value) {
+      loadTaskDetail()
+      return
+    }
+    if (connectionStore.isConnected && ['active', 'waiting', 'paused'].includes(task.value.status)) {
+      loadTaskDetail()
     }
   }, 3000)
 })
@@ -265,7 +272,21 @@ async function fetchAndMergeDetails(): Promise<void> {
 let loadSeq = 0
 
 async function loadTaskDetail() {
-  if (!connectionStore.isConnected || !gid.value) return
+  if (!gid.value) return
+
+  // 流媒体任务不在 aria2 队列：直接用 store 里的实时记录组装详情，跳过所有 RPC
+  const streamTask = streamTaskStore.findByGid(gid.value)
+  if (streamTask) {
+    ++loadSeq
+    task.value = streamTaskStore.toAria2Task(streamTask)
+    taskUris.value = [{ uri: streamTask.url, status: 'used' }]
+    taskPeers.value = []
+    taskServers.value = []
+    loading.value = false
+    return
+  }
+
+  if (!connectionStore.isConnected) return
 
   const seq = ++loadSeq
   const requestedGid = gid.value

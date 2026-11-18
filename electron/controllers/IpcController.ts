@@ -20,7 +20,14 @@ import { isPathInside } from '../utils/pathContainment'
 import { sanitizeSettingsInput, sanitizeTaskSourcesInput, sanitizeWindowStateInput } from '../utils/ipcInputValidation'
 import { checkYtdlpAvailable, getVideoInfo, getPlaylistInfo, getFormatUrl, installYtdlp, checkYtdlpUpdate } from '../services/ytdlpService'
 import { checkFfmpegAvailable, installFfmpeg, checkFfmpegUpdate } from '../services/ffmpegService'
-import { startStreamDownload, cancelStreamDownload, type StreamDownloadRequest } from '../services/streamDownloadService'
+import {
+  startStreamDownload,
+  cancelStreamDownload,
+  pauseStreamDownload,
+  resumeStreamDownload,
+  deleteStreamDownloadFile,
+  type StreamDownloadRequest
+} from '../services/streamDownloadService'
 import { extractArchive } from '../services/archiveService'
 import { applyCompletionRules } from '../services/completionRuleService'
 import { upnpService } from '../services/upnpService'
@@ -1015,6 +1022,32 @@ export class IpcController {
     }, {
       getMainWindow: this.windowRef,
       failureValue: false
+    })
+
+    registerSecureHandler('stream-download-pause', (_event, id: unknown) => {
+      if (typeof id !== 'string' || !id) return false
+      return pauseStreamDownload(id)
+    }, {
+      getMainWindow: this.windowRef,
+      failureValue: false
+    })
+
+    registerSecureHandler('stream-download-resume', (_event, id: unknown) => {
+      if (typeof id !== 'string' || !id) return false
+      return resumeStreamDownload(id)
+    }, {
+      getMainWindow: this.windowRef,
+      failureValue: false
+    })
+
+    registerSecureHandler('stream-download-delete-file', async (_event, filePath: unknown, outputDir: unknown) => {
+      if (typeof filePath !== 'string' || !filePath || typeof outputDir !== 'string' || !outputDir) {
+        return { success: false, error: 'Invalid request' }
+      }
+      return await deleteStreamDownloadFile(filePath, outputDir)
+    }, {
+      getMainWindow: this.windowRef,
+      failureValue: { success: false, error: 'Unauthorized' }
     })
 
     registerSecureHandler('ytdlp-video-info', async (event, url: string) => await getVideoInfo(url), {

@@ -41,7 +41,7 @@ export function useKeyboardShortcuts() {
     // Ctrl/Cmd + F: 聚焦搜索框
     if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
       event.preventDefault()
-      const searchInput = document.querySelector('.task-actions .n-input input') as HTMLInputElement
+      const searchInput = document.querySelector('.search-input input') as HTMLInputElement | null
       if (searchInput) {
         searchInput.focus()
         searchInput.select()
