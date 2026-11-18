@@ -366,7 +366,7 @@
     "message": "Download page video"
   },
   "pageVideoWorking": {
-    "message": "Processing…"
+    "message": "Resolving…"
   },
   "streamPageSent": {
     "message": "Sent to the App — check its download list"
@@ -453,5 +453,214 @@
   },
   "grabSelectFirst": {
     "message": "Select links to download first"
+  },
+  "tabTasks": {
+    "message": "Tasks"
+  },
+  "tabSniffer": {
+    "message": "Sniffer"
+  },
+  "tabSettings": {
+    "message": "Settings"
+  },
+  "metricDownload": {
+    "message": "Down"
+  },
+  "metricUpload": {
+    "message": "Up"
+  },
+  "metricActive": {
+    "message": "Active"
+  },
+  "metricWaiting": {
+    "message": "Waiting"
+  },
+  "tasksTitle": {
+    "message": "Tasks"
+  },
+  "tasksNote": {
+    "message": "Auto refresh"
+  },
+  "taskFilterActive": {
+    "message": "Active"
+  },
+  "taskFilterWaiting": {
+    "message": "Waiting"
+  },
+  "taskFilterCompleted": {
+    "message": "Completed"
+  },
+  "taskEmptyActive": {
+    "message": "No active downloads"
+  },
+  "taskEmptyWaiting": {
+    "message": "Queue is empty"
+  },
+  "taskEmptyStopped": {
+    "message": "No completed tasks"
+  },
+  "taskStatusActive": {
+    "message": "Downloading"
+  },
+  "taskStatusWaiting": {
+    "message": "Waiting"
+  },
+  "taskStatusPaused": {
+    "message": "Paused"
+  },
+  "taskStatusDone": {
+    "message": "Completed"
+  },
+  "taskStatusError": {
+    "message": "Failed"
+  },
+  "taskStatusRemoved": {
+    "message": "Removed"
+  },
+  "taskActionPause": {
+    "message": "Pause"
+  },
+  "taskActionResume": {
+    "message": "Resume"
+  },
+  "taskActionRemove": {
+    "message": "Remove"
+  },
+  "taskFooterCount": {
+    "message": "$COUNT$ completed",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferTitle": {
+    "message": "Network sniffer"
+  },
+  "snifferStatusText": {
+    "message": "Listening · $COUNT$ requests",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferPausedText": {
+    "message": "Paused · $COUNT$ requests",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferPermissionShort": {
+    "message": "Needs access"
+  },
+  "snifferPause": {
+    "message": "Pause sniffing"
+  },
+  "snifferResume": {
+    "message": "Resume sniffing"
+  },
+  "snifferFilterAll": {
+    "message": "All"
+  },
+  "snifferFilterVideo": {
+    "message": "Video"
+  },
+  "snifferFilterAudio": {
+    "message": "Audio"
+  },
+  "snifferFilterImage": {
+    "message": "Images"
+  },
+  "snifferFilterOther": {
+    "message": "Other"
+  },
+  "snifferHint": {
+    "message": "Shows network requests from the current tab only."
+  },
+  "snifferPermissionNeeded": {
+    "message": "Site access is required to observe requests from the current page."
+  },
+  "snifferEnable": {
+    "message": "Enable sniffing"
+  },
+  "snifferPermissionDenied": {
+    "message": "Site access was not granted; network sniffing is unavailable."
+  },
+  "snifferEmpty": {
+    "message": "No requests captured from this page yet"
+  },
+  "snifferSelected": {
+    "message": "$COUNT$ selected",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferDownload": {
+    "message": "Download $COUNT$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "pageVideoTitle": {
+    "message": "Smart video resolver"
+  },
+  "pageVideoDesc": {
+    "message": "Uses the app's yt-dlp and merges audio/video"
+  },
+  "pageVideoSent": {
+    "message": "Sent to the app"
+  },
+  "settingsTitle": {
+    "message": "Settings"
+  },
+  "versionNote": {
+    "message": "Extension version $VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "connectionStatusPaired": {
+    "message": "Paired"
+  },
+  "connectionStatusUnpaired": {
+    "message": "Not paired"
+  },
+  "connectionStatusEngine": {
+    "message": "Paired · engine v$VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "connectionStatusEngineOff": {
+    "message": "Paired · engine not running"
+  },
+  "behaviorTitle": {
+    "message": "Behavior"
+  },
+  "enableExtDesc": {
+    "message": "Turns off the context menu and download interception"
+  },
+  "settingsHint": {
+    "message": "The extension does not store downloads; tasks and files stay in Aria2 Desktop."
+  },
+  "manualHint": {
+    "message": "Use this only when the app cannot be discovered automatically."
+  },
+  "refreshStatus": {
+    "message": "Refresh connection"
+  },
+  "rePair": {
+    "message": "Re-pair"
   }
 }

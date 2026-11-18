@@ -1,643 +1,526 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN" data-theme="light">
 <head>
-  <meta charset="UTF-8">
-  <style>
-    /* 跟随系统深浅色；主色与 Aria2 Desktop 品牌一致 */
-    :root {
-      --bg: #1a1a2e;
-      --panel: #0f0f23;
-      --border: #2a2a4a;
-      --text: #e0e0e0;
-      --text-dim: #9aa1ad;
-      --toggle-off: #2a2a4a;
-      --primary: #4f6ef2;
-      --primary-hover: #3d5bd9;
-      --secondary: #2a2a4a;
-      --secondary-hover: #3a3a5a;
-      --success: #4caf50;
-      --success-bg: rgba(76, 175, 80, 0.12);
-      --danger: #f44336;
-      --danger-bg: rgba(244, 67, 54, 0.12);
-      --warn: #e8a33d;
-      --warn-bg: rgba(232, 163, 61, 0.12);
-    }
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #ffffff;
-        --panel: #f6f7f9;
-        --border: #e3e5ea;
-        --text: #1f2329;
-        --text-dim: #5f6673;
-        --toggle-off: #d6d9e0;
-        --secondary: #eef0f4;
-        --secondary-hover: #e2e5ec;
-        --success: #2e7d32;
-        --success-bg: rgba(46, 125, 50, 0.1);
-        --danger: #d32f2f;
-        --danger-bg: rgba(211, 47, 47, 0.08);
-        --warn: #b97a12;
-        --warn-bg: rgba(185, 122, 18, 0.1);
-      }
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    button, input { font: inherit; }
-    /* hidden 属性必须真正隐藏。.banner / .media-list 等作者样式里的 display 会覆盖
-       浏览器内置的 [hidden]{display:none}——已配对用户仍看到"尚未配对"横幅就是这么来的 */
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aria2 Desktop</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f2f4f7;
+    --surface-3: #eaedf2;
+    --border: #e6e9ef;
+    --border-strong: #d7dce5;
+    --text: #171b22;
+    --text-2: #5f6673;
+    --text-3: #8a93a6;
+    --accent: #4560e0;
+    --accent-hover: #3a50c6;
+    --accent-soft: #eef1ff;
+    --accent-border: #c4ceff;
+    --success: #2e7d32;
+    --success-soft: #e8f5e9;
+    --danger: #d32f2f;
+    --danger-soft: #fdecec;
+    --warn: #b97a12;
+    --warn-soft: #fff6e5;
+    --nav-active: #ffffff;
+    --shadow-card: 0 1px 2px rgba(16, 20, 28, 0.04), 0 4px 14px rgba(16, 20, 28, 0.035);
+    --shadow-nav: 0 2px 8px rgba(16, 20, 28, 0.06);
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0d1016;
+    --surface: #1a1f28;
+    --surface-2: #141821;
+    --surface-3: #232936;
+    --border: #2c3442;
+    --border-strong: #3d4759;
+    --text: #eef1f6;
+    --text-2: #a6b0c2;
+    --text-3: #7c879c;
+    --accent: #5465d8;
+    --accent-hover: #6274e6;
+    --accent-soft: rgba(84, 101, 216, 0.18);
+    --accent-border: rgba(147, 168, 255, 0.32);
+    --success: #58c66b;
+    --success-soft: rgba(88, 198, 107, 0.13);
+    --danger: #ef6b6b;
+    --danger-soft: rgba(239, 107, 107, 0.12);
+    --warn: #e5a52b;
+    --warn-soft: rgba(229, 165, 43, 0.12);
+    --nav-active: #262d3c;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 20px rgba(0, 0, 0, 0.18);
+    --shadow-nav: 0 2px 8px rgba(0, 0, 0, 0.24);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 400px; height: 600px; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Roboto, sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input { font: inherit; }
+  button { color: inherit; }
+  button:focus-visible, input:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .app {
+    width: 100%;
+    height: 100%;
+    padding: 12px 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  /* ── header ───────────────────────────────────────────── */
+  .topbar { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+  .topbar img { width: 26px; height: 26px; border-radius: 7px; flex: none; }
+  .brand { font-size: 14px; font-weight: 650; letter-spacing: .1px; white-space: nowrap; }
+  .conn-pill {
+    margin-left: 2px;
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 8px; border-radius: 999px;
+    background: var(--success-soft); color: var(--success);
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  .conn-pill.offline { background: var(--danger-soft); color: var(--danger); }
+  .conn-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .topbar .spacer { flex: 1; }
+  .icon-btn {
+    width: 28px; height: 28px; flex: none;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text-2);
+    display: inline-grid; place-items: center; cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .icon-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); }
+  .icon-btn svg { width: 14px; height: 14px; }
+  /* ── metric strip ─────────────────────────────────────── */
+  .metrics {
+    display: grid; grid-template-columns: 1.25fr 1.25fr .75fr .75fr;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; box-shadow: var(--shadow-card);
+    padding: 9px 4px 8px;
+  }
+  .metric { min-width: 0; padding: 0 10px; border-left: 1px solid var(--border); }
+  .metric:first-child { border-left: 0; }
+  .metric-label { display: block; font-size: 10.5px; line-height: 1.3; color: var(--text-3); white-space: nowrap; }
+  .metric-value {
+    display: flex; align-items: baseline; gap: 3px; margin-top: 2px;
+    font-size: 17px; line-height: 1.2; font-weight: 650; letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .metric-value em { font-style: normal; font-size: 9.5px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }
+  /* ── content area ─────────────────────────────────────── */
+  .content { flex: 1; min-height: 0; overflow: hidden; display: flex; }
+  .scroll-area { min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+  .scroll-area::-webkit-scrollbar { width: 8px; }
+  .scroll-area::-webkit-scrollbar-thumb { background: var(--border-strong); border: 2px solid var(--bg); border-radius: 999px; }
+  .pane { display: none; flex: 1; min-height: 0; flex-direction: column; padding-bottom: 2px; }
+  .pane.active { display: flex; }
+  .page-head, .banner, .filter-row, .resolver-card, .task-filter, .selection-bar, .hint-bar { flex: none; }
+  .page-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 1px 1px 10px; }
+  .page-head h2 { font-size: 18px; line-height: 1.15; font-weight: 650; letter-spacing: -.015em; }
+  .page-note { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  .page-actions { display: flex; align-items: center; gap: 8px; }
+  .new-download-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    height: 30px; padding: 0 10px; border: 0; border-radius: 8px;
+    background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .new-download-btn:hover { background: var(--accent-hover); }
+  .new-download-btn svg { width: 13px; height: 13px; }
+  .filter-row {
+    display: flex; gap: 3px; padding: 3px; margin-bottom: 10px;
+    border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2);
+  }
+  .filter-chip {
+    flex: 1; height: 29px; border: 0; border-radius: 7px; background: transparent;
+    color: var(--text-2); font-size: 12px; font-weight: 550; cursor: pointer;
+  }
+  .filter-chip:hover { color: var(--text); }
+  .filter-chip.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(16,20,28,.08); }
+  [data-theme="dark"] .filter-chip.active { background: var(--surface-3); }
+  .page-note.live { display: inline-flex; align-items: center; gap: 5px; color: var(--success); font-weight: 600; }
+  .live-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px var(--success-soft); }
+  .resource-thumb.stream { background: var(--accent-soft); color: var(--accent-hover); }
+  .resource-thumb.doc { background: var(--surface-3); color: var(--text-2); }
+  .resource-thumb.xhr { background: var(--warn-soft); color: var(--warn); }
+  .resource-thumb.code { background: var(--success-soft); color: var(--success); }
+  .resolver-card { margin-bottom: 10px; }
+  .resolver-card .action-row { padding: 9px 10px; }
+  .resolver-card .action-icon { width: 30px; height: 30px; }
+  .card.resource-list { padding: 0; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .resource-row { display: flex; align-items: center; gap: 9px; padding: 9px 10px; cursor: pointer; }
+  .resource-row + .resource-row { border-top: 1px solid var(--border); }
+  .resource-row:hover { background: var(--surface-2); }
+  .resource-check { width: 15px; height: 15px; flex: none; accent-color: var(--accent); }
+  .resource-thumb {
+    width: 36px; height: 36px; flex: none; border-radius: 8px;
+    display: grid; place-items: center; background: var(--surface-2); color: var(--text-2);
+  }
+  .resource-thumb.video { background: var(--accent-soft); color: var(--accent-hover); }
+  .resource-thumb.audio { background: var(--success-soft); color: var(--success); }
+  .resource-thumb.image { background: var(--warn-soft); color: var(--warn); }
+  .resource-thumb svg { width: 16px; height: 16px; }
+  .resource-copy { flex: 1; min-width: 0; }
+  .resource-name { display: block; font-size: 12.5px; line-height: 1.35; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .resource-meta { display: block; margin-top: 2px; font-size: 10.5px; line-height: 1.35; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .resource-dl {
+    width: 28px; height: 28px; flex: none; display: grid; place-items: center;
+    border: 0; border-radius: 7px; background: transparent; color: var(--text-3); cursor: pointer;
+  }
+  .resource-dl:hover { background: var(--accent-soft); color: var(--accent-hover); }
+  .resource-dl svg { width: 14px; height: 14px; }
+  .selection-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-top: 10px; padding: 8px 10px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface); box-shadow: var(--shadow-card);
+    color: var(--text-2); font-size: 11.5px;
+  }
+  .selection-bar strong { color: var(--text); font-weight: 650; }
+  .selection-bar .btn { height: 30px; padding: 0 12px; font-size: 12px; border-radius: 7px; }
+  /* ── common form / buttons ───────────────────────────── */
+  .field-label { margin: 0 1px 5px; font-size: 11.5px; color: var(--text-2); font-weight: 500; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 36px; padding: 0 14px; border: 1px solid transparent; border-radius: 9px;
+    font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary { background: var(--surface); border-color: var(--border); color: var(--text); }
+  .btn-secondary:hover { background: var(--surface-2); border-color: var(--border-strong); }
+  .btn-ghost { background: transparent; color: var(--text-2); }
+  .btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+  .btn-tonal { background: var(--accent-soft); color: var(--accent-hover); border-color: var(--accent-border); }
+  .btn-block { width: 100%; }
+  .field-hint { margin: 6px 1px 0; font-size: 11px; line-height: 1.45; color: var(--text-3); }
+  /* ── new download dialog ─────────────────────────────── */
+  .download-dialog {
+    width: calc(100% - 28px); max-width: 372px; max-height: calc(100% - 28px);
+    margin: auto; padding: 0; border: 1px solid var(--border-strong); border-radius: 14px;
+    background: var(--surface); color: var(--text);
+    box-shadow: 0 18px 50px rgba(9, 14, 24, .3);
+    overflow: hidden;
+  }
+  .download-dialog::backdrop { background: rgba(9, 12, 18, .46); backdrop-filter: blur(2px); }
+  [data-theme="dark"] .download-dialog::backdrop { background: rgba(3, 5, 9, .64); }
+  .download-dialog[open] { display: flex; flex-direction: column; }
+  .dialog-header { display: flex; align-items: flex-start; gap: 12px; padding: 16px 16px 10px; flex: none; }
+  .dialog-heading { flex: 1; min-width: 0; }
+  .dialog-title { font-size: 16px; line-height: 1.25; font-weight: 650; letter-spacing: -.01em; }
+  .dialog-desc { margin-top: 3px; font-size: 11.5px; line-height: 1.45; color: var(--text-3); }
+  .dialog-close {
+    width: 28px; height: 28px; flex: none; display: grid; place-items: center;
+    border: 0; border-radius: 7px; background: transparent; color: var(--text-3); cursor: pointer;
+  }
+  .dialog-close:hover { background: var(--surface-2); color: var(--text); }
+  .dialog-close svg { width: 15px; height: 15px; }
+  .dialog-body {
+    display: flex; flex-direction: column; gap: 12px; min-height: 0;
+    padding: 2px 16px 14px; overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent;
+  }
+  .dialog-field { min-width: 0; }
+  .dialog-field .field-label { margin-bottom: 6px; font-size: 11.5px; }
+  .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .field-label-row .field-label { margin-bottom: 0; }
+  .text-btn { padding: 2px 5px; border: 0; border-radius: 5px; background: transparent; color: var(--accent); font: inherit; font-size: 11.5px; cursor: pointer; }
+  .text-btn:hover { background: var(--accent-soft); }
+  .dialog-textarea, .dialog-input {
+    width: 100%; border: 1px solid var(--border); border-radius: 9px;
+    background: var(--surface); color: var(--text); font: inherit; font-size: 13px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .dialog-textarea { min-height: 84px; max-height: 132px; padding: 9px 11px; line-height: 1.45; resize: vertical; display: block; }
+  .dialog-input { height: 34px; padding: 0 11px; }
+  .dialog-textarea::placeholder, .dialog-input::placeholder { color: var(--text-3); }
+  .dialog-textarea:focus, .dialog-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .dialog-textarea[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+  .dialog-error { margin: 6px 1px 0; font-size: 11.5px; line-height: 1.4; color: var(--danger); }
+  .dialog-error[hidden] { display: none; }
+  .dir-field {
+    width: 100%; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
+    border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
+    color: var(--text); font-size: 13px; text-align: left; cursor: pointer;
+  }
+  .dir-field:hover { border-color: var(--border-strong); background: var(--surface-2); }
+  .dir-field .dir-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dir-field .chevron, .dialog-advanced summary .chevron { width: 14px; height: 14px; color: var(--text-3); flex: none; }
+  .dialog-advanced { border-top: 1px solid var(--border); padding-top: 8px; }
+  .dialog-advanced summary {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 7px 1px; font-size: 12px; color: var(--text-2); font-weight: 550;
+    cursor: pointer; list-style: none;
+  }
+  .dialog-advanced summary::-webkit-details-marker { display: none; }
+  .dialog-advanced summary .chevron { transition: transform .15s; }
+  .dialog-advanced[open] summary .chevron { transform: rotate(180deg); }
+  .advanced-body { display: flex; flex-direction: column; gap: 10px; padding: 5px 0 2px; }
+  .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 2px 16px 16px; flex: none; }
+  .dialog-footer .btn { height: 34px; padding: 0 15px; border-radius: 8px; font-size: 13px; }
+  .dialog-footer .btn-primary { font-weight: 650; }
+  /* ── cards & rows ────────────────────────────────────── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-card); overflow: hidden; }
+  .card + .card, .section + .card, .card + .section { margin-top: 10px; }
+  .section { margin-top: 14px; }
+  .section:first-of-type { margin-top: 0; }
+  .section-title { display: flex; align-items: center; gap: 6px; margin: 0 1px 7px; font-size: 11px; line-height: 1.35; font-weight: 650; letter-spacing: .05em; color: var(--text-3); text-transform: uppercase; }
+  .action-row {
+    width: 100%; display: flex; align-items: center; gap: 10px;
+    padding: 11px 12px; background: transparent; border: 0; text-align: left; cursor: pointer;
+  }
+  .action-row + .action-row { border-top: 1px solid var(--border); }
+  .action-row:hover { background: var(--surface-2); }
+  .action-icon { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 9px; background: var(--accent-soft); color: var(--accent-hover); }
+  .action-icon.green { background: var(--success-soft); color: var(--success); }
+  .action-icon.amber { background: var(--warn-soft); color: var(--warn); }
+  .action-icon svg { width: 16px; height: 16px; }
+  .action-copy { flex: 1; min-width: 0; }
+  .action-title { display: block; font-size: 13px; font-weight: 550; color: var(--text); }
+  .action-desc { display: block; margin-top: 2px; font-size: 11px; line-height: 1.4; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .action-chevron { flex: none; color: var(--text-3); }
+  .action-chevron svg { width: 14px; height: 14px; }
+  .hint-bar { display: flex; gap: 7px; align-items: flex-start; margin: 10px 2px 0; font-size: 11px; line-height: 1.45; color: var(--text-3); }
+  .hint-bar svg { width: 13px; height: 13px; flex: none; margin-top: 1px; }
+  /* ── task filters & list ───────────────────────────────── */
+  .task-filter { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); margin-bottom: 10px; }
+  .task-filter button { height: 29px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); font-size: 12px; font-weight: 550; cursor: pointer; }
+  .task-filter button:hover { color: var(--text); }
+  .task-filter button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(16,20,28,.08); }
+  [data-theme="dark"] .task-filter button.active { background: var(--surface-3); }
+  .task-list {
+    padding: 0; flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column;
+    overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent;
+  }
+  .task-list::-webkit-scrollbar { width: 8px; }
+  .task-list::-webkit-scrollbar-thumb { background: var(--border-strong); border: 2px solid var(--surface); border-radius: 999px; }
+  .task-row { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; }
+  .task-row + .task-row { border-top: 1px solid var(--border); }
+  .task-icon { width: 34px; height: 34px; flex: none; border-radius: 9px; display: grid; place-items: center; }
+  .task-icon.download { background: var(--accent-soft); color: var(--accent-hover); }
+  .task-icon.waiting { background: var(--warn-soft); color: var(--warn); }
+  .task-icon.done { background: var(--success-soft); color: var(--success); }
+  .task-icon svg { width: 17px; height: 17px; }
+  .task-main { flex: 1; min-width: 0; }
+  .task-name { font-size: 12.5px; line-height: 1.35; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .task-meta { margin-top: 3px; font-size: 10.5px; line-height: 1.35; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .task-progress { height: 3px; margin-top: 7px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+  .task-progress i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+  .task-progress.waiting i { background: var(--warn); }
+  .task-progress.done i { background: var(--success); }
+  .task-actions { display: flex; flex: none; gap: 2px; margin-top: 1px; }
+  .mini-btn { width: 25px; height: 25px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text-3); cursor: pointer; }
+  .mini-btn:hover { background: var(--surface-2); color: var(--text); }
+  .mini-btn.danger:hover { color: var(--danger); background: var(--danger-soft); }
+  .mini-btn svg { width: 14px; height: 14px; }
+  .task-footer { position: sticky; bottom: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border-top: 1px solid var(--border); background: var(--surface-2); color: var(--text-3); font-size: 11px; }
+  .task-footer a { color: var(--accent-hover); text-decoration: none; font-weight: 550; display: inline-flex; align-items: center; gap: 3px; }
+  .task-footer svg { width: 12px; height: 12px; }
+  .empty-state { padding: 32px 16px; text-align: center; color: var(--text-3); font-size: 12px; }
+  /* ── settings ─────────────────────────────────────────── */
+  .settings-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .connection-card { padding: 12px; }
+  .connection-top { display: flex; align-items: center; gap: 10px; }
+  .connection-icon { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-hover); display: grid; place-items: center; flex: none; }
+  .connection-icon svg { width: 19px; height: 19px; }
+  .connection-copy { flex: 1; min-width: 0; }
+  .connection-title { font-size: 13px; font-weight: 600; }
+  .connection-sub { display: flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 11px; color: var(--text-3); }
+  .connection-sub .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  .connection-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .connection-actions .btn { height: 30px; padding: 0 10px; font-size: 11.5px; border-radius: 7px; }
+  .settings-card { padding: 0; }
+  .setting-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; }
+  .setting-row + .setting-row { border-top: 1px solid var(--border); }
+  .setting-copy { flex: 1; min-width: 0; }
+  .setting-title { font-size: 12.5px; font-weight: 550; }
+  .setting-desc { margin-top: 2px; font-size: 10.5px; line-height: 1.4; color: var(--text-3); }
+  .switch { position: relative; flex: none; width: 36px; height: 20px; }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .switch .track { position: absolute; inset: 0; border-radius: 999px; background: var(--surface-3); border: 1px solid var(--border); transition: .15s; }
+  .switch .thumb { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.18); transition: .15s; }
+  .switch input:checked + .track { background: var(--accent); border-color: var(--accent); }
+  .switch input:checked + .track + .thumb { transform: translateX(16px); background: #fff; }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .details-row { border-top: 1px solid var(--border); }
+  .details-row summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 12px; cursor: pointer; font-size: 12.5px; font-weight: 550; }
+  .details-row summary::-webkit-details-marker { display: none; }
+  .details-row summary::after { content: "›"; font-size: 18px; line-height: 1; color: var(--text-3); transform: rotate(90deg); transition: transform .15s; }
+  .details-row[open] summary::after { transform: rotate(-90deg); }
+  .details-body { padding: 0 12px 12px; }
+  .details-body p { margin-bottom: 8px; font-size: 10.5px; line-height: 1.45; color: var(--text-3); }
+  .details-body input { width: 100%; height: 30px; margin-top: 5px; padding: 0 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); color: var(--text); font-size: 12px; }
+  .about-line { margin: 11px 2px 0; text-align: center; font-size: 10.5px; color: var(--text-3); }
+  /* ── bottom navigation ───────────────────────────────── */
+  .bottom-nav {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
+    padding: 3px; border: 1px solid var(--border); border-radius: 12px;
+    background: var(--surface-2); box-shadow: var(--shadow-nav);
+  }
+  .nav-item {
+    height: 36px; display: flex; align-items: center; justify-content: center; gap: 6px;
+    border: 0; border-radius: 9px; background: transparent; color: var(--text-3);
+    font-size: 12px; font-weight: 550; cursor: pointer; transition: background .15s, color .15s;
+  }
+  .nav-item:hover { color: var(--text); }
+  .nav-item.active { background: var(--nav-active); color: var(--text); box-shadow: 0 1px 3px rgba(16,20,28,.08); }
+  .nav-item svg { width: 15px; height: 15px; }
+  /* ── unpaired state ───────────────────────────────────── */
+  .banner { display: flex; align-items: center; gap: 8px; padding: 9px 10px; margin-bottom: 10px; border: 1px solid var(--accent-border); border-radius: 9px; background: var(--accent-soft); color: var(--accent-hover); font-size: 11px; line-height: 1.4; }
+  .banner svg { width: 14px; height: 14px; flex: none; }
+  .banner button { margin-left: auto; flex: none; padding: 4px 8px; border: 0; border-radius: 5px; background: var(--accent); color: #fff; font-size: 10.5px; font-weight: 600; cursor: pointer; }
+  [data-state="unpaired"] .paired-only { display: none !important; }
+  [data-state="paired"] .unpaired-only { display: none !important; }
+    /* 扩展实际运行时补充 */
     [hidden] { display: none !important; }
-    body {
-      width: 340px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', Roboto, sans-serif;
-      font-size: 13px;
-      background: var(--bg);
-      color: var(--text);
-      padding: 14px 14px 10px;
-      -webkit-font-smoothing: antialiased;
-    }
-    button:focus-visible, summary:focus-visible {
-      outline: 2px solid var(--primary);
-      outline-offset: 2px;
-    }
+    .conn-pill.loading { background: var(--warn-soft); color: var(--warn); }
+    .feedback { position: fixed; left: 12px; right: 12px; bottom: 58px; z-index: 20; display: none; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-2); box-shadow: var(--shadow-card); font-size: 11.5px; line-height: 1.45; }
+    .feedback.show { display: block; }
+    .feedback.success { color: var(--success); border-color: var(--success-soft); background: var(--success-soft); }
+    .feedback.error { color: var(--danger); border-color: var(--danger-soft); background: var(--danger-soft); }
+    .task-list .empty-state, .resource-list .empty-state { border: 0; }
+    .resource-row .resource-dl:disabled { opacity: .45; cursor: default; }
+</style>
 
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      margin-bottom: 10px;
-    }
-    .header img { width: 26px; height: 26px; border-radius: 6px; }
-    .header h1 { flex: none; font-size: 15px; font-weight: 650; letter-spacing: 0.1px; white-space: nowrap; }
-
-    /* 状态胶囊放在标题右侧：省掉一整行高度，胶囊内只放短状态（未连接 / 已连接 (v1.4.0) / 检测中…）。
-       排错长文案（「无法连接 localhost:6800：请确认 App 与引擎已启动」）折行显示在下面的
-       .status-detail 里——塞进 172px 胶囊只会被省略号截成「无法连接 localhost:6800: …」。 */
-    .status {
-      margin-left: auto;
-      flex: none;
-      max-width: 172px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 9px;
-      border-radius: 999px;
-      font-size: 11.5px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      color: var(--text-dim);
-    }
-    .status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    /* 状态详情：整行宽度折行显示，长文案不再被截断。
-       上下留白都收到最小：这行只在出错时出现，而弹窗高度有 400px 的紧凑预算
-       （scripts/e2e/extension.mjs 的断言），两行文案不能把内容顶出预算。 */
-    .status-detail {
-      margin: -8px 0 6px;
-      font-size: 12px;
-      line-height: 1.5;
-      color: var(--danger);
-      word-break: break-word;
-    }
-    .status.connected { background: var(--success-bg); border-color: transparent; color: var(--success); }
-    .status.disconnected { background: var(--danger-bg); border-color: transparent; color: var(--danger); }
-    .status-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
-    .status.connected .status-dot { background: var(--success); }
-    .status.disconnected .status-dot { background: var(--danger); }
-    .status.loading .status-dot {
-      background: var(--primary);
-      animation: pulse 1s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.35; transform: scale(0.72); }
-    }
-
-    .tabs {
-      display: flex;
-      gap: 3px;
-      margin-bottom: 10px;
-      padding: 3px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 9px;
-    }
-    .tab {
-      flex: 1;
-      padding: 6px 10px;
-      border: none;
-      border-radius: 7px;
-      background: transparent;
-      color: var(--text-dim);
-      font-family: inherit;
-      font-size: 12.5px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.15s, color 0.15s;
-    }
-    .tab:hover:not(.active) { color: var(--text); background: var(--secondary); }
-    .tab.active { background: var(--primary); color: #fff; }
-    .pane { display: none; }
-    .pane.active { display: block; }
-    .grab-list {
-      max-height: 220px;
-      overflow-y: auto;
-      border: 1px solid var(--border);
-      border-radius: 9px;
-      background: var(--panel);
-    }
-    .grab-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 7px 10px;
-      font-size: 12.5px;
-      line-height: 1.45;
-      cursor: pointer;
-    }
-    .grab-item:hover { background: var(--secondary); }
-    .grab-item + .grab-item { border-top: 1px solid var(--border); }
-    .grab-item input { flex: none; margin-top: 2px; }
-    .grab-item .g-text { flex: 1; min-width: 0; word-break: break-all; color: var(--text); }
-    .grab-item .g-url { display: block; font-size: 11.5px; color: var(--text-dim); }
-    .grab-filter input { width: 100%; }
-
-    /* 未配对引导横幅：出现在发送页顶部，把"下一步做什么"直接告诉用户 */
-    .banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 8px 11px;
-      margin-bottom: 10px;
-      border-radius: 8px;
-      background: var(--warn-bg);
-      font-size: 12px;
-      line-height: 1.4;
-      color: var(--warn);
-    }
-    .banner button {
-      flex: none;
-      padding: 5px 11px;
-      border: none;
-      border-radius: 6px;
-      background: var(--primary);
-      color: #fff;
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .banner button:hover { background: var(--primary-hover); }
-
-    .section { margin-bottom: 10px; }
-    .section-title {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-dim);
-      margin-bottom: 7px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-    .form-group { margin-bottom: 10px; }
-    .form-group label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
-    .input-wrap { position: relative; }
-    .input-wrap input {
-      width: 100%;
-      min-height: 32px;
-      padding: 7px 10px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      color: var(--text);
-      font-size: 13px;
-      transition: border-color 0.15s;
-    }
-    .input-wrap input:focus { border-color: var(--primary); outline: none; }
-    .input-wrap input.invalid { border-color: var(--danger); }
-    /* 输入框内嵌的次要按钮（粘贴/显示密钥） */
-    .input-suffix {
-      position: absolute;
-      right: 4px;
-      top: 50%;
-      transform: translateY(-50%);
-      padding: 2px 8px;
-      border: none;
-      border-radius: 5px;
-      background: transparent;
-      color: var(--text-dim);
-      font-family: inherit;
-      font-size: 11.5px;
-      cursor: pointer;
-    }
-    .input-suffix:hover { color: var(--text); background: var(--secondary); }
-    .hint {
-      margin-top: 5px;
-      font-size: 11.5px;
-      line-height: 1.55;
-      color: var(--text-dim);
-    }
-    .row { display: flex; gap: 8px; }
-    .row .form-group { flex: 1; }
-
-    /* 新建下载入口：整行主按钮，弹窗承载链接与可选请求参数 */
-    .new-download-btn { display: flex; align-items: center; justify-content: center; gap: 7px; }
-    .new-download-btn svg { width: 15px; height: 15px; }
-    .new-download-hint { margin-top: 6px; }
-
-    /* 新建下载弹窗：与 App 内新建任务保持同一套表单语言。
-       原生 <dialog> 负责焦点陷阱与 Esc 关闭，遮罩点击由脚本处理。 */
-    .download-dialog {
-      width: calc(100% - 28px);
-      max-width: 372px;
-      max-height: calc(100% - 28px);
-      margin: auto;
-      padding: 0;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      background: var(--bg);
-      color: var(--text);
-      box-shadow: 0 18px 50px rgba(9, 14, 24, .3);
-      overflow: hidden;
-    }
-    .download-dialog::backdrop { background: rgba(9, 12, 18, .46); backdrop-filter: blur(2px); }
-    @media (prefers-color-scheme: dark) {
-      .download-dialog::backdrop { background: rgba(3, 5, 9, .64); }
-    }
-    .download-dialog[open] { display: flex; flex-direction: column; }
-    .dialog-header { display: flex; align-items: flex-start; gap: 12px; padding: 16px 16px 10px; flex: none; }
-    .dialog-heading { flex: 1; min-width: 0; }
-    .dialog-title { font-size: 16px; line-height: 1.25; font-weight: 650; letter-spacing: -.01em; }
-    .dialog-desc { margin-top: 3px; font-size: 11.5px; line-height: 1.45; color: var(--text-dim); }
-    .dialog-close { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--text-dim); cursor: pointer; }
-    .dialog-close:hover { background: var(--secondary); color: var(--text); }
-    .dialog-close svg { width: 15px; height: 15px; }
-    .dialog-body { display: flex; flex-direction: column; gap: 12px; min-height: 0; padding: 2px 16px 14px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-    .dialog-field { min-width: 0; }
-    .dialog-field .field-label { display: block; margin-bottom: 6px; font-size: 11.5px; color: var(--text-dim); }
-    .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-    .field-label-row .field-label { margin-bottom: 0; }
-    .text-btn { padding: 2px 5px; border: 0; border-radius: 5px; background: transparent; color: var(--primary); font: inherit; font-size: 11.5px; cursor: pointer; }
-    .text-btn:hover { background: var(--secondary); }
-    .dialog-textarea, .dialog-input { width: 100%; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; transition: border-color .15s, box-shadow .15s; }
-    .dialog-textarea { min-height: 84px; max-height: 132px; padding: 9px 11px; line-height: 1.45; resize: vertical; display: block; }
-    .dialog-input { height: 34px; padding: 0 11px; }
-    .dialog-textarea::placeholder, .dialog-input::placeholder { color: var(--text-dim); }
-    .dialog-textarea:focus, .dialog-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 110, 242, .18); }
-    .dialog-textarea[aria-invalid="true"], .dialog-input[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-bg); }
-    .dialog-error { margin: 6px 1px 0; font-size: 11.5px; line-height: 1.4; color: var(--danger); }
-    .dir-field { width: 100%; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: var(--text-dim); font-size: 12.5px; text-align: left; }
-    .dir-field svg { width: 15px; height: 15px; flex: none; }
-    .dir-field .dir-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .dialog-advanced { border-top: 1px solid var(--border); padding-top: 8px; }
-    .dialog-advanced summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 1px; font-size: 12px; color: var(--text-dim); cursor: pointer; list-style: none; }
-    .dialog-advanced summary::-webkit-details-marker { display: none; }
-    .dialog-advanced summary .chevron { width: 14px; height: 14px; transition: transform .15s; }
-    .dialog-advanced[open] summary .chevron { transform: rotate(180deg); }
-    .advanced-body { display: flex; flex-direction: column; gap: 10px; padding: 5px 0 2px; }
-    .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 2px 16px 16px; flex: none; }
-    .dialog-footer .btn { width: auto; height: 34px; padding: 0 15px; border-radius: 8px; font-size: 13px; }
-    .dialog-footer .btn-primary { display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 650; }
-    .dialog-footer .btn-primary svg { width: 14px; height: 14px; }
-
-    .toggle-group {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 8px 0;
-    }
-    .toggle-group + .toggle-group { border-top: 1px solid var(--border); }
-    .toggle-group .t-label { font-size: 13px; }
-    .toggle-group .t-desc {
-      margin-top: 2px;
-      font-size: 11.5px;
-      line-height: 1.45;
-      color: var(--text-dim);
-    }
-    .toggle { position: relative; flex: none; width: 40px; height: 22px; cursor: pointer; }
-    .toggle input { opacity: 0; width: 0; height: 0; }
-    .toggle .slider {
-      position: absolute;
-      inset: 0;
-      background: var(--toggle-off);
-      border-radius: 11px;
-      transition: 0.2s;
-    }
-    .toggle .slider::before {
-      content: '';
-      position: absolute;
-      width: 16px;
-      height: 16px;
-      left: 3px;
-      bottom: 3px;
-      background: #fff;
-      border-radius: 50%;
-      transition: 0.2s;
-    }
-    .toggle input:checked + .slider { background: var(--primary); }
-    .toggle input:checked + .slider::before { transform: translateX(18px); }
-
-    .btn {
-      width: 100%;
-      padding: 9px 12px;
-      border: none;
-      border-radius: 8px;
-      font-family: inherit;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
-    }
-    .btn:disabled { opacity: 0.55; cursor: default; }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
-    .btn-secondary { background: var(--secondary); color: var(--text); }
-    .btn-secondary:hover:not(:disabled) { background: var(--secondary-hover); }
-    .btn-danger-ghost {
-      background: transparent;
-      color: var(--danger);
-      border: 1px solid var(--border);
-    }
-    .btn-danger-ghost:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger); }
-    .btn-danger-ghost.armed {
-      background: var(--danger);
-      color: #fff;
-      border-color: var(--danger);
-    }
-    .btn-row { display: flex; gap: 8px; }
-    .btn-row .btn { flex: 1; }
-
-    /* 手动配置折叠区：默认收起，日常只看到一键配对 */
-    details.manual {
-      margin-top: 8px;
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      background: var(--panel);
-    }
-    details.manual summary {
-      padding: 8px 11px;
-      font-size: 12px;
-      color: var(--text-dim);
-      cursor: pointer;
-      user-select: none;
-      list-style: none;
-    }
-    details.manual summary::-webkit-details-marker { display: none; }
-    details.manual summary:hover { color: var(--text); }
-    details.manual[open] summary { border-bottom: 1px solid var(--border); }
-    details.manual .manual-body { padding: 11px; }
-
-    .feedback {
-      min-height: 18px;
-      margin-top: 6px;
-      font-size: 12px;
-      line-height: 1.55;
-      word-break: break-word;
-      color: var(--text-dim);
-    }
-    .feedback.success { color: var(--success); }
-    .feedback.error { color: var(--danger); }
-
-    .footer {
-      margin-top: 8px;
-      padding-top: 9px;
-      border-top: 1px solid var(--border);
-      text-align: center;
-      font-size: 11px;
-      line-height: 1.55;
-      color: var(--text-dim);
-    }
-    /* 本页视频列表：每行一个可直接下载的地址 + 发送按钮 */
-    .media-list {
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-      margin-top: 9px;
-    }
-    .media-item {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      padding: 7px 9px;
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      background: var(--panel);
-    }
-    .media-url {
-      flex: 1;
-      min-width: 0;
-      font-size: 12px;
-      color: var(--text-dim);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .media-kind {
-      flex: none;
-      font-size: 10.5px;
-      padding: 2px 6px;
-      border-radius: 999px;
-      background: var(--secondary);
-      color: var(--text-dim);
-    }
-    .media-item button {
-      flex: none;
-      padding: 4px 9px;
-      border: none;
-      border-radius: 5px;
-      background: var(--primary);
-      color: #fff;
-      font-family: inherit;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .media-item button:hover { background: var(--primary-hover); }
-    .visually-hidden {
-      position: absolute;
-      width: 1px; height: 1px;
-      margin: -1px; padding: 0;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
-</head>
 <body>
-  <div class="header">
+<div class="app">
+  <header class="topbar">
     <img src="icons/icon48.png" alt="">
-    <h1>Aria2 Desktop</h1>
-    <div id="status" class="status loading" role="status" aria-live="polite">
-      <span class="status-dot"></span>
-      <span id="statusText" class="status-text"></span>
-    </div>
-  </div>
-  <p id="statusDetail" class="status-detail" role="status" aria-live="polite" hidden></p>
+    <div class="brand">Aria2 Desktop</div>
+    <div class="conn-pill" id="status"><span class="conn-dot"></span><span id="statusText"></span></div>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="refreshStatusBtn" type="button" title="" aria-label="">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"/></svg>
+    </button>
+  </header>
 
-  <div class="tabs" role="tablist">
-    <button class="tab active" id="tabSend" type="button" role="tab" aria-selected="true" aria-controls="paneSend"></button>
-    <button class="tab" id="tabConnect" type="button" role="tab" aria-selected="false" aria-controls="paneConnect"></button>
-  </div>
+  <section class="metrics" aria-label="下载概览">
+    <div class="metric"><span class="metric-label" id="metricDownloadLabel"></span><span class="metric-value" id="metricDownload">0<em>B/s</em></span></div>
+    <div class="metric"><span class="metric-label" id="metricUploadLabel"></span><span class="metric-value" id="metricUpload">0<em>B/s</em></span></div>
+    <div class="metric"><span class="metric-label" id="metricActiveLabel"></span><span class="metric-value" id="metricActive">0</span></div>
+    <div class="metric"><span class="metric-label" id="metricWaitingLabel"></span><span class="metric-value" id="metricWaiting">0</span></div>
+  </section>
 
-  <!-- 模式一：发送下载 -->
-  <div class="pane active" id="paneSend" role="tabpanel">
-    <div id="pairBanner" class="banner" hidden>
-      <span id="pairBannerText"></span>
-      <button id="bannerPairBtn" type="button"></button>
-    </div>
-    <div class="section">
-      <div class="section-title" id="quickSendTitle"></div>
-      <button class="btn btn-primary new-download-btn" id="newDownloadBtn" type="button" aria-haspopup="dialog" aria-controls="newDownloadDialog" aria-expanded="false">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        <span id="newDownloadBtnText"></span>
-      </button>
-      <p class="hint new-download-hint" id="quickSendHint"></p>
-    </div>
-    <div class="section">
-      <div class="section-title" id="mediaTitle"></div>
-      <button class="btn btn-secondary" id="pageVideoBtn" type="button"></button>
-      <div class="media-list" id="mediaList" hidden></div>
-      <p class="hint" id="mediaHint" hidden></p>
-    </div>
-    <div class="section">
-      <div class="section-title" id="grabTitle"></div>
-      <button class="btn btn-secondary" id="grabBtn" type="button"></button>
-      <div id="grabFilterWrap" class="input-wrap grab-filter" hidden>
-        <input type="text" id="grabFilter" spellcheck="false">
-      </div>
-    </div>
-    <div id="grabListWrap" class="section grab-list" hidden>
-      <div id="grabList"></div>
-    </div>
-    <button class="btn btn-primary" id="sendSelectedBtn" type="button" hidden></button>
-    <div class="footer" id="footerHint"></div>
-  </div>
-
-  <!-- 模式二：配对与设置 -->
-  <div class="pane" id="paneConnect" role="tabpanel">
-    <div class="section">
-      <div class="section-title" id="pairingTitle"></div>
-      <button class="btn btn-primary" id="pairBtn" type="button"></button>
-      <p class="hint" id="pairHint"></p>
-    </div>
-
-    <div class="section">
-      <div class="section-title" id="optionsTitle"></div>
-      <div class="toggle-group">
-        <div>
-          <div class="t-label" id="enableLabel"></div>
+  <main class="content">
+    <section class="pane active" data-pane="tasks" aria-label="任务">
+      <div class="page-head">
+        <h2 id="tasksTitle"></h2>
+        <div class="page-actions">
+          <span class="page-note" id="tasksNote"></span>
+          <button class="new-download-btn" id="newDownloadBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="newDownloadDialog">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span id="newDownloadBtnText"></span>
+          </button>
         </div>
-        <label class="toggle">
-          <input type="checkbox" id="enabled" checked>
-          <span class="slider"></span>
-        </label>
       </div>
-      <div class="toggle-group">
-        <div>
-          <div class="t-label" id="interceptLabel"></div>
-          <div class="t-desc" id="interceptDesc"></div>
-        </div>
-        <label class="toggle">
-          <input type="checkbox" id="interceptAll">
-          <span class="slider"></span>
-        </label>
+      <div class="banner unpaired-only" id="pairBanner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 2.5 17a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        <span id="pairBannerText"></span>
+        <button id="bannerPairBtn" type="button"></button>
       </div>
-      <div class="toggle-group">
-        <div>
-          <div class="t-label" id="allowCookiesLabel"></div>
-          <div class="t-desc" id="allowCookiesDesc"></div>
-        </div>
-        <label class="toggle">
-          <input type="checkbox" id="allowCookies">
-          <span class="slider"></span>
-        </label>
+      <div class="task-filter" id="taskFilter" role="tablist" aria-label="任务筛选">
+        <button class="active" type="button" role="tab" aria-selected="true" data-filter="active" id="taskFilterActive"></button>
+        <button type="button" role="tab" aria-selected="false" data-filter="waiting" id="taskFilterWaiting"></button>
+        <button type="button" role="tab" aria-selected="false" data-filter="stopped" id="taskFilterCompleted"></button>
       </div>
-    </div>
+      <div class="card task-list" id="taskList"></div>
+      <div class="task-footer" id="taskFooter" hidden><span id="taskFooterText"></span></div>
+    </section>
 
-    <details class="manual" id="manualDetails">
-      <summary id="manualTitle"></summary>
-      <div class="manual-body">
-        <div class="row">
-          <div class="form-group">
-            <label for="host" id="hostLabel"></label>
-            <div class="input-wrap"><input type="text" id="host" value="localhost" spellcheck="false"></div>
+    <section class="pane" data-pane="sniffer" aria-label="网络嗅探">
+      <div class="banner unpaired-only" id="snifferPairBanner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 2.5 17a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        <span id="snifferPairBannerText"></span>
+        <button id="snifferPairBtn" type="button"></button>
+      </div>
+      <div class="page-head">
+        <h2 id="snifferTitle"></h2>
+        <div class="page-actions">
+          <span class="page-note live" id="snifferStatus"><span class="live-dot"></span><span id="snifferStatusText"></span></span>
+          <button class="icon-btn" id="snifferPauseBtn" type="button" title="" aria-label="">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="card resolver-card">
+        <button class="action-row" id="pageVideoBtn" type="button">
+          <span class="action-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="m10 9 5 3-5 3V9Z"/></svg></span>
+          <span class="action-copy"><span class="action-title" id="pageVideoTitle"></span><span class="action-desc" id="pageVideoDesc"></span></span>
+          <span class="action-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg></span>
+        </button>
+      </div>
+      <div class="filter-row" role="tablist" aria-label="请求类型" id="snifferFilter">
+        <button class="filter-chip active" type="button" role="tab" aria-selected="true" data-kind="all" id="snifferFilterAll"></button>
+        <button class="filter-chip" type="button" role="tab" aria-selected="false" data-kind="video" id="snifferFilterVideo"></button>
+        <button class="filter-chip" type="button" role="tab" aria-selected="false" data-kind="audio" id="snifferFilterAudio"></button>
+        <button class="filter-chip" type="button" role="tab" aria-selected="false" data-kind="image" id="snifferFilterImage"></button>
+        <button class="filter-chip" type="button" role="tab" aria-selected="false" data-kind="other" id="snifferFilterOther"></button>
+      </div>
+      <div class="card resource-list" id="resourceList"></div>
+      <div class="selection-bar" id="selectionBar" hidden><span id="selectedCount"></span><button class="btn btn-primary" id="batchDownload" type="button"></button></div>
+      <div class="hint-bar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg><span id="snifferHint"></span></div>
+    </section>
+
+    <section class="pane" data-pane="settings" aria-label="设置">
+      <div class="page-head"><h2 id="settingsTitle"></h2><span class="page-note" id="extensionVersion"></span></div>
+      <div class="settings-body scroll-area">
+        <div class="card connection-card">
+          <div class="connection-top">
+            <span class="connection-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg></span>
+            <div class="connection-copy"><div class="connection-title">Aria2 Desktop</div><div class="connection-sub"><span class="dot"></span><span id="connectionStatus"></span></div></div>
+            <button class="btn btn-secondary" id="testBtn" type="button"></button>
           </div>
-          <div class="form-group">
-            <label for="port" id="portLabel"></label>
-            <div class="input-wrap"><input type="number" id="port" value="6800" min="1" max="65535"></div>
+          <div class="connection-actions">
+            <button class="btn btn-ghost" id="pairBtn" type="button"></button>
+            <button class="btn btn-ghost" id="unpairBtn" type="button" hidden></button>
+            <span style="flex:1"></span>
+            <span id="endpointLabel" style="align-self:center;font-size:10.5px;color:var(--text-3)"></span>
           </div>
         </div>
-        <div class="form-group">
-          <label for="secret" id="secretLabel"></label>
-          <div class="input-wrap">
-            <input type="password" id="secret" placeholder="RPC Secret" autocomplete="off">
-          </div>
-          <p class="hint" id="secretHint"></p>
-        </div>
-        <div class="btn-row">
-          <button class="btn btn-secondary" id="testBtn" type="button"></button>
-          <button class="btn btn-primary" id="saveBtn" type="button"></button>
-        </div>
-      </div>
-    </details>
-  </div>
-
-  <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
-
-  <dialog id="newDownloadDialog" class="download-dialog" aria-labelledby="newDownloadTitle" aria-describedby="newDownloadDesc">
-    <div class="dialog-header">
-      <div class="dialog-heading">
-        <h2 class="dialog-title" id="newDownloadTitle"></h2>
-        <p class="dialog-desc" id="newDownloadDesc"></p>
-      </div>
-      <button class="dialog-close" id="newDownloadClose" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-      </button>
-    </div>
-    <form class="dialog-body" id="newDownloadForm" novalidate>
-      <div class="dialog-field">
-        <div class="field-label-row">
-          <label class="field-label" for="newTaskUrl" id="newDownloadUrlLabel"></label>
-          <button class="text-btn" id="pasteBtn" type="button"></button>
-        </div>
-        <textarea class="dialog-textarea" id="newTaskUrl" rows="3" spellcheck="false" aria-describedby="newTaskError"></textarea>
-        <p class="dialog-error" id="newTaskError" role="alert" hidden></p>
-      </div>
-      <div class="dialog-field">
-        <label class="field-label" for="newTaskName" id="newDownloadNameLabel"></label>
-        <input class="dialog-input" id="newTaskName" type="text" autocomplete="off">
-      </div>
-      <div class="dialog-field">
-        <div class="field-label" id="saveToLabel"></div>
-        <div class="dir-field" role="note">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
-          <span class="dir-name" id="saveToValue"></span>
-        </div>
-      </div>
-      <details class="dialog-advanced">
-        <summary><span id="requestOptions"></span>
-          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </summary>
-        <div class="advanced-body">
-          <div class="dialog-field">
-            <label class="field-label" for="newTaskUserAgent" id="userAgentLabel"></label>
-            <input class="dialog-input" id="newTaskUserAgent" type="text" autocomplete="off">
-          </div>
-          <div class="dialog-field">
-            <label class="field-label" for="newTaskReferer" id="refererLabel"></label>
-            <input class="dialog-input" id="newTaskReferer" type="text" autocomplete="off">
+        <div class="section">
+          <div class="section-title" id="behaviorTitle"></div>
+          <div class="card settings-card">
+            <div class="setting-row"><div class="setting-copy"><div class="setting-title" id="enableLabel"></div><div class="setting-desc" id="enableDesc"></div></div><label class="switch"><input type="checkbox" id="enabled"><span class="track"></span><span class="thumb"></span></label></div>
+            <div class="setting-row"><div class="setting-copy"><div class="setting-title" id="interceptLabel"></div><div class="setting-desc" id="interceptDesc"></div></div><label class="switch"><input type="checkbox" id="interceptAll"><span class="track"></span><span class="thumb"></span></label></div>
+            <div class="setting-row"><div class="setting-copy"><div class="setting-title" id="allowCookiesLabel"></div><div class="setting-desc" id="allowCookiesDesc"></div></div><label class="switch"><input type="checkbox" id="allowCookies"><span class="track"></span><span class="thumb"></span></label></div>
+            <details class="details-row" id="manualDetails"><summary id="manualTitle"></summary><div class="details-body"><p id="manualHint"></p><label class="field-label" id="hostLabel" for="host"></label><input id="host" type="text" autocomplete="off"><label class="field-label" id="portLabel" for="port"></label><input id="port" type="text" inputmode="numeric"><label class="field-label" id="secretLabel" for="secret"></label><input id="secret" type="password" autocomplete="off"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary" id="saveBtn" type="button"></button></div></div></details>
           </div>
         </div>
-      </details>
-    </form>
-    <div class="dialog-footer">
-      <button class="btn btn-secondary" id="newDownloadCancel" type="button"></button>
-      <button class="btn btn-primary" id="newDownloadSubmit" type="submit" form="newDownloadForm">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        <span id="newDownloadSubmitText"></span>
-      </button>
-    </div>
-  </dialog>
+        <div class="hint-bar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg><span id="settingsHint"></span></div>
+      </div>
+    </section>
+  </main>
 
-  <script src="popup.js"></script>
+  <nav class="bottom-nav" aria-label="主导航">
+    <button class="nav-item active" data-tab="tasks" type="button" id="navTasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg><span id="tabTasks"></span></button>
+    <button class="nav-item" data-tab="sniffer" type="button" id="navSniffer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/><path d="M11 8v6M8 11h6"/></svg><span id="tabSniffer"></span></button>
+    <button class="nav-item" data-tab="settings" type="button" id="navSettings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.25.38.6.73 1 .98.34.2.73.32 1.1.34H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51.68Z"/></svg><span id="tabSettings"></span></button>
+  </nav>
+  <div class="feedback" id="feedback" role="status" aria-live="polite"></div>
+</div>
+
+<dialog class="download-dialog" id="newDownloadDialog" aria-labelledby="newDownloadTitle" aria-describedby="newDownloadDesc">
+  <div class="dialog-header"><div class="dialog-heading"><h2 class="dialog-title" id="newDownloadTitle"></h2><p class="dialog-desc" id="newDownloadDesc"></p></div><button class="dialog-close" id="newDownloadClose" type="button" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <form class="dialog-body" id="newDownloadForm" novalidate>
+    <div class="dialog-field"><div class="field-label-row"><label class="field-label" id="newDownloadUrlLabel" for="newTaskUrl"></label><button class="text-btn" id="pasteBtn" type="button"></button></div><textarea class="dialog-textarea" id="newTaskUrl" rows="3" spellcheck="false" aria-describedby="newTaskError"></textarea><p class="dialog-error" id="newTaskError" role="alert" hidden></p></div>
+    <div class="dialog-field"><label class="field-label" id="newDownloadNameLabel" for="newTaskName"></label><input class="dialog-input" id="newTaskName" type="text" autocomplete="off"></div>
+    <div class="dialog-field"><div class="field-label" id="saveToLabel"></div><div class="dir-field" role="note"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg><span class="dir-name" id="saveToValue"></span></div></div>
+    <details class="dialog-advanced"><summary><span id="requestOptions"></span><svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary><div class="advanced-body"><div class="dialog-field"><label class="field-label" id="userAgentLabel" for="newTaskUserAgent"></label><input class="dialog-input" id="newTaskUserAgent" type="text" autocomplete="off"></div><div class="dialog-field"><label class="field-label" id="refererLabel" for="newTaskReferer"></label><input class="dialog-input" id="newTaskReferer" type="text" autocomplete="off"></div></div></details>
+  </form>
+  <div class="dialog-footer"><button class="btn btn-secondary" id="newDownloadCancel" type="button"></button><button class="btn btn-primary" id="newDownloadSubmit" type="submit" form="newDownloadForm"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span id="newDownloadSubmitText"></span></button></div>
+</dialog>
+
+<script src="popup.js"></script>
 </body>
 </html>

@@ -1,318 +1,522 @@
 /**
  * Aria2 Desktop Extension - Popup Script
- *
- * 交互原则：
- * - 常用动作（发送下载）放最上面，打开弹窗就能用；未配对时直接给出下一步引导；
- * - 每个动作都有"进行中 / 成功 / 失败"三种可见反馈，不留"点了没反应"的状态；
- * - 失败信息说人话，并告诉用户下一步怎么做；错误不自动消失（避免没看清就没了）；
- * - 开关类设置切换即保存（与拦截开关的既有行为一致），不留"忘了点保存"的坑；
- * - 弹窗不直接访问网络：状态查询与配对都由 Service Worker 代执行，
- *   弹窗可关闭/最小化而不中断任何流程（配对流程的关键保障）。
+ * 页面结构对应扩展原型：任务 / 网络嗅探 / 设置，底部导航切换。
  */
-
 const $ = (id) => document.getElementById(id)
 const i18n = (key, substitutions) => chrome.i18n.getMessage(key, substitutions) || key
-
-// 常驻元素引用（storage.onChanged 回填表单时使用）
-const elHost = document.getElementById('host')
-const elPort = document.getElementById('port')
-const elSecret = document.getElementById('secret')
-const elEnabled = document.getElementById('enabled')
-const elInterceptAll = document.getElementById('interceptAll')
-
-/** 本机地址默认已授权（见 manifest host_permissions），无需在运行时申请 */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
 
 let feedbackTimer = null
-/** 两段式解除配对的定时器（3 秒内再次点击才执行） */
 let unpairArmTimer = null
 let unpairArmed = false
-/** 当前是否已配对：同一个按钮在「一键配对 / 解除配对」两种角色间切换 */
 let isPaired = false
+let activeTabUrl = ''
+let activeTabTitle = ''
+let currentTab = 'tasks'
+let taskFilter = 'active'
+let taskPollTimer = null
+let taskLoading = false
+let taskStats = { downloadSpeed: '0', uploadSpeed: '0', numActive: '0', numWaiting: '0' }
+let lastTasks = []
+let snifferPaused = false
+let snifferFilter = 'all'
+let snifferItems = []
+const snifferSelected = new Set()
+let snifferPollTimer = null
+let snifferLoading = false
+let snifferPermissionGranted = false
+let configCache = null
 
-// 初始化界面文本
-function initI18n() {
-  document.documentElement.lang = chrome.i18n.getUILanguage()
+function sendMessage(message) { return chrome.runtime.sendMessage(message) }
+function setText(id, key, substitutions) { const el = $(id); if (el) el.textContent = i18n(key, substitutions) }
+function setTitle(id, key) { const el = $(id); if (el) el.title = i18n(key) }
 
-  $('quickSendTitle').textContent = i18n('quickSendTitle')
-  $('newDownloadBtnText').textContent = i18n('newDownload')
-  $('quickSendHint').textContent = i18n('newDownloadHint')
-  $('pasteBtn').textContent = i18n('paste')
-  $('pasteBtn').title = i18n('paste')
-  $('newDownloadTitle').textContent = i18n('newDownload')
-  $('newDownloadDesc').textContent = i18n('newDownloadDesc')
-  $('newDownloadClose').setAttribute('aria-label', i18n('close'))
-  $('newDownloadUrlLabel').textContent = i18n('downloadUrlLabel')
-  $('newTaskUrl').placeholder = i18n('downloadUrlPlaceholder')
-  $('newDownloadNameLabel').textContent = i18n('fileNameLabel')
-  $('newTaskName').placeholder = i18n('fileNamePlaceholder')
-  $('saveToLabel').textContent = i18n('saveToLabel')
-  $('saveToValue').textContent = i18n('saveToDefault')
-  $('requestOptions').textContent = i18n('requestOptions')
-  $('userAgentLabel').textContent = i18n('userAgentLabel')
-  $('newTaskUserAgent').placeholder = i18n('userAgentPlaceholder')
-  $('refererLabel').textContent = i18n('refererLabel')
-  $('newTaskReferer').placeholder = i18n('refererPlaceholder')
-  $('newDownloadCancel').textContent = i18n('cancel')
-  $('newDownloadSubmitText').textContent = i18n('addDownload')
-  $('newTaskError').textContent = i18n('invalidDownloadUrl')
-
-  $('pairingTitle').textContent = i18n('sectionPairing')
-  $('pairBtn').textContent = i18n('pairWithApp')
-  $('pairHint').textContent = i18n('pairHint')
-
-  $('optionsTitle').textContent = i18n('sectionOptions')
-  $('enableLabel').textContent = i18n('enableExt')
-  $('interceptLabel').textContent = i18n('interceptAll')
-  $('interceptDesc').textContent = i18n('interceptAllDesc')
-  $('allowCookiesLabel').textContent = i18n('allowCookies')
-  $('allowCookiesDesc').textContent = i18n('allowCookiesDesc')
-
-  $('mediaTitle').textContent = i18n('mediaSection')
-  $('pageVideoBtn').textContent = i18n('pageVideoBtn')
-
-  $('manualTitle').textContent = i18n('manualTitle')
-  $('hostLabel').textContent = i18n('host')
-  $('portLabel').textContent = i18n('port')
-  $('secretLabel').textContent = i18n('secret')
-  $('secretHint').textContent = i18n('secretHint')
-
-  $('saveBtn').textContent = i18n('saveSettings')
-  $('testBtn').textContent = i18n('testConnection')
-  $('footerHint').textContent = i18n('rightClickHint')
-  $('grabTitle').textContent = i18n('tabGrab')
-  $('grabBtn').textContent = i18n('grabBtn')
-  $('grabFilter').placeholder = i18n('grabFilterPlaceholder')
-  $('sendSelectedBtn').textContent = i18n('sendSelected')
-  $('tabSend').textContent = i18n('tabSend')
-  $('tabConnect').textContent = i18n('tabConnect')
-  $('pairBannerText').textContent = i18n('sendNeedPairing')
-  $('bannerPairBtn').textContent = i18n('goPair')
-
-  $('statusText').textContent = i18n('testing')
-  $('statusDetail').hidden = true
-}
-
-/**
- * 统一反馈：成功 4 秒自动消失；错误**保留**直到下一次操作覆盖——
- * 错误往往包含下一步指引（去哪里改密钥），闪没了用户就得重试一遍才能再看一次。
- */
 function showFeedback(text, isError = false) {
   const el = $('feedback')
+  if (!el) return
   el.textContent = text
-  el.className = isError ? 'feedback error' : text ? 'feedback success' : 'feedback'
+  el.className = 'feedback' + (text ? ' show' : '') + (isError ? ' error' : ' success')
   if (feedbackTimer) clearTimeout(feedbackTimer)
-  if (text && !isError) {
-    feedbackTimer = setTimeout(() => {
-      el.textContent = ''
-      el.className = 'feedback'
-    }, 4000)
-  }
+  if (text && !isError) feedbackTimer = setTimeout(() => { el.textContent = ''; el.className = 'feedback' }, 4000)
 }
 
-/**
- * 状态条三态：loading（脉冲）/ connected（绿）/ disconnected（红）。
- * 胶囊只放短状态；排错长文案（如「无法连接 localhost:6800：请确认 App 与引擎已启动」）
- * 走下面的 statusDetail 整行折行显示，否则会被 172px 胶囊截成省略号。
- */
 function setStatus(state, text, detail) {
-  const cls = state === 'connected'
-    ? 'status connected'
-    : state === 'disconnected' ? 'status disconnected' : 'status loading'
-  $('status').className = cls
+  const el = $('status')
+  if (!el) return
+  el.className = 'conn-pill' + (state === 'connected' ? '' : state === 'disconnected' ? ' offline' : ' loading')
   $('statusText').textContent = text
   $('statusText').title = detail || text
-  const detailText = detail && detail !== text ? detail : ''
-  const detailEl = $('statusDetail')
-  detailEl.textContent = detailText
-  detailEl.hidden = !detailText
 }
 
-/**
- * 根据是否已配对切换界面形态。
- * 配对/解除共用**同一个按钮**：未配对时是「一键配对」，已配对时是「解除配对」，
- * 不额外占一行按钮，也避免两个入口同时可见时用户不知道点哪个。
- */
+function initTheme() {
+  const media = window.matchMedia('(prefers-color-scheme: dark)')
+  const apply = () => { document.documentElement.dataset.theme = media.matches ? 'dark' : 'light' }
+  apply()
+  if (media.addEventListener) media.addEventListener('change', apply)
+}
+
+function initI18n() {
+  document.documentElement.lang = chrome.i18n.getUILanguage()
+  const manifest = chrome.runtime.getManifest()
+  setText('newDownloadBtnText', 'newDownload')
+  setText('newDownloadTitle', 'newDownload')
+  setText('newDownloadDesc', 'newDownloadDesc')
+  setText('newDownloadUrlLabel', 'downloadUrlLabel')
+  setText('newDownloadNameLabel', 'fileNameLabel')
+  setText('saveToLabel', 'saveToLabel')
+  setText('saveToValue', 'saveToDefault')
+  setText('requestOptions', 'requestOptions')
+  setText('userAgentLabel', 'userAgentLabel')
+  setText('refererLabel', 'refererLabel')
+  setText('newDownloadCancel', 'cancel')
+  setText('newDownloadSubmitText', 'addDownload')
+  $('newTaskUrl').placeholder = i18n('downloadUrlPlaceholder')
+  $('newTaskName').placeholder = i18n('fileNamePlaceholder')
+  $('newTaskUserAgent').placeholder = i18n('userAgentPlaceholder')
+  $('newTaskReferer').placeholder = i18n('refererPlaceholder')
+  $('newDownloadClose').setAttribute('aria-label', i18n('close'))
+  setText('pasteBtn', 'paste')
+  setText('metricDownloadLabel', 'metricDownload')
+  setText('metricUploadLabel', 'metricUpload')
+  setText('metricActiveLabel', 'metricActive')
+  setText('metricWaitingLabel', 'metricWaiting')
+  setText('tasksTitle', 'tasksTitle')
+  setText('tasksNote', 'tasksNote')
+  setText('taskFilterActive', 'taskFilterActive')
+  setText('taskFilterWaiting', 'taskFilterWaiting')
+  setText('taskFilterCompleted', 'taskFilterCompleted')
+  setText('pairBannerText', 'sendNeedPairing')
+  setText('unpairBtn', 'unpair')
+  setText('bannerPairBtn', 'goPair')
+  setText('snifferTitle', 'snifferTitle')
+  setText('pageVideoTitle', 'pageVideoTitle')
+  setText('pageVideoDesc', 'pageVideoDesc')
+  setText('snifferFilterAll', 'snifferFilterAll')
+  setText('snifferFilterVideo', 'snifferFilterVideo')
+  setText('snifferFilterAudio', 'snifferFilterAudio')
+  setText('snifferFilterImage', 'snifferFilterImage')
+  setText('snifferFilterOther', 'snifferFilterOther')
+  setText('snifferHint', 'snifferHint')
+  setText('snifferPairBannerText', 'sendNeedPairing')
+  setText('snifferPairBtn', 'goPair')
+  setText('settingsTitle', 'settingsTitle')
+  setText('extensionVersion', 'versionNote', [manifest.version || '1.4.0'])
+  setText('behaviorTitle', 'behaviorTitle')
+  setText('enableLabel', 'enableExt')
+  setText('enableDesc', 'enableExtDesc')
+  setText('interceptLabel', 'interceptAll')
+  setText('interceptDesc', 'interceptAllDesc')
+  setText('allowCookiesLabel', 'allowCookies')
+  setText('allowCookiesDesc', 'allowCookiesDesc')
+  setText('manualTitle', 'manualTitle')
+  setText('manualHint', 'manualHint')
+  setText('hostLabel', 'host')
+  setText('portLabel', 'port')
+  setText('secretLabel', 'secret')
+  setText('saveBtn', 'saveSettings')
+  setText('testBtn', 'testConnection')
+  setText('settingsHint', 'settingsHint')
+  setText('tabTasks', 'tabTasks')
+  setText('tabSniffer', 'tabSniffer')
+  setText('tabSettings', 'tabSettings')
+  setText('statusText', 'testing')
+  setTitle('refreshStatusBtn', 'refreshStatus')
+  setTitle('snifferPauseBtn', 'snifferPause')
+}
+
+function formatBytes(value) {
+  let n = Number(value) || 0
+  if (n < 1024) return Math.round(n) + ' B'
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let unit = -1
+  while (n >= 1024 && unit < units.length - 1) { n /= 1024; unit++ }
+  return (n >= 10 ? n.toFixed(1) : n.toFixed(2)) + ' ' + units[unit]
+}
+
+function speedParts(value) {
+  const n = Number(value) || 0
+  if (n <= 0) return { number: '0', unit: 'B/s' }
+  if (n < 1024) return { number: String(Math.round(n)), unit: 'B/s' }
+  const units = ['KB/s', 'MB/s', 'GB/s']
+  let v = n
+  let i = -1
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
+  return { number: v >= 10 ? v.toFixed(1) : v.toFixed(2), unit: units[i] }
+}
+
+function setMetric(id, value, unit) {
+  const el = $(id)
+  if (!el) return
+  el.textContent = ''
+  el.appendChild(document.createTextNode(String(value)))
+  if (unit) { const em = document.createElement('em'); em.textContent = unit; el.appendChild(em) }
+}
+
+function updateMetrics() {
+  const download = speedParts(taskStats.downloadSpeed)
+  const upload = speedParts(taskStats.uploadSpeed)
+  setMetric('metricDownload', download.number, download.unit)
+  setMetric('metricUpload', upload.number, upload.unit)
+  setMetric('metricActive', String(taskStats.numActive || 0), '')
+  setMetric('metricWaiting', String(taskStats.numWaiting || 0), '')
+}
+
+async function getConfigSafe() { try { return await sendMessage({ action: 'getConfig' }) } catch { return null } }
+
+async function loadConfig() {
+  const cfg = await getConfigSafe()
+  if (!cfg) return null
+  configCache = cfg
+  $('host').value = cfg.host || 'localhost'
+  $('port').value = cfg.port || 6800
+  $('secret').value = cfg.secret || ''
+  $('enabled').checked = cfg.enabled !== false
+  $('interceptAll').checked = cfg.interceptAll === true
+  $('allowCookies').checked = cfg.allowCookies === true
+  applyPairingUi(!!cfg.secret)
+  updateEndpoint()
+  return cfg
+}
+
+function updateEndpoint() {
+  const host = ($('host').value || 'localhost').trim()
+  const port = ($('port').value || '6800').trim()
+  $('endpointLabel').textContent = host + ':' + port
+}
+
+function resetUnpairArm() {
+  unpairArmed = false
+  if (unpairArmTimer) { clearTimeout(unpairArmTimer); unpairArmTimer = null }
+  const btn = $('unpairBtn')
+  if (btn) btn.classList.remove('armed')
+}
+
 function applyPairingUi(paired) {
   isPaired = paired
-  const btn = $('pairBtn')
-  resetUnpairArm(btn)
-  btn.textContent = i18n(paired ? 'unpair' : 'pairWithApp')
-  btn.classList.toggle('btn-primary', !paired)
-  btn.classList.toggle('btn-danger-ghost', paired)
-  $('pairHint').textContent = i18n(paired ? 'unpairHint' : 'pairHint')
-  $('pairBanner').hidden = paired
-  $('pageVideoBtn').disabled = !paired
+  document.body.dataset.state = paired ? 'paired' : 'unpaired'
+  const pairBtn = $('pairBtn')
+  resetUnpairArm()
+  pairBtn.disabled = false
+  pairBtn.textContent = i18n(paired ? 'rePair' : 'pairWithApp')
+  pairBtn.className = 'btn ' + (paired ? 'btn-ghost' : 'btn-primary')
+  $('unpairBtn').hidden = !paired
   $('newDownloadBtn').disabled = !paired
-}
-
-/**
- * 两种模式：`send`（日常发送与批量抓取）/ `connect`（配对与设置）。
- * 拆开的原因：发送是每次都用的一步操作，配对与连接/开关配置是装好后只做一次的设置，
- * 混在一页会让日常操作被配置项淹没。首次未配对时自动停在 connect，配好即跳回 send。
- */
-function switchTab(name) {
-  for (const tab of ['send', 'connect']) {
-    const active = tab === name
-    const cap = tab.charAt(0).toUpperCase() + tab.slice(1)
-    $('pane' + cap).classList.toggle('active', active)
-    $('tab' + cap).classList.toggle('active', active)
-    $('tab' + cap).setAttribute('aria-selected', String(active))
+  $('pageVideoBtn').disabled = !paired
+  $('pairBanner').hidden = paired
+  $('snifferPairBanner').hidden = paired
+  $('connectionStatus').textContent = i18n(paired ? 'connectionStatusPaired' : 'connectionStatusUnpaired')
+  if (!paired) {
+    setStatus('disconnected', i18n('notConnectedShort'))
+    taskStats = { downloadSpeed: '0', uploadSpeed: '0', numActive: '0', numWaiting: '0' }
+    updateMetrics()
+    lastTasks = []
+    renderTasks()
   }
 }
 
-/** 当前标签页地址：作为下载请求的默认 Referer（仅同源时） */
-let activeTabUrl = ''
+async function refreshStatus() {
+  const cfg = configCache || await getConfigSafe()
+  if (!cfg?.secret) { setStatus('disconnected', i18n('notConnectedShort')); return }
+  setStatus('loading', i18n('testing'))
+  try {
+    const appStatus = await sendMessage({ action: 'getAppStatus' })
+    if (appStatus?.handled) {
+      if (appStatus.engineRunning) {
+        setStatus('connected', appStatus.engineVersion ? i18n('connectedVersion', [appStatus.engineVersion]) : i18n('engineReady'))
+        $('connectionStatus').textContent = appStatus.engineVersion ? i18n('connectionStatusEngine', [appStatus.engineVersion]) : i18n('connectionStatusPaired')
+      } else {
+        setStatus('disconnected', i18n('engineNotRunning'))
+        $('connectionStatus').textContent = i18n('connectionStatusEngineOff')
+      }
+      return
+    }
+  } catch { /* fall through */ }
+  try {
+    const response = await sendMessage({ action: 'testConnection' })
+    if (response?.success) {
+      setStatus('connected', response.version ? i18n('connectedVersion', [String(response.version)]) : i18n('engineReady'))
+      $('connectionStatus').textContent = response.version ? i18n('connectionStatusEngine', [String(response.version)]) : i18n('connectionStatusPaired')
+    } else {
+      setStatus('disconnected', i18n('notConnectedShort'), response?.error)
+      $('connectionStatus').textContent = i18n('connectionStatusUnpaired')
+    }
+  } catch {
+    setStatus('disconnected', i18n('notConnectedShort'))
+    $('connectionStatus').textContent = i18n('connectionStatusUnpaired')
+  }
+}
 
-/** 记录当前标签页地址；仅 http/https，避免 chrome:// 这类无意义地址 */
+function startPairing() {
+  const btn = $('pairBtn')
+  btn.disabled = true
+  btn.textContent = i18n('pairingWaiting')
+  showFeedback(i18n('pairingInBackground'))
+  chrome.runtime.sendMessage({ action: 'startPairing' }).catch(() => {})
+}
+
+async function unpair() {
+  if (!unpairArmed) {
+    unpairArmed = true
+    const btn = $('unpairBtn')
+    btn.classList.add('armed')
+    btn.textContent = i18n('unpairReconfirm')
+    unpairArmTimer = setTimeout(() => {
+      unpairArmed = false
+      btn.classList.remove('armed')
+      btn.textContent = i18n('unpair')
+    }, 3000)
+    return
+  }
+  resetUnpairArm()
+  const btn = $('unpairBtn')
+  btn.disabled = true
+  $('secret').value = ''
+  $('host').value = 'localhost'
+  $('port').value = 6800
+  await saveConfig()
+  showFeedback(i18n('unpairDone'))
+  await loadConfig()
+  await refreshStatus()
+  btn.disabled = false
+}
+
+async function saveConfig() {
+  const host = $('host').value.trim() || 'localhost'
+  const port = parseInt($('port').value, 10)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) { showFeedback(i18n('invalidPort'), true); return false }
+  if (!LOCAL_HOSTS.has(host.toLowerCase()) && chrome.permissions?.request) {
+    try {
+      const granted = await chrome.permissions.request({ origins: ['http://' + host + '/*', 'https://' + host + '/*'] })
+      if (!granted) { showFeedback(i18n('permissionDenied', [host]), true); return false }
+    } catch { showFeedback(i18n('permissionDenied', [host]), true); return false }
+  }
+  const btn = $('saveBtn')
+  btn.disabled = true
+  try {
+    const config = { host, port, secret: $('secret').value.trim(), enabled: $('enabled').checked, interceptAll: $('interceptAll').checked, allowCookies: $('allowCookies').checked }
+    const response = await sendMessage({ action: 'saveConfig', config })
+    if (response?.success) {
+      configCache = config
+      showFeedback(i18n('settingsSaved'))
+      applyPairingUi(!!config.secret)
+      updateEndpoint()
+      await refreshStatus()
+      return true
+    }
+    showFeedback(response?.error || i18n('errUnknown'), true)
+    return false
+  } catch { showFeedback(i18n('errUnknown'), true); return false }
+  finally { btn.disabled = false }
+}
+
+async function patchConfig(patch) {
+  const current = await getConfigSafe()
+  if (!current) return false
+  const config = Object.assign({}, current, patch)
+  try {
+    const response = await sendMessage({ action: 'saveConfig', config })
+    if (response?.success) { configCache = config; return true }
+    showFeedback(response?.error || i18n('errUnknown'), true)
+  } catch { showFeedback(i18n('errUnknown'), true) }
+  return false
+}
+
+async function requestSiteAccess(enabled, event, deniedKey, permissions) {
+  try {
+    if (enabled) {
+      const granted = await chrome.permissions.request(Object.assign({ origins: ['http://*/*', 'https://*/*'] }, permissions?.length ? { permissions } : {}))
+      if (!granted) { event.target.checked = false; showFeedback(i18n(deniedKey), true); return false }
+      return true
+    }
+    const removeSpec = permissions?.length ? { permissions } : { origins: ['http://*/*', 'https://*/*'] }
+    await chrome.permissions.remove(removeSpec).catch(() => {})
+    return true
+  } catch { event.target.checked = false; showFeedback(i18n(deniedKey), true); return false }
+}
+
+function taskStatusKey(status) {
+  if (status === 'active') return 'taskStatusActive'
+  if (status === 'waiting') return 'taskStatusWaiting'
+  if (status === 'paused') return 'taskStatusPaused'
+  if (status === 'complete') return 'taskStatusDone'
+  if (status === 'error') return 'taskStatusError'
+  return 'taskStatusRemoved'
+}
+
+function taskIcon(status) {
+  if (status === 'active') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="m9 15 3 3 3-3"/><path d="M12 12v6"/></svg>'
+  if (status === 'waiting' || status === 'paused') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="m8.5 14.5 2.5 2.5 4.5-5"/></svg>'
+}
+
+function taskIconClass(status) { return status === 'active' ? 'download' : status === 'waiting' || status === 'paused' ? 'waiting' : status === 'complete' ? 'done' : 'waiting' }
+
+async function loadTasks() {
+  if (!isPaired || taskLoading) return
+  taskLoading = true
+  try {
+    const response = await sendMessage({ action: 'getTasks' })
+    if (response?.success) {
+      taskStats = response.stats || taskStats
+      updateMetrics()
+      lastTasks = Array.isArray(response.tasks) ? response.tasks : []
+      renderTasks()
+    }
+  } catch { /* 短暂失败不打扰用户 */ }
+  finally { taskLoading = false }
+}
+
+function renderTasks() {
+  const list = $('taskList')
+  if (!list) return
+  list.textContent = ''
+  const filtered = lastTasks.filter(task => {
+    if (taskFilter === 'active') return task.status === 'active'
+    if (taskFilter === 'waiting') return task.status === 'waiting' || task.status === 'paused'
+    return task.status === 'complete' || task.status === 'error' || task.status === 'removed'
+  })
+  if (filtered.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'empty-state'
+    empty.textContent = i18n(taskFilter === 'active' ? 'taskEmptyActive' : taskFilter === 'waiting' ? 'taskEmptyWaiting' : 'taskEmptyStopped')
+    list.appendChild(empty)
+    $('taskFooter').hidden = true
+    return
+  }
+  for (const task of filtered) {
+    const row = document.createElement('div')
+    row.className = 'task-row'
+    const icon = document.createElement('span')
+    icon.className = 'task-icon ' + taskIconClass(task.status)
+    icon.innerHTML = taskIcon(task.status)
+    const main = document.createElement('div')
+    main.className = 'task-main'
+    const name = document.createElement('div')
+    name.className = 'task-name'
+    name.textContent = task.name || task.gid
+    name.title = task.name || task.gid
+    const meta = document.createElement('div')
+    meta.className = 'task-meta'
+    const total = Number(task.totalLength) || 0
+    const completed = Number(task.completedLength) || 0
+    let metaText = i18n(taskStatusKey(task.status))
+    if (total > 0) metaText += ' · ' + formatBytes(completed) + ' / ' + formatBytes(total)
+    if (task.status === 'active' && Number(task.downloadSpeed) > 0) metaText += ' · ' + formatBytes(task.downloadSpeed) + '/s'
+    if (task.errorMessage) metaText += ' · ' + task.errorMessage
+    meta.textContent = metaText
+    const progress = document.createElement('div')
+    progress.className = 'task-progress ' + (task.status === 'complete' ? 'done' : task.status === 'waiting' || task.status === 'paused' ? 'waiting' : '')
+    const bar = document.createElement('i')
+    bar.style.width = (total > 0 ? Math.min(100, completed / total * 100) : task.status === 'complete' ? 100 : 0) + '%'
+    progress.appendChild(bar)
+    main.appendChild(name); main.appendChild(meta); main.appendChild(progress)
+    const actions = document.createElement('div')
+    actions.className = 'task-actions'
+    if (task.status === 'active') actions.appendChild(miniButton('pause', 'taskActionPause', () => taskAction('pause', task.gid)))
+    else if (task.status === 'waiting' || task.status === 'paused') actions.appendChild(miniButton('play', 'taskActionResume', () => taskAction('resume', task.gid)))
+    actions.appendChild(miniButton('remove', 'taskActionRemove', () => taskAction('remove', task.gid)))
+    row.appendChild(icon); row.appendChild(main); row.appendChild(actions)
+    list.appendChild(row)
+  }
+  $('taskFooter').hidden = taskFilter !== 'stopped'
+  if (taskFilter === 'stopped') $('taskFooterText').textContent = i18n('taskFooterCount', [String(filtered.length)])
+}
+
+function miniButton(kind, titleKey, handler) {
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.className = 'mini-btn' + (kind === 'remove' ? ' danger' : '')
+  btn.title = i18n(titleKey)
+  btn.setAttribute('aria-label', i18n(titleKey))
+  if (kind === 'play') btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 4 12 8-12 8V4Z"/></svg>'
+  else if (kind === 'pause') btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></svg>'
+  else btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m6 6 1 14h10l1-14"/><path d="M10 11v5M14 11v5"/></svg>'
+  btn.addEventListener('click', async () => { btn.disabled = true; await handler(); btn.disabled = false })
+  return btn
+}
+
+async function taskAction(operation, gid) {
+  try {
+    const response = await sendMessage({ action: 'taskAction', operation, gid })
+    if (!response?.success) showFeedback(response?.error || i18n('errUnknown'), true)
+    await loadTasks()
+  } catch { showFeedback(i18n('errUnknown'), true) }
+}
+
+function setTaskFilter(filter) {
+  taskFilter = filter
+  for (const btn of $('taskFilter').querySelectorAll('button')) {
+    const active = btn.dataset.filter === filter
+    btn.classList.toggle('active', active)
+    btn.setAttribute('aria-selected', String(active))
+  }
+  renderTasks()
+}
+
 async function prefillFromActiveTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     const url = tab?.url || ''
-    if (/^https?:\/\//i.test(url)) activeTabUrl = url
-  } catch { /* 无权限或取不到时留空即可 */ }
+    if (/^https?:\/\//i.test(url)) { activeTabUrl = url; activeTabTitle = tab.title || '' }
+  } catch { /* 无权限时留空 */ }
 }
 
-/**
- * 发送时该带哪个 Referer：只有目标与当前页同源时才把页面地址当作 Referer。
- * 手动粘贴的第三方链接带上无关页面的 Referer 只会让服务器更可疑。
- */
 function refererFor(url) {
   try {
     const target = new URL(url)
     const page = activeTabUrl ? new URL(activeTabUrl) : null
     return page && page.origin === target.origin ? page.href : ''
-  } catch {
-    return ''
-  }
+  } catch { return '' }
 }
 
-// Load saved config
-async function loadConfig() {
-  const response = await chrome.runtime.sendMessage({ action: 'getConfig' })
-  if (response) {
-    $('host').value = response.host || 'localhost'
-    $('port').value = response.port || 6800
-    $('secret').value = response.secret || ''
-    $('enabled').checked = response.enabled !== false
-    $('interceptAll').checked = response.interceptAll === true
-    $('allowCookies').checked = response.allowCookies === true
-  }
-  applyPairingUi(!!response?.secret)
-  return response
-}
-
-async function getConfigSafe() {
-  try {
-    return await chrome.runtime.sendMessage({ action: 'getConfig' })
-  } catch {
-    return null
-  }
-}
-
-/**
- * 刷新连接状态：优先走后台的 App 本地接口（能区分"引擎未启动"和"接口不可达"），
- * 后台不可用时回落到直连 RPC 检测，保住"App 没开但引擎在跑也能用"的能力。
- */
-async function refreshStatus() {
-  setStatus('loading', i18n('testing'))
-  const config = await getConfigSafe()
-  if (config?.secret) {
-    const appStatus = await chrome.runtime.sendMessage({ action: 'getAppStatus' })
-    if (appStatus?.handled) {
-      if (appStatus.engineRunning) {
-        setStatus('connected', appStatus.engineVersion
-          ? i18n('connectedVersion', [appStatus.engineVersion])
-          : i18n('engineReady'))
-      } else {
-        setStatus('disconnected', i18n('engineNotRunning'))
-      }
-      if (config.enabled === false) showFeedback(i18n('connectedButDisabled'), true)
-      return
-    }
-  }
-  await refreshStatusViaRpc()
-}
-
-/** 回落路径：直接问本机 aria2 的 RPC（App 侧接口不可用时仍可用） */
-async function refreshStatusViaRpc() {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'testConnection' })
-    if (response?.success) {
-      setStatus('connected', i18n('connectedVersion', [String(response.version ?? '')]))
-      // 连得上但扩展被停用时，明确说出来，否则用户会奇怪"为什么右键没反应"
-      if (response.enabled === false) showFeedback(i18n('connectedButDisabled'), true)
-    } else {
-      // 胶囊放短状态，后台返回的排错长文案走下面的详情行
-      setStatus('disconnected', i18n('notConnectedShort'), response?.error)
-    }
-  } catch {
-    setStatus('disconnected', i18n('notConnectedShort'))
-  }
-}
-
-const newDownloadDialog = $('newDownloadDialog')
-const newDownloadForm = $('newDownloadForm')
-const newTaskUrl = $('newTaskUrl')
-const newTaskError = $('newTaskError')
+function newDownloadDialog() { return $('newDownloadDialog') }
+function newTaskUrl() { return $('newTaskUrl') }
+function newTaskError() { return $('newTaskError') }
 
 function clearDialogError() {
-  newTaskError.hidden = true
-  newTaskUrl.removeAttribute('aria-invalid')
-  for (const input of [newTaskUrl, $('newTaskName'), $('newTaskUserAgent'), $('newTaskReferer')]) {
-    input.removeAttribute('aria-invalid')
-  }
+  newTaskError().hidden = true
+  for (const input of [newTaskUrl(), $('newTaskName'), $('newTaskUserAgent'), $('newTaskReferer')]) input.removeAttribute('aria-invalid')
 }
 
 function showDialogError(message, field) {
-  newTaskError.textContent = message
-  newTaskError.hidden = false
+  const error = newTaskError()
+  error.textContent = message
+  error.hidden = false
   field.setAttribute('aria-invalid', 'true')
   field.focus()
 }
 
-/** 打开新建下载弹窗；原生 dialog 自带焦点陷阱与 Esc 关闭 */
 function openDownloadDialog() {
-  if (!isPaired || newDownloadDialog.open) return
+  if (!isPaired || newDownloadDialog().open) return
   clearDialogError()
   $('newDownloadBtn').setAttribute('aria-expanded', 'true')
-  newDownloadDialog.showModal()
-  window.requestAnimationFrame(() => newTaskUrl.focus())
+  newDownloadDialog().showModal()
+  window.requestAnimationFrame(() => newTaskUrl().focus())
 }
 
-function closeDownloadDialog() {
-  if (newDownloadDialog.open) newDownloadDialog.close()
-}
+function closeDownloadDialog() { if (newDownloadDialog().open) newDownloadDialog().close() }
 
-/** 粘贴剪贴板内容到弹窗输入框（manifest 已声明 clipboardRead） */
 async function pasteFromClipboard() {
   try {
     const text = await navigator.clipboard.readText()
-    if (!text?.trim()) {
-      showDialogError(i18n('pasteEmpty'), newTaskUrl)
-      return
-    }
-    newTaskUrl.value = text.trim()
+    if (!text?.trim()) { showDialogError(i18n('pasteEmpty'), newTaskUrl()); return }
+    newTaskUrl().value = text.trim()
     clearDialogError()
-    newTaskUrl.focus()
-  } catch {
-    showDialogError(i18n('pasteFailed'), newTaskUrl)
-  }
+    newTaskUrl().focus()
+  } catch { showDialogError(i18n('pasteFailed'), newTaskUrl()) }
 }
 
-/** 提交新建下载：链接必填；文件名与请求头交给 App/引擎侧净化 */
-async function submitDownload() {
-  const url = newTaskUrl.value.trim()
-  if (!/^(?:https?:\/\/|magnet:\?)/i.test(url)) {
-    showDialogError(i18n('invalidDownloadUrl'), newTaskUrl)
-    return
-  }
-  const referer = $('newTaskReferer').value.trim()
-  if (referer && !/^https?:\/\//i.test(referer)) {
-    showDialogError(i18n('invalidReferer'), $('newTaskReferer'))
-    return
-  }
+function sendSuccessMessage(response) {
+  if (response?.conflict && response?.renamed) return i18n('sendSuccessRenamed')
+  if (response?.subdir) return i18n('sendSuccessSubdir')
+  return i18n('sendSuccessUnclassified')
+}
 
+async function submitDownload() {
+  const url = newTaskUrl().value.trim()
+  if (!/^(?:https?:\/\/|magnet:\?)/i.test(url)) { showDialogError(i18n('invalidDownloadUrl'), newTaskUrl()); return }
+  const referer = $('newTaskReferer').value.trim()
+  if (referer && !/^https?:\/\//i.test(referer)) { showDialogError(i18n('invalidReferer'), $('newTaskReferer')); return }
   const btn = $('newDownloadSubmit')
   const btnText = $('newDownloadSubmitText')
   btn.disabled = true
@@ -320,545 +524,289 @@ async function submitDownload() {
   try {
     const fileName = $('newTaskName').value.trim()
     const userAgent = $('newTaskUserAgent').value.trim()
-    const options = {}
-    if (fileName) options.out = fileName
-    const headers = []
-    if (userAgent) headers.push('User-Agent: ' + userAgent)
-
-    const response = await chrome.runtime.sendMessage({
-      action: 'sendToAria2',
-      url,
-      options,
-      pageUrl: referer || refererFor(url),
-      headers
-    })
+    const options = fileName ? { out: fileName } : {}
+    const headers = userAgent ? ['User-Agent: ' + userAgent] : []
+    const response = await sendMessage({ action: 'sendToAria2', url, options, pageUrl: referer || refererFor(url), headers })
     if (response?.success) {
-      // 结果直接可见：重名改名 > 分类子目录 > 未识别到分类，不让人猜
-      if (response.conflict && response.renamed) {
-        showFeedback(i18n('sendSuccessRenamed', [response.renamed]))
-      } else if (response.subdir) {
-        showFeedback(i18n('sendSuccessSubdir', [response.subdir]))
-      } else {
-        showFeedback(i18n('sendSuccessUnclassified'))
-      }
-      newDownloadForm.reset()
+      showFeedback(sendSuccessMessage(response))
+      $('newDownloadForm').reset()
       clearDialogError()
       closeDownloadDialog()
-    } else {
-      showDialogError(response?.error || i18n('errUnknown'), newTaskUrl)
-    }
-  } catch {
-    showDialogError(i18n('errUnknown'), newTaskUrl)
-  } finally {
-    btn.disabled = false
-    btnText.textContent = i18n('addDownload')
-  }
+      if (currentTab === 'tasks') await loadTasks()
+    } else showDialogError(response?.error || i18n('errUnknown'), newTaskUrl())
+  } catch { showDialogError(i18n('errUnknown'), newTaskUrl()) }
+  finally { btn.disabled = false; btnText.textContent = i18n('addDownload') }
 }
 
-/**
- * 一键配对：**请求由 Service Worker 执行**（关键修复）。
- * 点击后用户要切到 Aria2 Desktop 点「允许」，而浏览器 action 弹窗一失去焦点就被销毁——
- * 在弹窗里发请求会随之中止，配对永远无法完成。挪到 SW 后弹窗可关、浏览器可最小化；
- * 结果写入 storage（配对成功还会发系统通知），本弹窗通过 storage 变更事件实时感知。
- */
-function startPairing() {
-  const btn = $('pairBtn')
+async function downloadPageVideo() {
+  if (!isPaired) return
+  if (!activeTabUrl) { showFeedback(i18n('streamPageUnsupported'), true); return }
+  const btn = $('pageVideoBtn')
   btn.disabled = true
-  btn.textContent = i18n('pairingWaiting')
-  showFeedback(i18n('pairingInBackground'))
-
-  chrome.runtime.sendMessage({ action: 'startPairing' }).catch(() => { /* popup 关闭时无所谓 */ })
-}
-
-/** 配对结果落库后（无论弹窗是否还开着）统一刷新界面 */
-function onPairingResult(result) {
-  const btn = $('pairBtn')
-  btn.disabled = false
-  if (result?.ok) {
-    showFeedback(i18n('pairingSuccess'))
-    // 配对成功后同一个按钮切换为「解除配对」
-    applyPairingUi(true)
-    // 配对是"一次性设置"，完成后自动回到日常的发送模式，减少一次多余点击
-    switchTab('send')
-  } else {
-    applyPairingUi(false)
-    if (result?.error) showFeedback(result.error, true)
-  }
-  refreshStatus()
-}
-
-// 解除配对（两段式确认，替代 window.confirm——MV3 弹窗里原生 confirm 会被直接关闭）：
-// 清除扩展侧保存的连接凭据（host/port/密钥恢复默认值）。
-// 注意：这只影响扩展本地；如需**彻底撤销授权**（让旧密钥作废），
-// 要在 Aria2 Desktop 的「设置 → RPC 安全设置」中更换访问密钥，之后所有客户端都需重新配对。
-async function unpair() {
-  const btn = $('pairBtn')
-  if (!unpairArmed) {
-    unpairArmed = true
-    btn.classList.add('armed')
-    btn.textContent = i18n('unpairReconfirm')
-    unpairArmTimer = setTimeout(() => resetUnpairArm(btn), 3000)
-    return
-  }
-  resetUnpairArm(btn)
-  btn.disabled = true
-  $('secret').value = ''
-  $('host').value = 'localhost'
-  $('port').value = 6800
-  await saveConfig()
-  showFeedback(i18n('unpairDone'))
-  applyPairingUi(false)
-  refreshStatus()
-}
-
-function resetUnpairArm(btn) {
-  unpairArmed = false
-  if (unpairArmTimer) { clearTimeout(unpairArmTimer); unpairArmTimer = null }
-  btn.classList.remove('armed')
-  btn.textContent = i18n('unpair')
-}
-
-// Save config
-async function saveConfig() {
-  const host = $('host').value.trim() || 'localhost'
-  const port = parseInt($('port').value, 10)
-
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    showFeedback(i18n('invalidPort'), true)
-    return
-  }
-
-  // 非本机地址按需申请访问权限：安装时只申请本机，避免出现"此扩展可读取所有网站数据"的吓人提示。
-  // 必须在这一步（用户手势内）直接调用 chrome.permissions.request，不能在后台脚本里代为申请。
-  if (!LOCAL_HOSTS.has(host.toLowerCase()) && chrome.permissions?.request) {
-    try {
-      const granted = await chrome.permissions.request({
-        origins: [`http://${host}/*`, `https://${host}/*`]
-      })
-      if (!granted) {
-        showFeedback(i18n('permissionDenied', [host]), true)
-        return
-      }
-    } catch {
-      showFeedback(i18n('permissionDenied', [host]), true)
-      return
-    }
-  }
-
-  const btn = $('saveBtn')
-  btn.disabled = true
+  showFeedback(i18n('pageVideoWorking'))
   try {
-    const response = await chrome.runtime.sendMessage({
-      action: 'saveConfig',
-      config: {
-        host,
-        port,
-        secret: $('secret').value.trim(),
-        enabled: $('enabled').checked,
-        interceptAll: $('interceptAll').checked,
-        allowCookies: $('allowCookies').checked
-      }
-    })
+    const result = await sendMessage({ action: 'streamPageVideo', pageUrl: activeTabUrl, title: activeTabTitle })
+    if (result?.success) showFeedback(i18n('pageVideoSent'))
+    else showFeedback(result?.error || i18n('streamPageFailed', ['']), true)
+  } catch { showFeedback(i18n('streamPageUnreachable'), true) }
+  finally { btn.disabled = !isPaired }
+}
+
+async function checkSnifferPermission() {
+  try {
+    if (!chrome.permissions?.contains) return true
+    snifferPermissionGranted = await chrome.permissions.contains({ origins: ['http://*/*', 'https://*/*'] })
+    return snifferPermissionGranted
+  } catch { return false }
+}
+
+async function enableSniffer() {
+  try {
+    const granted = await chrome.permissions.request({ origins: ['http://*/*', 'https://*/*'] })
+    if (!granted) { showFeedback(i18n('snifferPermissionDenied'), true); return }
+    snifferPermissionGranted = true
+    await loadSniffer()
+    startSnifferPolling()
+  } catch { showFeedback(i18n('snifferPermissionDenied'), true) }
+}
+
+function updateSnifferStatus() {
+  if (!snifferPermissionGranted) { $('snifferStatusText').textContent = i18n('snifferPermissionShort'); return }
+  $('snifferStatusText').textContent = i18n(snifferPaused ? 'snifferPausedText' : 'snifferStatusText', [String(snifferItems.length)])
+}
+
+async function loadSniffer() {
+  if (snifferLoading) return
+  if (!await checkSnifferPermission()) { snifferPermissionGranted = false; snifferItems = []; renderResources(); updateSnifferStatus(); return }
+  snifferPermissionGranted = true
+  snifferLoading = true
+  try {
+    const response = await sendMessage({ action: 'getSnifferData' })
     if (response?.success) {
-      showFeedback(i18n('settingsSaved'))
-      applyPairingUi(!!$('secret').value.trim())
-      refreshStatus()
-    } else {
-      showFeedback(response?.error || i18n('errUnknown'), true)
+      snifferItems = Array.isArray(response.items) ? response.items : []
+      renderResources()
+      updateSnifferStatus()
     }
-  } catch {
-    showFeedback(i18n('errUnknown'), true)
-  } finally {
-    btn.disabled = false
-  }
+  } catch { /* 短暂失败不打扰 */ }
+  finally { snifferLoading = false }
 }
 
-/**
- * 开关切换即保存：读取已保存配置 → 只替换变化的字段 → 存回。
- * 走"读-合并-写"而不是用表单值：表单里可能有用户尚未保存的其它输入，
- * 顺手存进去会让"切换一个开关"变成"提交整页设置"。
- */
-// ── 批量抓取当前页面链接 ──
-let grabbedLinks = []
+function startSnifferPolling() {
+  if (snifferPollTimer) clearInterval(snifferPollTimer)
+  snifferPollTimer = setInterval(() => { if (!snifferPaused && document.visibilityState === 'visible') loadSniffer() }, 1000)
+}
+function stopSnifferPolling() { if (snifferPollTimer) { clearInterval(snifferPollTimer); snifferPollTimer = null } }
 
-async function grabPageLinks() {
-  const btn = $('grabBtn')
-  btn.disabled = true
-  btn.textContent = i18n('grabbing')
-  $('grabListWrap').hidden = true
-  $('grabFilterWrap').hidden = true
-  $('sendSelectedBtn').hidden = true
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'grabPageLinks' })
-    if (!response?.success) {
-      showFeedback(response?.error || i18n('grabFailed'), true)
-      return
-    }
-    grabbedLinks = response.links || []
-    renderGrabList('')
-    if (grabbedLinks.length === 0) showFeedback(i18n('grabEmpty'), true)
-  } catch {
-    showFeedback(i18n('grabFailed'), true)
-  } finally {
-    btn.disabled = false
-    btn.textContent = i18n('grabBtn')
-  }
+function resourceKindLabel(kind) {
+  if (kind === 'video') return i18n('snifferFilterVideo')
+  if (kind === 'audio') return i18n('snifferFilterAudio')
+  if (kind === 'image') return i18n('snifferFilterImage')
+  return i18n('snifferFilterOther')
 }
 
-function renderGrabList(filter) {
-  const list = $('grabList')
+function resourceThumb(kind) {
+  if (kind === 'video') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="m10 9 5 3-5 3V9Z"/></svg>'
+  if (kind === 'audio') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'
+  if (kind === 'image') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>'
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 9-3 3 3 3"/><path d="m16 9 3 3-3 3"/><path d="m13 5-2 14"/></svg>'
+}
+
+function resourceName(item) {
+  try { return decodeURIComponent(new URL(item.url).pathname.split('/').filter(Boolean).pop() || '') || item.url } catch { return item.url }
+}
+function resourceHost(item) { try { return new URL(item.url).host } catch { return '' } }
+
+function renderResources() {
+  const list = $('resourceList')
+  if (!list) return
   list.textContent = ''
-  const query = filter.trim().toLowerCase()
-  let shown = 0
-  for (const item of grabbedLinks) {
-    const hit = !query || item.url.toLowerCase().includes(query) || item.text.toLowerCase().includes(query)
-    if (!hit) continue
-    shown++
+  if (!snifferPermissionGranted) {
+    const empty = document.createElement('div')
+    empty.className = 'empty-state'
+    empty.textContent = i18n('snifferPermissionNeeded')
+    const button = document.createElement('button')
+    button.className = 'btn btn-primary'
+    button.style.marginTop = '10px'
+    button.textContent = i18n('snifferEnable')
+    button.addEventListener('click', enableSniffer)
+    empty.appendChild(document.createElement('br'))
+    empty.appendChild(button)
+    list.appendChild(empty)
+    $('selectionBar').hidden = true
+    return
+  }
+  const filtered = snifferItems.filter(item => snifferFilter === 'all' || item.kind === snifferFilter)
+  if (filtered.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'empty-state'
+    empty.textContent = i18n('snifferEmpty')
+    list.appendChild(empty)
+    $('selectionBar').hidden = true
+    return
+  }
+  for (const item of filtered) {
     const row = document.createElement('label')
-    row.className = 'grab-item'
-    const cb = document.createElement('input')
-    cb.type = 'checkbox'
-    cb.checked = true
-    cb.dataset.url = item.url
-    cb.addEventListener('change', updateSendSelected)
-    const text = document.createElement('span')
-    text.className = 'g-text'
-    text.textContent = item.text || item.url
-    const urlLine = document.createElement('span')
-    urlLine.className = 'g-url'
-    urlLine.textContent = item.url
-    text.appendChild(urlLine)
-    row.appendChild(cb)
-    row.appendChild(text)
+    row.className = 'resource-row'
+    const check = document.createElement('input')
+    check.className = 'resource-check'
+    check.type = 'checkbox'
+    check.checked = snifferSelected.has(item.url)
+    check.addEventListener('change', () => { if (check.checked) snifferSelected.add(item.url); else snifferSelected.delete(item.url); updateSelectionBar() })
+    const thumb = document.createElement('span')
+    thumb.className = 'resource-thumb ' + item.kind
+    thumb.innerHTML = resourceThumb(item.kind)
+    const copy = document.createElement('span')
+    copy.className = 'resource-copy'
+    const name = document.createElement('span')
+    name.className = 'resource-name'
+    name.textContent = resourceName(item)
+    name.title = item.url
+    const meta = document.createElement('span')
+    meta.className = 'resource-meta'
+    meta.textContent = (item.method || 'GET') + ' · ' + resourceHost(item) + ' · ' + resourceKindLabel(item.kind)
+    copy.appendChild(name); copy.appendChild(meta)
+    const download = document.createElement('button')
+    download.className = 'resource-dl'
+    download.type = 'button'
+    download.title = i18n('mediaSend')
+    download.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>'
+    download.addEventListener('click', async (event) => {
+      event.preventDefault(); event.stopPropagation(); download.disabled = true
+      try {
+        const result = await sendMessage({ action: 'sendToAria2', url: item.url, pageUrl: refererFor(item.url) })
+        if (result?.success) showFeedback(i18n('sendSuccessUnclassified'))
+        else showFeedback(result?.error || i18n('errUnknown'), true)
+      } finally { download.disabled = false }
+    })
+    row.appendChild(check); row.appendChild(thumb); row.appendChild(copy); row.appendChild(download)
     list.appendChild(row)
   }
-  if (shown === 0) {
-    const none = document.createElement('div')
-    none.className = 'grab-item'
-    none.textContent = i18n('grabEmpty')
-    list.appendChild(none)
-  }
-  updateSendSelected()
+  updateSelectionBar()
 }
 
-function updateSendSelected() {
-  const btn = $('sendSelectedBtn')
-  const count = $('grabList').querySelectorAll('input:checked').length
-  btn.hidden = count === 0
-  btn.textContent = i18n('sendSelectedCount', [String(count)])
+function updateSelectionBar() {
+  const count = snifferSelected.size
+  $('selectionBar').hidden = count === 0
+  $('selectedCount').textContent = i18n('snifferSelected', [String(count)])
+  $('batchDownload').textContent = i18n('snifferDownload', [String(count)])
 }
 
-async function sendGrabbed() {
-  const btn = $('sendSelectedBtn')
-  const checked = [...$('grabList').querySelectorAll('input:checked')].map(cb => cb.dataset.url)
-  if (checked.length === 0) return
+async function sendSelectedResources() {
+  const links = [...snifferSelected]
+  if (links.length === 0) return
+  const btn = $('batchDownload')
   btn.disabled = true
   btn.textContent = i18n('sending')
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'sendGrabbedLinks', links: checked })
-    if (response && response.sent > 0) {
-      showFeedback(i18n('grabSentCount', [String(response.sent)]))
-      if (response.failed > 0) showFeedback(i18n('grabPartial', [String(response.sent), String(response.failed)]), true)
-      grabbedLinks = []
-      $('grabListWrap').hidden = true
-      $('grabFilterWrap').hidden = true
-      btn.hidden = true
-    } else {
-      showFeedback(i18n('errUnknown'), true)
-    }
-  } catch {
-    showFeedback(i18n('errUnknown'), true)
-  } finally {
-    btn.disabled = false
-    btn.textContent = i18n('sendSelected')
-  }
+    const response = await sendMessage({ action: 'sendGrabbedLinks', links, pageUrl: activeTabUrl })
+    if (response?.sent > 0) { showFeedback(i18n('grabSentCount', [String(response.sent)])); snifferSelected.clear(); await loadSniffer() }
+    else showFeedback(i18n('errUnknown'), true)
+  } catch { showFeedback(i18n('errUnknown'), true) }
+  finally { btn.disabled = false; updateSelectionBar() }
 }
 
-async function patchConfig(patch) {
-  const current = await getConfigSafe()
-  const config = {
-    host: current?.host || 'localhost',
-    port: current?.port || 6800,
-    secret: current?.secret || '',
-    enabled: current?.enabled !== false,
-    interceptAll: current?.interceptAll === true,
-    allowCookies: current?.allowCookies === true,
-    ...patch
-  }
-  return await chrome.runtime.sendMessage({ action: 'saveConfig', config })
+function switchTab(name) {
+  currentTab = name
+  for (const pane of document.querySelectorAll('.pane')) pane.classList.toggle('active', pane.dataset.pane === name)
+  for (const nav of document.querySelectorAll('.nav-item')) nav.classList.toggle('active', nav.dataset.tab === name)
+  if (name === 'tasks') { startTaskPolling(); loadTasks() } else stopTaskPolling()
+  if (name === 'sniffer') {
+    checkSnifferPermission().then(granted => { snifferPermissionGranted = granted; renderResources(); updateSnifferStatus(); if (granted) loadSniffer() })
+    startSnifferPolling()
+  } else stopSnifferPolling()
 }
 
-// Test connection
-async function testConnection() {
-  const btn = $('testBtn')
-  btn.disabled = true
-  await refreshStatus()
-  btn.disabled = false
+function startTaskPolling() {
+  if (taskPollTimer) clearInterval(taskPollTimer)
+  taskPollTimer = setInterval(() => { if (document.visibilityState === 'visible') loadTasks() }, 2000)
 }
+function stopTaskPolling() { if (taskPollTimer) { clearInterval(taskPollTimer); taskPollTimer = null } }
 
-/**
- * 「携带页面 Cookie」开关。
- * 读 cookie 必须对该站点有宿主权限，
- * 而扩展只在点击图标时通过 activeTab 临时获得——要让拦截下载/右键菜单也带 Cookie，
- * 就必须由用户显式授予全站访问权限。
- */
-$('allowCookies').addEventListener('change', async (event) => {
-  const enabled = event.target.checked
-  // cookies 是可选权限：开启时必须一并申请，否则后台读不到 Cookie（chrome.cookies 为 undefined）
-  if (!(await requestSiteAccess(enabled, event, 'cookiesPermissionDenied', ['cookies']))) return
-  const saved = await patchConfig({ allowCookies: enabled })
-  if (saved?.success) showFeedback(i18n(enabled ? 'cookiesEnabled' : 'cookiesDisabled'))
-})
-
-/**
- * 申请扩展 API 权限（cookies / scripting 为**可选权限**，manifest 里没声明为必选）。
- *
- * 为什么做成可选：这两项只在用户开启对应功能时才需要（携带 Cookie / 检测本页视频），
- * 必选会让所有安装者都看到"读取 Cookie"这类敏感授权提示，安装阻力与商店审核成本都更高。
- * `chrome.permissions.request` 必须在**用户手势**里调用，因此只能在弹窗的点击/开关事件中执行，
- * 不能由 Service Worker 代办。
- */
-async function ensurePermissions(permissions) {
-  try {
-    if (!chrome.permissions?.request) return false
-    const has = await chrome.permissions.contains({ permissions })
-    if (has) return true
-    return await chrome.permissions.request({ permissions })
-  } catch {
-    return false
-  }
-}
-
-/**
- * 申请/收回全站访问权限 + 可选 API 权限。返回 false 表示用户拒绝，调用方需把开关状态回滚。
- */
-async function requestSiteAccess(enabled, event, deniedKey, permissions = []) {
-  try {
-    if (enabled) {
-      const granted = await chrome.permissions.request({
-        origins: ['http://*/*', 'https://*/*'],
-        ...(permissions.length ? { permissions } : {})
-      })
-      if (!granted) {
-        event.target.checked = false
-        showFeedback(i18n(deniedKey), true)
-        return false
-      }
-      return true
-    }
-
-    // 关闭：收回本开关申请的权限
-    const removeSpec = {}
-    if (permissions.length) removeSpec.permissions = permissions
-    removeSpec.origins = ['http://*/*', 'https://*/*']
-    await chrome.permissions.remove(removeSpec).catch(() => { /* 收权失败不影响开关本身 */ })
-    return true
-  } catch {
-    event.target.checked = false
-    showFeedback(i18n(deniedKey), true)
-    return false
-  }
-}
-
-/** App 侧暂不可用的错误码：退回「检测本页直链」仍能下载 */
-const STREAM_FALLBACK_CODES = new Set(['unreachable', 'ytdlp_missing', 'ffmpeg_missing'])
-
-/**
- * 下载本页视频（统一入口）：
- * 1) 优先交给 App 的 yt-dlp 解析（支持 1000+ 站点，自动合并音轨）；
- * 2) App 未运行 / 缺 yt-dlp / 缺 ffmpeg 时，退回检测本页可直接下载的直链并列出。
- */
-async function downloadPageVideo() {
-  const btn = $('pageVideoBtn')
-  btn.disabled = true
-  btn.textContent = i18n('pageVideoWorking')
-  $('mediaList').hidden = true
-  $('mediaHint').hidden = true
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-    if (!tab?.url || !/^https?:\/\//i.test(tab.url)) {
-      showFeedback(i18n('streamPageUnsupported'), true)
-      return
-    }
-    const result = await chrome.runtime.sendMessage({
-      action: 'streamPageVideo',
-      pageUrl: tab.url,
-      title: tab.title || ''
-    })
-    if (result?.success) {
-      showFeedback(i18n('streamPageSent'))
-      return
-    }
-    if (result?.code && STREAM_FALLBACK_CODES.has(result.code)) {
-      const count = await detectAndListMedia()
-      if (count > 0) {
-        showFeedback(i18n('streamPageFallback'))
-        return
+function bindEvents() {
+  for (const nav of document.querySelectorAll('.nav-item')) nav.addEventListener('click', () => switchTab(nav.dataset.tab))
+  for (const btn of document.querySelectorAll('#taskFilter button')) btn.addEventListener('click', () => setTaskFilter(btn.dataset.filter))
+  for (const btn of document.querySelectorAll('#snifferFilter .filter-chip')) btn.addEventListener('click', () => {
+    snifferFilter = btn.dataset.kind
+    for (const chip of document.querySelectorAll('#snifferFilter .filter-chip')) { chip.classList.toggle('active', chip === btn); chip.setAttribute('aria-selected', String(chip === btn)) }
+    renderResources()
+  })
+  $('refreshStatusBtn').addEventListener('click', () => { refreshStatus(); if (currentTab === 'tasks') loadTasks() })
+  $('newDownloadBtn').addEventListener('click', openDownloadDialog)
+  $('newDownloadClose').addEventListener('click', closeDownloadDialog)
+  $('newDownloadCancel').addEventListener('click', closeDownloadDialog)
+  $('newDownloadDialog').addEventListener('click', (event) => {
+    const dialog = $('newDownloadDialog')
+    if (event.target !== dialog) return
+    const rect = dialog.getBoundingClientRect()
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDownloadDialog()
+  })
+  $('newDownloadDialog').addEventListener('close', () => { $('newDownloadBtn').setAttribute('aria-expanded', 'false'); $('newDownloadBtn').focus() })
+  $('newDownloadForm').addEventListener('submit', (event) => { event.preventDefault(); submitDownload() })
+  for (const input of [$('newTaskUrl'), $('newTaskName'), $('newTaskUserAgent'), $('newTaskReferer')]) input.addEventListener('input', () => { if (!$('newTaskError').hidden) clearDialogError() })
+  $('pasteBtn').addEventListener('click', pasteFromClipboard)
+  $('pageVideoBtn').addEventListener('click', downloadPageVideo)
+  $('snifferPauseBtn').addEventListener('click', () => {
+    snifferPaused = !snifferPaused
+    $('snifferPauseBtn').innerHTML = snifferPaused
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m7 4 12 8-12 8V4Z"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></svg>'
+    $('snifferPauseBtn').title = i18n(snifferPaused ? 'snifferResume' : 'snifferPause')
+    $('snifferPauseBtn').setAttribute('aria-label', $('snifferPauseBtn').title)
+    updateSnifferStatus()
+    if (!snifferPaused) loadSniffer()
+  })
+  $('batchDownload').addEventListener('click', sendSelectedResources)
+  $('pairBtn').addEventListener('click', startPairing)
+  $('unpairBtn').addEventListener('click', unpair)
+  $('bannerPairBtn').addEventListener('click', () => switchTab('settings'))
+  $('snifferPairBtn').addEventListener('click', () => switchTab('settings'))
+  $('testBtn').addEventListener('click', async () => {
+    const btn = $('testBtn')
+    btn.disabled = true
+    try {
+      const response = await sendMessage({ action: 'testConnection' })
+      if (response?.success) showFeedback(i18n('connectedVersion', [String(response.version || '')]))
+      else showFeedback(response?.error || i18n('errCannotConnect', ['localhost:6800']), true)
+    } catch { showFeedback(i18n('errCannotConnect', ['localhost:6800']), true) }
+    finally { btn.disabled = false }
+    refreshStatus()
+  })
+  $('saveBtn').addEventListener('click', saveConfig)
+  for (const id of ['host', 'port', 'secret']) $(id).addEventListener('input', updateEndpoint)
+  $('enabled').addEventListener('change', async (event) => { const saved = await patchConfig({ enabled: event.target.checked }); if (!saved) event.target.checked = !event.target.checked })
+  $('interceptAll').addEventListener('change', async (event) => { const saved = await patchConfig({ interceptAll: event.target.checked }); if (!saved) event.target.checked = !event.target.checked })
+  $('allowCookies').addEventListener('change', async (event) => {
+    const enabled = event.target.checked
+    if (!(await requestSiteAccess(enabled, event, 'cookiesPermissionDenied', ['cookies']))) return
+    const saved = await patchConfig({ allowCookies: enabled })
+    if (saved) showFeedback(i18n(enabled ? 'cookiesEnabled' : 'cookiesDisabled'))
+  })
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return
+    if (changes.config) loadConfig().then(() => refreshStatus())
+    if (changes.lastPairing && changes.lastPairing.newValue) {
+      const result = changes.lastPairing.newValue
+      const btn = $('pairBtn')
+      btn.disabled = false
+      if (result.ok) {
+        showFeedback(i18n('pairingSuccess'))
+        loadConfig().then(() => refreshStatus())
+      } else {
+        btn.textContent = i18n('pairWithApp')
+        showFeedback(result.error || i18n('pairingFailed'), true)
       }
     }
-    showFeedback(result?.error || i18n('streamPageFailed', ['']), true)
-  } catch {
-    showFeedback(i18n('streamPageUnreachable'), true)
-  } finally {
-    btn.textContent = i18n('pageVideoBtn')
-    // 未配对时保持禁用（loadConfig / 配对变化会更新 secret 输入框）
-    btn.disabled = !$('secret').value.trim()
-  }
-}
-
-/** 退回路径：检测本页可直接下载的直链（scripting 为可选权限，首次点击时申请） */
-async function detectAndListMedia() {
-  if (!(await ensurePermissions(['scripting']))) {
-    $('mediaHint').textContent = i18n('mediaPermissionDenied')
-    $('mediaHint').hidden = false
-    return 0
-  }
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'detectPageMedia' })
-    if (!response?.success) {
-      $('mediaHint').textContent = response?.error || i18n('mediaPermissionDenied')
-      $('mediaHint').hidden = false
-      return 0
-    }
-    return renderMedia(response.items || [], response.pageUrl || '')
-  } catch {
-    $('mediaHint').textContent = i18n('mediaPermissionDenied')
-    $('mediaHint').hidden = false
-    return 0
-  }
-}
-
-/**
- * 渲染检测结果。只有 `file` 类型可一键发送：
- * `blob:` 是页面用 MSE 拼出来的，`m3u8/mpd` 是分片清单——两者直接交给 aria2
- * 只会得到一个无法播放的小文件，因此如实告知改用 App 的流媒体模式。
- */
-function renderMedia(items, pageUrl) {
-  const list = $('mediaList')
-  list.textContent = ''
-  const downloadable = items.filter(item => item.kind === 'file' && /^https?:\/\//i.test(item.url))
-
-  if (downloadable.length === 0) {
-    const hasStream = items.some(item => item.kind === 'stream')
-    const hasBlob = items.some(item => item.kind === 'blob')
-    $('mediaHint').textContent = hasStream
-      ? i18n('mediaStreamHint')
-      : hasBlob ? i18n('mediaBlobHint') : i18n('mediaNone')
-    $('mediaHint').hidden = false
-    return 0
-  }
-
-  for (const item of downloadable) {
-    const row = document.createElement('div')
-    row.className = 'media-item'
-
-    const ext = (item.url.split('?')[0]?.split('.').pop() || '').toUpperCase()
-    const badge = document.createElement('span')
-    badge.className = 'media-kind'
-    badge.textContent = ext.length > 0 && ext.length <= 5 ? ext : i18n('mediaSection')
-    row.appendChild(badge)
-
-    const text = document.createElement('span')
-    text.className = 'media-url'
-    text.textContent = item.label || decodeURIComponent(item.url.split('/').pop() || item.url)
-    text.title = item.url
-    row.appendChild(text)
-
-    const sendBtn = document.createElement('button')
-    sendBtn.type = 'button'
-    sendBtn.textContent = i18n('mediaSend')
-    sendBtn.addEventListener('click', async () => {
-      sendBtn.disabled = true
-      try {
-        const result = await chrome.runtime.sendMessage({
-          action: 'sendToAria2',
-          url: item.url,
-          pageUrl
-        })
-        if (result?.success) showFeedback(i18n('sendSuccessUnclassified'))
-        else showFeedback(result?.error || i18n('errUnknown'), true)
-      } finally {
-        sendBtn.disabled = false
-      }
-    })
-    row.appendChild(sendBtn)
-
-    list.appendChild(row)
-  }
-  list.hidden = false
-  return downloadable.length
-}
-
-// Event listeners
-$('newDownloadBtn').addEventListener('click', openDownloadDialog)
-$('newDownloadClose').addEventListener('click', closeDownloadDialog)
-$('newDownloadCancel').addEventListener('click', closeDownloadDialog)
-newDownloadDialog.addEventListener('click', (event) => {
-  if (event.target !== newDownloadDialog) return
-  const rect = newDownloadDialog.getBoundingClientRect()
-  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
-    closeDownloadDialog()
-  }
-})
-newDownloadDialog.addEventListener('close', () => {
-  $('newDownloadBtn').setAttribute('aria-expanded', 'false')
-  $('newDownloadBtn').focus()
-})
-newDownloadForm.addEventListener('submit', (event) => {
-  event.preventDefault()
-  submitDownload()
-})
-for (const input of [newTaskUrl, $('newTaskName'), $('newTaskUserAgent'), $('newTaskReferer')]) {
-  input.addEventListener('input', () => {
-    if (!newTaskError.hidden) clearDialogError()
   })
 }
-$('pasteBtn').addEventListener('click', pasteFromClipboard)
-$('tabSend').addEventListener('click', () => switchTab('send'))
-$('grabBtn').addEventListener('click', grabPageLinks)
-$('grabFilter').addEventListener('input', (event) => renderGrabList(event.target.value))
-$('sendSelectedBtn').addEventListener('click', sendGrabbed)
-$('tabConnect').addEventListener('click', () => switchTab('connect'))
-$('bannerPairBtn').addEventListener('click', () => {
-  switchTab('connect')
-  startPairing()
-})
-$('pairBtn').addEventListener('click', () => (isPaired ? unpair() : startPairing()))
-$('saveBtn').addEventListener('click', saveConfig)
-$('testBtn').addEventListener('click', testConnection)
-$('pageVideoBtn').addEventListener('click', downloadPageVideo)
 
-// 开关即时保存（allowCookies 涉及权限申请，见上）
-$('enabled').addEventListener('change', async (event) => {
-  await patchConfig({ enabled: event.target.checked })
-  if (!event.target.checked) showFeedback(i18n('errDisabled'), true)
-})
-$('interceptAll').addEventListener('change', (event) => patchConfig({ interceptAll: event.target.checked }))
+async function init() {
+  initTheme()
+  initI18n()
+  bindEvents()
+  await loadConfig()
+  await prefillFromActiveTab()
+  await refreshStatus()
+  switchTab('tasks')
+}
 
-// 配对结果由后台写入 storage：监听变化，弹窗开着就实时刷新（关了也不影响配对本身）
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local') return
-  if (changes.config) {
-    const next = changes.config.newValue ?? {}
-    // 回填表单（B1 修复）：配对成功由 SW 写入 storage，弹窗开着时若不同步回填，
-    // 后续点保存设置会用空的 secret 输入框覆盖刚拿到的密钥
-    elHost.value = next.host || 'localhost'
-    elPort.value = next.port || 6800
-    elSecret.value = next.secret || ''
-    elEnabled.checked = next.enabled !== false
-    elInterceptAll.checked = next.interceptAll === true
-    applyPairingUi(!!next.secret)
-  }
-  if (changes.lastPairing?.newValue) {
-    onPairingResult(changes.lastPairing.newValue)
-  }
-})
-
-// Initialize
-initI18n()
-// 未配对（没有密钥）时直接停在「配对与设置」，省得用户还要自己找入口；已配好则停在日常发送
-loadConfig().then((config) => {
-  switchTab(config?.secret ? 'send' : 'connect')
-})
-prefillFromActiveTab()
-refreshStatus()
+init().catch(() => { /* popup 初始化失败时保留静态界面 */ })

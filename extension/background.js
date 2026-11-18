@@ -400,6 +400,136 @@ async function rpcCall(method, params, config, timeoutMs = RPC_TIMEOUT_MS) {
   }
 }
 
+// ── 任务列表（弹窗任务页） ────────────────────────────────
+function taskDisplayName(item) {
+  const file = Array.isArray(item.files) && item.files[0] ? item.files[0] : null
+  const path = file?.path || ''
+  if (path) return path.split(/[\\/]/).pop() || path
+  if (item.bittorrent?.info?.name) return item.bittorrent.info.name
+  return item.gid
+}
+
+function normalizeTask(item, fallbackStatus) {
+  return {
+    gid: item.gid,
+    status: item.status || fallbackStatus,
+    name: taskDisplayName(item),
+    totalLength: item.totalLength || '0',
+    completedLength: item.completedLength || '0',
+    downloadSpeed: item.downloadSpeed || '0',
+    uploadSpeed: item.uploadSpeed || '0',
+    errorMessage: item.errorMessage || ''
+  }
+}
+
+async function getTasksSnapshot() {
+  const config = await getConfig()
+  if (!config.secret) return { success: false, code: 'not_paired', error: i18n('sendNeedPairing') }
+  try {
+    const [stats, active, waiting, stopped] = await Promise.all([
+      rpcCall('aria2.getGlobalStat', [], config),
+      rpcCall('aria2.tellActive', [], config),
+      rpcCall('aria2.tellWaiting', [0, 50], config),
+      rpcCall('aria2.tellStopped', [0, 20], config)
+    ])
+    return {
+      success: true,
+      stats: {
+        downloadSpeed: stats.downloadSpeed || '0',
+        uploadSpeed: stats.uploadSpeed || '0',
+        numActive: stats.numActive || '0',
+        numWaiting: stats.numWaiting || '0'
+      },
+      tasks: [
+        ...active.map(item => normalizeTask(item, 'active')),
+        ...waiting.map(item => normalizeTask(item, item.status || 'waiting')),
+        ...stopped.map(item => normalizeTask(item, item.status || 'complete'))
+      ]
+    }
+  } catch (error) {
+    return { success: false, error: describeError(error, config) }
+  }
+}
+
+async function taskAction(operation, gid) {
+  const config = await getConfig()
+  if (!config.secret) return { success: false, code: 'not_paired', error: i18n('sendNeedPairing') }
+  try {
+    if (operation === 'pause') await rpcCall('aria2.pause', [gid], config)
+    else if (operation === 'resume') await rpcCall('aria2.unpause', [gid], config)
+    else if (operation === 'remove') {
+      try { await rpcCall('aria2.remove', [gid], config) }
+      catch { await rpcCall('aria2.removeDownloadResult', [gid], config) }
+    } else return { success: false, error: 'unknown operation' }
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: describeError(error, config) }
+  }
+}
+
+// ── 网络嗅探（弹窗嗅探页） ────────────────────────────────
+// 每个 tab 维护最近 200 条请求，仅记录 HTTP(S) 资源；主文档请求用于判断导航并清空旧记录。
+const snifferByTab = new Map()
+const SNIFFER_LIMIT = 200
+const SNIFFER_TYPES = ['sub_frame', 'xmlhttprequest', 'media', 'image', 'script', 'stylesheet', 'font', 'object', 'other']
+
+function classifySniffedResource(details) {
+  const ext = extFromUrl(details.url)
+  const audioExts = ['mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'opus', 'wma', 'ape']
+  const videoExts = ['mp4', 'm4v', 'webm', 'mkv', 'mov', 'avi', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', 'm3u8', 'mpd']
+  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']
+  if (details.type === 'image' || imageExts.includes(ext)) return 'image'
+  if (audioExts.includes(ext)) return 'audio'
+  if (details.type === 'media' || videoExts.includes(ext)) return 'video'
+  return 'other'
+}
+
+function rememberSniffedRequest(details) {
+  if (details.tabId < 0 || !/^https?:/i.test(details.url || '')) return
+  let map = snifferByTab.get(details.tabId)
+  if (!map) { map = new Map(); snifferByTab.set(details.tabId, map) }
+  const key = details.requestId || details.url
+  if (!map.has(key) && map.size >= SNIFFER_LIMIT) {
+    const oldest = map.keys().next().value
+    if (oldest !== undefined) map.delete(oldest)
+  }
+  map.set(key, {
+    id: key,
+    url: details.url,
+    method: details.method || 'GET',
+    kind: classifySniffedResource(details),
+    type: details.type || 'other',
+    statusCode: details.statusCode || 0,
+    time: Date.now()
+  })
+}
+
+if (chrome.webRequest?.onBeforeRequest) {
+  chrome.webRequest.onBeforeRequest.addListener((details) => {
+    if (details.tabId >= 0) snifferByTab.delete(details.tabId)
+  }, { urls: ['http://*/*', 'https://*/*'], types: ['main_frame'] })
+}
+if (chrome.webRequest?.onCompleted) {
+  chrome.webRequest.onCompleted.addListener(rememberSniffedRequest, { urls: ['http://*/*', 'https://*/*'], types: SNIFFER_TYPES })
+}
+if (chrome.tabs?.onRemoved) {
+  chrome.tabs.onRemoved.addListener((tabId) => snifferByTab.delete(tabId))
+}
+if (chrome.webRequest?.onErrorOccurred) {
+  chrome.webRequest.onErrorOccurred.addListener(rememberSniffedRequest, { urls: ['http://*/*', 'https://*/*'], types: SNIFFER_TYPES })
+}
+
+async function getSnifferData() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!tab?.id) return { success: false, error: i18n('mediaUnsupportedPage') }
+    const map = snifferByTab.get(tab.id)
+    return { success: true, tabId: tab.id, items: map ? [...map.values()].reverse() : [] }
+  } catch (error) {
+    return { success: false, error: String(error instanceof Error ? error.message : error) }
+  }
+}
+
 // Send download to Aria2
 async function sendToAria2(url, options = {}, fileNameHint = '', pageUrl = '', extraHeaders = []) {
   const config = await getConfig()
@@ -658,14 +788,14 @@ async function grabActiveTabLinks() {
 
 /** 批量发送抓取到的链接：逐条走 sendToAria2（分类/重名/选项与单条发送一致）。
     返回 { sent, failed, errors } 供弹窗展示结果 */
-async function sendGrabbedLinks(links) {
+async function sendGrabbedLinks(links, pageUrl = '') {
   let sent = 0
   const errors = []
   for (const item of links) {
     const url = typeof item === 'string' ? item : item?.url
     if (!url) continue
     try {
-      const result = await sendToAria2(url)
+      const result = await sendToAria2(url, {}, '', pageUrl)
       if (result.success) sent++
       else errors.push(result.error || url)
     } catch (error) {
@@ -832,6 +962,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
+  if (message.action === 'getTasks') {
+    getTasksSnapshot().then(sendResponse)
+    return true
+  }
+
+  if (message.action === 'taskAction') {
+    taskAction(String(message.operation || ''), String(message.gid || '')).then(sendResponse)
+    return true
+  }
+
+  if (message.action === 'getSnifferData') {
+    getSnifferData().then(sendResponse)
+    return true
+  }
+
   if (message.action === 'sendToAria2') {
     // pageUrl：弹窗把当前标签页地址带上，作为 Referer（登录站点下载成功的关键）
     // options.out：新建下载弹窗填写的文件名，作为 App 侧 fileNameHint；headers：自定义请求头
@@ -856,7 +1001,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'sendGrabbedLinks') {
-    sendGrabbedLinks(message.links || []).then(sendResponse)
+    sendGrabbedLinks(message.links || [], message.pageUrl || '').then(sendResponse)
     return true
   }
 

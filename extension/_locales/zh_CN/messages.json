@@ -453,5 +453,214 @@
   },
   "grabSelectFirst": {
     "message": "请先勾选要下载的链接"
+  },
+  "tabTasks": {
+    "message": "任务"
+  },
+  "tabSniffer": {
+    "message": "嗅探"
+  },
+  "tabSettings": {
+    "message": "设置"
+  },
+  "metricDownload": {
+    "message": "下载"
+  },
+  "metricUpload": {
+    "message": "上传"
+  },
+  "metricActive": {
+    "message": "活动"
+  },
+  "metricWaiting": {
+    "message": "等待"
+  },
+  "tasksTitle": {
+    "message": "任务"
+  },
+  "tasksNote": {
+    "message": "自动刷新"
+  },
+  "taskFilterActive": {
+    "message": "进行中"
+  },
+  "taskFilterWaiting": {
+    "message": "等待"
+  },
+  "taskFilterCompleted": {
+    "message": "已完成"
+  },
+  "taskEmptyActive": {
+    "message": "当前没有进行中的任务"
+  },
+  "taskEmptyWaiting": {
+    "message": "队列为空"
+  },
+  "taskEmptyStopped": {
+    "message": "暂无已完成任务"
+  },
+  "taskStatusActive": {
+    "message": "下载中"
+  },
+  "taskStatusWaiting": {
+    "message": "等待中"
+  },
+  "taskStatusPaused": {
+    "message": "已暂停"
+  },
+  "taskStatusDone": {
+    "message": "已完成"
+  },
+  "taskStatusError": {
+    "message": "失败"
+  },
+  "taskStatusRemoved": {
+    "message": "已移除"
+  },
+  "taskActionPause": {
+    "message": "暂停"
+  },
+  "taskActionResume": {
+    "message": "继续"
+  },
+  "taskActionRemove": {
+    "message": "删除"
+  },
+  "taskFooterCount": {
+    "message": "共 $COUNT$ 项已完成",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferTitle": {
+    "message": "网络嗅探"
+  },
+  "snifferStatusText": {
+    "message": "监听中 · $COUNT$ 个请求",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferPausedText": {
+    "message": "已暂停 · $COUNT$ 个请求",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferPermissionShort": {
+    "message": "待授权"
+  },
+  "snifferPause": {
+    "message": "暂停嗅探"
+  },
+  "snifferResume": {
+    "message": "继续嗅探"
+  },
+  "snifferFilterAll": {
+    "message": "全部"
+  },
+  "snifferFilterVideo": {
+    "message": "视频"
+  },
+  "snifferFilterAudio": {
+    "message": "音频"
+  },
+  "snifferFilterImage": {
+    "message": "图片"
+  },
+  "snifferFilterOther": {
+    "message": "其他"
+  },
+  "snifferHint": {
+    "message": "仅显示当前标签页的网络请求。"
+  },
+  "snifferPermissionNeeded": {
+    "message": "需要授予站点访问权限才能监听当前页面的网络请求。"
+  },
+  "snifferEnable": {
+    "message": "启用嗅探"
+  },
+  "snifferPermissionDenied": {
+    "message": "未授予站点访问权限，网络嗅探不可用。"
+  },
+  "snifferEmpty": {
+    "message": "当前页面还没有可嗅探的请求"
+  },
+  "snifferSelected": {
+    "message": "已选 $COUNT$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferDownload": {
+    "message": "下载 $COUNT$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "pageVideoTitle": {
+    "message": "智能解析本页视频"
+  },
+  "pageVideoDesc": {
+    "message": "交给 App 的 yt-dlp，自动合并音视频"
+  },
+  "pageVideoSent": {
+    "message": "已交给 App 解析"
+  },
+  "settingsTitle": {
+    "message": "设置"
+  },
+  "versionNote": {
+    "message": "扩展版本 $VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "connectionStatusPaired": {
+    "message": "已配对"
+  },
+  "connectionStatusUnpaired": {
+    "message": "未配对"
+  },
+  "connectionStatusEngine": {
+    "message": "已配对 · 引擎 v$VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "connectionStatusEngineOff": {
+    "message": "已配对 · 引擎未运行"
+  },
+  "behaviorTitle": {
+    "message": "行为"
+  },
+  "enableExtDesc": {
+    "message": "关闭后右键菜单和下载接管都不再生效"
+  },
+  "settingsHint": {
+    "message": "扩展不会保存下载文件，所有任务和文件都在 Aria2 Desktop 中管理。"
+  },
+  "manualHint": {
+    "message": "仅在无法自动发现 App 时使用。"
+  },
+  "refreshStatus": {
+    "message": "重新检测连接"
+  },
+  "rePair": {
+    "message": "重新配对"
   }
 }

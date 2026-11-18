@@ -164,7 +164,7 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
     await session.send('Runtime.enable')
     await session.send('Log.enable')
     await session.send('Page.enable')
-    await session.send('Emulation.setDeviceMetricsOverride', { width: 380, height: 720, deviceScaleFactor: 1, mobile: false })
+    await session.send('Emulation.setDeviceMetricsOverride', { width: 400, height: 600, deviceScaleFactor: 1, mobile: false })
     await sleep(1500)
 
     const popupInfo = await evalIn(
@@ -174,45 +174,66 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
         width: document.documentElement.scrollWidth,
         height: document.documentElement.scrollHeight,
         bodyHeight: Math.round(document.body.getBoundingClientRect().height),
-        bodyWidth: Math.round(document.body.getBoundingClientRect().width)
+        bodyWidth: Math.round(document.body.getBoundingClientRect().width),
+        activePane: document.querySelector('.pane.active')?.dataset.pane,
+        navCount: document.querySelectorAll('.nav-item').length
       })`
     )
     const info = JSON.parse(popupInfo)
-    reporter.check('popup 已渲染', info.width > 200 && info.height > 300, `${info.width}x${info.height}`)
-    reporter.check('popup 包含扩展主界面文案', /Aria2 Desktop/.test(info.text) && /发送|Send|配对|Pair/i.test(info.text))
-    // 信息密度回归：整页内容高度受限、无横向溢出（提示文案精简 + 紧凑布局）
-    reporter.check('popup 内容高度不超过 480px', info.bodyHeight > 0 && info.bodyHeight <= 480, `body ${info.bodyHeight}px`)
-    reporter.check('popup 无横向溢出', info.bodyWidth <= 341, `body ${info.bodyWidth}px`)
+    reporter.check('popup 已渲染', info.width >= 390 && info.height >= 590, `${info.width}x${info.height}`)
+    reporter.check('popup 包含原型主界面文案', /Aria2 Desktop/.test(info.text) && /任务|Tasks/.test(info.text) && /嗅探|Sniffer/.test(info.text) && /设置|Settings/.test(info.text))
+    reporter.check('popup 默认展示任务页', info.activePane === 'tasks' && info.navCount === 3, JSON.stringify({ activePane: info.activePane, navCount: info.navCount }))
+    reporter.check('popup 内容高度不超过 600px', info.bodyHeight > 0 && info.bodyHeight <= 600, `body ${info.bodyHeight}px`)
+    reporter.check('popup 无横向溢出', info.bodyWidth <= 401, `body ${info.bodyWidth}px`)
     reporter.check('popup 无运行时异常', collectErrors(session).length === 0)
     await capture(session, path.join(outDir, '07-extension-popup.png'))
 
-    // 发送页布局（未配对时默认停在「配对与设置」）：切过去校验新建下载入口与弹窗
-    await evalIn(session, `document.getElementById('tabSend').click()`)
-    await sleep(400)
-    const sendLayout = await evalIn(
+    const taskLayout = await evalIn(
       session,
       `(() => {
         const btn = document.getElementById('newDownloadBtn').getBoundingClientRect()
-        const body = document.body.getBoundingClientRect()
-        const videoBtns = [...document.querySelectorAll('#pageVideoBtn')]
+        const metrics = document.querySelectorAll('.metric').length
+        const filters = document.querySelectorAll('#taskFilter button').length
         return {
-          bodyHeight: Math.round(body.height),
-          bodyWidth: Math.round(body.width),
-          buttonFullWidth: btn.width >= body.width - 30,
+          bodyHeight: Math.round(document.body.getBoundingClientRect().height),
+          buttonWidth: Math.round(btn.width),
           buttonHeight: Math.round(btn.height),
-          singleVideoButton: videoBtns.length === 1,
-          videoButtonText: videoBtns[0] ? (videoBtns[0].innerText || '').trim() : ''
+          metrics,
+          filters
         }
       })()`
     )
-    reporter.check('新建下载按钮占满内容宽度', sendLayout?.buttonFullWidth === true && sendLayout?.buttonHeight >= 32, JSON.stringify(sendLayout))
-    reporter.check(
-      '本页视频合并为单个通用按钮',
-      sendLayout?.singleVideoButton === true && /下载本页视频|Download page video/i.test(String(sendLayout?.videoButtonText)),
-      JSON.stringify(sendLayout)
+    reporter.check('任务页包含四项状态指标', taskLayout?.metrics === 4, JSON.stringify(taskLayout))
+    reporter.check('任务页包含三种筛选与新建入口', taskLayout?.filters === 3 && taskLayout?.buttonHeight >= 28, JSON.stringify(taskLayout))
+    await capture(session, path.join(outDir, '07b-extension-popup-tasks.png'))
+
+    await evalIn(session, `document.getElementById('navSniffer').click()`)
+    await sleep(300)
+    const snifferLayout = await evalIn(
+      session,
+      `(() => ({
+        activePane: document.querySelector('.pane.active')?.dataset.pane,
+        filterCount: document.querySelectorAll('#snifferFilter .filter-chip').length,
+        resourceList: Boolean(document.getElementById('resourceList')),
+        videoAction: document.getElementById('pageVideoTitle')?.innerText || ''
+      }))()`
     )
-    reporter.check('popup 发送页布局紧凑', sendLayout?.bodyHeight > 0 && sendLayout.bodyHeight <= 400, `body ${sendLayout?.bodyHeight}px`)
-    await capture(session, path.join(outDir, '07b-extension-popup-send.png'))
+    reporter.check('网络嗅探页完整渲染', snifferLayout?.activePane === 'sniffer' && snifferLayout?.filterCount === 5 && snifferLayout?.resourceList === true, JSON.stringify(snifferLayout))
+    reporter.check('网络嗅探页包含智能视频解析入口', /智能解析本页视频|Smart video resolver/i.test(String(snifferLayout?.videoAction)), JSON.stringify(snifferLayout))
+    await capture(session, path.join(outDir, '07c-extension-popup-sniffer.png'))
+
+    await evalIn(session, `document.getElementById('navSettings').click()`)
+    await sleep(300)
+    const settingsLayout = await evalIn(
+      session,
+      `(() => ({
+        activePane: document.querySelector('.pane.active')?.dataset.pane,
+        toggles: document.querySelectorAll('.settings-card .switch').length,
+        hasConnection: Boolean(document.getElementById('pairBtn')) && Boolean(document.getElementById('testBtn'))
+      }))()`
+    )
+    reporter.check('设置页完整渲染', settingsLayout?.activePane === 'settings' && settingsLayout?.toggles === 3 && settingsLayout?.hasConnection === true, JSON.stringify(settingsLayout))
+    await capture(session, path.join(outDir, '07d-extension-popup-settings.png'))
 
     // 弹窗是主要建任务入口：这里只验证真实渲染与尺寸，不依赖当前是否已配对
     const dialogLayout = await evalIn(
@@ -234,11 +255,11 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
     )
     reporter.check(
       '新建下载弹窗可打开且尺寸合理',
-      dialogLayout?.open === true && dialogLayout.width >= 280 && dialogLayout.width <= 340 && dialogLayout.height > 300 && dialogLayout.height <= 620,
+      dialogLayout?.open === true && dialogLayout.width >= 360 && dialogLayout.width <= 400 && dialogLayout.height > 300 && dialogLayout.height <= 620,
       JSON.stringify(dialogLayout)
     )
     reporter.check('新建下载弹窗无横向溢出', dialogLayout?.bodyOverflowX === 0, JSON.stringify(dialogLayout))
-    await capture(session, path.join(outDir, '07c-extension-popup-dialog.png'))
+    await capture(session, path.join(outDir, '07e-extension-popup-dialog.png'))
     await evalIn(session, `document.getElementById('newDownloadDialog').close()`)
     session.close()
 

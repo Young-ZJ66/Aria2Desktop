@@ -16,7 +16,8 @@
     "activeTab",
     "notifications",
     "scripting",
-    "clipboardRead"
+    "clipboardRead",
+    "webRequest"
   ],
   "optional_permissions": [
     "cookies"
