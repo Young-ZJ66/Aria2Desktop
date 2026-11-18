@@ -10,6 +10,7 @@ export default withVueTs(
       'dist/**',
       'release/**',
       'test-results/**',
+      '.ui-audit/**',
       'data/**',
       '.vscode/**',
       '.idea/**',
