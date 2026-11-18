@@ -160,6 +160,8 @@
   .resource-row { display: flex; align-items: center; gap: 9px; padding: 9px 10px; cursor: pointer; min-width: 0; }
   .resource-row + .resource-row { border-top: 1px solid var(--border); }
   .resource-row:hover { background: var(--surface-2); }
+  .resource-row.is-fragment { opacity: .72; }
+  .resource-row.is-fragment:hover { background: transparent; }
   .resource-check { width: 15px; height: 15px; flex: none; accent-color: var(--accent); }
   .resource-thumb {
     width: 36px; height: 36px; flex: none; border-radius: 8px;
@@ -469,6 +471,7 @@
         <button class="filter-chip" type="button" role="tab" aria-selected="false" data-kind="image" id="snifferFilterImage"></button>
         <button class="filter-chip" type="button" role="tab" aria-selected="false" data-kind="other" id="snifferFilterOther"></button>
       </div>
+      <div class="hint-bar" id="snifferBilibiliHint" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg><span id="snifferBilibiliHintText"></span></div>
       <div class="card resource-list" id="resourceList"></div>
       <div class="selection-bar" id="selectionBar" hidden><span id="selectedCount"></span><button class="btn btn-primary" id="batchDownload" type="button"></button></div>
       <div class="hint-bar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg><span id="snifferHint"></span></div>

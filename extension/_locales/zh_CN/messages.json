@@ -612,7 +612,16 @@
     "message": "智能解析本页视频"
   },
   "pageVideoDesc": {
-    "message": "交给 App 的 yt-dlp，自动合并音视频"
+    "message": "交给 App 的 yt-dlp；B 站等 DASH 页面会自动合并音视频"
+  },
+  "snifferBilibiliHint": {
+    "message": "检测到流媒体分片（DASH/MSE），完整视频请用上方「智能解析本页视频」。"
+  },
+  "snifferFragment": {
+    "message": "分片"
+  },
+  "snifferFragmentHint": {
+    "message": "流媒体分片不能单独下载，请用智能解析本页视频"
   },
   "pageVideoSent": {
     "message": "已交给 App 解析"

@@ -21,6 +21,7 @@ let lastTasks = []
 let snifferPaused = false
 let snifferFilter = 'all'
 let snifferItems = []
+let snifferFragmentCount = 0
 const snifferSelected = new Set()
 let snifferPollTimer = null
 let snifferLoading = false
@@ -97,6 +98,7 @@ function initI18n() {
   setText('snifferFilterImage', 'snifferFilterImage')
   setText('snifferFilterOther', 'snifferFilterOther')
   setText('snifferHint', 'snifferHint')
+  setText('snifferBilibiliHintText', 'snifferBilibiliHint')
   setText('snifferPairBannerText', 'sendNeedPairing')
   setText('snifferPairBtn', 'goPair')
   setText('settingsTitle', 'settingsTitle')
@@ -577,13 +579,14 @@ function updateSnifferStatus() {
 
 async function loadSniffer() {
   if (snifferLoading) return
-  if (!await checkSnifferPermission()) { snifferPermissionGranted = false; snifferItems = []; renderResources(); updateSnifferStatus(); return }
+  if (!await checkSnifferPermission()) { snifferPermissionGranted = false; snifferItems = []; snifferFragmentCount = 0; renderResources(); updateSnifferStatus(); return }
   snifferPermissionGranted = true
   snifferLoading = true
   try {
     const response = await sendMessage({ action: 'getSnifferData' })
     if (response?.success) {
       snifferItems = Array.isArray(response.items) ? response.items : []
+      snifferFragmentCount = Number(response.fragmentCount) || 0
       renderResources()
       updateSnifferStatus()
     }
@@ -620,6 +623,8 @@ function renderResources() {
   const list = $('resourceList')
   if (!list) return
   list.textContent = ''
+  const streamHint = $('snifferBilibiliHint')
+  if (streamHint) streamHint.hidden = true
   if (!snifferPermissionGranted) {
     const empty = document.createElement('div')
     empty.className = 'empty-state'
@@ -646,11 +651,13 @@ function renderResources() {
   }
   for (const item of filtered) {
     const row = document.createElement('label')
-    row.className = 'resource-row'
+    row.className = 'resource-row' + (item.fragment ? ' is-fragment' : '')
     const check = document.createElement('input')
     check.className = 'resource-check'
     check.type = 'checkbox'
-    check.checked = snifferSelected.has(item.url)
+    check.checked = snifferSelected.has(item.url) && !item.fragment
+    check.disabled = Boolean(item.fragment)
+    if (item.fragment) check.title = i18n('snifferFragmentHint')
     check.addEventListener('change', () => { if (check.checked) snifferSelected.add(item.url); else snifferSelected.delete(item.url); updateSelectionBar() })
     const thumb = document.createElement('span')
     thumb.className = 'resource-thumb ' + item.kind
@@ -663,12 +670,13 @@ function renderResources() {
     name.title = item.url
     const meta = document.createElement('span')
     meta.className = 'resource-meta'
-    meta.textContent = (item.method || 'GET') + ' · ' + resourceHost(item) + ' · ' + resourceKindLabel(item.kind)
+    meta.textContent = (item.method || 'GET') + ' · ' + resourceHost(item) + ' · ' + resourceKindLabel(item.kind) + (item.fragment ? ' · ' + i18n('snifferFragment') : '')
     copy.appendChild(name); copy.appendChild(meta)
     const download = document.createElement('button')
     download.className = 'resource-dl'
     download.type = 'button'
-    download.title = i18n('mediaSend')
+    download.title = item.fragment ? i18n('snifferFragmentHint') : i18n('mediaSend')
+    download.disabled = Boolean(item.fragment)
     download.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>'
     download.addEventListener('click', async (event) => {
       event.preventDefault(); event.stopPropagation(); download.disabled = true
@@ -681,6 +689,7 @@ function renderResources() {
     row.appendChild(check); row.appendChild(thumb); row.appendChild(copy); row.appendChild(download)
     list.appendChild(row)
   }
+  if (streamHint) streamHint.hidden = snifferFragmentCount <= 0
   updateSelectionBar()
 }
 
@@ -692,8 +701,8 @@ function updateSelectionBar() {
 }
 
 async function sendSelectedResources() {
-  const links = [...snifferSelected]
-  if (links.length === 0) return
+  const links = [...snifferSelected].filter(url => snifferItems.some(item => item.url === url && !item.fragment))
+  if (links.length === 0) { snifferSelected.clear(); updateSelectionBar(); return }
   const btn = $('batchDownload')
   btn.disabled = true
   btn.textContent = i18n('sending')

@@ -472,6 +472,22 @@ async function taskAction(operation, gid) {
 const snifferByTab = new Map()
 const SNIFFER_LIMIT = 200
 const SNIFFER_TYPES = ['sub_frame', 'xmlhttprequest', 'media', 'image', 'script', 'stylesheet', 'font', 'object', 'other']
+const SNIFFER_STORAGE_PREFIX = 'snifferTab:'
+const snifferPersistTimers = new Map()
+const snifferHydratedTabs = new Set()
+
+function isMediaFragment(url) {
+  return extFromUrl(url) === 'm4s'
+}
+
+// B 站 DASH 音频分片的文件名形如 42513599167-1-30216.m4s（302xx 为音频，1000xx 为视频）
+function isBilibiliAudioSegment(url) {
+  try {
+    const name = decodeURIComponent(new URL(url).pathname.split('/').pop() || '')
+    const match = /-(\d{5,6})\.m4s$/i.exec(name)
+    return Boolean(match && /^302\d{2}$/.test(match[1]))
+  } catch { return false }
+}
 
 function classifySniffedResource(details) {
   const ext = extFromUrl(details.url)
@@ -479,9 +495,44 @@ function classifySniffedResource(details) {
   const videoExts = ['mp4', 'm4v', 'webm', 'mkv', 'mov', 'avi', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', 'm3u8', 'mpd']
   const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']
   if (details.type === 'image' || imageExts.includes(ext)) return 'image'
-  if (audioExts.includes(ext)) return 'audio'
-  if (details.type === 'media' || videoExts.includes(ext)) return 'video'
+  if (audioExts.includes(ext) || (ext === 'm4s' && isBilibiliAudioSegment(details.url))) return 'audio'
+  if (details.type === 'media' || videoExts.includes(ext) || ext === 'm4s') return 'video'
   return 'other'
+}
+
+function persistSnifferTab(tabId) {
+  if (!chrome.storage?.session) return
+  const key = SNIFFER_STORAGE_PREFIX + tabId
+  const map = snifferByTab.get(tabId)
+  try {
+    if (map) chrome.storage.session.set({ [key]: [...map.values()] })
+    else chrome.storage.session.remove(key)
+  } catch { /* 存储不可用时仅保留内存数据 */ }
+}
+
+function scheduleSnifferPersist(tabId) {
+  if (!chrome.storage?.session || snifferPersistTimers.has(tabId)) return
+  const timer = setTimeout(() => {
+    snifferPersistTimers.delete(tabId)
+    persistSnifferTab(tabId)
+  }, 250)
+  snifferPersistTimers.set(tabId, timer)
+}
+
+async function hydrateSnifferTab(tabId) {
+  if (snifferHydratedTabs.has(tabId)) return
+  snifferHydratedTabs.add(tabId)
+  if (!chrome.storage?.session) return
+  try {
+    const key = SNIFFER_STORAGE_PREFIX + tabId
+    const stored = await chrome.storage.session.get(key)
+    const rows = stored?.[key]
+    if (!snifferByTab.has(tabId) && Array.isArray(rows)) {
+      const map = new Map()
+      for (const row of rows) if (row?.id && row?.url) map.set(row.id, row)
+      if (map.size) snifferByTab.set(tabId, map)
+    }
+  } catch { /* 读取失败时从空列表开始 */ }
 }
 
 function rememberSniffedRequest(details) {
@@ -498,22 +549,33 @@ function rememberSniffedRequest(details) {
     url: details.url,
     method: details.method || 'GET',
     kind: classifySniffedResource(details),
+    fragment: isMediaFragment(details.url),
     type: details.type || 'other',
     statusCode: details.statusCode || 0,
     time: Date.now()
   })
+  scheduleSnifferPersist(details.tabId)
 }
 
 if (chrome.webRequest?.onBeforeRequest) {
   chrome.webRequest.onBeforeRequest.addListener((details) => {
-    if (details.tabId >= 0) snifferByTab.delete(details.tabId)
+    if (details.tabId >= 0) {
+      snifferByTab.delete(details.tabId)
+      persistSnifferTab(details.tabId)
+    }
   }, { urls: ['http://*/*', 'https://*/*'], types: ['main_frame'] })
 }
 if (chrome.webRequest?.onCompleted) {
   chrome.webRequest.onCompleted.addListener(rememberSniffedRequest, { urls: ['http://*/*', 'https://*/*'], types: SNIFFER_TYPES })
 }
 if (chrome.tabs?.onRemoved) {
-  chrome.tabs.onRemoved.addListener((tabId) => snifferByTab.delete(tabId))
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    snifferByTab.delete(tabId)
+    snifferHydratedTabs.delete(tabId)
+    const timer = snifferPersistTimers.get(tabId)
+    if (timer) { clearTimeout(timer); snifferPersistTimers.delete(tabId) }
+    persistSnifferTab(tabId)
+  })
 }
 if (chrome.webRequest?.onErrorOccurred) {
   chrome.webRequest.onErrorOccurred.addListener(rememberSniffedRequest, { urls: ['http://*/*', 'https://*/*'], types: SNIFFER_TYPES })
@@ -523,8 +585,10 @@ async function getSnifferData() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab?.id) return { success: false, error: i18n('mediaUnsupportedPage') }
+    await hydrateSnifferTab(tab.id)
     const map = snifferByTab.get(tab.id)
-    return { success: true, tabId: tab.id, items: map ? [...map.values()].reverse() : [] }
+    const items = map ? [...map.values()].reverse() : []
+    return { success: true, tabId: tab.id, items, fragmentCount: items.filter(item => item.fragment).length }
   } catch (error) {
     return { success: false, error: String(error instanceof Error ? error.message : error) }
   }

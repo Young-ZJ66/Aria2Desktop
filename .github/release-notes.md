@@ -13,7 +13,7 @@
 
 - 扩展弹窗重新调整字号与间距：标题 15px / 650，正文 13px，辅助文字 11.5px，输入框与按钮高度约 32–33px；浅色主题辅助文字对比度提升，并补充键盘 focus-visible 可见边框。
 - 扩展弹窗按原型重构为「任务 / 网络嗅探 / 设置」三页，新增实时任务列表（暂停 / 继续 / 删除）、顶部状态指标与底部导航，统一 400×600 布局。
-- 网络嗅探监听当前标签页的 HTTP(S) 请求，支持按视频 / 音频 / 图片 / 其他筛选、勾选批量下载，并支持「智能解析本页视频」交给 App 的 yt-dlp。
+- 网络嗅探监听当前标签页的 HTTP(S) 请求，支持按视频 / 音频 / 图片 / 其他筛选、勾选批量下载，并支持「智能解析本页视频」交给 App 的 yt-dlp。B 站等 DASH/MSE 页面的视频 / 音频分片会被识别并提示使用智能解析下载完整视频。
 - 新增 Motrix 风格「新建下载」弹窗：全宽入口，支持 URL、文件名、保存到默认目录与可折叠的请求选项（User-Agent / Referer），含网址校验、Esc / 遮罩关闭；发送时保留页面 Referer 并传递文件名与自定义请求头。
 
 ## 🛠 稳定性修复
@@ -64,7 +64,7 @@
 
 - The extension popup now uses a clearer type and spacing system: 15px / 650 title, 13px body, 11.5px secondary text, and approximately 32–33px inputs and buttons. Secondary text contrast is improved in the light theme and keyboard focus-visible outlines are visible.
 - The extension popup is rebuilt around the prototype with Tasks, Network Sniffer and Settings pages, including a live task list (pause / resume / remove), status metrics and bottom navigation in a 400×600 layout.
-- Network Sniffer observes HTTP(S) requests from the current tab, filters video / audio / images / other, supports batch download, and can hand the current page to the app's yt-dlp resolver.
+- Network Sniffer observes HTTP(S) requests from the current tab, filters video / audio / images / other, supports batch download, and can hand the current page to the app's yt-dlp resolver. DASH/MSE video and audio segments (e.g. Bilibili) are recognized and point users to the smart resolver for the complete video.
 - Added a Motrix-style New Download dialog with a full-width entry, URL, file name, default save location and collapsible request options (User-Agent / Referer), plus URL validation and Esc / backdrop dismissal; sending preserves the page Referer and passes the file name and custom headers.
 
 ## 🛠 Stability fixes
