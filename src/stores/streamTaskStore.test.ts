@@ -68,6 +68,36 @@ describe('streamTaskStore', () => {
     expect(mapped.files[0]?.path).toBe('D:/Downloads/测试视频.mp4')
   })
 
+  it('进度事件里的乱码条目标题不会覆盖已有正确标题', async () => {
+    const store = useStreamTaskStore()
+    await store.startTask({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads',
+      title: '正确标题'
+    })
+
+    emit?.({
+      type: 'progress',
+      id: 'sd-test-1',
+      percent: 42,
+      entryTitle: 'GPT6.2 Astra' + String.fromCharCode(0xfffd) + String.fromCharCode(0xfffd) + ' Fable'
+    })
+
+    expect(store.tasks[0]?.title).toBe('正确标题')
+
+    emit?.({
+      type: 'progress',
+      id: 'sd-test-1',
+      percent: 43,
+      entryTitle: '播放列表条目',
+      entryIndex: 2,
+      entryCount: 3
+    })
+    expect(store.tasks[0]?.title).toBe('播放列表条目 (2/3)')
+  })
+
   it('扩展发起的下载：仅收到 started 事件也会建立列表记录', async () => {
     const store = useStreamTaskStore()
     // 先发起一次（顺带安装事件监听），再用另一个 id 模拟扩展发起的下载

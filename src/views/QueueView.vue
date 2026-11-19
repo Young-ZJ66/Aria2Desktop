@@ -82,10 +82,10 @@
     </UiPanel>
 
     <!--
-      队列表：按内容高度排布，不再把容器高度均摊给仅有的几行（v1 两行任务每行约 200px）。
-      空态同样不撑满，留给「为什么是空的 + 现在能做什么」。
+      队列表：占满剩余高度，任务多时在面板内部滚动，不再随行数把卡片缩成一条。
+      空态仍按内容高度收起，留给「为什么是空的 + 现在能做什么」。
     -->
-    <UiPanel flush>
+    <UiPanel flush :class="{ 'queue-table-panel': taskStore.waitingTasks.length > 0 }">
       <div v-if="taskStore.waitingTasks.length > 0" class="queue-table-scroll">
         <n-table :bordered="false" class="queue-table">
           <thead>
@@ -321,9 +321,16 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .queue-view {
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--ds-space-16);
+}
+
+.queue-table-panel {
+  flex: 1;
+  min-height: 0;
 }
 
 .metric-band {
@@ -375,7 +382,8 @@ onBeforeUnmount(() => {
 }
 
 .queue-table-scroll {
-  overflow-x: auto;
+  height: 100%;
+  overflow: auto;
 }
 
 .queue-table :deep(table) {
@@ -388,7 +396,7 @@ onBeforeUnmount(() => {
 .queue-table :deep(th) {
   height: 36px;
   padding: 0 var(--ds-space-12);
-  background: var(--ds-bg-sunken);
+  background: transparent;
   color: var(--ds-text-muted);
   font-size: var(--ds-text-small-size);
   font-weight: 500;

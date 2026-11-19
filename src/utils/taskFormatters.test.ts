@@ -125,6 +125,10 @@ describe('formatRemainingTime', () => {
     // 剩 3600 字节、速度 1 B/s → 3600 秒
     expect(formatRemainingTime(task({ totalLength: '3600', completedLength: '0', downloadSpeed: '1' }))).toBe('1:00:00')
   })
+
+  it('暂停任务即使残留速度也显示 --，不给出假读数', () => {
+    expect(formatRemainingTime(task({ status: 'paused', totalLength: '3600', completedLength: '0', downloadSpeed: '1' }))).toBe('--')
+  })
 })
 
 describe('formatCompleteTime', () => {

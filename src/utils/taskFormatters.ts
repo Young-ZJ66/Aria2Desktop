@@ -37,6 +37,8 @@ export function formatSpeed(speed: string | number): string {
  * 格式化剩余时间
  */
 export function formatRemainingTime(task: Aria2Task): string {
+  // 暂停任务的 downloadSpeed 是暂停前的最后一帧，继续用它估算剩余时间会给出假读数
+  if (task.status === 'paused') return '--'
   const remainingSeconds = getTaskRemainingTime(task)
   return formatTime(remainingSeconds)
 }

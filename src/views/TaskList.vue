@@ -678,8 +678,9 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
         title: t('task.downloadSpeed'),
         width: 96,
         align: 'right',
-        sorter: (a: Aria2Task, b: Aria2Task) => (parseInt(a.downloadSpeed, 10) || 0) - (parseInt(b.downloadSpeed, 10) || 0),
-        render: (row: Aria2Task) => h('span', { class: 'ds-tnum cell-num' }, formatSpeed(row.downloadSpeed))
+        sorter: (a: Aria2Task, b: Aria2Task) => (a.status === 'paused' ? 0 : parseInt(a.downloadSpeed, 10) || 0) - (b.status === 'paused' ? 0 : parseInt(b.downloadSpeed, 10) || 0),
+        // aria2 暂停后仍会把最后一刻的 downloadSpeed 留在快照里，直接展示会像「暂停了还在下载」
+        render: (row: Aria2Task) => h('span', { class: 'ds-tnum cell-num' }, formatSpeed(row.status === 'paused' ? 0 : row.downloadSpeed))
       }
     ] as DataTableColumns<Aria2Task>),
   props.taskType === 'stopped'
@@ -1724,7 +1725,8 @@ watch(
   gap: var(--ds-space-16);
   padding: var(--ds-space-8) var(--ds-space-16);
   border-top: 1px solid var(--ds-border-subtle);
-  background: var(--ds-bg-app);
+  /* 表尾与表格同处一个表面：填底色会在卡片底部叠出一条灰带，只用分隔线收口 */
+  background: transparent;
   font-size: var(--ds-text-micro-size);
   color: var(--ds-text-faint);
 }

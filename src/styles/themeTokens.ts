@@ -38,7 +38,8 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       modalColor: r.bgRaised,
       popoverColor: r.bgRaised,
       tableColor: r.bgSurface,
-      tableHeaderColor: r.bgSunken,
+      // 表头不铺底色：灰底会在白卡片上切出一条色带（NTable 走的是这个键）
+      tableHeaderColor: 'transparent',
       inputColor: r.bgSurface,
       inputColorDisabled: r.bgSunken,
       tagColor: r.bgSunken,
@@ -174,7 +175,8 @@ export function buildThemeOverrides(isDark: boolean): GlobalThemeOverrides {
       borderRadius: radius.lg
     },
     DataTable: {
-      thColor: r.bgSunken,
+      // 表头只做列名定位，不铺底色（NDataTable 走这个键，CSS 兜底见 theme.css）
+      thColor: 'transparent',
       thColorHover: r.bgHover,
       thTextColor: r.textMuted,
       thFontWeight: '500',

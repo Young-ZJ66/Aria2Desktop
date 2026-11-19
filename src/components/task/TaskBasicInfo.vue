@@ -21,11 +21,11 @@
         <n-descriptions-item :label="t('task.size')">{{ formatSize(task.totalLength) }}</n-descriptions-item>
         <n-descriptions-item :label="t('taskDetail.downloaded')">{{ formatSize(task.completedLength) }}</n-descriptions-item>
         <n-descriptions-item :label="t('task.downloadSpeed')">
-          <span v-if="Number(task.downloadSpeed) > 0" class="speed-download">{{ formatSpeed(task.downloadSpeed) }}</span>
+          <span v-if="task.status === 'active' && Number(task.downloadSpeed) > 0" class="speed-download">{{ formatSpeed(task.downloadSpeed) }}</span>
           <span v-else class="muted-value">--</span>
         </n-descriptions-item>
         <n-descriptions-item :label="t('task.uploadSpeed')">
-          <span v-if="Number(task.uploadSpeed) > 0" class="speed-upload">{{ formatSpeed(task.uploadSpeed) }}</span>
+          <span v-if="task.status === 'active' && Number(task.uploadSpeed) > 0" class="speed-upload">{{ formatSpeed(task.uploadSpeed) }}</span>
           <span v-else class="muted-value">--</span>
         </n-descriptions-item>
         <n-descriptions-item :label="t('task.remainingTime')">{{ formatRemainingTime(task) }}</n-descriptions-item>

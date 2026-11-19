@@ -100,6 +100,7 @@ const columns = computed<DataTableColumns<ServerRow>>(() => [
           quaternary: true,
           circle: true,
           style: 'flex-shrink: 0',
+          class: 'server-copy',
           'aria-label': t('taskDetail.copyLink'),
           onClick: () => copyUri(row.uri)
         }, {
@@ -147,19 +148,30 @@ const columns = computed<DataTableColumns<ServerRow>>(() => [
   color: var(--ds-text-muted);
 }
 
-.server-item {
-  display: flex;
+/* 两列网格：URL 占满剩余宽度，复制按钮固定在最右侧一列并垂直居中。
+   之前用 flex，NText 的 code 块不收缩，按钮会被挤到下一行左下方。
+
+   这几条必须用 :deep()：单元格是 n-data-table 在它自己的渲染上下文里创建的，
+   不带本组件的 scopeId，普通 scoped 选择器根本匹配不到。 */
+.info-card :deep(.server-item) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--ds-space-8);
   min-width: 0;
   padding: 2px 0;
 }
 
-.server-uri {
-  flex: 1;
+.info-card :deep(.server-uri) {
+  display: block;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* 链接不截断：release 链接常带长 query，省略号会让人没法核对，宁可换行显示完整地址 */
+  overflow-wrap: anywhere;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.info-card :deep(.server-copy) {
+  justify-self: end;
 }
 </style>
