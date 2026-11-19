@@ -15,9 +15,14 @@ import { contrastRatio, cssVars, roles, themeCss } from './designSystem'
 
 const cssPath = fileURLToPath(new URL('./tokens.generated.css', import.meta.url))
 
+/** Windows CI 的 checkout 可能把生成物换成 CRLF；生成器只产出 LF，比较前统一行尾 */
+function readGeneratedCss(): string {
+  return readFileSync(cssPath, 'utf8').replace(/\r\n/g, '\n')
+}
+
 describe('设计令牌', () => {
   it('theme.css 与 designSystem.ts 同步（改了令牌需执行 npm run theme:css）', () => {
-    expect(readFileSync(cssPath, 'utf8')).toBe(themeCss())
+    expect(readGeneratedCss()).toBe(themeCss())
   })
 
   it('浅色与深色暴露同一组变量名', () => {

@@ -1557,7 +1557,9 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   const nav = await evalIn(
     session,
     `(() => {
-      const item = [...document.querySelectorAll('.nav-item')].find((e) => /下载完成|Completed/i.test(e.textContent || ''))
+      // 侧栏在窄视口会折叠成只显示图标，label 不渲染；用路由 href 定位，避免受视口影响
+      const item = document.querySelector('.nav-item[href="#/completed"]')
+        || [...document.querySelectorAll('.nav-item')].find((e) => /下载完成|Completed/i.test(e.textContent || ''))
       if (!item) return 'no-menu'
       item.click()
       return 'clicked'
@@ -1806,7 +1808,9 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   const statusNav = await evalIn(
     session,
     `(() => {
-      const item = [...document.querySelectorAll('.nav-item')].find((e) => /Aria2 状态|Aria2 Status/i.test(e.textContent || ''))
+      // 同上：窄视口下侧栏折叠，按 href 而不是文字找导航项
+      const item = document.querySelector('.nav-item[href="#/status"]')
+        || [...document.querySelectorAll('.nav-item')].find((e) => /Aria2 状态|Aria2 Status/i.test(e.textContent || ''))
       if (!item) return 'no-menu'
       item.click()
       return 'clicked'
