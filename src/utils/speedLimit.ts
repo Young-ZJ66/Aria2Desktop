@@ -24,6 +24,19 @@ export function toSpeedLimitBytes(value: number | null | undefined, unit: SpeedL
   return Math.max(1, Math.round(value * SPEED_LIMIT_UNIT_BYTES[unit]))
 }
 
+/**
+ * 面板输入框的文本 → 字节/秒。
+ * 返回 null 表示输入非法（调用方据此提示），0 表示「不限制」（留空或填 0）。
+ * 逗号当小数点用：中文输入法下用户常敲「1,5」。
+ */
+export function parseSpeedLimitInput(text: string, unit: SpeedLimitUnit): number | null {
+  const raw = text.trim().replace(',', '.')
+  if (raw === '') return 0
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed) || parsed < 0) return null
+  return toSpeedLimitBytes(parsed, unit)
+}
+
 /** 字节/秒 → 「1.5 MB/s」这样的展示文本；不限制时返回空串 */
 export function formatSpeedLimit(bytes: number): string {
   const { value, unit } = fromSpeedLimitBytes(bytes)

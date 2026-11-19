@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fromSpeedLimitBytes, toSpeedLimitBytes } from './speedLimit'
+import { fromSpeedLimitBytes, parseSpeedLimitInput, toSpeedLimitBytes } from './speedLimit'
 
 describe('toSpeedLimitBytes', () => {
   it('按单位换算成字节/秒', () => {
@@ -18,6 +18,30 @@ describe('toSpeedLimitBytes', () => {
 
   it('极小值不会算成 0 字节', () => {
     expect(toSpeedLimitBytes(0.001, 'KB')).toBe(1)
+  })
+})
+
+describe('parseSpeedLimitInput', () => {
+  it('把输入框文本换算成字节/秒', () => {
+    expect(parseSpeedLimitInput('10', 'MB')).toBe(10 * 1024 * 1024)
+    expect(parseSpeedLimitInput(' 512 ', 'KB')).toBe(512 * 1024)
+    expect(parseSpeedLimitInput('1.5', 'MB')).toBe(1572864)
+  })
+
+  it('逗号当小数点用', () => {
+    expect(parseSpeedLimitInput('1,5', 'MB')).toBe(1572864)
+  })
+
+  it('留空或 0 当作不限制', () => {
+    expect(parseSpeedLimitInput('', 'MB')).toBe(0)
+    expect(parseSpeedLimitInput('   ', 'KB')).toBe(0)
+    expect(parseSpeedLimitInput('0', 'MB')).toBe(0)
+  })
+
+  it('非法输入返回 null，交给调用方提示', () => {
+    expect(parseSpeedLimitInput('abc', 'MB')).toBeNull()
+    expect(parseSpeedLimitInput('-5', 'MB')).toBeNull()
+    expect(parseSpeedLimitInput('1.2.3', 'MB')).toBeNull()
   })
 })
 

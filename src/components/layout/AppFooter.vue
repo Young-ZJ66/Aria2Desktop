@@ -116,7 +116,7 @@ import { message } from '@/utils/feedback'
 import {
   SPEED_LIMIT_UNITS,
   fromSpeedLimitBytes,
-  toSpeedLimitBytes,
+  parseSpeedLimitInput,
   type SpeedLimitUnit
 } from '@/utils/speedLimit'
 
@@ -156,14 +156,34 @@ watch(showLimitPop, (show) => {
   })
 })
 
+/**
+ * 开关直接按面板里填的值生效：用户填了 10MB/s 再打开开关，没有理由还给他 1MB/s。
+ * 输入框空着（或填 0）才回落到上次记忆值。
+ */
 async function handleToggleSpeedLimit(value: boolean) {
   if (!connectionStore.service) {
     message.warning(t('footer.speedLimitNoEngine'))
     return
   }
   try {
+    if (!value) {
+      await statsStore.toggleSpeedLimit()
+      message.success(t('footer.speedLimitOff'))
+      return
+    }
+    const bytes = parseSpeedLimitInput(limitInput.value, limitUnit.value)
+    if (bytes === null) {
+      message.warning(t('footer.speedLimitInvalid'))
+      return
+    }
+    if (bytes > 0) {
+      await statsStore.setSpeedLimit(bytes)
+      message.success(`${t('footer.speedLimitOn')}: ${formatSpeed(bytes)}`)
+      return
+    }
+    // 没填值：沿用记忆值，用户不用再点一次确定
     await statsStore.toggleSpeedLimit()
-    message.success(value ? t('footer.speedLimitOn') : t('footer.speedLimitOff'))
+    message.success(t('footer.speedLimitOn'))
   } catch {
     message.error(t('footer.speedLimitToggleFailed'))
   }
@@ -174,14 +194,12 @@ async function applyLimit() {
     message.warning(t('footer.speedLimitNoEngine'))
     return
   }
-  const raw = limitInput.value.trim().replace(',', '.')
-  const parsed = raw === '' ? 0 : Number(raw)
-  if (raw !== '' && (!Number.isFinite(parsed) || parsed <= 0)) {
+  // 留空或填 0 视为不限制，等价于关掉限速
+  const bytes = parseSpeedLimitInput(limitInput.value, limitUnit.value)
+  if (bytes === null) {
     message.warning(t('footer.speedLimitInvalid'))
     return
   }
-  // 留空或填 0 视为不限制，等价于关掉限速
-  const bytes = toSpeedLimitBytes(parsed, limitUnit.value)
   try {
     await statsStore.setSpeedLimit(bytes)
     if (bytes > 0) {
