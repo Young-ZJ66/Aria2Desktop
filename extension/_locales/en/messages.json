@@ -484,8 +484,8 @@
   "taskFilterActive": {
     "message": "Active"
   },
-  "taskFilterWaiting": {
-    "message": "Waiting"
+  "taskFilterFailed": {
+    "message": "Failed"
   },
   "taskFilterCompleted": {
     "message": "Completed"
@@ -493,8 +493,8 @@
   "taskEmptyActive": {
     "message": "No active downloads"
   },
-  "taskEmptyWaiting": {
-    "message": "Queue is empty"
+  "taskEmptyFailed": {
+    "message": "No failed tasks"
   },
   "taskEmptyStopped": {
     "message": "No completed tasks"

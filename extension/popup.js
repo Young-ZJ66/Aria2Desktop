@@ -84,7 +84,7 @@ function initI18n() {
   setText('tasksTitle', 'tasksTitle')
   setText('tasksNote', 'tasksNote')
   setText('taskFilterActive', 'taskFilterActive')
-  setText('taskFilterWaiting', 'taskFilterWaiting')
+  setText('taskFilterFailed', 'taskFilterFailed')
   setText('taskFilterCompleted', 'taskFilterCompleted')
   setText('pairBannerText', 'sendNeedPairing')
   setText('unpairBtn', 'unpair')
@@ -372,15 +372,16 @@ function renderTasks() {
   const list = $('taskList')
   if (!list) return
   list.textContent = ''
+  // Motrix 风格三段式：进行中包含等待与暂停（都是「还在队列里」），失败单独一列
   const filtered = lastTasks.filter(task => {
-    if (taskFilter === 'active') return task.status === 'active'
-    if (taskFilter === 'waiting') return task.status === 'waiting' || task.status === 'paused'
-    return task.status === 'complete' || task.status === 'error' || task.status === 'removed'
+    if (taskFilter === 'active') return task.status === 'active' || task.status === 'waiting' || task.status === 'paused'
+    if (taskFilter === 'failed') return task.status === 'error'
+    return task.status === 'complete'
   })
   if (filtered.length === 0) {
     const empty = document.createElement('div')
     empty.className = 'empty-state'
-    empty.textContent = i18n(taskFilter === 'active' ? 'taskEmptyActive' : taskFilter === 'waiting' ? 'taskEmptyWaiting' : 'taskEmptyStopped')
+    empty.textContent = i18n(taskFilter === 'active' ? 'taskEmptyActive' : taskFilter === 'failed' ? 'taskEmptyFailed' : 'taskEmptyStopped')
     list.appendChild(empty)
     $('taskFooter').hidden = true
     return
