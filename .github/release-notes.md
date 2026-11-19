@@ -9,13 +9,18 @@
 - 任务详情抽屉移除重复的「基本信息」标题，状态标签移到抽屉标题栏；Peer 数量不再同时出现在标签页和卡片工具栏；抽屉标题栏的 1px 分隔线已移除。
 - 下载页空态让面板填满剩余高度并垂直居中；「还没有任务」与「筛选无结果」改用不同文案。
 - 修正品牌名、快捷键提示、图表标签等散落硬编码字号，统一使用设计令牌；21 种语言补齐 v2 文案，键盘焦点环、表单标签与点击区域一并修正。
+- 任务列表与队列页的表格外观统一：表头、表尾去掉灰色底与多余圆角，白色卡片上不再出现色带；任务列表始终填满列表区域，列宽与快捷键提示收敛，下载任务页按 Ctrl+F 直接聚焦搜索框。
+- 勾选任务时上方的批量操作条保持中性底色，不再变成紫色；服务器信息改用网格布局，复制按钮落在链接右侧。
+- 暂停任务在列表与详情统一显示 0 B/s、剩余时间 --，不再出现残留速度读数。
+- 实例页补充「新增连接」槽位卡，状态页指标带重新排布，剩余时间统一为 H:MM:SS 格式。
+- 新建任务弹窗整理标签页与表单间距、分隔线，URI 输入框内置格式提示，错误态输入框不再发光。
 
 ## 🚀 新功能
 
 - **限速改为自定义数值**：底部状态栏的限速面板不再只有 5 个预设档，可填写任意数值并切换 KB/s、MB/s；输入即生效（停止输入 500ms 后自动应用，回车或失焦立即提交），打开限速开关直接使用面板里填的值；没有历史限速值时不再自动填 1 MB/s。
 - **通知中心支持单条删除**：每条通知右侧有删除按钮（鼠标悬停或键盘聚焦时出现，触屏设备常显），只删除这一条并立即保存。
 - 实例页的连接配置支持直接删除。
-- 设置中文件预分配新增「截断预分配」，适合固态硬盘；窗口状态与剪贴板监听的开关固定为开启，避免误关。
+- 设置中文件预分配新增「截断预分配」，适合固态硬盘；窗口状态与剪贴板监听改为固定开启，界面上的开关已移除，避免误关。
 
 ## 🎬 流媒体下载
 
@@ -27,7 +32,7 @@
 
 ## 🧩 浏览器扩展
 
-- 扩展弹窗按原型重构为「任务 / 网络嗅探 / 设置」三页（400×600），标题 15px / 650、正文 13px、辅助文字 11.5px，输入框与按钮约 32–33px；浅色主题辅助文字对比度提升，并补充键盘 focus-visible 可见边框。
+- 扩展弹窗按原型重构为「任务 / 网络嗅探 / 设置」三页（400×600），页面标题 18px / 650、正文 13px、辅助文字 11.5px，按钮与输入框约 28–34px；浅色主题辅助文字对比度提升，并补充键盘 focus-visible 可见边框。
 - 任务页展示实时下载 / 上传速度与活动、等待数量；任务按「进行中 / 失败 / 已完成」三档筛选，可暂停、继续、删除。
 - 任务列表合并 App 里由「智能解析本页视频」发起的流媒体任务（带「流媒体」角标），暂停 / 继续 / 删除与 App 内状态同步；删除任务不会删除已下载的文件。
 - 网络嗅探监听当前标签页的 HTTP(S) 请求，支持按视频 / 音频 / 图片 / 其他筛选、勾选批量下载，并支持「智能解析本页视频」交给 App 的 yt-dlp；B 站等 DASH/MSE 页面的视频 / 音频分片会被识别并提示使用智能解析下载完整视频。
@@ -42,6 +47,7 @@
 - 设置保存改为串行队列，保存失败时回滚内存中的设置；Escape 关闭设置弹窗时走未保存确认；重新加载失败不再清除脏标记。
 - 删除任务或清空列表时清理自动重试定时器；BT 洞察快速切换任务时不再叠加多条轮询链。
 - 任务栏进度只在百分比变化时更新，避免每秒重复 IPC。
+- 修复空列表遮住「引擎未连接」提示的问题。
 
 ## ⚡ 性能
 
@@ -78,13 +84,18 @@
 - The task detail drawer no longer repeats the "Basic info" title, the status tag moves into the drawer header, the peer count no longer appears twice, and the extra 1px divider in the header is gone.
 - Empty states on the download page now fill the remaining height and center vertically; "no tasks yet" and "no matching results" use different copy.
 - Replaced remaining hard-coded font sizes (brand name, keyboard hints, chart labels) with design tokens; all 21 locales received the v2 copy, and keyboard focus rings, form labels and tap targets were fixed along the way.
+- Table chrome across the task list and queue pages is unified: headers and footers drop the grey fill and extra rounding, so no colour bands break the white cards; the task list always fills its area, column widths and shortcut hints are tightened, and Ctrl+F in the download page focuses the search box.
+- The batch toolbar keeps a neutral background when tasks are selected instead of turning purple; server information uses a grid layout with the copy button next to the link.
+- Paused tasks show 0 B/s and -- in both the list and the detail drawer, with no leftover speed readings.
+- The Instances page gains a "new connection" slot card, the Status page metric strip is re-laid out, and remaining time is standardized to H:MM:SS.
+- The new-task dialog tightens tab and form spacing and dividers, shows the URI format guide inside the textarea, and drops the focus glow on invalid inputs.
 
 ## 🚀 New features
 
 - **Custom speed limits**: the status-bar limit panel no longer offers only five presets. Enter any value and switch between KB/s and MB/s; changes apply as you type (500 ms after you stop typing, or immediately on Enter / blur), and turning the limit switch on uses the value in the panel. Without a remembered value, the app no longer fills in 1 MB/s by itself.
 - **Delete individual notifications**: every notification has a delete button on the right (shown on hover or keyboard focus, always visible on touch devices) that removes just that notification and saves immediately.
 - Connection profiles can now be deleted directly from the Instances page.
-- Settings gained a "truncate" file preallocation option, which suits SSDs; window state and clipboard monitoring switches are now fixed on so they cannot be turned off by accident.
+- Settings gained a "truncate" file preallocation option, which suits SSDs; window state and clipboard monitoring are now fixed on, with their switches removed from the UI so they cannot be turned off by accident.
 
 ## 🎬 Stream downloads
 
@@ -96,7 +107,7 @@
 
 ## 🧩 Browser extension
 
-- The extension popup is rebuilt around the prototype with Tasks, Network Sniffer and Settings pages (400×600): 15px / 650 title, 13px body, 11.5px secondary text and roughly 32–33px inputs and buttons. Secondary text contrast is improved in the light theme and keyboard focus-visible outlines are visible.
+- The extension popup is rebuilt around the prototype with Tasks, Network Sniffer and Settings pages (400×600): 18px / 650 page titles, 13px body, 11.5px secondary text and roughly 28–34px buttons and inputs. Secondary text contrast is improved in the light theme and keyboard focus-visible outlines are visible.
 - The Tasks page shows live download / upload speed plus active and waiting counts; tasks can be filtered by Active / Failed / Completed and paused, resumed or removed.
 - The task list now merges stream tasks started from "Resolve this page video" in the app (marked with a Stream badge); pause, resume and remove stay in sync with the app, and removing a task never deletes the downloaded file.
 - Network Sniffer observes HTTP(S) requests from the current tab, filters video / audio / images / other, supports batch download, and can hand the page to the app's yt-dlp resolver. DASH/MSE segments (e.g. Bilibili) are recognized and point users to the smart resolver for the complete video.
@@ -111,6 +122,7 @@
 - Settings saves are serialized and roll back in-memory values on failure; Escape from the settings dialog respects the unsaved-changes confirmation; a failed reload no longer clears the dirty state.
 - Auto-retry timers are cleaned up when tasks are deleted or the list is cleared; rapid task switching in BT Insights no longer stacks polling chains.
 - Taskbar progress is sent only when the integer percentage changes, avoiding a redundant IPC call every second.
+- Empty lists no longer hide the "engine disconnected" notice.
 
 ## ⚡ Performance
 
