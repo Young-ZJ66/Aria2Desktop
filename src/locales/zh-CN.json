@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "切换限速失败，请检查引擎连接",
     "speedLimit": "限速",
     "speedLimitPlaceholder": "输入数值",
-    "speedLimitInvalid": "请输入大于 0 的数字"
+    "speedLimitInvalid": "请输入大于 0 的数字",
+    "speedLimitNeedValue": "请先输入限速数值"
   },
   "notification": {
     "downloadComplete": "下载完成",

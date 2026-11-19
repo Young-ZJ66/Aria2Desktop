@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "فشل تبديل حد السرعة. تحقق من اتصال المحرك.",
     "speedLimit": "حد السرعة",
     "speedLimitPlaceholder": "أدخل قيمة",
-    "speedLimitInvalid": "أدخل رقمًا أكبر من 0"
+    "speedLimitInvalid": "أدخل رقمًا أكبر من 0",
+    "speedLimitNeedValue": "أدخل قيمة الحد أولاً"
   },
   "notification": {
     "downloadComplete": "اكتمل التنزيل",

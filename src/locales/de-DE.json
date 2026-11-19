@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Geschwindigkeitslimit konnte nicht umgeschaltet werden. Prüfen Sie die Engine-Verbindung.",
     "speedLimit": "Geschwindigkeitslimit",
     "speedLimitPlaceholder": "Wert eingeben",
-    "speedLimitInvalid": "Geben Sie eine Zahl größer als 0 ein"
+    "speedLimitInvalid": "Geben Sie eine Zahl größer als 0 ein",
+    "speedLimitNeedValue": "Geben Sie zuerst einen Grenzwert ein"
   },
   "notification": {
     "downloadComplete": "Download abgeschlossen",

@@ -112,8 +112,12 @@ export const useStatsStore = defineStore('stats', () => {
 
   // ── 限速快捷开关 ──
 
-  /** 记忆上次限速值（字节/秒），切换时恢复；默认 1MB/s */
-  let rememberedSpeedLimit = '1048576'
+  /**
+   * 记忆上次由用户设定的限速值（字节/秒），关掉再打开时恢复。
+   * 故意不给默认值：从没设过限速时开关不该凭空给出 1MB/s，
+   * 而是提示用户先填数值（见 AppFooter.handleToggleSpeedLimit）。
+   */
+  let rememberedSpeedLimit = ''
 
   /** 当前是否处于限速状态（max-overall-download-limit 非空且非零） */
   const isSpeedLimited = computed(() => {
@@ -134,17 +138,19 @@ export const useStatsStore = defineStore('stats', () => {
     await changeGlobalOptions({ 'max-overall-download-limit': String(bytes > 0 ? bytes : 0) })
   }
 
-  /** 切换限速开关 */
-  async function toggleSpeedLimit(): Promise<void> {
-    if (!connectionStore.service) return
+  /** 切换限速开关；返回是否真的下发了新值（没有可恢复的记忆值时为 false） */
+  async function toggleSpeedLimit(): Promise<boolean> {
+    if (!connectionStore.service) return false
     if (isSpeedLimited.value) {
       // 关闭限速：记住当前值后清零
       rememberedSpeedLimit = (globalOptions.value['max-overall-download-limit'] as string) || rememberedSpeedLimit
       await changeGlobalOptions({ 'max-overall-download-limit': '0' })
-    } else {
-      // 开启限速：恢复上次记忆值
-      await changeGlobalOptions({ 'max-overall-download-limit': rememberedSpeedLimit })
+      return true
     }
+    // 从没设过限速：没有可恢复的值，交给调用方提示用户先填数值
+    if (!rememberedSpeedLimit) return false
+    await changeGlobalOptions({ 'max-overall-download-limit': rememberedSpeedLimit })
+    return true
   }
 
   return {

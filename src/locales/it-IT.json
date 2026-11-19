@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Impossibile attivare/disattivare il limite di velocità. Controlla la connessione al motore.",
     "speedLimit": "Limite di velocità",
     "speedLimitPlaceholder": "Inserisci un valore",
-    "speedLimitInvalid": "Inserisci un numero maggiore di 0"
+    "speedLimitInvalid": "Inserisci un numero maggiore di 0",
+    "speedLimitNeedValue": "Inserisci prima un valore limite"
   },
   "notification": {
     "downloadComplete": "Download completato",

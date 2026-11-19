@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "切換速度限制失敗。請檢查引擎連線。",
     "speedLimit": "限速",
     "speedLimitPlaceholder": "輸入數值",
-    "speedLimitInvalid": "請輸入大於 0 的數字"
+    "speedLimitInvalid": "請輸入大於 0 的數字",
+    "speedLimitNeedValue": "請先輸入限速數值"
   },
   "notification": {
     "downloadComplete": "下載完成",

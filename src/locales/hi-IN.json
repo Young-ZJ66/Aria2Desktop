@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "गति सीमा बदलने में विफल। इंजन कनेक्शन जाँचें।",
     "speedLimit": "गति सीमा",
     "speedLimitPlaceholder": "मान दर्ज करें",
-    "speedLimitInvalid": "0 से बड़ी संख्या दर्ज करें"
+    "speedLimitInvalid": "0 से बड़ी संख्या दर्ज करें",
+    "speedLimitNeedValue": "पहले एक सीमा मान दर्ज करें"
   },
   "notification": {
     "downloadComplete": "डाउनलोड पूर्ण",

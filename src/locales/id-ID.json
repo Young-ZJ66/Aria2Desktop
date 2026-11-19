@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Gagal mengubah batas kecepatan. Periksa koneksi mesin.",
     "speedLimit": "Batas kecepatan",
     "speedLimitPlaceholder": "Masukkan nilai",
-    "speedLimitInvalid": "Masukkan angka lebih dari 0"
+    "speedLimitInvalid": "Masukkan angka lebih dari 0",
+    "speedLimitNeedValue": "Masukkan nilai batas terlebih dahulu"
   },
   "notification": {
     "downloadComplete": "Unduhan Selesai",

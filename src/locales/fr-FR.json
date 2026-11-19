@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Échec de la modification de la limite de vitesse. Vérifiez la connexion au moteur.",
     "speedLimit": "Limite de vitesse",
     "speedLimitPlaceholder": "Saisir une valeur",
-    "speedLimitInvalid": "Saisissez un nombre supérieur à 0"
+    "speedLimitInvalid": "Saisissez un nombre supérieur à 0",
+    "speedLimitNeedValue": "Saisissez d'abord une valeur de limite"
   },
   "notification": {
     "downloadComplete": "Téléchargement terminé",

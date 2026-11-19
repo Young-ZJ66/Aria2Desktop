@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Hız sınırı değiştirilemedi. Motor bağlantısını kontrol edin.",
     "speedLimit": "Hız sınırı",
     "speedLimitPlaceholder": "Bir değer girin",
-    "speedLimitInvalid": "0'dan büyük bir sayı girin"
+    "speedLimitInvalid": "0'dan büyük bir sayı girin",
+    "speedLimitNeedValue": "Önce bir sınır değeri girin"
   },
   "notification": {
     "downloadComplete": "İndirme Tamamlandı",

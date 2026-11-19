@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Falha ao alternar o limite de velocidade. Verifique a conexão com o mecanismo.",
     "speedLimit": "Limite de velocidade",
     "speedLimitPlaceholder": "Digite um valor",
-    "speedLimitInvalid": "Digite um número maior que 0"
+    "speedLimitInvalid": "Digite um número maior que 0",
+    "speedLimitNeedValue": "Insira primeiro um valor de limite"
   },
   "notification": {
     "downloadComplete": "Download Concluído",

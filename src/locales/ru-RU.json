@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Не удалось переключить ограничение скорости. Проверьте подключение к движку.",
     "speedLimit": "Ограничение скорости",
     "speedLimitPlaceholder": "Введите значение",
-    "speedLimitInvalid": "Введите число больше 0"
+    "speedLimitInvalid": "Введите число больше 0",
+    "speedLimitNeedValue": "Сначала введите значение ограничения"
   },
   "notification": {
     "downloadComplete": "Загрузка завершена",

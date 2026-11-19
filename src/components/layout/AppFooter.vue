@@ -164,7 +164,7 @@ watch(showLimitPop, (show) => {
 
 /**
  * 开关直接按面板里填的值生效：用户填了 10MB/s 再打开开关，没有理由还给他 1MB/s。
- * 输入框空着（或填 0）才回落到上次记忆值。
+ * 输入框空着（或填 0）才回落到上次设定过的值；从没设过就提示先填数值。
  */
 async function handleToggleSpeedLimit(value: boolean) {
   if (!connectionStore.service) {
@@ -187,8 +187,13 @@ async function handleToggleSpeedLimit(value: boolean) {
       message.success(`${t('footer.speedLimitOn')}: ${formatSpeed(bytes)}`)
       return
     }
-    // 没填值：沿用记忆值，用户不用再点一次确定
-    await statsStore.toggleSpeedLimit()
+    // 没填值：恢复上次设定过的值；从没设过就提示先填，别凭空给一个 1MB/s
+    const restored = await statsStore.toggleSpeedLimit()
+    if (!restored) {
+      message.warning(t('footer.speedLimitNeedValue'))
+      nextTick(() => document.querySelector<HTMLInputElement>('.limit-pop__number input')?.focus())
+      return
+    }
     message.success(t('footer.speedLimitOn'))
   } catch {
     message.error(t('footer.speedLimitToggleFailed'))

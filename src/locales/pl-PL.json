@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Nie udało się przełączyć limitu prędkości. Sprawdź połączenie z silnikiem.",
     "speedLimit": "Limit prędkości",
     "speedLimitPlaceholder": "Wprowadź wartość",
-    "speedLimitInvalid": "Wprowadź liczbę większą od 0"
+    "speedLimitInvalid": "Wprowadź liczbę większą od 0",
+    "speedLimitNeedValue": "Najpierw wprowadź wartość limitu"
   },
   "notification": {
     "downloadComplete": "Pobieranie ukończone",

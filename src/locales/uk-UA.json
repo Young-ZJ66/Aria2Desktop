@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Не вдалося перемкнути обмеження швидкості. Перевірте підключення до рушія.",
     "speedLimit": "Обмеження швидкості",
     "speedLimitPlaceholder": "Введіть значення",
-    "speedLimitInvalid": "Введіть число більше 0"
+    "speedLimitInvalid": "Введіть число більше 0",
+    "speedLimitNeedValue": "Спершу введіть значення обмеження"
   },
   "notification": {
     "downloadComplete": "Завантаження завершено",

@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "速度制限の切り替えに失敗しました。エンジンの接続を確認してください。",
     "speedLimit": "速度制限",
     "speedLimitPlaceholder": "数値を入力",
-    "speedLimitInvalid": "0 より大きい数値を入力してください"
+    "speedLimitInvalid": "0 より大きい数値を入力してください",
+    "speedLimitNeedValue": "先に制限値を入力してください"
   },
   "notification": {
     "downloadComplete": "ダウンロード完了",

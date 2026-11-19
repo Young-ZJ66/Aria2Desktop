@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Không thể bật/tắt giới hạn tốc độ. Hãy kiểm tra kết nối engine.",
     "speedLimit": "Giới hạn tốc độ",
     "speedLimitPlaceholder": "Nhập giá trị",
-    "speedLimitInvalid": "Nhập số lớn hơn 0"
+    "speedLimitInvalid": "Nhập số lớn hơn 0",
+    "speedLimitNeedValue": "Hãy nhập giá trị giới hạn trước"
   },
   "notification": {
     "downloadComplete": "Tải xuống hoàn tất",

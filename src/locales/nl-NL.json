@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Snelheidslimiet in- of uitschakelen mislukt. Controleer de engine-verbinding.",
     "speedLimit": "Snelheidslimiet",
     "speedLimitPlaceholder": "Voer een waarde in",
-    "speedLimitInvalid": "Voer een getal groter dan 0 in"
+    "speedLimitInvalid": "Voer een getal groter dan 0 in",
+    "speedLimitNeedValue": "Voer eerst een limietwaarde in"
   },
   "notification": {
     "downloadComplete": "Download voltooid",

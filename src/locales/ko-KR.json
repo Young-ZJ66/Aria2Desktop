@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "속도 제한을 전환하지 못했습니다. 엔진 연결을 확인하세요.",
     "speedLimit": "속도 제한",
     "speedLimitPlaceholder": "값 입력",
-    "speedLimitInvalid": "0보다 큰 숫자를 입력하세요"
+    "speedLimitInvalid": "0보다 큰 숫자를 입력하세요",
+    "speedLimitNeedValue": "먼저 속도 제한 값을 입력하세요"
   },
   "notification": {
     "downloadComplete": "다운로드 완료",

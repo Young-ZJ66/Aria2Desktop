@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Přepnutí limitu rychlosti se nezdařilo. Zkontrolujte připojení k enginu.",
     "speedLimit": "Omezení rychlosti",
     "speedLimitPlaceholder": "Zadejte hodnotu",
-    "speedLimitInvalid": "Zadejte číslo větší než 0"
+    "speedLimitInvalid": "Zadejte číslo větší než 0",
+    "speedLimitNeedValue": "Nejprve zadejte hodnotu limitu"
   },
   "notification": {
     "downloadComplete": "Stahování dokončeno",

@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "สลับขีดจำกัดความเร็วไม่สำเร็จ โปรดตรวจสอบการเชื่อมต่อเอนจิน",
     "speedLimit": "จำกัดความเร็ว",
     "speedLimitPlaceholder": "ป้อนค่า",
-    "speedLimitInvalid": "ป้อนตัวเลขที่มากกว่า 0"
+    "speedLimitInvalid": "ป้อนตัวเลขที่มากกว่า 0",
+    "speedLimitNeedValue": "กรุณากรอกค่าจำกัดก่อน"
   },
   "notification": {
     "downloadComplete": "ดาวน์โหลดเสร็จสิ้น",

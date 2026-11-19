@@ -394,7 +394,8 @@
     "speedLimitToggleFailed": "Failed to toggle the speed limit. Check the engine connection.",
     "speedLimit": "Speed limit",
     "speedLimitPlaceholder": "Enter a value",
-    "speedLimitInvalid": "Enter a number greater than 0"
+    "speedLimitInvalid": "Enter a number greater than 0",
+    "speedLimitNeedValue": "Enter a limit value first"
   },
   "notification": {
     "downloadComplete": "Download Complete",
