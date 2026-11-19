@@ -1674,11 +1674,17 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     })()`
   )
   reporter.check('任务行内详情按钮可点击', detailClicked === 'clicked', String(detailClicked))
-  await sleep(1500)
-  const drawerText = await evalIn(
-    session,
-    `(() => { const d = document.querySelector('.n-drawer'); return d ? d.innerText : '(no drawer)' })()`
-  )
+  // 抽屉先渲染骨架、再异步补详情（store 未命中时还要走一次 RPC tellStatus），
+  // 固定 sleep 在机器繁忙时会读到「任务不存在或加载中」的中间态，改成轮询到内容出现。
+  const readDrawerText = async () =>
+    await evalIn(session, `(() => { const d = document.querySelector('.n-drawer'); return d ? d.innerText : '(no drawer)' })()`)
+  const drawerText = await waitFor(
+    async () => {
+      const text = await readDrawerText()
+      return typeof text === 'string' && text.includes(fileName) ? text : null
+    },
+    { timeoutMs: 15000, intervalMs: 300, label: '任务详情加载出文件名' }
+  ).catch(async () => await readDrawerText())
   reporter.check('任务详情抽屉可打开', typeof drawerText === 'string' && drawerText !== '(no drawer)', String(drawerText).slice(0, 80))
   reporter.check('详情包含刚下载的文件名', typeof drawerText === 'string' && drawerText.includes(fileName))
   await capture(session, path.join(outDir, '06-task-detail.png'))

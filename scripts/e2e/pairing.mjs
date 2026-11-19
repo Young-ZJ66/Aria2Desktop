@@ -107,11 +107,24 @@ export async function runPairingCheck({ extensionDir, outDir, reporter }) {
       `(() => { const el = document.getElementById('pairBanner'); return el.offsetParent !== null && getComputedStyle(el).display !== 'none' })()`
     )
     reporter.check('重新打开弹窗不再显示未配对横幅', bannerVisible === false)
-    // 同一个按钮应切换成「解除配对」，而不是额外出现第二个按钮
+    // 已配对后两个按钮各司其职：主按钮变成「重新配对」，旁边出现「解除配对」。
+    // 早前版本让主按钮直接承载解除配对，现改为独立按钮，断言随之更新。
     const pairBtnText = await evalIn(verifySession, `document.getElementById('pairBtn').textContent`)
-    reporter.check('配对按钮切换为解除配对', /解除配对|Unpair/i.test(String(pairBtnText)), String(pairBtnText))
-    const hasExtraUnpair = await evalIn(verifySession, `document.getElementById('unpairBtn') !== null`)
-    reporter.check('不存在额外的解除配对按钮', hasExtraUnpair === false)
+    reporter.check('配对按钮切换为重新配对', /重新配对|Re-pair/i.test(String(pairBtnText)), String(pairBtnText))
+    // 配对信息在设置页，弹窗默认停在任务页；先切过去再判断可见性，
+    // 否则隐藏的 pane 里 offsetParent 恒为 null，会把"按钮存在但页签未打开"误判成缺失。
+    await evalIn(verifySession, `document.getElementById('navSettings').click()`)
+    await sleep(300)
+    const unpairVisible = await evalIn(
+      verifySession,
+      `(() => {
+        const el = document.getElementById('unpairBtn')
+        if (!el) return false
+        const style = getComputedStyle(el)
+        return !el.hidden && el.offsetParent !== null && style.display !== 'none' && style.visibility !== 'hidden'
+      })()`
+    )
+    reporter.check('已配对时显示解除配对按钮', unpairVisible === true)
     await capture(verifySession, path.join(outDir, '08-extension-paired.png'))
     verifySession.close()
   } catch (error) {
