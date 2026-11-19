@@ -78,7 +78,9 @@
               inputmode="decimal"
               :placeholder="t('footer.speedLimitPlaceholder')"
               :aria-label="t('footer.speedLimit')"
-              @keydown.enter="applyLimit"
+              :status="limitInvalid ? 'error' : undefined"
+              @keydown.enter="flushLimitNow"
+              @blur="flushLimitNow"
             />
             <div class="limit-pop__units" role="radiogroup" :aria-label="t('footer.speedLimit')">
               <button
@@ -89,15 +91,13 @@
                 class="limit-unit"
                 :class="{ 'is-active': limitUnit === unit }"
                 :aria-checked="limitUnit === unit"
-                @click="limitUnit = unit"
+                @click="selectUnit(unit)"
               >
                 {{ unit }}/s
               </button>
             </div>
           </div>
-          <n-button class="limit-pop__apply" size="small" type="primary" block @click="applyLimit">
-            {{ t('common.ok') }}
-          </n-button>
+          <p v-if="limitInvalid" class="limit-pop__error">{{ t('footer.speedLimitInvalid') }}</p>
         </div>
       </div>
     </n-popover>
@@ -105,9 +105,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NIcon, NInput, NPopover, NSwitch } from 'naive-ui'
+import { NIcon, NInput, NPopover, NSwitch } from 'naive-ui'
 import { useStatsStore } from '@/stores/statsStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { formatSpeed } from '@/utils/taskFormatters'
@@ -137,6 +137,8 @@ const showLimitPop = ref(false)
 /** 用户填的数值保持字符串：中间态（空、"1."）不能被数字输入框吞掉 */
 const limitInput = ref('')
 const limitUnit = ref<SpeedLimitUnit>('MB')
+/** 输入框里不是有效数字：不写引擎，只在面板内提示 */
+const limitInvalid = ref(false)
 
 /** 打开面板时把当前限速回填成「数值 + 单位」，用户不用自己换算 */
 function syncLimitForm() {
@@ -146,7 +148,11 @@ function syncLimitForm() {
 }
 
 watch(showLimitPop, (show) => {
-  if (!show) return
+  if (!show) {
+    clearLimitTimer()
+    limitInvalid.value = false
+    return
+  }
   syncLimitForm()
   // 打开就落在数值框上，省掉一次点击
   nextTick(() => {
@@ -189,30 +195,59 @@ async function handleToggleSpeedLimit(value: boolean) {
   }
 }
 
-async function applyLimit() {
-  if (!connectionStore.service) {
-    message.warning(t('footer.speedLimitNoEngine'))
-    return
-  }
-  // 留空或填 0 视为不限制，等价于关掉限速
+/** 输入停下来就写回引擎，不再需要点「确定」 */
+const LIMIT_APPLY_DELAY = 500
+let limitTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearLimitTimer() {
+  if (limitTimer === null) return
+  clearTimeout(limitTimer)
+  limitTimer = null
+}
+
+/**
+ * 把面板里的数值写回引擎。留空或填 0 视为不限制。
+ * 打开面板回填、单位切回同一档位也会走到这里，值没变就不发 RPC。
+ */
+async function applyLimitNow() {
+  if (!connectionStore.service) return
   const bytes = parseSpeedLimitInput(limitInput.value, limitUnit.value)
-  if (bytes === null) {
-    message.warning(t('footer.speedLimitInvalid'))
-    return
-  }
+  limitInvalid.value = bytes === null
+  if (bytes === null) return
+  if (bytes === currentLimitBytes.value) return
   try {
     await statsStore.setSpeedLimit(bytes)
-    if (bytes > 0) {
-      // formatSpeed 自带单位（2 MB/s），这里不要再补 /s
-      message.success(`${t('footer.speedLimitOn')}: ${formatSpeed(bytes)}`)
-    } else {
-      message.success(t('footer.speedLimitOff'))
-    }
-    showLimitPop.value = false
   } catch {
     message.error(t('footer.speedLimitToggleFailed'))
   }
 }
+
+/** 输入防抖：连打 10 不会先按 1 生效 */
+function scheduleLimitApply() {
+  // 校验态跟着按键即时反馈，不用等防抖结束
+  limitInvalid.value = parseSpeedLimitInput(limitInput.value, limitUnit.value) === null
+  clearLimitTimer()
+  limitTimer = setTimeout(() => {
+    limitTimer = null
+    void applyLimitNow()
+  }, LIMIT_APPLY_DELAY)
+}
+
+/** 回车、失焦、切换单位立刻生效，不等防抖 */
+function flushLimitNow() {
+  clearLimitTimer()
+  void applyLimitNow()
+}
+
+function selectUnit(unit: SpeedLimitUnit) {
+  if (limitUnit.value === unit) return
+  limitUnit.value = unit
+  flushLimitNow()
+}
+
+watch(limitInput, scheduleLimitApply)
+
+onBeforeUnmount(clearLimitTimer)
 </script>
 
 <style scoped>
@@ -391,6 +426,13 @@ async function applyLimit() {
 .limit-unit:focus-visible {
   outline: 2px solid var(--ds-focus-ring);
   outline-offset: 1px;
+}
+
+.limit-pop__error {
+  margin: 0;
+  font-size: var(--ds-text-micro-size);
+  line-height: 1.4;
+  color: var(--color-danger-text);
 }
 
 @media (max-width: 900px) {
