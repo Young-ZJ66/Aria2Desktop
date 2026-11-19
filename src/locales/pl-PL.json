@@ -410,7 +410,8 @@
     "title": "Powiadomienia",
     "empty": "Brak powiadomień",
     "markAllRead": "Oznacz wszystkie jako przeczytane",
-    "clear": "Wyczyść"
+    "clear": "Wyczyść",
+    "deleteOne": "Usuń to powiadomienie"
   },
   "statusPage": {
     "trafficCollecting": "Zbieranie danych o prędkości…",

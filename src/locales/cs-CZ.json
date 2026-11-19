@@ -410,7 +410,8 @@
     "title": "Oznámení",
     "empty": "Zatím žádná oznámení",
     "markAllRead": "Označit vše jako přečtené",
-    "clear": "Vymazat"
+    "clear": "Vymazat",
+    "deleteOne": "Smazat toto oznámení"
   },
   "statusPage": {
     "trafficCollecting": "Shromažďování dat o rychlosti…",

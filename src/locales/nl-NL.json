@@ -410,7 +410,8 @@
     "title": "Meldingen",
     "empty": "Nog geen meldingen",
     "markAllRead": "Alles als gelezen markeren",
-    "clear": "Wissen"
+    "clear": "Wissen",
+    "deleteOne": "Deze melding verwijderen"
   },
   "statusPage": {
     "trafficCollecting": "Snelheidsgegevens verzamelen…",

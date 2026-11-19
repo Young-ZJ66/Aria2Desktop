@@ -410,7 +410,8 @@
     "title": "알림",
     "empty": "알림이 없습니다",
     "markAllRead": "모두 읽음으로 표시",
-    "clear": "지우기"
+    "clear": "지우기",
+    "deleteOne": "이 알림 삭제"
   },
   "statusPage": {
     "trafficCollecting": "속도 데이터 수집 중…",

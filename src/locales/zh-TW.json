@@ -410,7 +410,8 @@
     "title": "通知",
     "empty": "尚無通知",
     "markAllRead": "全部標為已讀",
-    "clear": "清除"
+    "clear": "清除",
+    "deleteOne": "刪除這則通知"
   },
   "statusPage": {
     "trafficCollecting": "正在蒐集速度資料…",

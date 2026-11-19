@@ -410,7 +410,8 @@
     "title": "通知",
     "empty": "通知はまだありません",
     "markAllRead": "すべて既読にする",
-    "clear": "クリア"
+    "clear": "クリア",
+    "deleteOne": "この通知を削除"
   },
   "statusPage": {
     "trafficCollecting": "速度データを収集中…",

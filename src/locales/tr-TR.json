@@ -410,7 +410,8 @@
     "title": "Bildirimler",
     "empty": "Henüz bildirim yok",
     "markAllRead": "Tümünü okundu işaretle",
-    "clear": "Temizle"
+    "clear": "Temizle",
+    "deleteOne": "Bu bildirimi sil"
   },
   "statusPage": {
     "trafficCollecting": "Hız verileri toplanıyor…",

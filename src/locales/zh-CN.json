@@ -410,7 +410,8 @@
     "title": "通知",
     "empty": "暂无通知",
     "markAllRead": "全部已读",
-    "clear": "清空"
+    "clear": "清空",
+    "deleteOne": "删除这条通知"
   },
   "statusPage": {
     "trafficCollecting": "正在采集速度数据…",

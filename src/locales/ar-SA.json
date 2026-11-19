@@ -410,7 +410,8 @@
     "title": "الإشعارات",
     "empty": "لا توجد إشعارات بعد",
     "markAllRead": "تحديد الكل كمقروء",
-    "clear": "مسح"
+    "clear": "مسح",
+    "deleteOne": "حذف هذا الإشعار"
   },
   "statusPage": {
     "trafficCollecting": "جارٍ جمع بيانات السرعة…",

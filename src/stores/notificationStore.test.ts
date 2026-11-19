@@ -74,3 +74,42 @@ describe('通知中心记录失败原因', () => {
     expect(store.items.map(item => item.detail)).toEqual(['磁盘空间不足', undefined, undefined])
   })
 })
+
+describe('删除单条通知', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('只删掉目标那条，其余顺序不变，并同步落盘', async () => {
+    const data = stubStorage()
+    const store = await freshStore()
+    store.push({ type: 'error', gid: 'g1', name: 'a.zip' })
+    store.push({ type: 'complete', gid: 'g2', name: 'b.zip' })
+    store.push({ type: 'error', gid: 'g3', name: 'c.zip' })
+
+    const target = store.items[1]!
+    expect(store.remove(target.id)).toBe(true)
+    expect(store.items.map(item => item.name)).toEqual(['c.zip', 'a.zip'])
+
+    const saved = JSON.parse(data[STORAGE_KEY] ?? '[]') as AppNotification[]
+    expect(saved.map(item => item.name)).toEqual(['c.zip', 'a.zip'])
+  })
+
+  it('id 不存在时返回 false，列表原样保留', async () => {
+    const store = await freshStore()
+    store.push({ type: 'error', gid: 'g1', name: 'a.zip' })
+
+    expect(store.remove('not-exist')).toBe(false)
+    expect(store.items).toHaveLength(1)
+  })
+
+  it('删掉未读通知后未读数跟着减少', async () => {
+    const store = await freshStore()
+    store.push({ type: 'error', gid: 'g1', name: 'a.zip' })
+    store.push({ type: 'error', gid: 'g2', name: 'b.zip' })
+    expect(store.unreadCount).toBe(2)
+
+    store.remove(store.items[0]!.id)
+    expect(store.unreadCount).toBe(1)
+  })
+})

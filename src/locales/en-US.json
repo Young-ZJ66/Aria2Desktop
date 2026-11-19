@@ -410,7 +410,8 @@
     "title": "Notifications",
     "empty": "No notifications yet",
     "markAllRead": "Mark all read",
-    "clear": "Clear"
+    "clear": "Clear",
+    "deleteOne": "Delete this notification"
   },
   "statusPage": {
     "trafficCollecting": "Collecting speed data…",

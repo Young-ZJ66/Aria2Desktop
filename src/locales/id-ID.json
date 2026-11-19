@@ -410,7 +410,8 @@
     "title": "Notifikasi",
     "empty": "Belum ada notifikasi",
     "markAllRead": "Tandai semua dibaca",
-    "clear": "Bersihkan"
+    "clear": "Bersihkan",
+    "deleteOne": "Hapus notifikasi ini"
   },
   "statusPage": {
     "trafficCollecting": "Mengumpulkan data kecepatan…",

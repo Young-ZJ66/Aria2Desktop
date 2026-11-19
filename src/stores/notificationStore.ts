@@ -109,6 +109,15 @@ export const useNotificationStore = defineStore('notifications', () => {
     if (changed) persist()
   }
 
+  /** 删除单条通知；返回是否真的删掉了（id 不存在时 false） */
+  function remove(id: string): boolean {
+    const index = items.value.findIndex(entry => entry.id === id)
+    if (index === -1) return false
+    items.value.splice(index, 1)
+    persist()
+    return true
+  }
+
   function clear() {
     items.value = []
     persist()
@@ -120,6 +129,7 @@ export const useNotificationStore = defineStore('notifications', () => {
     push,
     markRead,
     markAllRead,
+    remove,
     clear
   }
 })

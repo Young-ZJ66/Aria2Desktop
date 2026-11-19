@@ -410,7 +410,8 @@
     "title": "Benachrichtigungen",
     "empty": "Noch keine Benachrichtigungen",
     "markAllRead": "Alle als gelesen markieren",
-    "clear": "Leeren"
+    "clear": "Leeren",
+    "deleteOne": "Diese Benachrichtigung löschen"
   },
   "statusPage": {
     "trafficCollecting": "Geschwindigkeitsdaten werden erfasst…",

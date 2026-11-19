@@ -410,7 +410,8 @@
     "title": "Notificaciones",
     "empty": "Aún no hay notificaciones",
     "markAllRead": "Marcar todo como leído",
-    "clear": "Borrar"
+    "clear": "Borrar",
+    "deleteOne": "Eliminar esta notificación"
   },
   "statusPage": {
     "trafficCollecting": "Recopilando datos de velocidad…",

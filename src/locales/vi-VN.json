@@ -410,7 +410,8 @@
     "title": "Thông báo",
     "empty": "Chưa có thông báo",
     "markAllRead": "Đánh dấu tất cả đã đọc",
-    "clear": "Xóa hết"
+    "clear": "Xóa hết",
+    "deleteOne": "Xóa thông báo này"
   },
   "statusPage": {
     "trafficCollecting": "Đang thu thập dữ liệu tốc độ…",
