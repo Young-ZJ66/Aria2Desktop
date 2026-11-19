@@ -26,7 +26,7 @@
         <n-divider />
         <div class="option-section">
           <div style="margin-top: 16px;">
-            <n-checkbox v-model:checked="deleteFiles" :disabled="fileList.length === 0">
+            <n-checkbox v-model:checked="deleteFiles" :disabled="!canDeleteFiles">
               {{ t('delete.deleteFiles') }}
             </n-checkbox>
             <div v-if="deleteFiles" class="trash-hint">{{ t('delete.toTrashHint') }}</div>
@@ -69,6 +69,8 @@ interface Props {
   taskType?: string
   /** 父组件删除进行中：确认按钮显示 loading 并阻止重复提交/关闭 */
   loading?: boolean
+  /** 流媒体等任务允许在尚未产出最终文件时也勾选删除（清理临时文件） */
+  allowFileDelete?: boolean
 }
 
 interface Emits {
@@ -91,9 +93,11 @@ const deleteFiles = ref(false)
 
 const taskCount = computed(() => props.tasks.length)
 
-// 检查是否在桌面环境中且有文件可删除
+// 检查是否在桌面环境中且有文件可删除。流媒体任务可能还没有最终文件，
+// 但仍有临时文件需要清理，此时由父组件显式打开选项。
+const canDeleteFiles = computed(() => props.allowFileDelete === true || fileList.value.length > 0)
 const showFileDeleteOption = computed(() => {
-  return !!window.electronAPI?.deleteFiles && fileList.value.length > 0
+  return !!window.electronAPI?.deleteFiles && canDeleteFiles.value
 })
 
 // 获取所有任务的文件列表（统一走删除服务的路径处理逻辑，避免两份实现漂移）

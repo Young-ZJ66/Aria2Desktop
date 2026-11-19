@@ -56,20 +56,20 @@
 
         <!-- 每任务速度曲线：抽屉打开期间随轮询采样（60 个点 ≈ 3 分钟窗口） -->
         <n-descriptions-item v-if="speedSamples.length > 1" :label="t('taskDetail.speedChart')" :span="2">
-          <svg class="speed-sparkline" viewBox="0 0 240 48" preserveAspectRatio="none" role="img" :aria-label="t('taskDetail.speedChart')">
-            <polyline
-              class="speed-line"
-              :points="speedSparklinePoints"
-              fill="none"
-              stroke="var(--ds-accent, #4560e0)"
-              stroke-width="1.5"
-              stroke-linejoin="round"
-              stroke-linecap="round"
-            />
-            <text class="speed-peak" x="240" y="8" text-anchor="end">
-              {{ formatSpeed(String(speedPeak)) }}
-            </text>
-          </svg>
+          <div class="speed-chart">
+            <svg class="speed-sparkline" viewBox="0 0 240 48" preserveAspectRatio="none" role="img" :aria-label="t('taskDetail.speedChart')">
+              <polyline
+                class="speed-line"
+                :points="speedSparklinePoints"
+                fill="none"
+                stroke="var(--ds-accent, #4560e0)"
+                stroke-width="1.5"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+              />
+            </svg>
+            <span class="speed-peak">{{ formatSpeed(String(speedPeak)) }}</span>
+          </div>
         </n-descriptions-item>
 
         <n-descriptions-item v-if="task.files?.length" :label="t('taskDetail.filePath')" :span="2">
@@ -484,15 +484,31 @@ async function openFileInFolder(filePath: string) {
   color: var(--ds-text-muted);
 }
 
+.speed-chart {
+  position: relative;
+  width: 100%;
+  height: 48px;
+}
+
 .speed-sparkline {
   width: 100%;
   height: 48px;
   display: block;
 }
 
+/* 峰值是 HTML 文本而不是 SVG text：图表用 preserveAspectRatio="none" 铺满宽度，
+   把文字留在 SVG 里会跟着被横向拉伸，速度值看起来像坏掉的字体。 */
 .speed-peak {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding-left: var(--ds-space-4);
+  background: var(--ds-bg-surface);
+  color: var(--ds-text-muted);
   font-size: var(--ds-text-micro-size);
-  fill: var(--ds-text-muted);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 
 .gid-text {

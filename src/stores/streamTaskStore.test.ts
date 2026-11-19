@@ -13,6 +13,7 @@ beforeEach(() => {
     electronAPI: {
       streamDownloadStart: vi.fn(async () => ({ success: true, id: 'sd-test-1' })),
       streamDownloadCancel: vi.fn(async () => true),
+      streamDownloadDiscard: vi.fn(async () => true),
       streamDownloadPause: vi.fn(async () => true),
       streamDownloadResume: vi.fn(async () => true),
       streamDownloadDeleteFile: vi.fn(async () => ({ success: true })),
@@ -113,7 +114,7 @@ describe('streamTaskStore', () => {
     expect(store.tasks).toHaveLength(0)
   })
 
-  it('removeTask 对进行中的任务先取消再移除（顺序不能反）', async () => {
+  it('removeTask 对进行中的任务先丢弃进程并清理临时文件，再移除', async () => {
     const store = useStreamTaskStore()
     await store.startTask({
       url: 'https://example.com/video',
@@ -122,15 +123,29 @@ describe('streamTaskStore', () => {
       outputDir: 'D:/Downloads',
       title: '测试视频'
     })
-    const calls: string[] = []
-    ;(window.electronAPI!.streamDownloadCancel as ReturnType<typeof vi.fn>).mockImplementation(async () => {
-      calls.push('cancel')
-      return true
-    })
 
     await store.removeTask('sd-test-1')
 
-    expect(calls).toEqual(['cancel'])
+    expect(window.electronAPI!.streamDownloadDiscard).toHaveBeenCalledWith('sd-test-1')
+    expect(window.electronAPI!.streamDownloadCancel).not.toHaveBeenCalled()
+    expect(store.tasks).toHaveLength(0)
+  })
+
+  it('removeTask 勾选删除文件时对进行中的任务走丢弃，不调用完成态文件删除', async () => {
+    const store = useStreamTaskStore()
+    await store.startTask({
+      url: 'https://example.com/video',
+      formatId: '30080',
+      merge: true,
+      outputDir: 'D:/Downloads',
+      title: '测试视频'
+    })
+
+    const result = await store.removeTask('sd-test-1', true)
+
+    expect(result.success).toBe(true)
+    expect(window.electronAPI!.streamDownloadDiscard).toHaveBeenCalledWith('sd-test-1')
+    expect(window.electronAPI!.streamDownloadDeleteFile).not.toHaveBeenCalled()
     expect(store.tasks).toHaveLength(0)
   })
 
@@ -271,7 +286,7 @@ describe('streamTaskStore', () => {
     await store.pauseTask('sd-test-1')
 
     await store.removeTask('sd-test-1')
-    expect(window.electronAPI!.streamDownloadCancel).toHaveBeenCalledWith('sd-test-1')
+    expect(window.electronAPI!.streamDownloadDiscard).toHaveBeenCalledWith('sd-test-1')
     expect(store.tasks).toHaveLength(0)
   })
 

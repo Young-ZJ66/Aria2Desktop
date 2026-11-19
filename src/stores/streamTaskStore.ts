@@ -174,15 +174,22 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
   /** 暂停进行中的下载（主进程结束子进程但保留任务记录） */
   async function pauseTask(gid: string): Promise<boolean> {
     const task = findByGid(gid)
-    if (!task || task.status !== 'active' || !window.electronAPI?.streamDownloadPause) return false
+    if (!task || !window.electronAPI?.streamDownloadPause) return false
+    // 事件可能先于 IPC 回包把状态改成 paused；此时重复点击不应再提示失败
+    if (task.status === 'paused') return true
+    if (task.status !== 'active') return false
     const paused = await window.electronAPI.streamDownloadPause(gid)
-    if (paused && task.status === 'active') {
-      task.status = 'paused'
-      task.speedBytes = 0
-      task.speedText = ''
-      task.eta = ''
+    if (paused) {
+      if (task.status === 'active') {
+        task.status = 'paused'
+        task.speedBytes = 0
+        task.speedText = ''
+        task.eta = ''
+      }
+      return true
     }
-    return paused
+    // 暂停事件已经到达但 IPC 因进程刚退出返回 false：以界面状态为准
+    return findByGid(gid)?.status === 'paused'
   }
 
   /** 继续已暂停的下载（沿用原参数重新拉起 yt-dlp） */
@@ -196,18 +203,24 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
 
   /**
    * 从列表移除。
-   * - 进行中的任务会先取消；
-   * - 已完成的任务可选择同时删除磁盘文件（与 aria2 任务共用系统回收站语义）；
+   * - 进行中/暂停中的任务先终止进程并清理临时目录；
+   * - 已完成的任务可选择同时删除最终文件（与 aria2 任务共用系统回收站语义）；
    * - 未勾选删除或任务没有 filePath 时，文件保留在磁盘上。
    */
   async function removeTask(gid: string, deleteFiles = false): Promise<{ success: boolean; error?: string }> {
     const task = findByGid(gid)
-    if (task?.status === 'active' || task?.status === 'paused') {
-      const cancelled = await cancelTask(gid)
-      if (!cancelled) return { success: false, error: 'Cancel failed' }
+    if (!task) return { success: false, error: 'Task not found' }
+
+    // 进行中/暂停中：discard 会结束进程、删除 .part 与临时目录（即使不勾选删除文件，
+    // 这些临时内容也不应留在磁盘上）。旧 preload 没有 discard 时退回 cancel。
+    if (task.status === 'active' || task.status === 'paused') {
+      const discarded = window.electronAPI?.streamDownloadDiscard
+        ? await window.electronAPI.streamDownloadDiscard(gid)
+        : await cancelTask(gid)
+      if (!discarded) return { success: false, error: 'Cancel failed' }
     }
 
-    if (deleteFiles && task?.status === 'complete' && task.filePath && window.electronAPI?.streamDownloadDeleteFile) {
+    if (deleteFiles && task.status === 'complete' && task.filePath && window.electronAPI?.streamDownloadDeleteFile) {
       try {
         // 专用通道只允许本进程创建过的输出目录，避免通用删除接口拒绝非默认下载目录
         const result = await window.electronAPI.streamDownloadDeleteFile(task.filePath, task.outputDir)
@@ -217,6 +230,11 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) }
       }
+    }
+
+    // 完成/失败任务的临时目录可能仍在（例如失败时），勾选删除文件时一并清理
+    if (deleteFiles && task.status !== 'complete' && window.electronAPI?.streamDownloadDiscard) {
+      await window.electronAPI.streamDownloadDiscard(gid)
     }
 
     tasks.value = tasks.value.filter(item => item.gid !== gid)

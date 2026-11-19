@@ -206,7 +206,7 @@ describe('buildStreamArgs：参数构造', () => {
   it('单视频（无扩展字段）：保持既有参数面（--no-playlist 基本盘不变）', () => {
     const args = buildStreamArgs({ ...BASE_REQUEST }, 'bestvideo*+bestaudio/best', { ffmpegLocation: '/ff', finalPathFile: '/tmp/final.txt' })
     expect(args).toEqual([
-      '--newline', '--progress', '--progress-delta', '0.2', '--progress-template', expect.any(String),
+      '--newline', '--encoding', 'utf-8', '--progress', '--progress-delta', '0.2', '--progress-template', expect.any(String),
       '--no-warnings', '--no-playlist', '--no-simulate',
       '--print-to-file', 'after_move:filepath', '/tmp/final.txt',
       '-f', 'bestvideo*+bestaudio/best',
@@ -214,6 +214,13 @@ describe('buildStreamArgs：参数构造', () => {
       '--ffmpeg-location', '/ff',
       BASE_REQUEST.url
     ])
+  })
+
+  it('临时目录：--paths temp:<dir> 放在 -o 之前，stdout 固定 UTF-8 编码', () => {
+    const args = buildStreamArgs({ ...BASE_REQUEST }, 'best', { tempDir: 'C:/tmp/aria2desktop-stream-1' })
+    expect(args[args.indexOf('--encoding') + 1]).toBe('utf-8')
+    expect(args.slice(args.indexOf('--paths'), args.indexOf('--paths') + 2)).toEqual(['--paths', 'temp:C:/tmp/aria2desktop-stream-1'])
+    expect(args.indexOf('--paths')).toBeLessThan(args.indexOf('-o'))
   })
 
   it('播放列表：--playlist-items 替换 --no-playlist，值为逗号连接的 id', () => {
@@ -292,7 +299,7 @@ describe('buildStreamArgs：参数构造', () => {
       { ffmpegLocation: '/ff', finalPathFile: '/tmp/final.txt' }
     )
     expect(args).toEqual([
-      '--newline', '--progress', '--progress-delta', '0.2', '--progress-template', expect.any(String),
+      '--newline', '--encoding', 'utf-8', '--progress', '--progress-delta', '0.2', '--progress-template', expect.any(String),
       '--no-warnings', '--playlist-items', '2,4', '--no-simulate',
       '--print-to-file', 'after_move:filepath', '/tmp/final.txt',
       '-f', 'bestaudio/best',

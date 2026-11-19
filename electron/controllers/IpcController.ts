@@ -23,6 +23,7 @@ import { checkFfmpegAvailable, installFfmpeg, checkFfmpegUpdate } from '../servi
 import {
   startStreamDownload,
   cancelStreamDownload,
+  discardStreamDownload,
   pauseStreamDownload,
   resumeStreamDownload,
   deleteStreamDownloadFile,
@@ -1019,6 +1020,14 @@ export class IpcController {
     registerSecureHandler('stream-download-cancel', (event, id: unknown) => {
       if (typeof id !== 'string' || !id) return false
       return cancelStreamDownload(id)
+    }, {
+      getMainWindow: this.windowRef,
+      failureValue: false
+    })
+
+    registerSecureHandler('stream-download-discard', (_event, id: unknown) => {
+      if (typeof id !== 'string' || !id) return false
+      return discardStreamDownload(id)
     }, {
       getMainWindow: this.windowRef,
       failureValue: false

@@ -254,6 +254,7 @@ const electronAPI = {
   }) =>
     ipcRenderer.invoke('stream-download-start', request),
   streamDownloadCancel: (id: string) => ipcRenderer.invoke('stream-download-cancel', id),
+  streamDownloadDiscard: (id: string) => ipcRenderer.invoke('stream-download-discard', id),
   streamDownloadPause: (id: string) => ipcRenderer.invoke('stream-download-pause', id),
   streamDownloadResume: (id: string) => ipcRenderer.invoke('stream-download-resume', id),
   streamDownloadDeleteFile: (filePath: string, outputDir: string) =>

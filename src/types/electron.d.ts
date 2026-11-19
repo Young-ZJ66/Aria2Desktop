@@ -367,6 +367,7 @@ export interface ElectronAPI {
     extractAudio?: boolean
   }) => Promise<{ success: boolean; id?: string; code?: 'ffmpeg_missing' | 'invalid_request'; error?: string }>
   streamDownloadCancel: (id: string) => Promise<boolean>
+  streamDownloadDiscard: (id: string) => Promise<boolean>
   streamDownloadPause: (id: string) => Promise<boolean>
   streamDownloadResume: (id: string) => Promise<boolean>
   streamDownloadDeleteFile: (filePath: string, outputDir: string) => Promise<{ success: boolean; error?: string }>

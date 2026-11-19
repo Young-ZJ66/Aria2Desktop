@@ -171,9 +171,14 @@ h5 {
   border-bottom: none;
 }
 
-/* 数据表：表头是一层「标签带」，行是内容层——v1 两者几乎同色，读起来没有结构 */
+/* 数据表：表头只做列名定位；用底色会和白色表面割裂，也把每张表切成两条色带。
+   注意底色同时挂在 thead（以及它的行）上，只清 th 仍会留下一条灰带。 */
+.n-data-table .n-data-table-thead,
+.n-data-table .n-data-table-thead .n-data-table-tr,
 .n-data-table .n-data-table-th {
-  background: var(--ds-bg-sunken);
+  background: transparent;
+}
+.n-data-table .n-data-table-th {
   color: var(--ds-text-muted);
   font-size: var(--ds-text-small-size);
   font-weight: 500;

@@ -25,7 +25,7 @@
 
     <section class="task-surface">
       <!-- 操作栏与任务表同处一个表面，减少空白卡片堆叠 -->
-      <div class="task-toolbar" :class="{ 'is-selecting': hasSelection }">
+      <div class="task-toolbar">
         <div class="toolbar-actions">
           <TaskBatchActions
             :selected-count="selectedCount"
@@ -159,6 +159,7 @@
       :task-name="tasksToDelete.length === 1 ? getTaskDisplayName(tasksToDelete[0] as Aria2Task) : undefined"
       :task-type="taskType"
       :loading="batchDeleting"
+      :allow-file-delete="tasksToDelete.some(t => !!streamTaskStore.findByGid(t.gid))"
       @confirm="handleBatchDeleteConfirm"
     />
 
@@ -169,6 +170,7 @@
       :task-name="streamTaskToDelete ? getTaskDisplayName(streamTaskToDelete) : undefined"
       task-type="stopped"
       :loading="streamDeleting"
+      :allow-file-delete="true"
       @confirm="handleStreamDeleteConfirm"
     />
   </div>
@@ -938,9 +940,9 @@ async function removeStreamTask(gid: string) {
     return
   }
 
-  // 已完成且有最终文件时，和普通任务一样走带「同时删除文件」选项的对话框
-  const canDeleteFile = streamTask.status === 'complete' && !!streamTask.filePath && !!window.electronAPI?.streamDownloadDeleteFile
-  if (canDeleteFile) {
+  // 流媒体任务无论下载中还是已完成，都走带「同时删除文件」选项的对话框：
+  // 下载中删除的是临时文件（.part），已完成删除的是最终文件，语义与普通任务一致。
+  if (window.electronAPI?.deleteFiles) {
     streamTaskToDelete.value = streamTaskStore.toAria2Task(streamTask)
     showStreamDeleteDialog.value = true
     return
@@ -1292,20 +1294,12 @@ async function batchDelete() {
     const isElectron = !!window.electronAPI?.deleteFiles
     let hasFiles = false
 
-    if (props.taskType === 'stopped') {
-      hasFiles = selectedTasks.value.some(task => {
-        // 流媒体任务：只有已完成且拿到最终文件路径时才提供「同时删除文件」
-        const streamTask = streamTaskStore.findByGid(task.gid)
-        if (streamTask) return streamTask.status === 'complete' && !!streamTask.filePath
-        return completedTaskDeleteService.hasDeleteableFiles(task)
-      })
-    } else {
-      hasFiles = selectedTasks.value.some(task => {
-        const streamTask = streamTaskStore.findByGid(task.gid)
-        if (streamTask) return streamTask.status === 'complete' && !!streamTask.filePath
-        return task.files && task.files.length > 0 && task.files.some(file => file.path && file.path.trim())
-      })
-    }
+    hasFiles = selectedTasks.value.some(task => {
+      // 流媒体任务总有可清理的内容：完成态是最终文件，进行中/暂停态是临时分片。
+      if (streamTaskStore.findByGid(task.gid)) return true
+      if (props.taskType === 'stopped') return completedTaskDeleteService.hasDeleteableFiles(task)
+      return task.files && task.files.length > 0 && task.files.some(file => file.path && file.path.trim())
+    })
 
     if (isElectron && hasFiles) {
       tasksToDelete.value = [...selectedTasks.value]
@@ -1775,7 +1769,7 @@ watch(
 }
 
 
-/* 工具栏：选中态时整条染色，批量操作从「常驻的灰按钮」变成「当前上下文」 */
+/* 工具栏：与表格同处一个表面，只用一条细分隔线收口 */
 .task-toolbar {
   flex: none;
   display: flex;
@@ -1789,11 +1783,6 @@ watch(
   gap: var(--ds-space-12);
   transition: background-color var(--ds-motion-dur-2) var(--ds-motion-ease-out),
     border-color var(--ds-motion-dur-2) var(--ds-motion-ease-out);
-}
-
-.task-toolbar.is-selecting {
-  background: var(--ds-accent-subtle);
-  border-bottom-color: var(--ds-accent-border);
 }
 
 .toolbar-actions {
