@@ -88,6 +88,20 @@ export function buildOpenApiDocument(appVersion: string): Record<string, unknown
           }
         }
       },
+      '/api/events': {
+        get: {
+          summary: '订阅任务状态变化（Server-Sent Events，持续推送）',
+          description: '连接保持打开，服务端在状态变化时推送 event: status（data 为与 /api/status 相同的 JSON），每 25 秒发送一次注释行心跳。无变化不重复推送。浏览器端 EventSource 无法自定义请求头，因此页面使用 fetch + ReadableStream 携带 Bearer 令牌消费本接口。',
+          tags: ['任务'],
+          security: securityRequirement(),
+          responses: {
+            200: { description: '事件流（text/event-stream）', content: { 'text/event-stream': { schema: { type: 'string' } } } },
+            401: { description: '缺少或错误的令牌', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+            403: { description: '令牌权限不足（需 tasks:read）', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+            503: { description: '并发订阅数超过上限（too_many_streams）', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+          }
+        }
+      },
       '/api/tasks': {
         post: {
           summary: '添加下载任务',

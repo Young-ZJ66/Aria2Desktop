@@ -56,6 +56,29 @@ function makeRes() {
   return { res: res as unknown as ServerResponse, out: chunks }
 }
 
+/** SSE 用：需要 write/on('close')，不能用只记录 end 的 makeRes */
+function makeStreamRes() {
+  const chunks: { status?: number; headers?: Record<string, string>; chunks: string[] } = { chunks: [] }
+  const res = {
+    writeHead(status: number, headers?: Record<string, string>) {
+      chunks.status = status
+      chunks.headers = headers || {}
+      return res
+    },
+    write(chunk: string) {
+      chunks.chunks.push(String(chunk))
+      return true
+    },
+    end() {
+      return res
+    },
+    on() {
+      return res
+    }
+  }
+  return { res: res as unknown as ServerResponse, out: chunks }
+}
+
 function makeReq(method: string, url: string, headers: Record<string, string> = {}, body?: string, ip = '127.0.0.1') {
   const stream = new PassThrough() as unknown as IncomingMessage & { end: (chunk?: string) => void }
   Object.assign(stream, {
@@ -136,6 +159,7 @@ describe('webConsoleAuth', () => {
 
   it('路由权限映射覆盖全部业务路由', () => {
     expect(routeScope('GET', '/api/status')).toBe('tasks:read')
+    expect(routeScope('GET', '/api/events')).toBe('tasks:read')
     expect(routeScope('GET', '/api/audit')).toBe('audit:read')
     expect(routeScope('POST', '/api/tasks')).toBe('tasks:write')
     expect(routeScope('POST', '/api/tasks/abc123/pause')).toBe('tasks:control')
@@ -168,7 +192,7 @@ describe('OpenAPI 文档', () => {
     }
     expect(doc.openapi).toBe('3.0.3')
     expect(doc.info.version).toBe('1.3.7')
-    expect(Object.keys(doc.paths).sort()).toEqual(['/api/audit', '/api/status', '/api/tasks', '/api/tasks/{gid}/{action}', '/openapi.json'])
+    expect(Object.keys(doc.paths).sort()).toEqual(['/api/audit', '/api/events', '/api/status', '/api/tasks', '/api/tasks/{gid}/{action}', '/openapi.json'])
     expect(doc.components.securitySchemes.bearerAuth).toBeTruthy()
     // 能被 JSON 序列化（无循环引用/函数）
     expect(() => JSON.stringify(doc)).not.toThrow()
@@ -330,6 +354,33 @@ describe('WebConsoleServer.handle', () => {
     const doc = makeRes()
     await server.handle(makeReq('GET', '/openapi.json'), doc.res, [])
     expect(JSON.parse(doc.out.body || '{}').openapi).toBe('3.0.3')
+  })
+
+  it('SSE 订阅返回事件流并立即推送一帧状态', async () => {
+    rpcMock.mockImplementation(async (options: { method: string }) => {
+      if (options.method === 'aria2.getGlobalStat') return { downloadSpeed: '0', numActive: '0', numWaiting: '0', numStopped: '0' }
+      return []
+    })
+    const server = makeServer({ webConsole: { token: MASTER } }) as unknown as AnyServer & { stop: () => Promise<void> }
+    const stream = makeStreamRes()
+    await server.handle(makeReq('GET', '/api/events', { authorization: 'Bearer ' + MASTER }), stream.res, [])
+    expect(stream.out.status).toBe(200)
+    expect(stream.out.headers?.['Content-Type']).toContain('text/event-stream')
+    // 首帧由后台任务异步计算，等一轮宏任务
+    await new Promise(resolve => setTimeout(resolve, 0))
+    const body = stream.out.chunks.join('')
+    expect(body).toContain('retry: 3000')
+    expect(body).toContain('event: status')
+    expect(body).toContain('"globalStat"')
+    await server.stop()
+  })
+
+  it('无令牌订阅事件流返回 401', async () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('GET', '/api/events'), res, [])
+    expect(out.status).toBe(401)
+    expect(rpcMock).not.toHaveBeenCalled()
   })
 
   it('未知路由返回 404，且未鉴权时不泄露存在性', async () => {

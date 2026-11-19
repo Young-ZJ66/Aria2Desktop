@@ -44,7 +44,8 @@ export const WEB_CONSOLE_MANIFEST = JSON.stringify({
  * 页面导航请求在网络失败时回退到缓存的 /index.html，断网时至少能显示登录页。
  */
 export const WEB_CONSOLE_SW = [
-  "const CACHE = 'aria2-web-console-v1'",
+  // 缓存版本：页面外壳改动后必须递增，否则 cache-first 会一直回放旧 HTML
+  "const CACHE = 'aria2-web-console-v2'",
   "const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/sw.js', '/icon-192.png', '/icon-512.png', '/maskable-192.png', '/maskable-512.png']",
   "self.addEventListener('install', (event) => {",
   '  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()))',

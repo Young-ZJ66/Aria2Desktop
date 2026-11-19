@@ -42,6 +42,12 @@ interface TaskSummary {
 
 const MAX_AUDIT = 500
 const MAX_BODY = 1024 * 1024
+/** SSE 状态推送节拍：有订阅者时按此间隔重算一帧，无变化不发送 */
+const SSE_TICK_MS = 2000
+/** 心跳注释行：防止中间设备把长时间静默的连接掐掉 */
+const SSE_HEARTBEAT_MS = 25_000
+/** 同时订阅的 SSE 连接上限：每个连接每秒都会拿到一帧，防止误开一堆标签页拖垮 aria2 */
+const MAX_SSE_CLIENTS = 8
 
 /** PWA 图标路由 → base64 数据 */
 const ICON_ROUTES: Record<string, string> = {
@@ -101,6 +107,12 @@ export class WebConsoleServer {
   private bindHost = '127.0.0.1'
   /** 上次为各令牌写 lastUsedAt 的时间（节流用） */
   private lastUsedWrites = new Map<string, number>()
+  /** /api/events 的订阅者（SSE 长连接） */
+  private sseClients = new Set<http.ServerResponse>()
+  private sseTimer: ReturnType<typeof setInterval> | null = null
+  private sseLastBeat = 0
+  /** 上一帧推送内容，用于抑制无变化的重发 */
+  private sseLastPayload = ''
 
   /** 启动/重启（设置变更时调用；未启用则停止） */
   async apply(): Promise<{ running: boolean; port: number; token: string; error?: string }> {
@@ -160,6 +172,7 @@ export class WebConsoleServer {
   }
 
   async stop(): Promise<void> {
+    this.closeEventStreams()
     const server = this.server
     this.server = null
     this.actualPort = 0
@@ -210,6 +223,138 @@ export class WebConsoleServer {
       'X-Content-Type-Options': 'nosniff'
     })
     res.end(data)
+  }
+
+  /** aria2 任务 → 前端精简结构（名称取文件名，回退首个 URI） */
+  private mapTask(task: Record<string, unknown>): TaskSummary {
+    const files = Array.isArray(task.files) ? task.files as { path?: string; uris?: { uri?: string }[] }[] : []
+    const name = files[0]?.path?.split(/[\\/]/).pop() || files[0]?.uris?.[0]?.uri || String(task.gid)
+    return {
+      gid: String(task.gid),
+      status: String(task.status),
+      name,
+      totalLength: String(task.totalLength ?? '0'),
+      completedLength: String(task.completedLength ?? '0'),
+      downloadSpeed: String(task.downloadSpeed ?? '0')
+    }
+  }
+
+  /** 一次性拉齐三类任务与全局统计（/api/status 与 SSE 帧共用同一份结构） */
+  private async buildStatusPayload(): Promise<Record<string, unknown>> {
+    const fields = ['gid', 'status', 'files', 'totalLength', 'completedLength', 'downloadSpeed']
+    const [globalStat, active, waiting, stopped] = await Promise.all([
+      callAria2Rpc({ ...activeRpcOptions(), method: 'aria2.getGlobalStat' }),
+      callAria2Rpc({ ...activeRpcOptions(), method: 'aria2.tellActive', params: [fields] }),
+      callAria2Rpc({ ...activeRpcOptions(), method: 'aria2.tellWaiting', params: [0, 100, fields] }),
+      callAria2Rpc({ ...activeRpcOptions(), method: 'aria2.tellStopped', params: [0, 100, fields] })
+    ])
+    return {
+      globalStat,
+      active: (active as Record<string, unknown>[]).map(task => this.mapTask(task)),
+      waiting: (waiting as Record<string, unknown>[]).map(task => this.mapTask(task)),
+      stopped: (stopped as Record<string, unknown>[]).map(task => this.mapTask(task))
+    }
+  }
+
+  /**
+   * 建立 SSE 长连接（GET /api/events）。
+   *
+   * 令牌走 Authorization 头而不是 URL 参数：EventSource 无法自定义头，
+   * 所以页面侧用 fetch + ReadableStream 消费，避免令牌进入访问日志与浏览器历史。
+   */
+  private attachEventStream(req: http.IncomingMessage, res: http.ServerResponse) {
+    if (this.sseClients.size >= MAX_SSE_CLIENTS) {
+      this.sendJson(res, 503, { ok: false, error: 'too_many_streams' })
+      return
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Connection': 'keep-alive',
+      // 反向代理默认会缓冲响应，显式关闭，否则事件要攒够一块才下发
+      'X-Accel-Buffering': 'no'
+    })
+    res.write('retry: 3000\n\n')
+    this.sseClients.add(res)
+    const drop = () => {
+      this.sseClients.delete(res)
+      this.stopEventStreamTimer()
+    }
+    req.on('close', drop)
+    res.on('close', drop)
+    this.ensureEventStreamTimer()
+    // 新订阅者立即给一帧，不必等下一个节拍
+    this.sseLastPayload = ''
+    void this.pushStatusFrame()
+  }
+
+  private ensureEventStreamTimer() {
+    if (this.sseTimer) return
+    this.sseLastBeat = Date.now()
+    this.sseTimer = setInterval(() => { void this.pushStatusFrame() }, SSE_TICK_MS)
+    // 不阻止进程退出；真正退出前由 stop() 清理
+    this.sseTimer.unref?.()
+  }
+
+  private stopEventStreamTimer() {
+    if (this.sseClients.size > 0 || !this.sseTimer) return
+    clearInterval(this.sseTimer)
+    this.sseTimer = null
+    this.sseLastPayload = ''
+  }
+
+  /** 计算一帧状态推给所有订阅者；与上一帧完全相同则跳过（心跳照发） */
+  private async pushStatusFrame(): Promise<void> {
+    if (this.sseClients.size === 0) {
+      this.stopEventStreamTimer()
+      return
+    }
+    if (Date.now() - this.sseLastBeat >= SSE_HEARTBEAT_MS) {
+      this.sseLastBeat = Date.now()
+      this.writeToStreams(': ping\n\n')
+    }
+    let frame: string
+    try {
+      frame = 'event: status\ndata: ' + JSON.stringify(await this.buildStatusPayload()) + '\n\n'
+    } catch (error) {
+      // aria2 短暂不可用时发一条 error 事件，页面据此切到离线快照提示
+      const message = error instanceof Error ? error.message : String(error)
+      const errorFrame = 'event: error\ndata: ' + JSON.stringify({ ok: false, error: message }) + '\n\n'
+      if (this.sseLastPayload === errorFrame) return
+      this.sseLastPayload = errorFrame
+      this.writeToStreams(errorFrame)
+      return
+    }
+    if (frame === this.sseLastPayload) return
+    this.sseLastPayload = frame
+    this.writeToStreams(frame)
+  }
+
+  private writeToStreams(chunk: string) {
+    for (const client of this.sseClients) {
+      try {
+        client.write(chunk)
+      } catch {
+        this.sseClients.delete(client)
+      }
+    }
+  }
+
+  /** 停止服务时主动断开 SSE（否则 server.close() 会一直等这些长连接） */
+  private closeEventStreams() {
+    if (this.sseTimer) {
+      clearInterval(this.sseTimer)
+      this.sseTimer = null
+    }
+    for (const client of this.sseClients) {
+      try {
+        client.end()
+      } catch {
+        // 连接已断开，忽略
+      }
+    }
+    this.sseClients.clear()
+    this.sseLastPayload = ''
   }
 
   /** 从请求头取 Bearer 值 */
@@ -341,31 +486,14 @@ export class WebConsoleServer {
 
     try {
       if (req.method === 'GET' && pathname === '/api/status') {
-        const [globalStat, active, waiting, stopped] = await Promise.all([
-          callAria2Rpc({ ...activeRpcOptions(), method: 'aria2.getGlobalStat' }),
-          callAria2Rpc({ ...activeRpcOptions(), method: 'aria2.tellActive', params: [['gid', 'status', 'files', 'totalLength', 'completedLength', 'downloadSpeed']] }),
-          callAria2Rpc({ ...activeRpcOptions(), method: 'aria2.tellWaiting', params: [0, 100, ['gid', 'status', 'files', 'totalLength', 'completedLength', 'downloadSpeed']] }),
-          callAria2Rpc({ ...activeRpcOptions(), method: 'aria2.tellStopped', params: [0, 100, ['gid', 'status', 'files', 'totalLength', 'completedLength', 'downloadSpeed']] })
-        ])
-        const mapTask = (task: Record<string, unknown>): TaskSummary => {
-          const files = Array.isArray(task.files) ? task.files as { path?: string; uris?: { uri?: string }[] }[] : []
-          const name = files[0]?.path?.split(/[\\/]/).pop() || files[0]?.uris?.[0]?.uri || String(task.gid)
-          return {
-            gid: String(task.gid),
-            status: String(task.status),
-            name,
-            totalLength: String(task.totalLength ?? '0'),
-            completedLength: String(task.completedLength ?? '0'),
-            downloadSpeed: String(task.downloadSpeed ?? '0')
-          }
-        }
-        this.sendJson(res, 200, {
-          ok: true,
-          globalStat,
-          active: (active as Record<string, unknown>[]).map(mapTask),
-          waiting: (waiting as Record<string, unknown>[]).map(mapTask),
-          stopped: (stopped as Record<string, unknown>[]).map(mapTask)
-        })
+        this.sendJson(res, 200, { ok: true, ...(await this.buildStatusPayload()) })
+        return
+      }
+
+      // SSE：任务状态变化即时推送，替代页面上的 3 秒轮询。
+      // 用 Bearer 头而不是 URL 参数携带令牌，避免令牌落进访问日志/浏览器历史。
+      if (req.method === 'GET' && pathname === '/api/events') {
+        this.attachEventStream(req, res)
         return
       }
 

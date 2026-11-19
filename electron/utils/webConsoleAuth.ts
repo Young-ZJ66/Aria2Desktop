@@ -60,6 +60,8 @@ export function resolveAuthFromSettings(settings: AppSettings, presented: string
 export function routeScope(method: string, pathname: string): WebConsoleScope | null {
   const verb = method.toUpperCase()
   if (verb === 'GET' && pathname === '/api/status') return 'tasks:read'
+  // SSE 事件流与 /api/status 同源同权限：只读任务状态
+  if (verb === 'GET' && pathname === '/api/events') return 'tasks:read'
   if (verb === 'GET' && pathname === '/api/audit') return 'audit:read'
   if (verb === 'POST' && pathname === '/api/tasks') return 'tasks:write'
   if (verb === 'POST' && /^\/api\/tasks\/[^/]+\/(pause|resume|remove)$/.test(pathname)) return 'tasks:control'
