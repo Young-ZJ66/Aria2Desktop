@@ -18,6 +18,10 @@ docs/*
 !docs/plugin-development.md
 !docs/privacy.md
 
+# 路线图与扩展上架材料只保留本地，不入库（docs/* 已忽略，这里显式列出以免误提交）
+docs/roadmap.md
+docs/edge-store-submission.md
+
 # 运行时数据
 data
 

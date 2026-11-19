@@ -9,7 +9,7 @@
 
 **Aria2 with a desktop interface that makes sense**
 
-[Download latest](https://github.com/Young-ZJ66/Aria2Desktop/releases/latest) · [Features](#features) · [Quick start](#quick-start) · [FAQ](#faq) · [Development](#development)
+[Download latest](https://github.com/Young-ZJ66/Aria2Desktop/releases/latest) · [Features](#features) · [Quick start](#quick-start) · [FAQ](#faq) · [Development](#development) · [Changelog](CHANGELOG.md)
 
 [简体中文](README.md) · **English**
 
@@ -36,7 +36,7 @@
 
 ### Downloads
 
-- Multi-threaded downloads with resume support; global and per-task speed limits, switchable from the status bar
+- Multi-threaded downloads with resume support; global and per-task speed limits — type any value (KB/s or MB/s) in the status bar and it applies as you type
 - **Download Queue 2.0**: a visible waiting queue with move-to-top, move-up, move-down and move-to-bottom actions, plus maximum concurrency and automatic retry policies
 - **Task templates**: save proxy, User-Agent, Referer, Cookie, request headers and destination folder as a template, then reuse them when creating a task
 - **Completion rules**: trigger move, rename, extract, open, notification and webhook actions based on category, extension or success/failure status; webhooks support HMAC-SHA256 signatures, exponential-backoff retries and a persisted failed-delivery queue that can be retried or cleared from the Workflow page
@@ -56,7 +56,7 @@
 
 - Dark/light theme (including follow-system), 21 interface languages (Simplified Chinese / Traditional Chinese / English / Japanese / Korean / German / French / Spanish / Portuguese / Italian / Russian / Arabic / Hindi / Thai / Vietnamese / Indonesian / Turkish / Dutch / Polish / Ukrainian / Czech); built-in **Diagnostics Center** checks RPC, disk space, secrets, UPnP, trackers and history storage, then exports a redacted report
 - Task details with peers, servers and piece information; live speed graph and connection count
-- Notification center with completed/failed records and unread badges
+- Notification center with completed/failed records and unread badges, plus per-notification delete
 - Tray icon, taskbar progress and launch-at-login; after download completion, apply completion rules to open files/folders, shut down, sleep or close the app
 - Copy a download link and return to the app to be prompted with a new-task window (clipboard monitoring can be disabled in Settings); global shortcuts (<code>Ctrl+N</code> new task, <code>Ctrl+F</code> search, <code>Ctrl+Shift+P</code> pause all, and more)
 - One-click system proxy detection and autofill; in-app update checks (delta updates on Windows, full packages on macOS/Linux); Linux AppImages embed update information and ship `.zsync` files for delta upgrades via AppImageUpdate / <code>appimageupdatetool</code>
@@ -64,6 +64,8 @@
 ### Extensions and streaming
 
 - Install directly from the Edge Add-ons store; Chrome can be side-loaded (see [extension/README.md](extension/README.md)); releases also carry a Firefox (AMO) variant zip
+- **Popup task page**: download/upload speeds, active and waiting counts, and a task list that can be filtered (active / failed / completed) and paused, resumed or removed; streaming tasks started from the popup's "smart video parsing" appear in the same list with a "Stream" badge and behave exactly like tasks in the app
+- **Network sniffer**: watches requests from the current tab and batch-sends them after filtering by video / audio / image / other; DASH/MSE pages such as Bilibili are reported as segments and point you to "smart video parsing" for the full video
 - Send a link from the context menu, send the current page from the popup, or batch-scrape links from a page; optionally take over browser downloads
 - Streaming: yt-dlp integration supports 1000+ sites, downloaded on demand with SHA-256 verification; playlist entry picking, subtitles (including auto-generated, converted to <code>srt</code>), cookie files and quality presets (best/1080p/720p/480p/MP3 extract) are supported, with playlist progress showing the current entry title and index; ffmpeg merges separate audio/video streams for sites such as Bilibili
 - Plugin system: plugins run in a separate <code>utilityProcess</code> with declared permissions, a whitelisted IPC bridge, crash isolation and automatic restart; plugin entry execution has a 3-second timeout
@@ -180,9 +182,9 @@ npm run dist:linux:arm64  # package Linux arm64
 
 Project structure and development conventions (logging, type checking, dependency grouping, platform differences, release process) are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Roadmap
+## Changelog
 
-See [docs/roadmap.md](docs/roadmap.md) for the v1.4.x direction, scope and acceptance criteria.
+See [CHANGELOG.md](CHANGELOG.md) for release notes; published versions, installers and full release descriptions are on [GitHub Releases](../../releases).
 
 ## Contributing
 
