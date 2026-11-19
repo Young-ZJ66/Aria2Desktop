@@ -11,7 +11,7 @@
 
 **把 Aria2 装进一个看得懂的桌面界面**
 
-[下载最新版](https://github.com/Young-ZJ66/Aria2Desktop/releases/latest) · [功能](#功能) · [快速开始](#快速开始) · [常见问题](#常见问题) · [开发](#开发) · [更新日志](CHANGELOG.md)
+[下载最新版](https://github.com/Young-ZJ66/Aria2Desktop/releases/latest) · [功能](#功能) · [快速开始](#快速开始) · [常见问题](#常见问题) · [开发](#开发)
 
 </div>
 
@@ -56,7 +56,7 @@
 ### 界面与系统集成
 
 - 深色/浅色主题（可跟随系统）、21 种语言界面（简体中文 / 繁體中文 / English / 日本語 / 한국어 / Deutsch / Français / Español / Português / Italiano / Русский / العربية / हिन्दी / ไทย / Tiếng Việt / Bahasa Indonesia / Türkçe / Nederlands / Polski / Українська / Čeština）；内置「诊断中心」一键检查 RPC、磁盘空间、密钥、UPnP、Tracker 与历史存储并导出脱敏报告
-- 任务详情含 Peer、服务器、分片信息；实时速度曲线与连接数
+- 任务详情含 Peer、服务器、分片信息与连接数
 - 通知中心保留完成/失败记录与未读角标，支持逐条删除
 - 托盘常驻、任务栏进度、开机自启；下载完成后可按完成规则打开文件/目录、关机/休眠/关闭应用
 - 复制下载链接后切回应用可自动弹出新建窗口（可在设置中关闭剪贴板监控）；全局快捷键（`Ctrl+N` 新建、`Ctrl+F` 搜索、`Ctrl+Shift+P` 暂停全部…）
@@ -185,7 +185,7 @@ npm run dist:linux:arm64  # 打包 Linux arm64 安装包
 
 ## 更新日志
 
-各版本的详细变更见 [CHANGELOG.md](CHANGELOG.md)；已发布版本、安装包与完整发布说明见 [GitHub Releases](../../releases)。
+各版本的更新说明、安装包与完整发布说明见 [GitHub Releases](../../releases)。
 
 ## 贡献
 

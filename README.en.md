@@ -9,7 +9,7 @@
 
 **Aria2 with a desktop interface that makes sense**
 
-[Download latest](https://github.com/Young-ZJ66/Aria2Desktop/releases/latest) · [Features](#features) · [Quick start](#quick-start) · [FAQ](#faq) · [Development](#development) · [Changelog](CHANGELOG.md)
+[Download latest](https://github.com/Young-ZJ66/Aria2Desktop/releases/latest) · [Features](#features) · [Quick start](#quick-start) · [FAQ](#faq) · [Development](#development)
 
 [简体中文](README.md) · **English**
 
@@ -55,7 +55,7 @@
 ### Interface and system integration
 
 - Dark/light theme (including follow-system), 21 interface languages (Simplified Chinese / Traditional Chinese / English / Japanese / Korean / German / French / Spanish / Portuguese / Italian / Russian / Arabic / Hindi / Thai / Vietnamese / Indonesian / Turkish / Dutch / Polish / Ukrainian / Czech); built-in **Diagnostics Center** checks RPC, disk space, secrets, UPnP, trackers and history storage, then exports a redacted report
-- Task details with peers, servers and piece information; live speed graph and connection count
+- Task details with peers, servers and piece information, plus connection count
 - Notification center with completed/failed records and unread badges, plus per-notification delete
 - Tray icon, taskbar progress and launch-at-login; after download completion, apply completion rules to open files/folders, shut down, sleep or close the app
 - Copy a download link and return to the app to be prompted with a new-task window (clipboard monitoring can be disabled in Settings); global shortcuts (<code>Ctrl+N</code> new task, <code>Ctrl+F</code> search, <code>Ctrl+Shift+P</code> pause all, and more)
@@ -184,7 +184,7 @@ Project structure and development conventions (logging, type checking, dependenc
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for release notes; published versions, installers and full release descriptions are on [GitHub Releases](../../releases).
+Release notes, published versions, installers and full release descriptions are on [GitHub Releases](../../releases).
 
 ## Contributing
 

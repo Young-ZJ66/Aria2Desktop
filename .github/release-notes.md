@@ -1,20 +1,38 @@
-# Aria2Desktop v1.4.0 更新日志
+# v1.4.0 更新日志
 
-## ✨ 界面一致性
+## ✨ 设计系统与界面一致性
 
-- 设置弹窗标题按设计规格调整为 18px / 650，设置分组标题修正为 14px / 600，层级更清晰。
-- 设置项、输入框、下拉框与按钮统一到 13px 设计字号；按钮高度统一为 28 / 34 / 40px，和桌面端控件规范一致。
+- 全新的 v2 设计语言：重做设计系统底座与 UI 原语，页面、外壳与主题配色统一到同一套令牌，浅色与深色模式对比度均达到 AA。
+- 设置弹窗改为左侧导航 + 内容区工作台，分组层级、搜索与保存栏更清晰。
+- 设置弹窗标题按设计规格调整为 18px / 650，设置分组标题修正为 14px / 600；设置项、输入框、下拉框与按钮统一到 13px 设计字号，按钮高度统一为 28 / 34 / 40px。
 - 8 个主页面统一页头到内容间距为 16px，去掉不同页面之间的 24px / 16px 混用。
-- 任务详情抽屉移除重复的「基本信息」标题，状态标签移到抽屉标题栏；Peer 数量不再同时出现在标签页和卡片工具栏。
-- 抽屉标题栏移除多余的 1px 分隔线，与设置、新建任务等弹窗的标题栏样式一致。
-- 修正品牌名、快捷键提示、图表标签等散落硬编码字号，统一使用设计令牌。
+- 任务详情抽屉移除重复的「基本信息」标题，状态标签移到抽屉标题栏；Peer 数量不再同时出现在标签页和卡片工具栏；抽屉标题栏的 1px 分隔线已移除。
+- 下载页空态让面板填满剩余高度并垂直居中；「还没有任务」与「筛选无结果」改用不同文案。
+- 修正品牌名、快捷键提示、图表标签等散落硬编码字号，统一使用设计令牌；21 种语言补齐 v2 文案，键盘焦点环、表单标签与点击区域一并修正。
+
+## 🚀 新功能
+
+- **限速改为自定义数值**：底部状态栏的限速面板不再只有 5 个预设档，可填写任意数值并切换 KB/s、MB/s；输入即生效（停止输入 500ms 后自动应用，回车或失焦立即提交），打开限速开关直接使用面板里填的值；没有历史限速值时不再自动填 1 MB/s。
+- **通知中心支持单条删除**：每条通知右侧有删除按钮（鼠标悬停或键盘聚焦时出现，触屏设备常显），只删除这一条并立即保存。
+- 实例页的连接配置支持直接删除。
+- 设置中文件预分配新增「截断预分配」，适合固态硬盘；窗口状态与剪贴板监听的开关固定为开启，避免误关。
+
+## 🎬 流媒体下载
+
+- 通过「智能解析本页视频」发起的流媒体任务，可在任务列表与详情抽屉查看进度、速度与剩余时间，并支持暂停、继续、删除；删除时可勾选「同时删除文件」。
+- 修复下载中标题乱码：以前 yt-dlp 在 Windows 上按本地编码输出标题，开始下载后列表里的中文会变成乱码；现在标题改从 UTF-8 文件读取，下载全程显示正确中文，磁盘上的文件名也保持正常。
+- 修复未下载完就删除任务时残留 .part 分片的问题：分片统一落在临时目录，删除任务或下载完成后自动清理。
+- 修复暂停后任务行速度归零、右上角总速度却不清零的问题，两处现在保持一致。
+- 任务详情移除速度曲线（与当前速度、剩余时间信息重复，且占用空间）。
 
 ## 🧩 浏览器扩展
 
-- 扩展弹窗重新调整字号与间距：标题 15px / 650，正文 13px，辅助文字 11.5px，输入框与按钮高度约 32–33px；浅色主题辅助文字对比度提升，并补充键盘 focus-visible 可见边框。
-- 扩展弹窗按原型重构为「任务 / 网络嗅探 / 设置」三页，新增实时任务列表（暂停 / 继续 / 删除）、顶部状态指标与底部导航，统一 400×600 布局。
-- 网络嗅探监听当前标签页的 HTTP(S) 请求，支持按视频 / 音频 / 图片 / 其他筛选、勾选批量下载，并支持「智能解析本页视频」交给 App 的 yt-dlp。B 站等 DASH/MSE 页面的视频 / 音频分片会被识别并提示使用智能解析下载完整视频。
+- 扩展弹窗按原型重构为「任务 / 网络嗅探 / 设置」三页（400×600），标题 15px / 650、正文 13px、辅助文字 11.5px，输入框与按钮约 32–33px；浅色主题辅助文字对比度提升，并补充键盘 focus-visible 可见边框。
+- 任务页展示实时下载 / 上传速度与活动、等待数量；任务按「进行中 / 失败 / 已完成」三档筛选，可暂停、继续、删除。
+- 任务列表合并 App 里由「智能解析本页视频」发起的流媒体任务（带「流媒体」角标），暂停 / 继续 / 删除与 App 内状态同步；删除任务不会删除已下载的文件。
+- 网络嗅探监听当前标签页的 HTTP(S) 请求，支持按视频 / 音频 / 图片 / 其他筛选、勾选批量下载，并支持「智能解析本页视频」交给 App 的 yt-dlp；B 站等 DASH/MSE 页面的视频 / 音频分片会被识别并提示使用智能解析下载完整视频。
 - 新增 Motrix 风格「新建下载」弹窗：全宽入口，支持 URL、文件名、保存到默认目录与可折叠的请求选项（User-Agent / Referer），含网址校验、Esc / 遮罩关闭；发送时保留页面 Referer 并传递文件名与自定义请求头。
+- 长文件名不再撑宽弹窗，任务列表为空时卡片保持满高。
 
 ## 🛠 稳定性修复
 
@@ -40,7 +58,7 @@
 
 ## ✅ 验证
 
-- typecheck、85 个测试文件 / 902 项单测、生产构建、扩展校验 21 项、扩展 API 校验 46 项、应用 E2E 138 项全部通过。
+- typecheck、86 个测试文件 / 933 项单测、生产构建、扩展校验 21 项、扩展 API 校验 57 项、应用 E2E 159 项全部通过。
 - 21 种语言文案保持完整；扩展 manifest 版本同步为 1.4.0。
 
 ---
@@ -49,23 +67,41 @@
 
 ---
 
-# Aria2Desktop v1.4.0 Release Notes
+# v1.4.0 Release Notes
 
-## ✨ UI consistency
+## ✨ Design system and UI consistency
 
-- The settings dialog title now follows the design spec at 18px / 650, and settings group headings are corrected to 14px / 600 for a clearer hierarchy.
-- Settings labels, inputs, selects and buttons now share the 13px type scale; button heights are standardized at 28 / 34 / 40px to match the desktop control system.
+- A new v2 design language: the design foundation and UI primitives were rebuilt, so pages, shells and theme colors share one set of tokens and both light and dark themes meet AA contrast.
+- The settings dialog is now a left navigation rail plus a content workspace, with clearer grouping, search and save bar.
+- The settings dialog title follows the design spec at 18px / 650 and settings group headings are corrected to 14px / 600; settings labels, inputs, selects and buttons share the 13px type scale, with button heights standardized at 28 / 34 / 40px.
 - All eight main pages now use a consistent 16px gap between the page header and content, removing the previous 24px / 16px mix.
-- The task detail drawer no longer repeats the "Basic info" title, the status tag moves into the drawer header, and the peer count no longer appears in both the tab and the card toolbar.
-- The drawer header no longer has an extra 1px divider, matching the header treatment used by Settings, New Task and other dialogs.
-- Replaced remaining hard-coded font sizes in the brand name, keyboard hints and chart labels with design tokens.
+- The task detail drawer no longer repeats the "Basic info" title, the status tag moves into the drawer header, the peer count no longer appears twice, and the extra 1px divider in the header is gone.
+- Empty states on the download page now fill the remaining height and center vertically; "no tasks yet" and "no matching results" use different copy.
+- Replaced remaining hard-coded font sizes (brand name, keyboard hints, chart labels) with design tokens; all 21 locales received the v2 copy, and keyboard focus rings, form labels and tap targets were fixed along the way.
+
+## 🚀 New features
+
+- **Custom speed limits**: the status-bar limit panel no longer offers only five presets. Enter any value and switch between KB/s and MB/s; changes apply as you type (500 ms after you stop typing, or immediately on Enter / blur), and turning the limit switch on uses the value in the panel. Without a remembered value, the app no longer fills in 1 MB/s by itself.
+- **Delete individual notifications**: every notification has a delete button on the right (shown on hover or keyboard focus, always visible on touch devices) that removes just that notification and saves immediately.
+- Connection profiles can now be deleted directly from the Instances page.
+- Settings gained a "truncate" file preallocation option, which suits SSDs; window state and clipboard monitoring switches are now fixed on so they cannot be turned off by accident.
+
+## 🎬 Stream downloads
+
+- Stream tasks started from "Resolve this page video" can be followed in the task list and detail drawer with progress, speed and time remaining, and support pause, resume and remove; removing lets you tick "delete the file as well".
+- Fixed garbled titles during download: yt-dlp used to emit titles in the local Windows encoding, so Chinese names turned into mojibake once the download started. Titles are now read from a UTF-8 file, so they stay correct for the whole download and the file on disk keeps its proper name.
+- Fixed leftover .part segments when a stream task is removed before it finishes: partial files now live in a temporary directory and are cleaned up when the task is removed or the download completes.
+- Fixed the header total speed staying above zero after pausing while the task row already showed zero; both now agree.
+- Removed the speed chart from the task detail drawer (it duplicated current speed and time remaining and took up space).
 
 ## 🧩 Browser extension
 
-- The extension popup now uses a clearer type and spacing system: 15px / 650 title, 13px body, 11.5px secondary text, and approximately 32–33px inputs and buttons. Secondary text contrast is improved in the light theme and keyboard focus-visible outlines are visible.
-- The extension popup is rebuilt around the prototype with Tasks, Network Sniffer and Settings pages, including a live task list (pause / resume / remove), status metrics and bottom navigation in a 400×600 layout.
-- Network Sniffer observes HTTP(S) requests from the current tab, filters video / audio / images / other, supports batch download, and can hand the current page to the app's yt-dlp resolver. DASH/MSE video and audio segments (e.g. Bilibili) are recognized and point users to the smart resolver for the complete video.
+- The extension popup is rebuilt around the prototype with Tasks, Network Sniffer and Settings pages (400×600): 15px / 650 title, 13px body, 11.5px secondary text and roughly 32–33px inputs and buttons. Secondary text contrast is improved in the light theme and keyboard focus-visible outlines are visible.
+- The Tasks page shows live download / upload speed plus active and waiting counts; tasks can be filtered by Active / Failed / Completed and paused, resumed or removed.
+- The task list now merges stream tasks started from "Resolve this page video" in the app (marked with a Stream badge); pause, resume and remove stay in sync with the app, and removing a task never deletes the downloaded file.
+- Network Sniffer observes HTTP(S) requests from the current tab, filters video / audio / images / other, supports batch download, and can hand the page to the app's yt-dlp resolver. DASH/MSE segments (e.g. Bilibili) are recognized and point users to the smart resolver for the complete video.
 - Added a Motrix-style New Download dialog with a full-width entry, URL, file name, default save location and collapsible request options (User-Agent / Referer), plus URL validation and Esc / backdrop dismissal; sending preserves the page Referer and passes the file name and custom headers.
+- Long file names no longer widen the popup, and the task list card keeps its full height when empty.
 
 ## 🛠 Stability fixes
 
@@ -91,7 +127,7 @@
 
 ## ✅ Verification
 
-- typecheck, 85 test files / 902 unit tests, production build, 21 extension checks, 46 extension API checks and 138 application E2E checks all pass.
+- typecheck, 86 test files / 933 unit tests, production build, 21 extension checks, 57 extension API checks and 159 application E2E checks all pass.
 - All 21 locales remain complete; the extension manifest version is now 1.4.0.
 
 ---
