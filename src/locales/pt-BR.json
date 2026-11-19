@@ -392,7 +392,9 @@
     "speedLimitOff": "Limite de Velocidade Desativado",
     "speedLimitNoEngine": "Ainda não conectado ao mecanismo aria2; o limite de velocidade não pode ser alternado",
     "speedLimitToggleFailed": "Falha ao alternar o limite de velocidade. Verifique a conexão com o mecanismo.",
-    "speedLimit": "Limite de velocidade"
+    "speedLimit": "Limite de velocidade",
+    "speedLimitPlaceholder": "Digite um valor",
+    "speedLimitInvalid": "Digite um número maior que 0"
   },
   "notification": {
     "downloadComplete": "Download Concluído",

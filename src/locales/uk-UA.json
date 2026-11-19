@@ -392,7 +392,9 @@
     "speedLimitOff": "Обмеження швидкості вимкнено",
     "speedLimitNoEngine": "Ще немає підключення до рушія aria2, тому обмеження швидкості неможливо перемкнути",
     "speedLimitToggleFailed": "Не вдалося перемкнути обмеження швидкості. Перевірте підключення до рушія.",
-    "speedLimit": "Обмеження швидкості"
+    "speedLimit": "Обмеження швидкості",
+    "speedLimitPlaceholder": "Введіть значення",
+    "speedLimitInvalid": "Введіть число більше 0"
   },
   "notification": {
     "downloadComplete": "Завантаження завершено",

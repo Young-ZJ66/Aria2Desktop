@@ -392,7 +392,9 @@
     "speedLimitOff": "ปิดขีดจำกัดความเร็ว",
     "speedLimitNoEngine": "ยังไม่ได้เชื่อมต่อเอนจิน aria2 จึงไม่สามารถสลับขีดจำกัดความเร็วได้",
     "speedLimitToggleFailed": "สลับขีดจำกัดความเร็วไม่สำเร็จ โปรดตรวจสอบการเชื่อมต่อเอนจิน",
-    "speedLimit": "จำกัดความเร็ว"
+    "speedLimit": "จำกัดความเร็ว",
+    "speedLimitPlaceholder": "ป้อนค่า",
+    "speedLimitInvalid": "ป้อนตัวเลขที่มากกว่า 0"
   },
   "notification": {
     "downloadComplete": "ดาวน์โหลดเสร็จสิ้น",

@@ -392,7 +392,9 @@
     "speedLimitOff": "Batas Kecepatan Nonaktif",
     "speedLimitNoEngine": "Belum terhubung ke mesin aria2, sehingga batas kecepatan tidak dapat diubah",
     "speedLimitToggleFailed": "Gagal mengubah batas kecepatan. Periksa koneksi mesin.",
-    "speedLimit": "Batas kecepatan"
+    "speedLimit": "Batas kecepatan",
+    "speedLimitPlaceholder": "Masukkan nilai",
+    "speedLimitInvalid": "Masukkan angka lebih dari 0"
   },
   "notification": {
     "downloadComplete": "Unduhan Selesai",

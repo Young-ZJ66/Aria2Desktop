@@ -392,7 +392,9 @@
     "speedLimitOff": "限速已关闭",
     "speedLimitNoEngine": "还没有连上 aria2 引擎，限速开关暂不可用",
     "speedLimitToggleFailed": "切换限速失败，请检查引擎连接",
-    "speedLimit": "限速"
+    "speedLimit": "限速",
+    "speedLimitPlaceholder": "输入数值",
+    "speedLimitInvalid": "请输入大于 0 的数字"
   },
   "notification": {
     "downloadComplete": "下载完成",

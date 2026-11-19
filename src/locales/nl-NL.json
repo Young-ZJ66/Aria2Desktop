@@ -392,7 +392,9 @@
     "speedLimitOff": "Snelheidslimiet uit",
     "speedLimitNoEngine": "Nog niet verbonden met de aria2-engine, dus de snelheidslimiet kan niet worden in- of uitgeschakeld",
     "speedLimitToggleFailed": "Snelheidslimiet in- of uitschakelen mislukt. Controleer de engine-verbinding.",
-    "speedLimit": "Snelheidslimiet"
+    "speedLimit": "Snelheidslimiet",
+    "speedLimitPlaceholder": "Voer een waarde in",
+    "speedLimitInvalid": "Voer een getal groter dan 0 in"
   },
   "notification": {
     "downloadComplete": "Download voltooid",

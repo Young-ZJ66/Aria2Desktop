@@ -392,7 +392,9 @@
     "speedLimitOff": "गति सीमा बंद",
     "speedLimitNoEngine": "अभी aria2 इंजन से कनेक्ट नहीं है, इसलिए गति सीमा बदली नहीं जा सकती",
     "speedLimitToggleFailed": "गति सीमा बदलने में विफल। इंजन कनेक्शन जाँचें।",
-    "speedLimit": "गति सीमा"
+    "speedLimit": "गति सीमा",
+    "speedLimitPlaceholder": "मान दर्ज करें",
+    "speedLimitInvalid": "0 से बड़ी संख्या दर्ज करें"
   },
   "notification": {
     "downloadComplete": "डाउनलोड पूर्ण",

@@ -392,7 +392,9 @@
     "speedLimitOff": "Limite velocità disattivo",
     "speedLimitNoEngine": "Non ancora connesso al motore aria2, impossibile attivare o disattivare il limite di velocità",
     "speedLimitToggleFailed": "Impossibile attivare/disattivare il limite di velocità. Controlla la connessione al motore.",
-    "speedLimit": "Limite di velocità"
+    "speedLimit": "Limite di velocità",
+    "speedLimitPlaceholder": "Inserisci un valore",
+    "speedLimitInvalid": "Inserisci un numero maggiore di 0"
   },
   "notification": {
     "downloadComplete": "Download completato",

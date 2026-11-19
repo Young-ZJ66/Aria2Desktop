@@ -392,7 +392,9 @@
     "speedLimitOff": "حد السرعة معطّل",
     "speedLimitNoEngine": "لم يتم الاتصال بمحرك aria2 بعد، لذا لا يمكن تبديل حد السرعة",
     "speedLimitToggleFailed": "فشل تبديل حد السرعة. تحقق من اتصال المحرك.",
-    "speedLimit": "حد السرعة"
+    "speedLimit": "حد السرعة",
+    "speedLimitPlaceholder": "أدخل قيمة",
+    "speedLimitInvalid": "أدخل رقمًا أكبر من 0"
   },
   "notification": {
     "downloadComplete": "اكتمل التنزيل",

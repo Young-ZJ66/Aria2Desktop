@@ -392,7 +392,9 @@
     "speedLimitOff": "Speed Limit Off",
     "speedLimitNoEngine": "Not connected to the aria2 engine yet, so the speed limit cannot be toggled",
     "speedLimitToggleFailed": "Failed to toggle the speed limit. Check the engine connection.",
-    "speedLimit": "Speed limit"
+    "speedLimit": "Speed limit",
+    "speedLimitPlaceholder": "Enter a value",
+    "speedLimitInvalid": "Enter a number greater than 0"
   },
   "notification": {
     "downloadComplete": "Download Complete",

@@ -392,7 +392,9 @@
     "speedLimitOff": "Limite de vitesse désactivée",
     "speedLimitNoEngine": "Pas encore connecté au moteur aria2, la limite de vitesse ne peut pas être modifiée",
     "speedLimitToggleFailed": "Échec de la modification de la limite de vitesse. Vérifiez la connexion au moteur.",
-    "speedLimit": "Limite de vitesse"
+    "speedLimit": "Limite de vitesse",
+    "speedLimitPlaceholder": "Saisir une valeur",
+    "speedLimitInvalid": "Saisissez un nombre supérieur à 0"
   },
   "notification": {
     "downloadComplete": "Téléchargement terminé",

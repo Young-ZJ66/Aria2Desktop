@@ -392,7 +392,9 @@
     "speedLimitOff": "Geschwindigkeitslimit aus",
     "speedLimitNoEngine": "Noch nicht mit der aria2-Engine verbunden, daher kann das Geschwindigkeitslimit nicht umgeschaltet werden",
     "speedLimitToggleFailed": "Geschwindigkeitslimit konnte nicht umgeschaltet werden. Prüfen Sie die Engine-Verbindung.",
-    "speedLimit": "Geschwindigkeitslimit"
+    "speedLimit": "Geschwindigkeitslimit",
+    "speedLimitPlaceholder": "Wert eingeben",
+    "speedLimitInvalid": "Geben Sie eine Zahl größer als 0 ein"
   },
   "notification": {
     "downloadComplete": "Download abgeschlossen",

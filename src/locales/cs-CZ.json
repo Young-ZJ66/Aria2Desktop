@@ -392,7 +392,9 @@
     "speedLimitOff": "Limit rychlosti vypnut",
     "speedLimitNoEngine": "Zatím nejste připojeni k enginu aria2, proto nelze limit rychlosti přepnout",
     "speedLimitToggleFailed": "Přepnutí limitu rychlosti se nezdařilo. Zkontrolujte připojení k enginu.",
-    "speedLimit": "Omezení rychlosti"
+    "speedLimit": "Omezení rychlosti",
+    "speedLimitPlaceholder": "Zadejte hodnotu",
+    "speedLimitInvalid": "Zadejte číslo větší než 0"
   },
   "notification": {
     "downloadComplete": "Stahování dokončeno",

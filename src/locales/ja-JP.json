@@ -392,7 +392,9 @@
     "speedLimitOff": "速度制限オフ",
     "speedLimitNoEngine": "まだ aria2 エンジンに接続していないため、速度制限を切り替えられません",
     "speedLimitToggleFailed": "速度制限の切り替えに失敗しました。エンジンの接続を確認してください。",
-    "speedLimit": "速度制限"
+    "speedLimit": "速度制限",
+    "speedLimitPlaceholder": "数値を入力",
+    "speedLimitInvalid": "0 より大きい数値を入力してください"
   },
   "notification": {
     "downloadComplete": "ダウンロード完了",

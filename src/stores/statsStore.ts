@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useConnectionStore } from './connectionStore'
 import type { Aria2GlobalStat, Aria2Version, Aria2Option } from '@/types/aria2'
+import { formatSpeedLimit } from '@/utils/speedLimit'
 
 /**
  * 全局统计（数值型）。
@@ -124,10 +125,14 @@ export const useStatsStore = defineStore('stats', () => {
   const speedLimitDisplay = computed(() => {
     if (!isSpeedLimited.value) return ''
     const bytes = parseInt(globalOptions.value['max-overall-download-limit'] as string, 10) || 0
-    if (bytes <= 0) return ''
-    if (bytes >= 1048576) return `${Math.round(bytes / 1048576)} MB/s`
-    return `${Math.round(bytes / 1024)} KB/s`
+    return formatSpeedLimit(bytes)
   })
+
+  /** 直接设定限速值（字节/秒，0 表示不限制），同时记为下次开关的恢复值 */
+  async function setSpeedLimit(bytes: number): Promise<void> {
+    if (bytes > 0) rememberedSpeedLimit = String(bytes)
+    await changeGlobalOptions({ 'max-overall-download-limit': String(bytes > 0 ? bytes : 0) })
+  }
 
   /** 切换限速开关 */
   async function toggleSpeedLimit(): Promise<void> {
@@ -155,6 +160,7 @@ export const useStatsStore = defineStore('stats', () => {
     clearCache,
     isSpeedLimited,
     speedLimitDisplay,
+    setSpeedLimit,
     toggleSpeedLimit
   }
 })

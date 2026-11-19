@@ -392,7 +392,9 @@
     "speedLimitOff": "Đã tắt giới hạn tốc độ",
     "speedLimitNoEngine": "Chưa kết nối tới engine aria2 nên không thể bật/tắt giới hạn tốc độ",
     "speedLimitToggleFailed": "Không thể bật/tắt giới hạn tốc độ. Hãy kiểm tra kết nối engine.",
-    "speedLimit": "Giới hạn tốc độ"
+    "speedLimit": "Giới hạn tốc độ",
+    "speedLimitPlaceholder": "Nhập giá trị",
+    "speedLimitInvalid": "Nhập số lớn hơn 0"
   },
   "notification": {
     "downloadComplete": "Tải xuống hoàn tất",

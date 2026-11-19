@@ -392,7 +392,9 @@
     "speedLimitOff": "Ограничение скорости выключено",
     "speedLimitNoEngine": "Ещё нет подключения к движку aria2, поэтому ограничение скорости нельзя переключить",
     "speedLimitToggleFailed": "Не удалось переключить ограничение скорости. Проверьте подключение к движку.",
-    "speedLimit": "Ограничение скорости"
+    "speedLimit": "Ограничение скорости",
+    "speedLimitPlaceholder": "Введите значение",
+    "speedLimitInvalid": "Введите число больше 0"
   },
   "notification": {
     "downloadComplete": "Загрузка завершена",

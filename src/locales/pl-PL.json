@@ -392,7 +392,9 @@
     "speedLimitOff": "Limit prędkości wyłączony",
     "speedLimitNoEngine": "Nie połączono jeszcze z silnikiem aria2, więc nie można przełączyć limitu prędkości",
     "speedLimitToggleFailed": "Nie udało się przełączyć limitu prędkości. Sprawdź połączenie z silnikiem.",
-    "speedLimit": "Limit prędkości"
+    "speedLimit": "Limit prędkości",
+    "speedLimitPlaceholder": "Wprowadź wartość",
+    "speedLimitInvalid": "Wprowadź liczbę większą od 0"
   },
   "notification": {
     "downloadComplete": "Pobieranie ukończone",

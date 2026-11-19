@@ -31,6 +31,7 @@
       等于把选档位这件事藏了起来。v2 改成点击弹出面板，开关与档位都在里面。
     -->
     <n-popover
+      v-model:show="showLimitPop"
       trigger="click"
       placement="top-end"
       :show-arrow="false"
@@ -68,18 +69,35 @@
           {{ t('footer.speedLimitNoEngine') }}
         </p>
 
-        <div v-else class="limit-pop__grid" role="group" :aria-label="t('footer.speedLimit')">
-          <button
-            v-for="preset in LIMIT_PRESETS"
-            :key="preset.key"
-            type="button"
-            class="limit-chip"
-            :class="{ 'is-active': currentLimitBytes === preset.bytes }"
-            :aria-pressed="currentLimitBytes === preset.bytes"
-            @click="applyPreset(preset.bytes)"
-          >
-            {{ preset.label }}
-          </button>
+        <div v-else class="limit-pop__form">
+          <div class="limit-pop__row">
+            <n-input
+              v-model:value="limitInput"
+              class="limit-pop__number"
+              size="small"
+              inputmode="decimal"
+              :placeholder="t('footer.speedLimitPlaceholder')"
+              :aria-label="t('footer.speedLimit')"
+              @keydown.enter="applyLimit"
+            />
+            <div class="limit-pop__units" role="radiogroup" :aria-label="t('footer.speedLimit')">
+              <button
+                v-for="unit in SPEED_LIMIT_UNITS"
+                :key="unit"
+                type="button"
+                role="radio"
+                class="limit-unit"
+                :class="{ 'is-active': limitUnit === unit }"
+                :aria-checked="limitUnit === unit"
+                @click="limitUnit = unit"
+              >
+                {{ unit }}/s
+              </button>
+            </div>
+          </div>
+          <n-button class="limit-pop__apply" size="small" type="primary" block @click="applyLimit">
+            {{ t('common.ok') }}
+          </n-button>
         </div>
       </div>
     </n-popover>
@@ -87,14 +105,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NIcon, NPopover, NSwitch } from 'naive-ui'
+import { NButton, NIcon, NInput, NPopover, NSwitch } from 'naive-ui'
 import { useStatsStore } from '@/stores/statsStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { formatSpeed } from '@/utils/taskFormatters'
 import { DownloadOutline, CloudUploadOutline, SpeedometerOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
+import {
+  SPEED_LIMIT_UNITS,
+  fromSpeedLimitBytes,
+  toSpeedLimitBytes,
+  type SpeedLimitUnit
+} from '@/utils/speedLimit'
 
 const statsStore = useStatsStore()
 const connectionStore = useConnectionStore()
@@ -102,18 +126,34 @@ const { t } = useI18n()
 
 const globalStat = computed(() => statsStore.globalStat)
 
-const LIMIT_PRESETS = [
-  { key: '512k', label: '512K', bytes: 512 * 1024 },
-  { key: '1m', label: '1M', bytes: 1024 * 1024 },
-  { key: '2m', label: '2M', bytes: 2 * 1024 * 1024 },
-  { key: '5m', label: '5M', bytes: 5 * 1024 * 1024 },
-  { key: '10m', label: '10M', bytes: 10 * 1024 * 1024 }
-] as const
-
+/** 当前生效的限速值（字节/秒），0 表示不限制 */
 const currentLimitBytes = computed(() => {
   const raw = statsStore.globalOptions['max-overall-download-limit']
   const bytes = Number(raw)
   return Number.isFinite(bytes) && bytes > 0 ? bytes : 0
+})
+
+const showLimitPop = ref(false)
+/** 用户填的数值保持字符串：中间态（空、"1."）不能被数字输入框吞掉 */
+const limitInput = ref('')
+const limitUnit = ref<SpeedLimitUnit>('MB')
+
+/** 打开面板时把当前限速回填成「数值 + 单位」，用户不用自己换算 */
+function syncLimitForm() {
+  const { value, unit } = fromSpeedLimitBytes(currentLimitBytes.value)
+  limitInput.value = value === null ? '' : String(value)
+  limitUnit.value = unit
+}
+
+watch(showLimitPop, (show) => {
+  if (!show) return
+  syncLimitForm()
+  // 打开就落在数值框上，省掉一次点击
+  nextTick(() => {
+    const input = document.querySelector<HTMLInputElement>('.limit-pop__number input')
+    input?.focus()
+    input?.select()
+  })
 })
 
 async function handleToggleSpeedLimit(value: boolean) {
@@ -129,14 +169,28 @@ async function handleToggleSpeedLimit(value: boolean) {
   }
 }
 
-async function applyPreset(bytes: number) {
+async function applyLimit() {
   if (!connectionStore.service) {
     message.warning(t('footer.speedLimitNoEngine'))
     return
   }
+  const raw = limitInput.value.trim().replace(',', '.')
+  const parsed = raw === '' ? 0 : Number(raw)
+  if (raw !== '' && (!Number.isFinite(parsed) || parsed <= 0)) {
+    message.warning(t('footer.speedLimitInvalid'))
+    return
+  }
+  // 留空或填 0 视为不限制，等价于关掉限速
+  const bytes = toSpeedLimitBytes(parsed, limitUnit.value)
   try {
-    await statsStore.changeGlobalOptions({ 'max-overall-download-limit': String(bytes) })
-    message.success(`${t('footer.speedLimitOn')}: ${formatSpeed(bytes)}/s`)
+    await statsStore.setSpeedLimit(bytes)
+    if (bytes > 0) {
+      // formatSpeed 自带单位（2 MB/s），这里不要再补 /s
+      message.success(`${t('footer.speedLimitOn')}: ${formatSpeed(bytes)}`)
+    } else {
+      message.success(t('footer.speedLimitOff'))
+    }
+    showLimitPop.value = false
   } catch {
     message.error(t('footer.speedLimitToggleFailed'))
   }
@@ -238,7 +292,7 @@ async function applyPreset(bytes: number) {
 }
 
 .limit-pop {
-  width: 216px;
+  width: 232px;
   padding: var(--ds-space-12);
 }
 
@@ -262,41 +316,61 @@ async function applyPreset(bytes: number) {
   color: var(--ds-text-muted);
 }
 
-.limit-pop__grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--ds-space-6);
+.limit-pop__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-8);
   margin-top: var(--ds-space-12);
 }
 
-.limit-chip {
-  height: 28px;
+.limit-pop__row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-6);
+}
+
+.limit-pop__number {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.limit-pop__units {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
   border: 1px solid var(--ds-border-base);
   border-radius: var(--ds-radius-sm);
-  background: var(--ds-bg-surface);
-  color: var(--ds-text-base);
-  font-size: var(--ds-text-small-size);
+  background: var(--ds-bg-sunken);
+}
+
+.limit-unit {
+  height: 22px;
+  padding: 0 var(--ds-space-8);
+  border: none;
+  border-radius: calc(var(--ds-radius-sm) - 1px);
+  background: transparent;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-micro-size);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition:
     background-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
-    border-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
     color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
 }
 
-.limit-chip:hover {
-  border-color: var(--ds-border-strong);
-  background: var(--ds-bg-hover);
+.limit-unit:hover {
+  color: var(--ds-text-strong);
 }
 
-.limit-chip.is-active {
-  border-color: var(--ds-accent);
-  background: var(--ds-accent-subtle);
-  color: var(--ds-accent-text);
+.limit-unit.is-active {
+  background: var(--ds-bg-surface);
+  color: var(--ds-text-strong);
   font-weight: 600;
 }
 
-.limit-chip:focus-visible {
+.limit-unit:focus-visible {
   outline: 2px solid var(--ds-focus-ring);
   outline-offset: 1px;
 }

@@ -392,7 +392,9 @@
     "speedLimitOff": "속도 제한 꺼짐",
     "speedLimitNoEngine": "아직 aria2 엔진에 연결되지 않아 속도 제한을 전환할 수 없습니다",
     "speedLimitToggleFailed": "속도 제한을 전환하지 못했습니다. 엔진 연결을 확인하세요.",
-    "speedLimit": "속도 제한"
+    "speedLimit": "속도 제한",
+    "speedLimitPlaceholder": "값 입력",
+    "speedLimitInvalid": "0보다 큰 숫자를 입력하세요"
   },
   "notification": {
     "downloadComplete": "다운로드 완료",
