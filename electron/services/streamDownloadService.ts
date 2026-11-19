@@ -25,16 +25,19 @@ export const PROGRESS_MARKER = '__YTDLP_PROGRESS__'
 
 /**
  * 进度模板字段：百分比｜已下载字节｜总字节｜估算总字节｜速度｜剩余时间｜速度（字节/秒）｜
- * 条目序号｜总条目数｜条目标题。
+ * 条目序号｜总条目数。
  *
- * 后三个字段为播放列表模式准备（单视频时为 NA）：进度事件据此带出"正在下载第几项/共几项"，
- * 让任务列表不用再显示一条聚合的百分比。标题放最后：标题本身可能含 "|"，
- * 解析时把剩余分段重新拼回即可，不影响前面的定长字段。
+ * 后两个字段为播放列表模式准备（单视频时为 NA）：进度事件据此带出"正在下载第几项/共几项"，
+ * 让任务列表不用再显示一条聚合的百分比。
+ *
+ * 这里**刻意不带标题**：进度行走的是 yt-dlp 的控制台输出，Windows 中文系统按 GBK 编码，
+ * --encoding utf-8 也改不掉（实测无效），中文标题到 Node 侧就是乱码。标题改由
+ * --print-to-file 写到文件里再按 UTF-8 读回（见 readLastLine），见 BuildStreamArgsOptions.titleFile。
  */
 const PROGRESS_TEMPLATE =
   `download:${PROGRESS_MARKER}%(progress._percent_str)s|%(progress.downloaded_bytes)s|` +
   '%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress._speed_str)s|%(progress._eta_str)s|' +
-  '%(progress.speed)s|%(info.playlist_index)s|%(info.n_entries)s|%(info.title)s'
+  '%(progress.speed)s|%(info.playlist_index)s|%(info.n_entries)s'
 
 /** 进行中的下载（允许多条并发：App 流媒体页与扩展整页下载都可能发起） */
 const activeDownloads = new Map<string, ActiveDownload>()
@@ -114,6 +117,8 @@ interface ActiveDownload {
   finalPathFile: string
   /** yt-dlp 的临时目录（--paths temp:），取消/失败/完成后清理 */
   tempDir: string
+  /** 标题回传文件（--print-to-file video:%(title)s） */
+  titleFile: string
   onEvent: (event: StreamDownloadEvent) => void
 }
 
@@ -123,6 +128,7 @@ const streamOutputRoots = new Set<string>()
 /** 清理一条下载的路径标记与临时目录；不碰 outputDir 里的最终文件 */
 function cleanupStreamFiles(record: ActiveDownload): void {
   fs.rmSync(record.finalPathFile, { force: true })
+  fs.rmSync(record.titleFile, { force: true })
   if (record.tempDir) {
     fs.rmSync(record.tempDir, { recursive: true, force: true })
   }
@@ -159,6 +165,12 @@ export interface BuildStreamArgsOptions {
   ffmpegLocation?: string
   /** --print-to-file 的目标文件（最终文件路径回传机制） */
   finalPathFile?: string
+  /**
+   * --print-to-file "video:%(title)s" 的目标文件。
+   * 进度行的 %(info.title)s 在 Windows 上是 GBK 字节（--encoding 无效），中文必然乱码；
+   * 文件是 yt-dlp 直接按 UTF-8 写的，读回来才是正确标题。
+   */
+  titleFile?: string
   /** --paths temp: 的临时目录；未提供时使用 yt-dlp 默认（输出目录） */
   tempDir?: string
 }
@@ -238,7 +250,8 @@ export function buildStreamArgs(
   const playlistValue = request.playlist?.ids.join(',') ?? ''
   const args: string[] = [
     '--newline',
-    // yt-dlp 默认按控制台代码页输出；Windows 中文系统的 GBK 会把标题写坏，进度事件里就成了乱码。
+    // 请求 UTF-8 输出。注意：对 Windows 上 yt-dlp 的进度行（stdout）实测无效，仍是 GBK，
+    // 所以标题不再从进度行取（见 PROGRESS_TEMPLATE 注释）；这里保留是为了 stderr 报错信息更可读。
     '--encoding', 'utf-8',
     '--progress',
     '--progress-delta', '0.2',
@@ -250,6 +263,10 @@ export function buildStreamArgs(
   ]
   if (opts.finalPathFile) {
     args.push('--print-to-file', 'after_move:filepath', opts.finalPathFile)
+  }
+  if (opts.titleFile) {
+    // video: 阶段就有标题（before_dl 在网页/缩略阶段会写 NA），列表模式每个条目追加一行
+    args.push('--print-to-file', 'video:%(title)s', opts.titleFile)
   }
   args.push('-f', selector)
   if (request.subtitle?.enabled) {
@@ -265,11 +282,14 @@ export function buildStreamArgs(
   if (request.cookieFile) {
     args.push('--cookies', request.cookieFile)
   }
+  // 输出根目录用 --paths home: 声明，-o 只留相对模板。
+  // 绝对 -o 会让 --paths temp: 直接失效（.part 仍然写进下载目录，删任务时清不干净），实测确认。
+  args.push('--paths', 'home:' + request.outputDir)
   if (opts.tempDir) {
     // 分片/.part 等中间文件放到独立临时目录，删除进行中的任务时不会在下载目录留下残片
     args.push('--paths', 'temp:' + opts.tempDir)
   }
-  args.push('-o', path.join(request.outputDir, '%(title)s.%(ext)s'))
+  args.push('-o', '%(title)s.%(ext)s')
   if (merge && opts.ffmpegLocation) {
     args.push('--ffmpeg-location', opts.ffmpegLocation)
   }
@@ -334,6 +354,8 @@ export async function startStreamDownload(
   const id = `sd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
   const finalPathFile = path.join(app.getPath('temp'), `ytdlp-final-${id}.txt`)
   fs.rmSync(finalPathFile, { force: true })
+  const titleFile = path.join(app.getPath('temp'), `ytdlp-title-${id}.txt`)
+  fs.rmSync(titleFile, { force: true })
   let tempDir: string
   try {
     tempDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'aria2desktop-stream-'))
@@ -374,6 +396,7 @@ export async function startStreamDownload(
     ffmpegLocation,
     finalPathFile,
     tempDir,
+    titleFile,
     onEvent
   }
   activeDownloads.set(id, record)
@@ -401,6 +424,7 @@ function launchStreamProcess(id: string, record: ActiveDownload): void {
   const args = buildStreamArgs(record.request, record.selector, {
     ffmpegLocation: record.ffmpegLocation,
     finalPathFile: record.finalPathFile,
+    titleFile: record.titleFile,
     tempDir: record.tempDir
   })
 
@@ -414,6 +438,8 @@ function launchStreamProcess(id: string, record: ActiveDownload): void {
 
   let stderrTail = ''
   let fallbackPath = ''
+  // 上一次通过进度事件带出去的标题：标题文件只在条目切换/首次出现时变化，不必每条都带
+  let lastEmittedTitle = ''
   const stdoutDecoder = new StringDecoder('utf8')
   const stderrDecoder = new StringDecoder('utf8')
   let stdoutBuffer = ''
@@ -424,7 +450,15 @@ function launchStreamProcess(id: string, record: ActiveDownload): void {
     const markerIndex = line.indexOf(PROGRESS_MARKER)
     if (markerIndex >= 0) {
       const progress = parseProgressLine(line.slice(markerIndex))
-      if (progress) record.onEvent({ type: 'progress', id, ...progress })
+      if (progress) {
+        // 标题取自 --print-to-file 写的文件（UTF-8），不用进度行里的 %(info.title)s（GBK 乱码）
+        const title = readLastLine(record.titleFile)
+        if (title && title !== lastEmittedTitle) {
+          lastEmittedTitle = title
+          progress.entryTitle = title
+        }
+        record.onEvent({ type: 'progress', id, ...progress })
+      }
     } else if (path.isAbsolute(line.trim()) && fs.existsSync(line.trim())) {
       // --print-to-file 之外的兜底：某些版本会把最终路径直接打印到 stdout
       fallbackPath = line.trim()
@@ -651,6 +685,7 @@ export function parseProgressLine(line: string): {
   downloadedBytes?: number
   totalBytes?: number
   speedBytes?: number
+  /** 标题不在进度行里（GBK 乱码），由调用方从 --print-to-file 写出的 UTF-8 文件补上 */
   entryTitle?: string
   entryIndex?: number
   entryCount?: number
@@ -667,10 +702,6 @@ export function parseProgressLine(line: string): {
   // 播放列表字段：单视频下载时 yt-dlp 输出 NA，此时不携带（事件形状向后兼容）
   const entryIndexRaw = parts[7] && !/Unknown|N\/A/i.test(parts[7]) ? Number(parts[7]) : NaN
   const entryCountRaw = parts[8] && !/Unknown|N\/A/i.test(parts[8]) ? Number(parts[8]) : NaN
-  // 标题是最后一段：标题本身可能含 "|"（如 "A | B"），split 后重新拼回
-  const titleText = parts.length > 9 ? parts.slice(9).join('|').trim() : ''
-  // 单视频场景 yt-dlp 对列表字段输出 "NA"（不带斜杠），与 "N/A" 一起过滤
-  const entryTitle = titleText && !/Unknown|^NA$|N\/A/i.test(titleText) ? titleText : undefined
   if (!Number.isFinite(percent) && total <= 0) return null
   return {
     percent: Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 0,
@@ -679,20 +710,24 @@ export function parseProgressLine(line: string): {
     downloadedBytes: downloaded || undefined,
     totalBytes: total || undefined,
     speedBytes,
-    ...(entryTitle !== undefined ? { entryTitle } : {}),
     ...(Number.isFinite(entryIndexRaw) && entryIndexRaw > 0 ? { entryIndex: entryIndexRaw } : {}),
     ...(Number.isFinite(entryCountRaw) && entryCountRaw > 0 ? { entryCount: entryCountRaw } : {})
   }
 }
 
-/** 读取 --print-to-file 写入的最终路径（取最后一行非空内容） */
-function readFinalPath(filePath: string): string {
+/** 读取 --print-to-file 写入文件的最后一行非空内容（文件不存在/读失败返回空串） */
+function readLastLine(filePath: string): string {
   try {
     const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/).map(line => line.trim()).filter(Boolean)
     return lines[lines.length - 1] ?? ''
   } catch {
     return ''
   }
+}
+
+/** 读取 --print-to-file 写入的最终路径（取最后一行非空内容） */
+function readFinalPath(filePath: string): string {
+  return readLastLine(filePath)
 }
 
 /** 完成通知：流媒体下载不在 aria2 任务列表里，用户关闭弹窗后需要可见的反馈 */

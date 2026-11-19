@@ -197,8 +197,7 @@
     "healthSeeders": "{count} sources en ligne",
     "healthSeeding": "Partage depuis cet appareil",
     "magnetUri": "URI magnet",
-    "copyMagnet": "Copier l'URI magnet",
-    "speedChart": "Graphique de vitesse (3 dernières minutes)"
+    "copyMagnet": "Copier l'URI magnet"
   },
   "taskPeer": {
     "ip": "Adresse IP",

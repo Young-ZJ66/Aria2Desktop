@@ -88,6 +88,9 @@ export function getTaskProgress(task: Aria2Task): number {
 
 // 获取下载速度（字节/秒）
 export function getTaskSpeed(task: Aria2Task): number {
+  // 暂停/等待/已完成的任务即使 aria2 还留着上一次的 downloadSpeed，对用户来说速度就是 0。
+  // 列表行内与头部总速度都必须按 0 算，否则暂停后行内归零、右上角总速度还挂着旧值。
+  if (task.status !== 'active') return 0
   return parseInt(task.downloadSpeed, 10) || 0
 }
 

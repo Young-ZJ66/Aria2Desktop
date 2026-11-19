@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Aria2File, Aria2Task } from '@/types/aria2'
-import { getTaskName } from './taskUtils'
+import { getTaskName, getTaskSpeed, getTaskStats } from './taskUtils'
 
 function file(overrides: Partial<Aria2File> = {}): Aria2File {
   return {
@@ -119,5 +119,28 @@ describe('getTaskName', () => {
   it('没有任何可用信息时才回落 GID', () => {
     expect(getTaskName(task({ files: [file()] }))).toBe('3d0323d2fcf3c6d2')
     expect(getTaskName(task())).toBe('3d0323d2fcf3c6d2')
+  })
+})
+
+describe('getTaskSpeed', () => {
+  it('只有 active 任务算速度：暂停后行内与头部总速度一起归零', () => {
+    expect(getTaskSpeed(task({ status: 'active', downloadSpeed: '2048' }))).toBe(2048)
+    // aria2 暂停后仍保留上一次的 downloadSpeed，不能让它继续计入总速度
+    expect(getTaskSpeed(task({ status: 'paused', downloadSpeed: '2048' }))).toBe(0)
+    expect(getTaskSpeed(task({ status: 'waiting', downloadSpeed: '2048' }))).toBe(0)
+    expect(getTaskSpeed(task({ status: 'complete', downloadSpeed: '2048' }))).toBe(0)
+    expect(getTaskSpeed(task({ status: 'error', downloadSpeed: '2048' }))).toBe(0)
+  })
+
+  it('非数字速度按 0 处理', () => {
+    expect(getTaskSpeed(task({ status: 'active', downloadSpeed: '' }))).toBe(0)
+  })
+
+  it('getTaskStats 汇总时同样跳过暂停任务', () => {
+    const stats = getTaskStats([
+      task({ gid: 'a', status: 'active', downloadSpeed: '1000' }),
+      task({ gid: 'b', status: 'paused', downloadSpeed: '1000' })
+    ])
+    expect(stats.totalSpeed).toBe(1000)
   })
 })

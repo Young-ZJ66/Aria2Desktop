@@ -197,8 +197,7 @@
     "healthSeeders": "{count} 个种子在线",
     "healthSeeding": "本机正在做种",
     "magnetUri": "磁力链接",
-    "copyMagnet": "复制磁力链接",
-    "speedChart": "速度曲线（近 3 分钟）"
+    "copyMagnet": "复制磁力链接"
   },
   "taskPeer": {
     "ip": "IP 地址",

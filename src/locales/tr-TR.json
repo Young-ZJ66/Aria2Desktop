@@ -197,8 +197,7 @@
     "healthSeeders": "{count} tohumlayıcı çevrimiçi",
     "healthSeeding": "Bu cihazdan tohumlama yapılıyor",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "Magnet URI'yi kopyala",
-    "speedChart": "Hız grafiği (son 3 dk)"
+    "copyMagnet": "Magnet URI'yi kopyala"
   },
   "taskPeer": {
     "ip": "IP Adresi",

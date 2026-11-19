@@ -197,8 +197,7 @@
     "healthSeeders": "{count} seeders online",
     "healthSeeding": "Semeando a partir deste dispositivo",
     "magnetUri": "URI Magnet",
-    "copyMagnet": "Copiar URI magnet",
-    "speedChart": "Gráfico de velocidade (últimos 3 min)"
+    "copyMagnet": "Copiar URI magnet"
   },
   "taskPeer": {
     "ip": "Endereço IP",

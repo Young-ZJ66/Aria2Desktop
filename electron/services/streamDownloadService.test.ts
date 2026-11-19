@@ -210,17 +210,33 @@ describe('buildStreamArgs：参数构造', () => {
       '--no-warnings', '--no-playlist', '--no-simulate',
       '--print-to-file', 'after_move:filepath', '/tmp/final.txt',
       '-f', 'bestvideo*+bestaudio/best',
-      '-o', path.join(BASE_REQUEST.outputDir, '%(title)s.%(ext)s'),
+      '--paths', 'home:' + BASE_REQUEST.outputDir,
+      '-o', '%(title)s.%(ext)s',
       '--ffmpeg-location', '/ff',
       BASE_REQUEST.url
     ])
   })
 
-  it('临时目录：--paths temp:<dir> 放在 -o 之前，stdout 固定 UTF-8 编码', () => {
+  it('输出路径：-o 只用相对模板，下载目录走 --paths home:，否则 --paths temp: 会失效', () => {
     const args = buildStreamArgs({ ...BASE_REQUEST }, 'best', { tempDir: 'C:/tmp/aria2desktop-stream-1' })
     expect(args[args.indexOf('--encoding') + 1]).toBe('utf-8')
-    expect(args.slice(args.indexOf('--paths'), args.indexOf('--paths') + 2)).toEqual(['--paths', 'temp:C:/tmp/aria2desktop-stream-1'])
-    expect(args.indexOf('--paths')).toBeLessThan(args.indexOf('-o'))
+    expect(args[args.indexOf('-o') + 1]).toBe('%(title)s.%(ext)s')
+    const homePos = args.indexOf('home:' + BASE_REQUEST.outputDir)
+    expect(homePos).toBeGreaterThan(0)
+    expect(args[homePos - 1]).toBe('--paths')
+    expect(args[homePos + 1]).toBe('--paths')
+    expect(args[homePos + 2]).toBe('temp:C:/tmp/aria2desktop-stream-1')
+    // 两个 --paths 都在 -o 之前：yt-dlp 只按出现顺序解析路径
+    expect(homePos).toBeLessThan(args.indexOf('-o'))
+  })
+
+  it('标题文件：--print-to-file video:%(title)s（进度行的标题是 GBK 乱码，不能用）', () => {
+    const args = buildStreamArgs({ ...BASE_REQUEST }, 'best', { titleFile: '/tmp/title.txt' })
+    const pos = args.indexOf('/tmp/title.txt')
+    expect(pos).toBeGreaterThan(0)
+    expect(args[pos - 2]).toBe('--print-to-file')
+    expect(args[pos - 1]).toBe('video:%(title)s')
+    expect(args.join(' ')).not.toContain('%(info.title)s')
   })
 
   it('播放列表：--playlist-items 替换 --no-playlist，值为逗号连接的 id', () => {
@@ -306,7 +322,8 @@ describe('buildStreamArgs：参数构造', () => {
       '--write-subs', '--write-auto-subs', '--sub-langs', 'en', '--convert-subs', 'srt',
       '-x', '--audio-format', 'mp3',
       '--cookies', 'C:/tmp/cookies.txt',
-      '-o', path.join(BASE_REQUEST.outputDir, '%(title)s.%(ext)s'),
+      '--paths', 'home:' + BASE_REQUEST.outputDir,
+      '-o', '%(title)s.%(ext)s',
       '--ffmpeg-location', '/ff',
       BASE_REQUEST.url
     ])
@@ -330,30 +347,25 @@ describe('parseProgressLine：播放列表字段', () => {
     expect(result?.speedBytes).toBe(1200000)
   })
 
-  it('播放列表行：带序号/总数/标题', () => {
-    const result = parseProgressLine(line([' 10.5%', '100', '1000', 'NA', '500KiB/s', '00:02', '512000', '3', '12', '第三个视频']))
+  it('播放列表行：带序号/总数（标题不解析，进度行里是 GBK）', () => {
+    const result = parseProgressLine(line([' 10.5%', '100', '1000', 'NA', '500KiB/s', '00:02', '512000', '3', '12']))
     expect(result?.entryIndex).toBe(3)
     expect(result?.entryCount).toBe(12)
-    expect(result?.entryTitle).toBe('第三个视频')
-  })
-
-  it('标题含 "|"：重新拼回不丢内容', () => {
-    const result = parseProgressLine(line([' 10.5%', '100', '1000', 'NA', '500KiB/s', '00:02', '512000', '1', '2', 'A | B | C']))
-    expect(result?.entryTitle).toBe('A | B | C')
+    expect(result?.entryTitle).toBeUndefined()
   })
 
   it('列表字段为 NA（单视频在列表页上的退化情况）：不携带', () => {
-    const result = parseProgressLine(line([' 10.5%', '100', '1000', 'NA', '500KiB/s', '00:02', '512000', 'NA', 'NA', 'NA']))
+    const result = parseProgressLine(line([' 10.5%', '100', '1000', 'NA', '500KiB/s', '00:02', '512000', 'NA', 'NA']))
     expect(result?.entryIndex).toBeUndefined()
     expect(result?.entryCount).toBeUndefined()
     expect(result?.entryTitle).toBeUndefined()
   })
 
   it('序号 0 或负数不携带（yt-dlp 语义序号 1 起，0 视为缺省）', () => {
-    const zero = parseProgressLine(line([' 10.5%', '100', '1000', 'NA', '500KiB/s', '00:02', '512000', '0', '5', 'T']))
+    const zero = parseProgressLine(line([' 10.5%', '100', '1000', 'NA', '500KiB/s', '00:02', '512000', '0', '5']))
     expect(zero?.entryIndex).toBeUndefined()
     expect(zero?.entryCount).toBe(5)
-    const neg = parseProgressLine(line([' 10.5%', '100', '1000', 'NA', '500KiB/s', '00:02', '512000', '-1', '5', 'T']))
+    const neg = parseProgressLine(line([' 10.5%', '100', '1000', 'NA', '500KiB/s', '00:02', '512000', '-1', '5']))
     expect(neg?.entryIndex).toBeUndefined()
   })
 

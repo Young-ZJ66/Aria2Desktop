@@ -197,8 +197,7 @@
     "healthSeeders": "มีซีดเดอร์ออนไลน์ {count} ราย",
     "healthSeeding": "กำลังซีดจากอุปกรณ์นี้",
     "magnetUri": "URI ของ Magnet",
-    "copyMagnet": "คัดลอก URI ของ Magnet",
-    "speedChart": "กราฟความเร็ว (3 นาทีล่าสุด)"
+    "copyMagnet": "คัดลอก URI ของ Magnet"
   },
   "taskPeer": {
     "ip": "ที่อยู่ IP",

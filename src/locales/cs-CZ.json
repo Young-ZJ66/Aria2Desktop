@@ -197,8 +197,7 @@
     "healthSeeders": "{count} seedů online",
     "healthSeeding": "Sdílení z tohoto zařízení",
     "magnetUri": "URI magnetu",
-    "copyMagnet": "Kopírovat URI magnetu",
-    "speedChart": "Graf rychlosti (poslední 3 min)"
+    "copyMagnet": "Kopírovat URI magnetu"
   },
   "taskPeer": {
     "ip": "IP adresa",

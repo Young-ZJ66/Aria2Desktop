@@ -197,8 +197,7 @@
     "healthSeeders": "{count} seeder online",
     "healthSeeding": "Seeding dari perangkat ini",
     "magnetUri": "URI Magnet",
-    "copyMagnet": "Salin URI magnet",
-    "speedChart": "Grafik kecepatan (3 menit terakhir)"
+    "copyMagnet": "Salin URI magnet"
   },
   "taskPeer": {
     "ip": "Alamat IP",

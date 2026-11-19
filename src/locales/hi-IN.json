@@ -197,8 +197,7 @@
     "healthSeeders": "{count} सीडर ऑनलाइन",
     "healthSeeding": "इस डिवाइस से सीडिंग हो रही है",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "Magnet URI कॉपी करें",
-    "speedChart": "गति चार्ट (पिछले 3 मिनट)"
+    "copyMagnet": "Magnet URI कॉपी करें"
   },
   "taskPeer": {
     "ip": "IP पता",

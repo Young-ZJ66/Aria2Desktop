@@ -121,8 +121,9 @@ export const useStreamTaskStore = defineStore('streamTask', () => {
       task.eta = event.eta ?? ''
       if (event.totalBytes) task.totalBytes = event.totalBytes
       if (event.downloadedBytes) task.downloadedBytes = event.downloadedBytes
-      // 播放列表模式：用「条目标题 (n/m)」覆盖列表展示名，用户能看到当前在下哪一条。
-      // 标题若以非 UTF-8 编码输出会被解成含替换字符的乱码，此时保留调用方传入的正确标题。
+      // 标题由主进程从 --print-to-file 写出的 UTF-8 文件读回（进度行里的是 GBK 乱码），
+      // 播放列表模式再补「(n/m)」序号，用户能看到当前在下哪一条。
+      // 仍保留替换字符兜底：万一标题文件本身被写坏，宁可继续用调用方传入的正确标题。
       if (event.entryTitle && !event.entryTitle.includes(String.fromCharCode(0xfffd))) {
         const suffix = event.entryIndex && event.entryCount
           ? ' (' + event.entryIndex + '/' + event.entryCount + ')'

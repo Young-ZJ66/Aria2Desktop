@@ -197,8 +197,7 @@
     "healthSeeders": "{count} сідерів онлайн",
     "healthSeeding": "Роздача з цього пристрою",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "Копіювати magnet URI",
-    "speedChart": "Графік швидкості (останні 3 хв)"
+    "copyMagnet": "Копіювати magnet URI"
   },
   "taskPeer": {
     "ip": "IP-адреса",

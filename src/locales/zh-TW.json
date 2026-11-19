@@ -197,8 +197,7 @@
     "healthSeeders": "{count} 個做種者線上",
     "healthSeeding": "正在從此裝置做種",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "複製 Magnet URI",
-    "speedChart": "速度圖表（最近 3 分鐘）"
+    "copyMagnet": "複製 Magnet URI"
   },
   "taskPeer": {
     "ip": "IP 位址",

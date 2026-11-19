@@ -197,8 +197,7 @@
     "healthSeeders": "{count} باذر متصل",
     "healthSeeding": "جارٍ البذر من هذا الجهاز",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "نسخ Magnet URI",
-    "speedChart": "مخطط السرعة (آخر 3 دقائق)"
+    "copyMagnet": "نسخ Magnet URI"
   },
   "taskPeer": {
     "ip": "عنوان IP",

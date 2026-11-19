@@ -197,8 +197,7 @@
     "healthSeeders": "{count}명의 시더가 온라인입니다",
     "healthSeeding": "이 기기에서 시딩 중",
     "magnetUri": "마그넷 URI",
-    "copyMagnet": "마그넷 URI 복사",
-    "speedChart": "속도 차트 (최근 3분)"
+    "copyMagnet": "마그넷 URI 복사"
   },
   "taskPeer": {
     "ip": "IP 주소",

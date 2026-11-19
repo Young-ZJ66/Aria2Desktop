@@ -197,8 +197,7 @@
     "healthSeeders": "{count} seeders online",
     "healthSeeding": "Seeding from this device",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "Copy magnet URI",
-    "speedChart": "Speed chart (last 3 min)"
+    "copyMagnet": "Copy magnet URI"
   },
   "taskPeer": {
     "ip": "IP Address",
@@ -530,9 +529,10 @@
       "diskCache": "Disk Cache",
       "diskCacheTip": "Disk cache size (MB), 0 means disabled",
       "fileAllocation": "File Allocation",
-      "fileAllocationTip": "File allocation method.\nnone: no pre-allocation\nprealloc: pre-allocate full space (recommended)\nfalloc: fast allocation via posix_fallocate, only supported on some systems",
+      "fileAllocationTip": "File allocation method. Pre-allocation reduces fragmentation; methods differ in speed and file-system support. Keep “Prealloc” if unsure.",
       "fileAllocNone": "None",
       "fileAllocPrealloc": "Prealloc",
+      "fileAllocTrunc": "Trunc",
       "fileAllocFalloc": "Falloc",
       "maxDownloadResult": "Max Download Results",
       "maxDownloadResultTip": "Maximum number of download results to keep",

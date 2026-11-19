@@ -197,8 +197,7 @@
     "healthSeeders": "В сети сидов: {count}",
     "healthSeeding": "Раздача с этого устройства",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "Копировать Magnet URI",
-    "speedChart": "График скорости (последние 3 мин)"
+    "copyMagnet": "Копировать Magnet URI"
   },
   "taskPeer": {
     "ip": "IP-адрес",

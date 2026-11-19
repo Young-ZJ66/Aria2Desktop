@@ -197,8 +197,7 @@
     "healthSeeders": "{count} seeder trực tuyến",
     "healthSeeding": "Đang seed từ thiết bị này",
     "magnetUri": "URI magnet",
-    "copyMagnet": "Sao chép URI magnet",
-    "speedChart": "Biểu đồ tốc độ (3 phút gần nhất)"
+    "copyMagnet": "Sao chép URI magnet"
   },
   "taskPeer": {
     "ip": "Địa chỉ IP",
