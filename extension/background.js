@@ -99,7 +99,8 @@ async function getEngineDownloadDir(config) {
  * 用 localhost 而不是 127.0.0.1：实测系统代理开着时，Chromium 页面里对 127.0.0.1 这类
  * IP 字面量的请求可能被代理拦截而失败，localhost 因隐式绕过规则仍直连
  * （App 侧同理，见 src/shared/connectionDiagnostics.ts）。 */
-const APP_API_BASE = 'http://localhost:6801'
+const APP_API_PORT = 6801
+const APP_API_BASE = 'http://localhost:' + APP_API_PORT
 /** 建任务请求超时：App 侧可能要做一次文件名探测（只取响应头）+ 一次本机 RPC，留足余量 */
 const APP_ADD_TIMEOUT_MS = 20000
 
@@ -422,36 +423,111 @@ function normalizeTask(item, fallbackStatus) {
   }
 }
 
+/**
+ * 把 App 侧的流媒体（yt-dlp）任务整成与 aria2 任务同形的记录。
+ *
+ * 为什么必须合并进来：yt-dlp 下载**不进 aria2 队列**，「智能解析本页视频」发起的任务
+ * 在扩展里原本完全不可见（列表只拉 aria2 RPC 快照）。gid 直接用 App 的任务 id，
+ * 并打上 source='stream'，动作据此决定发给 aria2 还是 App。
+ */
+function normalizeStreamTask(task) {
+  const total = Number(task.totalBytes) || 0
+  const completed = Number(task.downloadedBytes) || 0
+  const percent = Math.max(0, Math.min(100, Number(task.percent) || 0))
+  return {
+    gid: String(task.id || ''),
+    source: 'stream',
+    status: task.status === 'complete' ? 'complete' : task.status === 'error' ? 'error' : task.status === 'paused' ? 'paused' : 'active',
+    name: task.title || task.url || String(task.id || ''),
+    totalLength: String(total),
+    completedLength: String(completed || (total > 0 ? Math.round(total * percent / 100) : 0)),
+    downloadSpeed: String(Number(task.speedBytes) || 0),
+    uploadSpeed: '0',
+    errorMessage: task.error || '',
+    percent
+  }
+}
+
+/**
+ * 拉取 App 侧的流媒体任务列表。
+ * @returns {Promise<Array>} 失败一律返回空数组：接口不可用（App 未运行/版本较旧）时，
+ *          扩展仍应正常显示 aria2 任务，不能因为这一路失败让整张列表打不开。
+ */
+async function getStreamTasks(config) {
+  if (!config.secret) return []
+  try {
+    const response = await fetch(`${APP_API_BASE}/api/stream-tasks`, {
+      headers: buildAppApiHeaders(config.secret),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(4000)
+    })
+    if (!response.ok) return []
+    const data = await response.json().catch(() => null)
+    if (!data?.ok || !Array.isArray(data.tasks)) return []
+    return data.tasks.map(normalizeStreamTask).filter(task => task.gid)
+  } catch {
+    return []
+  }
+}
+
 async function getTasksSnapshot() {
   const config = await getConfig()
   if (!config.secret) return { success: false, code: 'not_paired', error: i18n('sendNeedPairing') }
   try {
-    const [stats, active, waiting, stopped] = await Promise.all([
+    const [stats, active, waiting, stopped, streamTasks] = await Promise.all([
       rpcCall('aria2.getGlobalStat', [], config),
       rpcCall('aria2.tellActive', [], config),
       rpcCall('aria2.tellWaiting', [0, 50], config),
-      rpcCall('aria2.tellStopped', [0, 20], config)
+      rpcCall('aria2.tellStopped', [0, 20], config),
+      getStreamTasks(config)
     ])
+    const aria2Tasks = [
+      ...active.map(item => normalizeTask(item, 'active')),
+      ...waiting.map(item => normalizeTask(item, item.status || 'waiting')),
+      ...stopped.map(item => normalizeTask(item, item.status || 'complete'))
+    ]
+    // 概览数字要把流媒体任务算进去，否则「解析本页视频」后概览仍显示 0 个进行中
+    const streamActive = streamTasks.filter(task => task.status === 'active' || task.status === 'waiting' || task.status === 'paused').length
+    const streamSpeed = streamTasks.reduce((sum, task) => sum + (task.status === 'active' ? Number(task.downloadSpeed) || 0 : 0), 0)
     return {
       success: true,
       stats: {
-        downloadSpeed: stats.downloadSpeed || '0',
+        downloadSpeed: String((Number(stats.downloadSpeed) || 0) + streamSpeed),
         uploadSpeed: stats.uploadSpeed || '0',
-        numActive: stats.numActive || '0',
+        numActive: String((Number(stats.numActive) || 0) + streamActive),
         numWaiting: stats.numWaiting || '0'
       },
-      tasks: [
-        ...active.map(item => normalizeTask(item, 'active')),
-        ...waiting.map(item => normalizeTask(item, item.status || 'waiting')),
-        ...stopped.map(item => normalizeTask(item, item.status || 'complete'))
-      ]
+      // 流媒体任务排在前面：它们通常是用户刚发起、正等着看进度的那条
+      tasks: [...streamTasks, ...aria2Tasks]
     }
   } catch (error) {
     return { success: false, error: describeError(error, config) }
   }
 }
 
-async function taskAction(operation, gid) {
+/** 对流媒体（yt-dlp）任务执行动作：走 App 接口，aria2 根本不认识这些 id */
+async function streamTaskAction(operation, id) {
+  const config = await getConfig()
+  if (!config.secret) return { success: false, code: 'not_paired', error: i18n('sendNeedPairing') }
+  try {
+    const response = await fetch(`${APP_API_BASE}/api/stream-task`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...buildAppApiHeaders(config.secret) },
+      body: JSON.stringify({ action: operation, id }),
+      signal: AbortSignal.timeout(8000)
+    })
+    const data = await response.json().catch(() => null)
+    if (response.ok && data?.ok) return { success: true }
+    if (data?.code === 'not_running') return { success: false, error: i18n('taskStreamNotRunning') }
+    if (data?.code === 'not_paused') return { success: false, error: i18n('taskStreamNotPaused') }
+    return { success: false, error: data?.error || i18n('errUnknown') }
+  } catch {
+    return { success: false, error: i18n('errCannotConnect', [`localhost:${APP_API_PORT}`]) }
+  }
+}
+
+async function taskAction(operation, gid, source) {
+  if (source === 'stream') return streamTaskAction(operation, gid)
   const config = await getConfig()
   if (!config.secret) return { success: false, code: 'not_paired', error: i18n('sendNeedPairing') }
   try {
@@ -1032,7 +1108,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'taskAction') {
-    taskAction(String(message.operation || ''), String(message.gid || '')).then(sendResponse)
+    taskAction(String(message.operation || ''), String(message.gid || ''), String(message.source || '')).then(sendResponse)
     return true
   }
 

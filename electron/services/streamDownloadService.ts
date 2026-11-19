@@ -135,6 +135,106 @@ function cleanupStreamFiles(record: ActiveDownload): void {
 }
 
 /**
+ * 对外可查的流媒体任务快照（扩展下载列表用）。
+ *
+ * 为什么要单独登记：activeDownloads 里的记录在完成/失败/取消时会被删掉（进程已经结束，
+ * 没什么可操作的），但扩展的下载列表还要显示"已下载完成"的条目；而 yt-dlp 任务**不进
+ * aria2 队列**，扩展拿 aria2 RPC 快照永远看不到它们——只能由本服务提供这份状态。
+ *
+ * 只存在内存里：应用重启后 yt-dlp 子进程本来也全部中断，落盘没有意义。
+ */
+export interface StreamTaskSnapshot {
+  id: string
+  url: string
+  title: string
+  status: 'active' | 'paused' | 'complete' | 'error' | 'cancelled'
+  percent: number
+  /** 字节/秒；暂停与结束时归零，避免扩展列表显示幽灵速度 */
+  speedBytes: number
+  downloadedBytes: number
+  totalBytes: number
+  outputDir: string
+  filePath?: string
+  error?: string
+  createdAt: number
+  updatedAt: number
+}
+
+const streamTaskRegistry = new Map<string, StreamTaskSnapshot>()
+/** 进行中任务最多保留的条数（同时下载远到不了这个量级，只是防泄漏） */
+const STREAM_TASK_ACTIVE_KEEP = 50
+/** 已结束任务保留条数：扩展列表的"已完成"一档据此显示 */
+const STREAM_TASK_FINISHED_KEEP = 20
+
+/** 导出仅供单测：登记一条任务快照（运行时由 startStreamDownload 调用） */
+export function registerStreamTask(id: string, record: ActiveDownload): void {
+  const now = Date.now()
+  streamTaskRegistry.set(id, {
+    id,
+    url: record.request.url,
+    title: record.request.title || record.request.url,
+    status: 'active',
+    percent: 0,
+    speedBytes: 0,
+    downloadedBytes: 0,
+    totalBytes: 0,
+    outputDir: record.request.outputDir,
+    createdAt: now,
+    updatedAt: now
+  })
+  pruneStreamTaskRegistry()
+}
+
+/** 导出仅供单测：增量更新快照字段（运行时由进度/状态回调调用） */
+export function updateStreamTask(id: string, patch: Partial<StreamTaskSnapshot>): void {
+  const task = streamTaskRegistry.get(id)
+  if (!task) return
+  Object.assign(task, patch, { updatedAt: Date.now() })
+  pruneStreamTaskRegistry()
+}
+
+/** 只留最近的若干条：Map 按插入顺序（老→新）迭代，倒着数才能先淘汰最老的 */
+function pruneStreamTaskRegistry(): void {
+  let active = 0
+  let finished = 0
+  for (const task of [...streamTaskRegistry.values()].reverse()) {
+    const isFinished = task.status !== 'active' && task.status !== 'paused'
+    if (isFinished) {
+      finished += 1
+      if (finished > STREAM_TASK_FINISHED_KEEP) streamTaskRegistry.delete(task.id)
+    } else {
+      active += 1
+      if (active > STREAM_TASK_ACTIVE_KEEP) streamTaskRegistry.delete(task.id)
+    }
+  }
+}
+
+/**
+ * 列出流媒体任务（新→旧）。扩展下载列表把它与 aria2 任务合并展示。
+ * 已取消（cancelled）的条目与渲染层一致地不返回：取消是用户的显式动作，不留"已取消"一行。
+ */
+export function listStreamTasks(): StreamTaskSnapshot[] {
+  return [...streamTaskRegistry.values()]
+    .filter(task => task.status !== 'cancelled')
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map(task => ({ ...task }))
+}
+
+/**
+ * 从快照表移除一条任务（扩展列表里的「移除」）。
+ * 只影响列表可见性，不删除 outputDir 里的文件——与 aria2 的 remove 语义一致。
+ */
+export function forgetStreamTask(id: string): boolean {
+  return streamTaskRegistry.delete(id)
+}
+
+/** 取单条流媒体任务快照（不存在返回 undefined） */
+export function getStreamTask(id: string): StreamTaskSnapshot | undefined {
+  const task = streamTaskRegistry.get(id)
+  return task ? { ...task } : undefined
+}
+
+/**
  * 允许的格式选择器表达式（yt-dlp 完整 -f 语法）。
  *
  * 为什么放宽：预设（bestvideo*[height<=1080]+bestaudio/best[height<=1080]）本身就不是
@@ -402,6 +502,8 @@ export async function startStreamDownload(
   activeDownloads.set(id, record)
   // 记录本进程使用过的输出目录：删除文件时只允许操作这些目录内的文件
   streamOutputRoots.add(path.resolve(request.outputDir))
+  // 登记到对外快照表：扩展的下载列表靠它看到 yt-dlp 任务（这类任务不进 aria2）
+  registerStreamTask(id, record)
   onEvent({
     type: 'started',
     id,
@@ -457,6 +559,13 @@ function launchStreamProcess(id: string, record: ActiveDownload): void {
           lastEmittedTitle = title
           progress.entryTitle = title
         }
+        updateStreamTask(id, {
+          percent: progress.percent,
+          speedBytes: progress.speedBytes ?? 0,
+          downloadedBytes: progress.downloadedBytes ?? 0,
+          totalBytes: progress.totalBytes ?? 0,
+          ...(title ? { title } : {})
+        })
         record.onEvent({ type: 'progress', id, ...progress })
       }
     } else if (path.isAbsolute(line.trim()) && fs.existsSync(line.trim())) {
@@ -491,6 +600,13 @@ function launchStreamProcess(id: string, record: ActiveDownload): void {
     activeDownloads.delete(id)
     record.proc = null
     cleanupStreamFiles(record)
+    updateStreamTask(id, {
+      status: 'error',
+      speedBytes: 0,
+      error: error.message.includes('ENOENT')
+        ? '未检测到 yt-dlp，请先在流媒体页下载 yt-dlp'
+        : error.message
+    })
     record.onEvent({
       type: 'failed',
       id,
@@ -505,6 +621,7 @@ function launchStreamProcess(id: string, record: ActiveDownload): void {
     // 暂停：进程由我们主动结束，保留任务记录，等 resume 重新拉起
     if (record.paused) {
       record.proc = null
+      updateStreamTask(id, { status: 'paused', speedBytes: 0 })
       fs.rmSync(record.finalPathFile, { force: true })
       record.onEvent({ type: 'paused', id })
       return
@@ -519,23 +636,24 @@ function launchStreamProcess(id: string, record: ActiveDownload): void {
     const filePath = printedPath || fallbackPath
 
     if (cancelled) {
+      updateStreamTask(id, { status: 'cancelled', speedBytes: 0 })
       record.onEvent({ type: 'cancelled', id })
       return
     }
     if (code !== 0) {
-      record.onEvent({
-        type: 'failed',
-        id,
-        error: stderrTail.trim() || `yt-dlp exited with code ${code}`
-      })
+      const failure = stderrTail.trim() || `yt-dlp exited with code ${code}`
+      updateStreamTask(id, { status: 'error', speedBytes: 0, error: failure })
+      record.onEvent({ type: 'failed', id, error: failure })
       return
     }
     if (!filePath || !fs.existsSync(filePath)) {
+      updateStreamTask(id, { status: 'error', speedBytes: 0, error: '下载完成但未找到输出文件' })
       record.onEvent({ type: 'failed', id, error: '下载完成但未找到输出文件' })
       return
     }
 
     logger.info(`yt-dlp 下载完成: ${filePath}`)
+    updateStreamTask(id, { status: 'complete', percent: 100, speedBytes: 0, filePath })
     record.onEvent({ type: 'completed', id, filePath })
     notifyCompleted(filePath)
   })
@@ -552,6 +670,7 @@ export function pauseStreamDownload(id: string): boolean {
     return false
   }
   record.paused = true
+  updateStreamTask(id, { status: 'paused', speedBytes: 0 })
   killProcessTree(record.proc)
   return true
 }
@@ -561,6 +680,7 @@ export function resumeStreamDownload(id: string): boolean {
   const record = activeDownloads.get(id)
   if (!record || !record.paused || record.cancelled) return false
   record.paused = false
+  updateStreamTask(id, { status: 'active' })
   fs.rmSync(record.finalPathFile, { force: true })
   launchStreamProcess(id, record)
   return true
@@ -577,6 +697,7 @@ export function cancelStreamDownload(id: string): boolean {
     // 已暂停的任务没有子进程，直接结束并让上层移除任务
     activeDownloads.delete(id)
     cleanupStreamFiles(record)
+    updateStreamTask(id, { status: 'cancelled', speedBytes: 0 })
     record.onEvent({ type: 'cancelled', id })
   }
   return true
@@ -610,6 +731,7 @@ export async function discardStreamDownload(id: string): Promise<boolean> {
   if (activeDownloads.get(id) === record) {
     activeDownloads.delete(id)
     cleanupStreamFiles(record)
+    updateStreamTask(id, { status: 'cancelled', speedBytes: 0 })
   }
   return true
 }

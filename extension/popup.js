@@ -396,7 +396,15 @@ function renderTasks() {
     main.className = 'task-main'
     const name = document.createElement('div')
     name.className = 'task-name'
-    name.textContent = task.name || task.gid
+    // 流媒体任务标一个来源角标：用户能看出这条是「智能解析本页视频」发起的，
+    // 也就明白为什么它不在 aria2 的队列里
+    if (task.source === 'stream') {
+      const badge = document.createElement('span')
+      badge.className = 'task-source'
+      badge.textContent = i18n('taskSourceStream')
+      name.appendChild(badge)
+    }
+    name.appendChild(document.createTextNode(task.name || task.gid))
     name.title = task.name || task.gid
     const meta = document.createElement('div')
     meta.className = 'task-meta'
@@ -415,9 +423,10 @@ function renderTasks() {
     main.appendChild(name); main.appendChild(meta); main.appendChild(progress)
     const actions = document.createElement('div')
     actions.className = 'task-actions'
-    if (task.status === 'active') actions.appendChild(miniButton('pause', 'taskActionPause', () => taskAction('pause', task.gid)))
-    else if (task.status === 'waiting' || task.status === 'paused') actions.appendChild(miniButton('play', 'taskActionResume', () => taskAction('resume', task.gid)))
-    actions.appendChild(miniButton('remove', 'taskActionRemove', () => taskAction('remove', task.gid)))
+    // 流媒体（yt-dlp）任务的动作要发给 App 接口，aria2 不认识这些 id
+    if (task.status === 'active') actions.appendChild(miniButton('pause', 'taskActionPause', () => taskAction('pause', task.gid, task.source)))
+    else if (task.status === 'waiting' || task.status === 'paused') actions.appendChild(miniButton('play', 'taskActionResume', () => taskAction('resume', task.gid, task.source)))
+    actions.appendChild(miniButton('remove', 'taskActionRemove', () => taskAction('remove', task.gid, task.source)))
     row.appendChild(icon); row.appendChild(main); row.appendChild(actions)
     list.appendChild(row)
   }
@@ -438,9 +447,9 @@ function miniButton(kind, titleKey, handler) {
   return btn
 }
 
-async function taskAction(operation, gid) {
+async function taskAction(operation, gid, source) {
   try {
-    const response = await sendMessage({ action: 'taskAction', operation, gid })
+    const response = await sendMessage({ action: 'taskAction', operation, gid, source })
     if (!response?.success) showFeedback(response?.error || i18n('errUnknown'), true)
     await loadTasks()
   } catch { showFeedback(i18n('errUnknown'), true) }

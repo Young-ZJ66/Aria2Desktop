@@ -526,6 +526,15 @@
   "taskActionRemove": {
     "message": "Remove"
   },
+  "taskSourceStream": {
+    "message": "Stream"
+  },
+  "taskStreamNotRunning": {
+    "message": "This task is no longer downloading"
+  },
+  "taskStreamNotPaused": {
+    "message": "This task is not paused"
+  },
   "taskFooterCount": {
     "message": "$COUNT$ completed",
     "placeholders": {

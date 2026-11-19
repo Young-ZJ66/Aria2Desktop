@@ -5,7 +5,15 @@ import { getSettingsFresh } from '../utils/settingsAccessor'
 import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { callAria2Rpc } from '../utils/aria2Rpc'
 import { checkYtdlpAvailable } from './ytdlpService'
-import { startStreamDownload, type StreamDownloadEvent } from './streamDownloadService'
+import {
+  discardStreamDownload,
+  forgetStreamTask,
+  listStreamTasks,
+  pauseStreamDownload,
+  resumeStreamDownload,
+  startStreamDownload,
+  type StreamDownloadEvent
+} from './streamDownloadService'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import {
   EXTENSION_API_HOST,
@@ -314,6 +322,55 @@ export class ExtensionApiServer {
       this.send(res, 200, started.success
         ? { ok: true, id: started.id }
         : { ok: false, code: started.code ?? 'failed', error: started.error ?? 'Failed' })
+      return
+    }
+
+    /**
+     * GET /api/stream-tasks：流媒体（yt-dlp）任务列表。
+     *
+     * 为什么需要它：yt-dlp 下载**不进 aria2 队列**，扩展的下载列表原本只拉 aria2 RPC 快照，
+     * 于是「智能解析本页视频」发起的下载在扩展里完全看不到。这里把 App 侧的任务快照交给扩展，
+     * 由扩展与 aria2 任务合并展示（扩展侧按 source 字段区分动作该发给谁）。
+     */
+    if (pathname === '/api/stream-tasks') {
+      if (req.method !== 'GET') {
+        this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
+        return
+      }
+      this.send(res, 200, { ok: true, tasks: listStreamTasks() })
+      return
+    }
+
+    /**
+     * POST /api/stream-task：对流媒体任务执行 pause / resume / remove。
+     *
+     * 与 /api/stream 一样按任务 id 操作（id 来自 /api/stream 的返回或 /api/stream-tasks）。
+     * remove 的语义与 aria2 的 remove 对齐：只从列表移除 + 终止进程/清理临时目录，
+     * **不删除**已下载完成的文件（删文件仍走 App 内的删除对话框）。
+     */
+    if (pathname === '/api/stream-task') {
+      if (req.method !== 'POST') {
+        this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
+        return
+      }
+      let payload: unknown
+      try {
+        payload = await readJsonBody(req)
+      } catch (error) {
+        this.send(res, 400, { ok: false, code: 'bad_request', error: error instanceof Error ? error.message : 'Bad Request' })
+        return
+      }
+      const action = (payload as { action?: unknown })?.action
+      const id = (payload as { id?: unknown })?.id
+      if (typeof id !== 'string' || !id) {
+        this.send(res, 400, { ok: false, code: 'invalid_id', error: 'Invalid task id' })
+        return
+      }
+      if (action !== 'pause' && action !== 'resume' && action !== 'remove') {
+        this.send(res, 400, { ok: false, code: 'invalid_action', error: 'Unsupported action' })
+        return
+      }
+      this.send(res, 200, await this.applyStreamTaskAction(action, id))
       return
     }
 
@@ -956,6 +1013,35 @@ export class ExtensionApiServer {
       this.logger.warn(`代扩展创建任务失败: ${message}`)
       return { status: 502, payload: { ok: false, code: 'engine_unavailable', error: message } }
     }
+  }
+
+  /**
+   * 对流媒体任务执行动作。返回体与扩展侧的错误码约定保持一致（ok/code/error）。
+   *
+   * 进程已经结束的任务（完成/失败）没有可暂停的进程：pause/resume 直接判失败，
+   * 让扩展把提示落到用户面前，而不是假装成功。
+   */
+  private async applyStreamTaskAction(
+    action: 'pause' | 'resume' | 'remove',
+    id: string
+  ): Promise<{ ok: boolean; code?: string; error?: string }> {
+    if (action === 'pause') {
+      return pauseStreamDownload(id)
+        ? { ok: true }
+        : { ok: false, code: 'not_running', error: 'Task is not running' }
+    }
+    if (action === 'resume') {
+      return resumeStreamDownload(id)
+        ? { ok: true }
+        : { ok: false, code: 'not_paused', error: 'Task is not paused' }
+    }
+
+    // remove 只做"从列表移除"：终止进程、清临时目录，**不动已下载完成的文件**。
+    // 与 aria2 的 remove 语义一致；扩展这边是一键操作、没有确认框，顺手删掉用户
+    // 已经下完的文件等于无提示的数据丢失。要删文件请回 App 的任务列表（那里有确认）。
+    await discardStreamDownload(id)
+    forgetStreamTask(id)
+    return { ok: true }
   }
 
   /** GET /api/status：应用版本、引擎进程状态与版本、当前下载目录 */

@@ -526,6 +526,15 @@
   "taskActionRemove": {
     "message": "删除"
   },
+  "taskSourceStream": {
+    "message": "流媒体"
+  },
+  "taskStreamNotRunning": {
+    "message": "该任务已不在下载中"
+  },
+  "taskStreamNotPaused": {
+    "message": "该任务未处于暂停状态"
+  },
   "taskFooterCount": {
     "message": "共 $COUNT$ 项已完成",
     "placeholders": {

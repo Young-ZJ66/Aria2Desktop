@@ -316,6 +316,8 @@
   .task-icon svg { width: 17px; height: 17px; }
   .task-main { flex: 1; min-width: 0; }
   .task-name { font-size: 12.5px; line-height: 1.35; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 流媒体任务来源角标：inline 元素才能跟着 ellipsis 一起被裁掉，不撑破单行 */
+  .task-source { display: inline-block; margin-right: 5px; padding: 0 4px; border-radius: 4px; font-size: 9.5px; font-weight: 600; line-height: 14px; letter-spacing: 0.02em; vertical-align: 1px; color: var(--accent-hover); background: var(--accent-soft); }
   .task-meta { margin-top: 3px; font-size: 10.5px; line-height: 1.35; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .task-progress { height: 3px; margin-top: 7px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
   .task-progress i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }

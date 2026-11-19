@@ -25,12 +25,17 @@ const {
   buildStreamArgs,
   COOKIE_FILE_MAX_BYTES,
   FORMAT_EXPR_PATTERN,
+  forgetStreamTask,
+  getStreamTask,
+  listStreamTasks,
   PLAYLIST_ITEM_ID_PATTERN,
   PLAYLIST_ITEMS_MAX,
   PLAYLIST_ITEMS_VALUE_MAX,
   PROGRESS_MARKER,
   parseProgressLine,
+  registerStreamTask,
   SUBTITLE_LANG_PATTERN,
+  updateStreamTask,
   validateCookieFile,
   validateStreamExtras
 } = await import('./streamDownloadService')
@@ -372,5 +377,88 @@ describe('parseProgressLine：播放列表字段', () => {
   it('非模板行（无 marker 前缀长度不足）返回 null', () => {
     expect(parseProgressLine('random yt-dlp output')).toBeNull()
     expect(parseProgressLine(`${PROGRESS_MARKER}only|two|three`)).toBeNull()
+  })
+})
+
+describe('流媒体任务快照：扩展下载列表的数据源', () => {
+  /**
+   * 这些快照是扩展「下载列表」唯一能看到 yt-dlp 任务的途径（yt-dlp 不进 aria2 队列），
+   * 所以列表可见性、状态流转与移除语义都在这里锁定。
+   */
+  function record(url: string, title?: string) {
+    return {
+      proc: null,
+      cancelled: false,
+      paused: false,
+      request: { url, title, outputDir: path.join(os.tmpdir(), 'stream-registry') },
+      selector: 'bv*+ba/b',
+      ffmpegLocation: '',
+      finalPathFile: '',
+      tempDir: '',
+      titleFile: '',
+      onEvent: () => {}
+    } as never
+  }
+
+  it('登记后可见，且默认是 active/0%（列表能立刻显示"刚发起"的任务）', () => {
+    registerStreamTask('sd-test-a', record('https://example.com/a', '标题 A'))
+    const task = getStreamTask('sd-test-a')
+    expect(task?.status).toBe('active')
+    expect(task?.title).toBe('标题 A')
+    expect(task?.percent).toBe(0)
+    expect(task?.speedBytes).toBe(0)
+    expect(task?.outputDir).toBe(path.join(os.tmpdir(), 'stream-registry'))
+    expect(listStreamTasks().some(item => item.id === 'sd-test-a')).toBe(true)
+    forgetStreamTask('sd-test-a')
+  })
+
+  it('无标题时退回 URL（扩展列表不能出现空白行）', () => {
+    registerStreamTask('sd-test-b', record('https://example.com/b'))
+    expect(getStreamTask('sd-test-b')?.title).toBe('https://example.com/b')
+    forgetStreamTask('sd-test-b')
+  })
+
+  it('进度更新合并字段，updatedAt 前移', () => {
+    registerStreamTask('sd-test-c', record('https://example.com/c', 'C'))
+    const before = getStreamTask('sd-test-c')!.updatedAt
+    updateStreamTask('sd-test-c', { percent: 42.5, speedBytes: 1024, downloadedBytes: 2048, totalBytes: 4096 })
+    const task = getStreamTask('sd-test-c')!
+    expect(task.percent).toBe(42.5)
+    expect(task.speedBytes).toBe(1024)
+    expect(task.downloadedBytes).toBe(2048)
+    expect(task.totalBytes).toBe(4096)
+    expect(task.status).toBe('active')
+    expect(task.updatedAt).toBeGreaterThanOrEqual(before)
+    forgetStreamTask('sd-test-c')
+  })
+
+  it('更新不存在的任务不创建幽灵条目', () => {
+    updateStreamTask('sd-test-missing', { percent: 10 })
+    expect(getStreamTask('sd-test-missing')).toBeUndefined()
+  })
+
+  it('listStreamTasks 过滤已取消，并按创建时间新→旧排序', () => {
+    registerStreamTask('sd-test-d1', record('https://example.com/d1'))
+    registerStreamTask('sd-test-d2', record('https://example.com/d2'))
+    updateStreamTask('sd-test-d1', { status: 'cancelled' })
+    const ids = listStreamTasks().map(item => item.id).filter(id => id.startsWith('sd-test-d'))
+    expect(ids).toEqual(['sd-test-d2'])
+    forgetStreamTask('sd-test-d1')
+    forgetStreamTask('sd-test-d2')
+  })
+
+  it('listStreamTasks 返回副本：外部改动不会污染内部状态', () => {
+    registerStreamTask('sd-test-e', record('https://example.com/e', 'E'))
+    const snapshot = listStreamTasks().find(item => item.id === 'sd-test-e')!
+    snapshot.percent = 99
+    expect(getStreamTask('sd-test-e')?.percent).toBe(0)
+    forgetStreamTask('sd-test-e')
+  })
+
+  it('forgetStreamTask 只影响可见性，返回是否真的删掉了一条', () => {
+    registerStreamTask('sd-test-f', record('https://example.com/f'))
+    expect(forgetStreamTask('sd-test-f')).toBe(true)
+    expect(getStreamTask('sd-test-f')).toBeUndefined()
+    expect(forgetStreamTask('sd-test-f')).toBe(false)
   })
 })

@@ -223,10 +223,11 @@ if (fs.existsSync(corePath)) {
   if (!port) {
     fail('未能在 electron/utils/extensionApiCore.ts 中定位 EXTENSION_API_PORT')
   } else {
-    const found = /APP_API_BASE\s*=\s*'http:\/\/localhost:(\d+)'/.exec(
-      fs.readFileSync(path.join(extensionDir, 'background.js'), 'utf8')
-    )
-    if (!found) fail('background.js 中未找到 APP_API_BASE')
+    // 端口既可能直接写在 APP_API_BASE 里，也可能先定义成 APP_API_PORT 常量（错误提示里要复用）
+    const backgroundSource = fs.readFileSync(path.join(extensionDir, 'background.js'), 'utf8')
+    const found = /APP_API_BASE\s*=\s*'http:\/\/localhost:(\d+)'/.exec(backgroundSource)
+      || /APP_API_PORT\s*=\s*(\d+)/.exec(backgroundSource)
+    if (!found) fail('background.js 中未找到 APP_API_BASE / APP_API_PORT')
     else if (found[1] !== port[1]) fail(`接口端口不一致：主进程 ${port[1]} vs background.js ${found[1]}`)
     else ok(`App 接口端口一致（主进程与 background.js）: ${found[1]}`)
   }

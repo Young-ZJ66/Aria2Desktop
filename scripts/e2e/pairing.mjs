@@ -49,8 +49,11 @@ export async function runPairingCheck({ extensionDir, outDir, reporter }) {
   const extDir = path.join(os.tmpdir(), `aria2-ext-pair-${Date.now()}`)
   fs.cpSync(extensionDir, extDir, { recursive: true })
   const bgPath = path.join(extDir, 'background.js')
+  // 端口在 background.js 里既可能写成 APP_API_PORT 常量（错误提示要复用），
+  // 也可能直接内联在 APP_API_BASE 中，两种写法都要改，否则桩收不到配对请求。
   const patched = fs
     .readFileSync(bgPath, 'utf8')
+    .replace(/const APP_API_PORT = 6801/, `const APP_API_PORT = ${stubPort}`)
     .replace(/http:\/\/(localhost|127\.0\.0\.1):6801/, `http://127.0.0.1:${stubPort}`)
   fs.writeFileSync(bgPath, patched)
 

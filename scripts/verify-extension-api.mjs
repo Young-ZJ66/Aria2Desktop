@@ -373,6 +373,49 @@ const run = async () => {
   check('add: dir 仍在下载目录之下（文件名净化不影响目录解析）',
     String(escapeOptions.dir).replace(/\\/g, '/').includes('/downloads'))
 
+  // ---- H. 流媒体（yt-dlp）任务端点：扩展下载列表靠它看到不进 aria2 队列的任务 ----
+  // 这两条路由只依赖 streamDownloadService 的内存快照表，**不依赖 sendStreamEvent**
+  // （本脚手架构造 ExtensionApiServer 时没传它），据此也能证明新端点没把通知链路当成必需依赖。
+  const streamList = await request(`${API}/api/stream-tasks`, { headers: withAuth() })
+  check('stream-tasks: 扩展来源 + 正确密钥 → 200', streamList.status === 200, `status=${streamList.status}`)
+  check('stream-tasks: 返回 ok 与任务数组（无下载时为空数组）',
+    streamList.json?.ok === true && Array.isArray(streamList.json.tasks), `body=${streamList.text?.slice(0, 80)}`)
+  check('stream-tasks: 无密钥 → 401',
+    (await request(`${API}/api/stream-tasks`)).status === 401)
+  check('stream-tasks: POST 方法 → 405',
+    (await request(`${API}/api/stream-tasks`, { method: 'POST', headers: withAuth(jsonHeaders), body: '{}' })).status === 405)
+
+  const streamPause = await request(`${API}/api/stream-task`, {
+    method: 'POST', headers: withAuth(jsonHeaders),
+    body: JSON.stringify({ action: 'pause', id: 'sd-not-exist' })
+  })
+  check('stream-task: 暂停不存在的任务 → 200 + not_running（而不是假装成功）',
+    streamPause.status === 200 && streamPause.json?.ok === false && streamPause.json?.code === 'not_running',
+    `code=${streamPause.json?.code}`)
+  const streamResume = await request(`${API}/api/stream-task`, {
+    method: 'POST', headers: withAuth(jsonHeaders),
+    body: JSON.stringify({ action: 'resume', id: 'sd-not-exist' })
+  })
+  check('stream-task: 继续不存在的任务 → 200 + not_paused',
+    streamResume.json?.ok === false && streamResume.json?.code === 'not_paused', `code=${streamResume.json?.code}`)
+  const streamRemove = await request(`${API}/api/stream-task`, {
+    method: 'POST', headers: withAuth(jsonHeaders),
+    body: JSON.stringify({ action: 'remove', id: 'sd-not-exist' })
+  })
+  check('stream-task: 移除不存在的任务 → 幂等成功（用户要的是这一行消失）',
+    streamRemove.json?.ok === true, `body=${streamRemove.text?.slice(0, 80)}`)
+  check('stream-task: 缺 id → 400 + invalid_id',
+    (await request(`${API}/api/stream-task`, { method: 'POST', headers: withAuth(jsonHeaders), body: '{}' }))
+      .json?.code === 'invalid_id')
+  check('stream-task: 未知动作 → 400 + invalid_action',
+    (await request(`${API}/api/stream-task`, {
+      method: 'POST', headers: withAuth(jsonHeaders), body: JSON.stringify({ action: 'explode', id: 'x' })
+    })).json?.code === 'invalid_action')
+  check('stream-task: GET 方法 → 405',
+    (await request(`${API}/api/stream-task`, { headers: withAuth() })).status === 405)
+  check('stream-task: 无密钥 → 401',
+    (await request(`${API}/api/stream-task`, { method: 'POST', headers: jsonHeaders, body: '{"action":"remove","id":"x"}' })).status === 401)
+
   // ---- 收尾 ----
   server.stop()
   await new Promise((r) => setTimeout(r, 200))
