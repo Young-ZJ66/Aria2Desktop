@@ -10,6 +10,9 @@ import { compareVersions } from '../utils/version'
 // tag / 更新日志的解析是纯字符串判定，抽到 releaseFeed 后可按真实报文固化边界用例
 import { extractReleaseNotes, parseStableTagFromLocation } from '../utils/releaseFeed'
 import { isStaleUpdateFile } from '../utils/updateFiles'
+// 安装包命名规则抽成纯函数：必须与 package.json 的 artifactName 逐字符一致，否则下载 404
+import { updateArtifactFileName, updateArtifactUrl } from '../utils/updateArtifact'
+import type { UpdatePlatform } from '../utils/updateArtifact'
 import { downloadDelta, saveDeltaCache, discardDeltaCache } from '../services/deltaUpdater'
 import { createLogger } from '../utils/logger'
 import { isPackagedApp } from '../utils/appEnv'
@@ -394,22 +397,18 @@ export class UpdateController {
     return { tag, notes }
   }
 
-  /** 当前平台的安装包文件名与下载地址（命名规则与 package.json 的 artifactName 一致） */
+  /**
+   * 当前平台的安装包文件名与下载地址。
+   *
+   * 命名规则在 utils/updateArtifact 里（纯函数，由单测读 package.json 的 artifactName 反向校验）；
+   * 这里只负责把 process.platform 归一到三类产物——未知平台按 Windows 处理，与历史行为一致。
+   */
   private buildInstallerArtifact(version: string): { fileName: string; url: string } {
-    let fileName: string
-    if (process.platform === 'darwin') {
-      const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
-      fileName = `Aria2Desktop-${version}-${arch}.dmg`
-    } else if (process.platform === 'linux') {
-      const arch = process.arch === 'arm64' ? 'arm64' : 'x86_64'
-      fileName = `Aria2Desktop-${version}-${arch}.AppImage`
-    } else {
-      const arch = process.arch === 'ia32' ? 'x86' : process.arch === 'arm64' ? 'arm64' : 'x64'
-      fileName = `Aria2Desktop-${version}-${arch}-Setup.exe`
-    }
+    const platform: UpdatePlatform =
+      process.platform === 'darwin' ? 'darwin' : process.platform === 'linux' ? 'linux' : 'win32'
     return {
-      fileName,
-      url: `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${encodeURIComponent(fileName)}`
+      fileName: updateArtifactFileName(version, platform, process.arch),
+      url: updateArtifactUrl(GITHUB_REPO, version, platform, process.arch)
     }
   }
 
