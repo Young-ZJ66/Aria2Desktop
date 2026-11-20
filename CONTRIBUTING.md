@@ -166,8 +166,12 @@ module.exports = {
   标题英文、正文中文说明“为什么改”。
 - 推送以 `v` 开头的 tag（如 `v1.2.5`）会触发 `release.yml`：质量闸门 → 端到端 → 三平台并行构建
   → 创建 Release 并上传资产（含 `.sha256` 与差量块表）。
-- 正式版发版前必须让这三处版本一致，CI 有守卫会校验：`package.json`、`extension/manifest.json`、
-  `.github/release-notes.md` 首行（`# vX.Y.Z 更新日志`）。Beta / RC 的例外见下一节。
+- 版本号散在五处，发版前必须全部一致；`npm run verify:versions` 会一次校验完（CI 与 `release.yml`
+  都会跑它）：`package.json`、`package-lock.json`（顶层与 `packages[""]` 两处）、
+  `src/shared/appSettings.ts` 的 `PLUGIN_REGISTRY_PINNED_TAG`（插件市场拉哪个 tag 的注册表）、
+  `extension/manifest.json`、`.github/release-notes.md` 首行（`# vX.Y.Z 更新日志`）。Beta / RC 的例外见下一节。
+- 漏改这些不会被 `git status` 发现：`git add -A` 后版本文件在索引里可能仍是旧内容，
+  提交前用 `git show :package.json | sed -n '3p'` 核对，必要时 `git add --renormalize <files>`。
 - 更新日志面向普通用户写：说清“以前怎样、现在怎样”，不要写内部实现细节。
 
 ### Beta / 预发布

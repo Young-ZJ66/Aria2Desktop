@@ -57,6 +57,12 @@ jobs:
       - name: 扩展静态校验
         run: node scripts/run-with-log.mjs 扩展静态校验 npm run check:extension
 
+      # 版本号散在 package.json / lockfile / appSettings.ts / 扩展 manifest / 更新日志首行五处，
+      # 各自被不同环节消费。只 bump 一部分的后果要等打上 tag 后才会在 release.yml 里炸，
+      # 而 tag 不可移动——所以在这里先看工作树内部是否自洽。
+      - name: 版本一致性校验
+        run: node scripts/run-with-log.mjs 版本一致性校验 npm run verify:versions
+
       # 插件注册表的签名口径与固定 tag：非空清单签错 / 忘签、或版本升了 tag 忘了改，
       # 都会让客户端把整份市场列表判为不可信——而这种失败只在用户装上之后才暴露
       - name: 插件注册表校验

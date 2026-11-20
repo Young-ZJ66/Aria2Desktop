@@ -17,6 +17,7 @@ npm run test:run
 npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --ignore-pattern .gitignore
 npm run build                # 含 verify-resources
 npm run check:extension
+npm run verify:versions      # 五处版本号（package/lock/appSettings/扩展 manifest/更新日志首行）是否自洽
 npm run verify:registry      # 注册表签名口径 + 固定 tag 与版本对齐（非空清单必须验签通过）
 npm run verify:extension-api
 npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解压

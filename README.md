@@ -192,6 +192,7 @@ npm run test:run     # 单元测试
 npm run typecheck    # 类型检查（主进程 + 测试代码 + 渲染层）
 npm run test:e2e     # 端到端（真启动应用跑一遍下载/解压/设置）
 npm run test:e2e:extension  # 扩展多浏览器 smoke（自动发现本机 Chrome for Testing / Chromium / Edge）
+npm run verify:versions  # 发版前：五处版本号（package/lock/注册表 tag/扩展/更新日志）是否自洽
 npm run dist:win64   # 打包 Windows x64 安装包 + 便携版
 npm run dist:mac     # 打包 macOS（x64 + arm64）
 npm run dist:linux:arm64  # 打包 Linux arm64 安装包

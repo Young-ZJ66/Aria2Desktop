@@ -87,6 +87,10 @@ jobs:
       - name: 扩展静态校验
         run: npm run check:extension
 
+      # 五处版本号必须自洽；漏改任何一处都要等 tag 推上去之后才会被发现，而 tag 不可移动
+      - name: 版本一致性校验
+        run: npm run verify:versions
+
       # 注册表签名口径与固定 tag 必须与客户端一致，否则市场整份列表会被拒绝
       - name: 插件注册表校验
         run: npm run verify:registry
