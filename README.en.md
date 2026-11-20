@@ -103,7 +103,7 @@
 
 ### 1. Install
 
-Download the package for your platform from [Releases](../../releases): <code>Setup.exe</code> (or the portable <code>portable.zip</code>) on Windows,
+Download the package for your platform from [Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases): <code>Setup.exe</code> (or the portable <code>portable.zip</code>) on Windows,
 <code>dmg</code> on macOS, <code>AppImage</code> or <code>deb</code> on Linux.
 
 > Public builds are unsigned: Windows may show "Unknown publisher" (SmartScreen), macOS builds are unsigned and not notarized (right-click → Open on first launch), and on Linux the <code>AppImage</code> needs <code>chmod +x</code> before running.
@@ -151,7 +151,7 @@ If a system proxy is enabled, <code>127.0.0.1</code> may be intercepted — chan
 Another Aria2 Desktop instance or another download tool is probably using it. Quit the extra instance or change the port in Settings.
 
 **How do I roll back to an older version**
-Download the older installer and install it over the current one — settings and download history live in your user directory and are unaffected by the installer. Pre-releases such as <code>v1.5.0-beta.2</code> are never served by the automatic updater, so get them from [Releases](../../releases). Before rolling back, export a settings backup from Settings → Reset &amp; Backup.
+Download the older installer and install it over the current one — settings and download history live in your user directory and are unaffected by the installer. Pre-releases such as <code>v1.5.0-beta.3</code> are never served by the automatic updater, so get them from [Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases). Before rolling back, export a settings backup from Settings → Reset &amp; Backup.
 
 **Automatic update fails / verification fails**
 The app compares the downloaded file with the Release <code>.sha256</code>; on mismatch it refuses to install and falls back to a full download. You can also download and install the package manually.
@@ -196,14 +196,14 @@ Project structure and development conventions (logging, type checking, dependenc
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history; installers and full release descriptions are on [GitHub Releases](../../releases).
+See [CHANGELOG.md](CHANGELOG.md) for version history; installers and full release descriptions are on [GitHub Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases).
 
 ## Contributing
 
 Issues and pull requests are welcome. Before submitting, run <code>npm run typecheck && npm run test:run</code>;
 use Conventional Commits (<code>feat:</code> / <code>fix:</code> / <code>docs:</code> …).
 
-- Issue tracker: [GitHub Issues](../../issues)
+- Issue tracker: [GitHub Issues](https://github.com/Young-ZJ66/Aria2Desktop/issues)
 - Email: 1600386893@qq.com
 
 ## License

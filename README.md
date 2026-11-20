@@ -104,7 +104,7 @@
 
 ### 1. 安装
 
-到 [Releases](../../releases) 下载对应平台的包：Windows 用 `Setup.exe`（或免安装的 `portable.zip`），
+到 [Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases) 下载对应平台的包：Windows 用 `Setup.exe`（或免安装的 `portable.zip`），
 macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 
 > 公开构建均未签名：Windows 可能提示「未知发布者」（SmartScreen），macOS 首次打开需右键 →「打开」（未公证），
@@ -157,7 +157,7 @@ Linux 的 `AppImage` 需要先 `chmod +x Aria2Desktop-*.AppImage`。需要校验
 应用会比对 Release 的 `.sha256`，不匹配就拒绝安装并回落完整下载；网络异常时可手动下载安装包覆盖安装。
 
 **如何回退到旧版本**
-直接下载旧版本安装包覆盖安装即可（设置与下载历史保存在用户目录，不随安装包变化）；预发布版（如 `v1.5.0-beta.2`）不会出现在自动更新通道里，需要从 [Releases](../../releases) 手动获取。升级到新版本后若要回退，建议先在「设置 → 重置与备份」导出一份配置备份。
+直接下载旧版本安装包覆盖安装即可（设置与下载历史保存在用户目录，不随安装包变化）；预发布版（如 `v1.5.0-beta.3`）不会出现在自动更新通道里，需要从 [Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases) 手动获取。升级到新版本后若要回退，建议先在「设置 → 重置与备份」导出一份配置备份。
 
 **卸载后有残留**
 设置文件不会随卸载删除（含配置与会话），需要彻底清理时手动删除对应目录：
@@ -201,14 +201,14 @@ npm run dist:linux:arm64  # 打包 Linux arm64 安装包
 
 ## 更新日志
 
-版本变更记录见 [CHANGELOG.md](CHANGELOG.md)；安装包与完整发布说明见 [GitHub Releases](../../releases)。
+版本变更记录见 [CHANGELOG.md](CHANGELOG.md)；安装包与完整发布说明见 [GitHub Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases)。
 
 ## 贡献
 
 欢迎 Issue 与 PR。提交前请跑 `npm run typecheck && npm run test:run`；
 提交信息使用 Conventional Commits（`feat:` / `fix:` / `docs:` …）。
 
-- 问题反馈：[GitHub Issues](../../issues)
+- 问题反馈：[GitHub Issues](https://github.com/Young-ZJ66/Aria2Desktop/issues)
 - 邮件：1600386893@qq.com
 
 ## 许可证
