@@ -28,9 +28,11 @@
 
 ![Task list](assets/screenshot-light.png)
 
-| Dark theme | Tools and extensions |
+| Dark theme | Settings (grouped navigation + global search) |
 |:---:|:---:|
 | ![Dark theme](assets/screenshot-dark.png) | ![Settings](assets/screenshot-settings.png) |
+
+![First-run wizard](assets/screenshot-onboarding.png)
 
 ## Features
 
@@ -51,13 +53,18 @@
 - Failed tasks can be rebuilt and retried from their original source (URL, torrent or magnet info hash); unfinished tasks and download history support redacted export and validated import for easy migration
 - Deleted task files go to the system recycle bin by default, so accidental deletions can be recovered; open completed files or their folders directly, or open several selected tasks at once
 - **Speed graph and retry markers**: the Status page shows live speed history and marks automatic retries on the graph; task details include peer clients and IP geolocation
+- **Editable task details**: change the destination folder, speed limit and request headers of a running task without deleting and recreating it
+- **Failed-only view and batch retry**: filter to failed tasks and retry them in one go; batch actions (start/pause/delete) end with a result panel that lists failures and their reasons, keeping failed items selected
 
 ### Interface and system integration
 
 - Dark/light theme (including follow-system), 21 interface languages (Simplified Chinese / Traditional Chinese / English / Japanese / Korean / German / French / Spanish / Portuguese / Italian / Russian / Arabic / Hindi / Thai / Vietnamese / Indonesian / Turkish / Dutch / Polish / Ukrainian / Czech); built-in **Diagnostics Center** checks RPC, disk space, secrets, UPnP, trackers and history storage, then exports a redacted report
 - Task details with peers, servers and piece information, plus connection count
 - Notification center with completed/failed records and unread badges, plus per-notification delete
-- Tray icon, taskbar progress and launch-at-login; after download completion, apply completion rules to open files/folders, shut down, sleep or close the app
+- Tray icon, taskbar progress and launch-at-login; after download completion, apply completion rules to open files/folders, shut down, sleep or close the app; the tray tooltip shows live total speed and active task count, and the tray menu can restart a failed engine
+- **First-run wizard**: a four-step guide for the download folder, extension pairing, yt-dlp and remote access — every step can be skipped and it will not appear again
+- **Download trends**: 7-day and 30-day completion and volume trends on the completed page
+- **Right-to-left layouts**: the whole interface mirrors automatically for RTL languages such as Arabic
 - Copy a download link and return to the app to be prompted with a new-task window (clipboard monitoring can be disabled in Settings); global shortcuts (<code>Ctrl+N</code> new task, <code>Ctrl+F</code> search, <code>Ctrl+Shift+P</code> pause all, and more)
 - One-click system proxy detection and autofill; in-app update checks (delta updates on Windows, full packages on macOS/Linux); Linux AppImages embed update information and ship `.zsync` files for delta upgrades via AppImageUpdate / <code>appimageupdatetool</code>
 
@@ -142,6 +149,9 @@ If a system proxy is enabled, <code>127.0.0.1</code> may be intercepted — chan
 
 **Port 6800 is already in use**
 Another Aria2 Desktop instance or another download tool is probably using it. Quit the extra instance or change the port in Settings.
+
+**How do I roll back to an older version**
+Download the older installer and install it over the current one — settings and download history live in your user directory and are unaffected by the installer. Pre-releases such as <code>v1.5.0-beta.2</code> are never served by the automatic updater, so get them from [Releases](../../releases). Before rolling back, export a settings backup from Settings → Reset &amp; Backup.
 
 **Automatic update fails / verification fails**
 The app compares the downloaded file with the Release <code>.sha256</code>; on mismatch it refuses to install and falls back to a full download. You can also download and install the package manually.
