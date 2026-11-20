@@ -13,7 +13,7 @@ Aria2Desktop --headless
 
 | 项目 | --headless 下的行为 |
 |---|---|
-| 主窗口 | 仍然创建（隐藏状态），但不显示，也不会自动弹出 |
+| 主窗口 | 不创建（不拉起渲染进程；无 X11/Wayland 的 Linux 服务器可直接运行） |
 | 托盘图标 | 不创建（无托盘菜单，避免误以为有可见入口） |
 | 下载引擎（aria2） | 照常启动；启动失败时直接退出进程（不弹"继续/退出"对话框） |
 | Web 控制台 | 按设置决定："启用 Web 控制台"打开时照常监听（默认端口 6802，设置 → 远程访问） |
@@ -24,9 +24,9 @@ Aria2Desktop --headless
 
 几点需要提前知道：
 
-- **窗口仍在创建。** `--headless` 只跳过"显示窗口"和"创建托盘"，Electron 仍会建
-  一个隐藏窗口。因此在**完全没有图形环境的 Linux 服务器**上直接运行会因缺少
-  X server 而失败，需要虚拟显示（见下面的 `xvfb-run`）或带桌面会话的机器。
+- **不创建主窗口。** `--headless` 下不建窗口、不拉起渲染进程，只保留下载引擎与
+  后台服务，因此**完全没有图形环境的 Linux 服务器**也能直接运行，不需要 X server。
+  只有旧版本（1.5.0 之前）才会创建隐藏窗口、需要虚拟显示（见下面的 `xvfb-run`）。
 - **单实例限制。** 同一用户下只能跑一个实例：桌面版正在运行时再启动
   `--headless` 会立刻退出，并把已运行实例的窗口唤醒显示出来。服务化部署时请确保
   没有同用户的桌面实例在跑。
@@ -81,7 +81,9 @@ systemctl --user status aria2desktop.service
 journalctl --user -u aria2desktop.service -f
 ```
 
-服务器上没有图形会话时，给 `ExecStart` 套一层虚拟显示：
+服务器上没有图形会话时**不需要**虚拟显示：无头模式不建窗口，也就不需要 X server。
+只有在旧版本（1.5.0 之前），或遇到 Chromium 渲染进程相关报错时，才需要给 `ExecStart`
+套一层虚拟显示：
 
 ```ini
 ExecStart=/usr/bin/xvfb-run -a %h/Applications/Aria2Desktop-1.5.0-x86_64.AppImage --headless

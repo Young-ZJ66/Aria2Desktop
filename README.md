@@ -89,7 +89,7 @@
 - **多实例管理**：保存多个 RPC 连接配置，批量测试延迟与版本，一键切换当前实例
 - **SQLite 历史库**：完成历史改用 SQLite 存储，突破原 10MB JSON 上限，并自动迁移旧数据
 - **差量更新（Windows）**：只下载变化的分块，最终仍强制比对 `.sha256`
-- **无头模式与自动化**：`Aria2Desktop --headless` 隐藏主窗口，仅保留下载引擎、浏览器扩展接口与 MCP 服务，适合远程管理/常驻下载机；命令行与 Webhook 用法见 [docs/automation-cli-webhook.md](docs/automation-cli-webhook.md)，注册为 systemd 服务 / Windows 计划任务见 [docs/headless.md](docs/headless.md)
+- **无头模式与自动化**：`Aria2Desktop --headless` 不创建主窗口（无图形环境的 Linux 服务器也能直接跑），仅保留下载引擎、浏览器扩展接口与 MCP 服务，适合远程管理/常驻下载机；命令行与 Webhook 用法见 [docs/automation-cli-webhook.md](docs/automation-cli-webhook.md)，注册为 systemd 服务 / Windows 计划任务见 [docs/headless.md](docs/headless.md)
 
 ## 系统要求
 

@@ -88,7 +88,7 @@
 - **Multi-instance management**: save multiple RPC connection profiles, batch-test latency and versions, and switch the active instance with one click
 - **SQLite history**: download history is stored in SQLite, removing the old 10 MB JSON limit, with automatic migration of legacy data
 - **Delta updates (Windows)**: download only changed blocks, then verify the final file against its <code>.sha256</code>
-- **Headless mode and automation**: <code>Aria2Desktop --headless</code> hides the main window and keeps only the download engine, browser extension API and MCP server running, ideal for remote management or an always-on download machine; see [docs/automation-cli-webhook.md](docs/automation-cli-webhook.md) for CLI and webhook usage, and [docs/headless.md](docs/headless.md) for systemd / Windows scheduled-task setups
+- **Headless mode and automation**: <code>Aria2Desktop --headless</code> creates no main window (so it runs on a headless Linux server without X11) and keeps only the download engine, browser extension API and MCP server running, ideal for remote management or an always-on download machine; see [docs/automation-cli-webhook.md](docs/automation-cli-webhook.md) for CLI and webhook usage, and [docs/headless.md](docs/headless.md) for systemd / Windows scheduled-task setups
 
 ## System requirements
 
