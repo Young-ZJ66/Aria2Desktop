@@ -7,6 +7,7 @@
 - **主进程文案本地化**：引擎启动失败对话框与系统通知、更新校验失败、yt-dlp/ffmpeg 安装、RSS 订阅与监听目录校验、Web 控制台 TLS 错误、UPnP 映射失败、扩展配对、托盘菜单等 60+ 处此前硬编码中文的文案，现在按系统语言输出中英双语。英文/日文等界面不再在最关键的失败场景看到中文。
 - 引擎启动失败分类器同时识别中英文错误串，避免英文界面下失败原因退化成「未知」。
 - 新增主进程文案表的单元测试（中英齐全、占位符替换）与 v1.4.0 升级兼容用例（缺失配置块回落默认值、已有凭据不被覆盖），单测总数 1203 → 1225。
+- **13 种语言补齐 1.5.0 译文**：阿拉伯语、捷克语、印地语、印尼语、意大利语、荷兰语、波兰语、葡萄牙语（巴西）、俄语、泰语、土耳其语、乌克兰语、越南语此前把首次向导、任务设置、批量重试、通知等 34 条新增文案原样显示为英文，现已全部翻译。
 
 ## 🎯 主题：可信接管
 
@@ -69,7 +70,7 @@
 
 - typecheck（主进程 + 测试代码 + 渲染层）通过；109 个测试文件 / 1225 项单测全部通过。
 - 应用 E2E 144 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、Web 控制台）。
-- 扩展静态校验 21 项通过；扩展多浏览器 smoke 50 项通过（Chrome for Testing / Chromium / Edge，Firefox 走 MV3 变体静态校验）；21 种语言文案 key 保持完整。
+- 扩展静态校验 21 项通过；扩展多浏览器 smoke 50 项通过（Chrome for Testing / Chromium / Edge，Firefox 走 MV3 变体静态校验）；21 种语言文案 key 与占位符保持一致，1.5.0 新增文案已全部翻译。
 - 引擎更新重启压力测试 50 轮通过（无残留端口、无孤儿进程）。
 
 ---
@@ -86,7 +87,8 @@
 
 - **Main-process messages are localized**: engine startup failure dialogs and notifications, update verification failures, yt-dlp/ffmpeg installs, RSS subscription and watch-folder validation, web console TLS errors, UPnP mapping failures, extension pairing and the tray menu — 60+ strings that used to be Chinese-only now follow the system language.
 - The engine startup failure classifier now recognizes both Chinese and English messages, so English UIs no longer fall back to an "unknown" reason.
-- Added unit tests for the main-process copy tables (both languages present, placeholders substituted); total unit tests 1203 → 1221.
+- Added unit tests for the main-process copy tables (both languages present, placeholders substituted); total unit tests 1203 → 1225.
+- **13 more locales now cover 1.5.0**: Arabic, Czech, Hindi, Indonesian, Italian, Dutch, Polish, Brazilian Portuguese, Russian, Thai, Turkish, Ukrainian and Vietnamese previously fell back to English for 34 new strings (first-run wizard, task settings, batch retry, notifications); all are translated now.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -148,7 +150,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 - Typecheck (main process, tests, renderer) passes; 109 test files / 1225 unit tests pass.
 - All 144 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, web console).
-- All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); the 21 locales remain complete.
+- All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.
 - The 50-round engine restart stress test passes with no leftover ports or orphan processes.
 
 ---
