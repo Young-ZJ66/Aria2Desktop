@@ -218,7 +218,9 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
         videoAction: document.getElementById('pageVideoTitle')?.innerText || ''
       }))()`
     )
-    reporter.check('网络嗅探页完整渲染', snifferLayout?.activePane === 'sniffer' && snifferLayout?.filterCount === 5 && snifferLayout?.resourceList === true, JSON.stringify(snifferLayout))
+    // 6 个筛选块：全部 / 播放列表 / 视频 / 音频 / 图片 / 其它。播放列表筛选是 1.5.0 新增的，
+    // 数字写死容易被功能新增打红，但这里就是要盯住"筛选块数量与 popup.html 一致"，改功能时同步改这里。
+    reporter.check('网络嗅探页完整渲染', snifferLayout?.activePane === 'sniffer' && snifferLayout?.filterCount === 6 && snifferLayout?.resourceList === true, JSON.stringify(snifferLayout))
     reporter.check('网络嗅探页包含智能视频解析入口', /智能解析本页视频|Smart video resolver/i.test(String(snifferLayout?.videoAction)), JSON.stringify(snifferLayout))
     await capture(session, path.join(outDir, '07c-extension-popup-sniffer.png'))
 
