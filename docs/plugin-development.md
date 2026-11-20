@@ -120,7 +120,7 @@ module.exports = {
       "homepage": "https://example.com/hello",
       "entryUrl": "https://example.com/hello/index.js",
       "sha256": "<入口文件的 64 位 SHA-256>",
-      "signature": "<Base64(Ed25519 或 RSA-SHA256 签名)>",
+      "signature": "<Base64(Ed25519 签名)>",
       "publisher": "<PEM 公钥或可信发布者标识>",
       "permissions": ["aria2:read", "notify"],
       "main": "index.js"
@@ -131,11 +131,29 @@ module.exports = {
 
 - `entryUrl` 必须是 HTTPS，入口文件大小上限 2 MB；
 - `sha256` 必填，安装时强制比对；
-- 在设置 → 插件页的“可信发布者”中填入公钥后，市场插件必须带有效签名才能安装：
-  - Ed25519：`crypto.sign(null, data, privateKey)`
-  - RSA：`crypto.sign('sha256', data, privateKey)`
+- 在设置 → 插件页的“可信发布者”中填入公钥后，市场插件必须带有效签名才能安装。
+  **只接受 Ed25519**（密钥类型不是 Ed25519 直接判失败，不会回退到 RSA/ECDSA）：
+  `crypto.sign(null, data, privateKey)`，公钥为 PEM 或 SPKI Base64。
 - 安装后的元数据保存在插件目录的 `.market.json`，包含 publisher/signature/sha256/installedAt，
   便于审计与后续升级比对。
+
+### 注册表签名
+
+注册表本身也要签：非空清单必须带顶层 `signature` 字段，客户端用内置官方公钥（或你在
+“可信发布者”里配置的公钥）验签，验不过直接拒绝加载，报 `REGISTRY_SIGNATURE_INVALID`。
+**空清单（`plugins: []`）是唯一免签例外**——没有条目就没有可安装的代码。
+
+签名口径：删掉 `signature` 字段后做稳定序列化（对象键排序、丢弃 `undefined`、数组保序），
+用 Ed25519 私钥 `crypto.sign(null, payload, privateKey)`，结果 Base64 写回 `signature`。
+仓库自带工具（见 `scripts/plugin-registry/README.md`）：
+
+```bash
+node scripts/plugin-registry/sign-registry.mjs sign plugin-registry.json \
+  --key private-key.pem --out plugin-registry.signed.json
+node scripts/plugin-registry/sign-registry.mjs verify plugin-registry.json --pubkey public-key.pem
+npm run verify:registry            # 发布前闸门：结构 + 签名口径 + 固定 tag 与版本对齐
+npm run verify:registry -- --online  # 额外比对已发布注册表与本仓库文件一致
+```
 
 ## 权限与信任建议
 
