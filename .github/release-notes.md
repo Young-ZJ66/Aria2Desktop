@@ -25,7 +25,7 @@
 - **任务详情可编辑**：支持修改单任务选项（限速、连接数、保存目录、代理等），不必删除重建。
 - **失败可见性**：下载任务页新增"仅看失败"筛选与批量重试；批量操作结果面板统一展示成功 / 失败 / 跳过数量与逐项失败原因，失败项保留选中状态。
 - **状态页趋势图**：新增 7 天 / 30 天下载趋势（复用本地 90 天历史数据）。
-- **Web 控制台**：中英双语界面、明暗主题跟随系统、"暂停全部 / 继续全部"；支持 HTTPS 监听，局域网访问强制加密；新增细粒度 API 令牌与更细的作用域校验。
+- **Web 控制台**：中英双语界面、明暗主题跟随系统、"暂停全部 / 继续全部"；新增只读队列视图（队列设置 + 等待中的任务，配套 `GET /api/queue` 与 OpenAPI 文档）；支持 HTTPS 监听，局域网访问强制加密；新增细粒度 API 令牌与更细的作用域校验。
 - **MCP**：22 个工具补齐只读 / 破坏性标注，按工具粒度校验权限，破坏性工具要求 `confirm: true`。
 - **插件市场**：注册表强制 Ed25519 签名校验，新装插件默认禁用，安装前展示发布者、来源、SHA-256 与权限清单。
 - **流媒体任务持久化**：重启后保留完成 / 失败记录，中断任务标记为可重试；播放列表多文件完整记录。
@@ -75,7 +75,7 @@
 
 ## ✅ 验证
 
-- typecheck（主进程 + 测试代码 + 渲染层）通过；186 个测试文件 / 2400 项单测通过（引擎重启压力测试默认跳过）。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；186 个测试文件 / 2407 项单测通过（引擎重启压力测试默认跳过）。
 - Web 控制台页面内联脚本/样式的 CSP 哈希由单测逐字节校验，改了内联脚本却忘同步哈希会直接失败（否则浏览器会静默拒绝执行脚本，页面白屏）。
 - `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
 - 应用 E2E 191 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局）；其中 16 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
@@ -114,7 +114,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 - **Editable task options**: change speed limit, connections, save directory and proxy per task without deleting and re-adding it.
 - **Failure visibility**: a "failed only" filter and batch retry on the downloads page; a batch result panel reports succeeded / failed / skipped counts with per-item reasons and keeps failed items selected.
 - **Status trends**: 7-day and 30-day download trends on the Status page, reusing the local 90-day history.
-- **Web console**: bilingual UI, light / dark theme following the system, "pause all / resume all"; HTTPS listening with mandatory encryption for LAN access; fine-grained API tokens with tighter scope checks.
+- **Web console**: bilingual UI, light / dark theme following the system, "pause all / resume all"; a read-only queue view (queue settings plus waiting tasks, backed by `GET /api/queue` and documented in the OpenAPI spec); HTTPS listening with mandatory encryption for LAN access; fine-grained API tokens with tighter scope checks.
 - **MCP**: all 22 tools now declare read-only / destructive annotations, permissions are checked per tool, and destructive tools require `confirm: true`.
 - **Plugin market**: the registry must be Ed25519-signed, newly installed plugins start disabled, and the install dialog shows publisher, source, SHA-256 and permissions.
 - **Stream task persistence**: completed / failed stream tasks survive a restart, interrupted ones are marked retryable, and playlists record every file.
@@ -163,7 +163,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ## ✅ Verification
 
-- Typecheck (main process, tests, renderer) passes; 186 test files / 2400 unit tests pass (the engine-restart stress test is skipped by default).
+- Typecheck (main process, tests, renderer) passes; 186 test files / 2407 unit tests pass (the engine-restart stress test is skipped by default).
 - `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
 - All 191 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring), of which 16 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.

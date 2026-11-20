@@ -108,8 +108,8 @@ export async function runWebConsoleCheck({ reporter, outDir, baseUrl, token, aud
   const openapi = await requestJson(baseUrl + '/openapi.json')
   const paths = openapi.json && openapi.json.paths ? openapi.json.paths : {}
   reporter.check(
-    'OpenAPI 文档可用且覆盖状态接口',
-    openapi.status === 200 && !!openapi.json && String(openapi.json.openapi || '').indexOf('3.') === 0 && !!paths['/api/status'],
+    'OpenAPI 文档可用且覆盖状态与队列接口',
+    openapi.status === 200 && !!openapi.json && String(openapi.json.openapi || '').indexOf('3.') === 0 && !!paths['/api/status'] && !!paths['/api/queue'],
     'openapi=' + (openapi.json ? openapi.json.openapi : 'null')
   )
 
@@ -128,6 +128,21 @@ export async function runWebConsoleCheck({ reporter, outDir, baseUrl, token, aud
     'status=' + status.status
   )
   reporter.check('状态接口能读到真实任务', taskCount > 0, 'tasks=' + taskCount)
+
+  // 4b. 队列只读视图：只读接口，写方法必须被拒（改并发/重试只能回桌面端）
+  const queue = await requestJson(baseUrl + '/api/queue', { headers: authHeaders(token) })
+  const queuePayload = queue.json || {}
+  reporter.check(
+    '队列视图返回队列设置与等待任务',
+    queue.status === 200 && queuePayload.ok === true && !!queuePayload.settings && Array.isArray(queuePayload.tasks) && typeof queuePayload.total === 'number',
+    'status=' + queue.status
+  )
+  const queueWrite = await requestJson(baseUrl + '/api/queue', {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ maxConcurrent: 16 })
+  })
+  reporter.check('队列视图不接受写操作', queueWrite.status === 404, 'status=' + queueWrite.status)
 
   // 5. 写入路径的输入校验：非法协议不能被塞进 aria2
   const badUri = await requestJson(baseUrl + '/api/tasks', {

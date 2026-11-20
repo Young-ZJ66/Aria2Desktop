@@ -66,6 +66,25 @@ export function buildOpenApiDocument(appVersion: string): Record<string, unknown
             stopped: { type: 'array', items: { $ref: '#/components/schemas/TaskSummary' } }
           }
         },
+        QueueSettings: {
+          type: 'object',
+          description: '队列设置（只读；改动请回桌面端设置页）',
+          properties: {
+            maxConcurrent: { type: 'number', description: '最大同时下载数（桌面端只读，1-16）' },
+            retryEnabled: { type: 'boolean', description: '是否启用失败自动重试' },
+            retryMaxAttempts: { type: 'number', description: '最大重试次数' },
+            retryDelaySeconds: { type: 'number', description: '重试间隔（秒）' }
+          }
+        },
+        QueueResponse: {
+          type: 'object',
+          properties: {
+            ok: { type: 'boolean' },
+            settings: { $ref: '#/components/schemas/QueueSettings' },
+            tasks: { type: 'array', items: { $ref: '#/components/schemas/TaskSummary' }, description: '等待中的任务（最多 100 条）' },
+            total: { type: 'number', description: '等待中的任务数' }
+          }
+        },
         ErrorResponse: {
           type: 'object',
           properties: {
@@ -170,6 +189,18 @@ export function buildOpenApiDocument(appVersion: string): Record<string, unknown
             200: { description: '成功', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, items: { type: 'array', items: { type: 'object' } } } } } } },
             401: { description: '缺少或错误的令牌', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
             403: { description: '令牌权限不足（需 audit:read）', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+          }
+        }
+      },
+      '/api/queue': {
+        get: {
+          summary: '读取队列视图（队列设置 + 等待中的任务，只读）',
+          tags: ['任务'],
+          security: securityRequirement(),
+          responses: {
+            200: { description: '成功', content: { 'application/json': { schema: { $ref: '#/components/schemas/QueueResponse' } } } },
+            401: { description: '缺少或错误的令牌', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+            403: { description: '令牌权限不足（需 tasks:read）', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
           }
         }
       },

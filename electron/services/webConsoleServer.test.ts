@@ -167,6 +167,7 @@ describe('webConsoleAuth', () => {
     expect(routeScope('GET', '/api/status')).toBe('tasks:read')
     expect(routeScope('GET', '/api/events')).toBe('tasks:read')
     expect(routeScope('GET', '/api/audit')).toBe('audit:read')
+    expect(routeScope('GET', '/api/queue')).toBe('tasks:read')
     expect(routeScope('POST', '/api/tasks')).toBe('tasks:write')
     expect(routeScope('POST', '/api/tasks/pauseAll')).toBe('tasks:control')
     expect(routeScope('POST', '/api/tasks/unpauseAll')).toBe('tasks:control')
@@ -200,7 +201,7 @@ describe('OpenAPI 文档', () => {
     }
     expect(doc.openapi).toBe('3.0.3')
     expect(doc.info.version).toBe('1.3.7')
-    expect(Object.keys(doc.paths).sort()).toEqual(['/api/audit', '/api/events', '/api/status', '/api/tasks', '/api/tasks/{action}', '/api/tasks/{gid}/{action}', '/openapi.json'])
+    expect(Object.keys(doc.paths).sort()).toEqual(['/api/audit', '/api/events', '/api/queue', '/api/status', '/api/tasks', '/api/tasks/{action}', '/api/tasks/{gid}/{action}', '/openapi.json'])
     expect(doc.components.securitySchemes.bearerAuth).toBeTruthy()
     // 能被 JSON 序列化（无循环引用/函数）
     expect(() => JSON.stringify(doc)).not.toThrow()
@@ -266,6 +267,75 @@ describe('WebConsoleServer.handle', () => {
     expect(body.ok).toBe(true)
     expect(body.active[0]).toMatchObject({ gid: 'g1', name: 'a.bin', status: 'active' })
     expect(body.waiting).toEqual([])
+  })
+
+  it('队列视图返回队列设置与等待中的任务', async () => {
+    rpcMock.mockImplementation(async (options: { method: string }) => {
+      if (options.method === 'aria2.tellWaiting') {
+        return [
+          { gid: 'w1', status: 'waiting', totalLength: '200', completedLength: '0', downloadSpeed: '0', files: [{ path: '/tmp/first.bin' }] },
+          { gid: 'w2', status: 'paused', totalLength: '0', completedLength: '0', downloadSpeed: '0', files: [{ uris: [{ uri: 'https://example.com/second.bin' }] }] }
+        ]
+      }
+      return []
+    })
+    const server = makeServer({
+      webConsole: { token: MASTER },
+      queue: { maxConcurrent: 3, retryEnabled: true, retryMaxAttempts: 5, retryDelaySeconds: 15 }
+    })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('GET', '/api/queue', { authorization: 'Bearer ' + MASTER }), res, [])
+    expect(out.status).toBe(200)
+    const body = JSON.parse(out.body || '{}')
+    expect(body.ok).toBe(true)
+    expect(body.settings).toEqual({ maxConcurrent: 3, retryEnabled: true, retryMaxAttempts: 5, retryDelaySeconds: 15 })
+    expect(body.total).toBe(2)
+    expect(body.tasks[0]).toMatchObject({ gid: 'w1', name: 'first.bin', status: 'waiting' })
+    // 没有文件名时回退首个 URI，再回退 gid
+    expect(body.tasks[1].name).toBe('https://example.com/second.bin')
+    expect(rpcMock).toHaveBeenCalledWith(expect.objectContaining({ method: 'aria2.tellWaiting' }))
+    // 只读接口，不该出现任何写方法
+    for (const call of rpcMock.mock.calls) {
+      const method = (call[0] as { method: string }).method
+      expect(['aria2.tellWaiting']).toContain(method)
+    }
+  })
+
+  it('队列设置缺失时回落到桌面端默认值', async () => {
+    rpcMock.mockResolvedValue([])
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('GET', '/api/queue', { authorization: 'Bearer ' + MASTER }), res, [])
+    const body = JSON.parse(out.body || '{}')
+    expect(body.settings).toEqual({ maxConcurrent: 5, retryEnabled: false, retryMaxAttempts: 3, retryDelaySeconds: 30 })
+    expect(body.tasks).toEqual([])
+    expect(body.total).toBe(0)
+  })
+
+  it('只读令牌可读队列，无令牌被拒', async () => {
+    rpcMock.mockResolvedValue([])
+    const server = makeServer({
+      webConsole: {
+        token: MASTER,
+        tokens: [{ id: 'ro', name: '只读', token: 'readonly-token-abcdef', scopes: ['tasks:read'] }]
+      }
+    })
+    const allowed = makeRes()
+    await server.handle(makeReq('GET', '/api/queue', { authorization: 'Bearer readonly-token-abcdef' }), allowed.res, [])
+    expect(allowed.out.status).toBe(200)
+
+    const denied = makeRes()
+    await server.handle(makeReq('GET', '/api/queue'), denied.res, [])
+    expect(denied.out.status).toBe(401)
+  })
+
+  it('队列接口在 aria2 不可用时返回 500 而不是崩掉连接', async () => {
+    rpcMock.mockRejectedValue(new Error('connect ECONNREFUSED'))
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('GET', '/api/queue', { authorization: 'Bearer ' + MASTER }), res, [])
+    expect(out.status).toBe(500)
+    expect(JSON.parse(out.body || '{}').ok).toBe(false)
   })
 
   it('只读令牌写任务返回 403 insufficient_scope，且不调用 RPC', async () => {

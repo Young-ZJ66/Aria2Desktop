@@ -62,6 +62,8 @@ export function routeScope(method: string, pathname: string): WebConsoleScope | 
   if (verb === 'GET' && pathname === '/api/status') return 'tasks:read'
   // SSE 事件流与 /api/status 同源同权限：只读任务状态
   if (verb === 'GET' && pathname === '/api/events') return 'tasks:read'
+  // 队列视图只读：队列设置 + 等待中的任务，与 /api/status 同一档权限
+  if (verb === 'GET' && pathname === '/api/queue') return 'tasks:read'
   if (verb === 'GET' && pathname === '/api/audit') return 'audit:read'
   if (verb === 'POST' && pathname === '/api/tasks') return 'tasks:write'
   if (verb === 'POST' && /^\/api\/tasks\/(pauseAll|unpauseAll)$/.test(pathname)) return 'tasks:control'

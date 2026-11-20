@@ -28,8 +28,8 @@ describe('buildOpenApiDocument 基本形状', () => {
     expect(doc.components.securitySchemes.bearerAuth.scheme).toBe('bearer')
   })
 
-  it('四个响应模型都定义了（TaskSummary / StatusResponse / ErrorResponse）', () => {
-    for (const name of ['TaskSummary', 'StatusResponse', 'ErrorResponse']) {
+  it('响应模型都定义了（TaskSummary / StatusResponse / QueueSettings / QueueResponse / ErrorResponse）', () => {
+    for (const name of ['TaskSummary', 'StatusResponse', 'QueueSettings', 'QueueResponse', 'ErrorResponse']) {
       expect(doc.components.schemas[name]).toBeTruthy()
     }
   })
@@ -42,6 +42,7 @@ describe('文档覆盖与实现一致', () => {
       ['GET', '/api/status'],
       ['GET', '/api/events'],
       ['GET', '/api/audit'],
+      ['GET', '/api/queue'],
       ['POST', '/api/tasks'],
       ['POST', '/api/tasks/pauseAll'],
       ['POST', '/api/tasks/abc/pause']
@@ -49,7 +50,7 @@ describe('文档覆盖与实现一致', () => {
     for (const [method, route] of routes) {
       expect(routeScope(method, route), route).not.toBeNull()
     }
-    for (const path of ['/api/status', '/api/events', '/api/audit', '/api/tasks', '/api/tasks/{action}', '/api/tasks/{gid}/{action}']) {
+    for (const path of ['/api/status', '/api/events', '/api/audit', '/api/queue', '/api/tasks', '/api/tasks/{action}', '/api/tasks/{gid}/{action}']) {
       expect(doc.paths[path], path).toBeTruthy()
     }
   })
@@ -88,6 +89,8 @@ describe('文档覆盖与实现一致', () => {
     expect(control403.description).toContain('tasks:control')
     const audit403 = doc.paths['/api/audit'].get.responses['403'] as { description: string }
     expect(audit403.description).toContain('audit:read')
+    const queue403 = doc.paths['/api/queue'].get.responses['403'] as { description: string }
+    expect(queue403.description).toContain('tasks:read')
   })
 
   it('新增任务的协议白名单与实现一致（只允许 http/https/ftp/sftp/磁力）', () => {

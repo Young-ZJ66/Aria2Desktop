@@ -125,6 +125,12 @@ describe('routeScope', () => {
     expect(routeScope('GET', '/api/events')).toBe('tasks:read')
   })
 
+  it('队列视图只读，同样归 tasks:read', () => {
+    expect(routeScope('GET', '/api/queue')).toBe('tasks:read')
+    // 队列不提供写入口：改并发/重试必须回桌面端设置页
+    expect(routeScope('POST', '/api/queue')).toBeNull()
+  })
+
   it('审计接口单独需要 audit:read', () => {
     expect(routeScope('GET', '/api/audit')).toBe('audit:read')
   })

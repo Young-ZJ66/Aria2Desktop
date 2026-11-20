@@ -417,6 +417,34 @@ export class WebConsoleServer {
   }
 
   /**
+   * 队列只读视图（GET /api/queue）：队列设置 + 等待中的任务。
+   *
+   * 只读是刻意的：桌面端的最大并发数同样只读（D-27），改并发要回桌面设置，
+   * 免得手机上一个误触把整台机器的下载并发改掉。
+   * 设置取本地 settings.queue；任务取 aria2 的 waiting 列表（不含已停止）。
+   */
+  private async buildQueuePayload(): Promise<Record<string, unknown>> {
+    const queue = getSettingsFresh()?.queue ?? {}
+    const fields = ['gid', 'status', 'files', 'totalLength', 'completedLength', 'downloadSpeed']
+    const waiting = (await callAria2Rpc({
+      ...activeRpcOptions(),
+      method: 'aria2.tellWaiting',
+      params: [0, 100, fields]
+    })) as Record<string, unknown>[]
+    const tasks = waiting.map(task => this.mapTask(task))
+    return {
+      settings: {
+        maxConcurrent: Number(queue.maxConcurrent ?? 5),
+        retryEnabled: queue.retryEnabled === true,
+        retryMaxAttempts: Number(queue.retryMaxAttempts ?? 3),
+        retryDelaySeconds: Number(queue.retryDelaySeconds ?? 30)
+      },
+      tasks,
+      total: tasks.length
+    }
+  }
+
+  /**
    * 建立 SSE 长连接（GET /api/events）。
    *
    * 令牌走 Authorization 头而不是 URL 参数：EventSource 无法自定义头，
@@ -691,6 +719,11 @@ export class WebConsoleServer {
       // 用 Bearer 头而不是 URL 参数携带令牌，避免令牌落进访问日志/浏览器历史。
       if (req.method === 'GET' && pathname === '/api/events') {
         this.attachEventStream(req, res, this.presentedToken(req), ip)
+        return
+      }
+
+      if (req.method === 'GET' && pathname === '/api/queue') {
+        this.sendJson(res, 200, { ok: true, ...(await this.buildQueuePayload()) })
         return
       }
 

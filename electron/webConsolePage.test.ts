@@ -66,6 +66,28 @@ describe('Web 控制台页面与 CSP', () => {
     expect(escapeHtml(null)).toBe('')
   })
 
+  it('队列只读视图存在且不提供任何写操作', () => {
+    expect(WEB_CONSOLE_HTML).toContain('id="queue"')
+    expect(WEB_CONSOLE_HTML).toContain("api('/api/queue')")
+    // 队列面板只渲染表格，不允许出现改并发/改重试的入口
+    const start = WEB_CONSOLE_HTML.indexOf('队列（只读）')
+    const section = WEB_CONSOLE_HTML.slice(start, WEB_CONSOLE_HTML.indexOf('id="tabs"'))
+    expect(section.length).toBeGreaterThan(0)
+    expect(section).not.toMatch(/<input|<select/)
+    expect(section).not.toMatch(/data-act=/)
+    // 表头与单元格都要带 data-label，否则移动端 @media 断点下会显示错乱
+    expect(WEB_CONSOLE_HTML).toContain("data-label=\"'+L('位置','Position')+'\"")
+  })
+
+  it('内联脚本整体语法合法（改坏一个符号会让页面白屏且无其它闸门能发现）', () => {
+    const script = WEB_CONSOLE_HTML.match(/<script>([\s\S]*?)<\/script>/)
+    expect(script).not.toBeNull()
+    expect(() => new Function(script![1])).not.toThrow()
+    for (const name of ['queueRow', 'applyQueue', 'refreshQueue', 'renderTasks', 'applyStatus']) {
+      expect(WEB_CONSOLE_HTML).toContain('function ' + name + '(')
+    }
+  })
+
   it('html lang 跟随实际界面语言，英文界面不再声明 zh-CN', () => {
     expect(WEB_CONSOLE_HTML).toContain('document.documentElement.lang')
   })
