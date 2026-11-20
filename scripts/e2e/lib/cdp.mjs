@@ -124,9 +124,11 @@ export async function evalIn(session, expression) {
  * 截图是辅助产物（CI 上传用于人工排查），不该因为一次截图超时让整轮 e2e 挂死，
  * 所以这里 best-effort：成功返回路径，失败返回 null。
  */
-export async function capture(session, filePath) {
+export async function capture(session, filePath, options = {}) {
+  const { clip, timeoutMs = 15000 } = options || {}
   try {
-    const result = await session.send('Page.captureScreenshot', { format: 'png' }, 15000)
+    const params = clip ? { format: 'png', clip } : { format: 'png' }
+    const result = await session.send('Page.captureScreenshot', params, timeoutMs)
     const data = result?.result?.data
     if (!data) throw new Error('返回内容缺少 data 字段')
     fs.writeFileSync(filePath, Buffer.from(data, 'base64'))

@@ -994,11 +994,9 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     })()`
   )
   if (focusRect) {
-    const shot = await session.send('Page.captureScreenshot', {
-      format: 'png',
+    await capture(session, path.join(outDir, '04e-focus-zoom.png'), {
       clip: { x: focusRect.x, y: focusRect.y, width: focusRect.width, height: focusRect.height, scale: 4 }
     })
-    fs.writeFileSync(path.join(outDir, '04e-focus-zoom.png'), Buffer.from(shot.result.data, 'base64'))
   }
 
   // 高级设置保持折叠：空表单（未填链接时不含目录提示）应一屏放得下
@@ -1090,11 +1088,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     })()`
   )
   if (spacingRect) {
-    const shot = await session.send('Page.captureScreenshot', {
-      format: 'png',
-      clip: { ...spacingRect, scale: 1.5 }
-    })
-    fs.writeFileSync(path.join(outDir, '04g-field-gap.png'), Buffer.from(shot.result.data, 'base64'))
+    await capture(session, path.join(outDir, '04g-field-gap.png'), { clip: { ...spacingRect, scale: 1.5 } })
   }
 
   const advancedExpanded = await evalIn(

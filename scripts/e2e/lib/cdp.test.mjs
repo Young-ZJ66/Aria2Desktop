@@ -49,6 +49,31 @@ describe('capture', () => {
     warn.mockRestore()
   })
 
+  it('传入 clip 时透传给 Page.captureScreenshot（局部放大截图）', async () => {
+    const file = tempFile('clip.png')
+    const calls = []
+    const session = { send: async (method, params, timeoutMs) => {
+      calls.push({ method, params, timeoutMs })
+      return { result: { data: Buffer.from('clip-bytes').toString('base64') } }
+    } }
+    await expect(capture(session, file, { clip: { x: 1, y: 2, width: 3, height: 4, scale: 4 }, timeoutMs: 9000 })).resolves.toBe(file)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].method).toBe('Page.captureScreenshot')
+    expect(calls[0].params).toEqual({ format: 'png', clip: { x: 1, y: 2, width: 3, height: 4, scale: 4 } })
+    expect(calls[0].timeoutMs).toBe(9000)
+  })
+
+  it('不传 clip 时只发 format 参数（整屏截图行为不变）', async () => {
+    const calls = []
+    const session = { send: async (method, params, timeoutMs) => {
+      calls.push({ method, params, timeoutMs })
+      return { result: { data: Buffer.from('full').toString('base64') } }
+    } }
+    await capture(session, tempFile('full.png'))
+    expect(calls[0].params).toEqual({ format: 'png' })
+    expect(calls[0].timeoutMs).toBe(15000)
+  })
+
   it('返回内容缺 data 字段时同样不抛错', async () => {
     const warn = vi.spyOn(console, 'log').mockImplementation(() => {})
     const session = { send: async () => ({ result: {} }) }

@@ -70,7 +70,7 @@
 
 ## ✅ 验证
 
-- typecheck（主进程 + 测试代码 + 渲染层）通过；114 个测试文件 / 1283 项单测通过（引擎重启压力测试默认跳过）。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；114 个测试文件 / 1285 项单测通过（引擎重启压力测试默认跳过）。
 - `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
 - 应用 E2E 144 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、Web 控制台）。
 - 扩展静态校验 21 项通过；扩展多浏览器 smoke 50 项通过（Chrome for Testing / Chromium / Edge，Firefox 走 MV3 变体静态校验）；21 种语言文案 key 与占位符保持一致，1.5.0 新增文案已全部翻译。
@@ -153,7 +153,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ## ✅ Verification
 
-- Typecheck (main process, tests, renderer) passes; 114 test files / 1283 unit tests pass (the engine-restart stress test is skipped by default).
+- Typecheck (main process, tests, renderer) passes; 114 test files / 1285 unit tests pass (the engine-restart stress test is skipped by default).
 - `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
 - All 144 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, web console).
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.
