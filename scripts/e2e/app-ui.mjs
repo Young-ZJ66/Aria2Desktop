@@ -163,12 +163,52 @@ async function clickSettingsTabPath(session, patterns) {
   return 'clicked'
 }
 
+/**
+ * 关闭设置弹窗。
+ *
+ * 设置页有「未保存离开确认」：任何页面被改脏时按 Esc / 点遮罩只会弹出确认框，
+ * 弹窗本体不关。以前脚本直接发 Esc 就往下走，一旦某页变脏，设置弹窗与确认框
+ * 会一直留在屏幕上，之后所有「新建下载」相关断言全部级联失败。这里统一处理：
+ * 先发 Esc，若出现确认框就点「放弃修改」（E2E 不关心这些设置的持久化）。
+ */
+async function closeSettingsDialog(session) {
+  await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+  await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+  await sleep(700)
+  // 未保存确认框：naive-ui 的 dialog 与 modal 都渲染成 .n-modal，用「放弃修改」按钮定位
+  const discarded = await evalIn(
+    session,
+    `(() => {
+      const dialogs = [...document.querySelectorAll('.n-modal')].filter((el) => el.offsetParent !== null)
+      for (const dialog of dialogs) {
+        const btn = [...dialog.querySelectorAll('.n-button')].find((b) => /放弃修改|Discard/i.test(b.innerText || ''))
+        if (btn) { btn.click(); return 'discarded' }
+      }
+      return 'no-dialog'
+    })()`
+  )
+  if (discarded === 'discarded') await sleep(700)
+  return waitFor(
+    async () => (await evalIn(session, `!document.querySelector('.settings-dialog-body')`)) === true,
+    { timeoutMs: 5000, intervalMs: 200, label: '设置弹窗关闭' }
+  ).then(() => 'closed').catch(() => 'still-open')
+}
+
 export async function runAppUi({ session, reporter, outDir, expectedVersion, pluginName, stamp, downloadUrl, downloadBytes, tempDownloadDir }) {
   await evalIn(session, 'document.readyState')
   await sleep(3500)
 
   // —— 主界面 ——
-  const mainText = await evalIn(session, 'document.body.innerText')
+  // 慢机器上首屏可能远慢于固定 sleep（CI 上 i18n chunk 解析就要好几秒），
+  // 固定等待会在界面还是空壳时断言，这里轮询到正文渲染完成再判。
+  const mainText = await waitFor(
+    async () => {
+      const text = await evalIn(session, 'document.body.innerText')
+      const value = typeof text === 'string' ? text : ''
+      return value.length > 50 && /下载|Download|设置|Settings/.test(value) ? value : null
+    },
+    { timeoutMs: 30000, intervalMs: 500, label: '主界面渲染' }
+  ).catch(() => '')
   reporter.check('主界面已渲染', typeof mainText === 'string' && mainText.length > 50, String(mainText).slice(0, 80))
   reporter.check(
     '主界面包含侧边栏与任务区',
@@ -197,6 +237,60 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     `(() => [...document.querySelectorAll('.n-data-table-th')].map((th) => (th.innerText || '').trim()).join('|'))()`
   )
   reporter.check('任务列表默认不显示 GID 列', !/GID/i.test(String(tableHeaders)), String(tableHeaders))
+
+  // —— 首次启动向导（D-31）：隔离 userData 是全新配置，必须弹一次；关掉它再往下走 ——
+  // 向导是 n-modal + mask，不关掉会挡住后面所有「新建下载」流程的点击与断言。
+  const onboardingVisible = await waitFor(
+    async () => {
+      const text = await evalIn(
+        session,
+        `(() => {
+          const modal = [...document.querySelectorAll('.n-modal')].find((el) => el.offsetParent !== null)
+          return modal ? (modal.innerText || '') : ''
+        })()`
+      )
+      return /欢迎使用|Welcome to/i.test(String(text)) ? String(text) : null
+    },
+    { timeoutMs: 15000, intervalMs: 300, label: '首次启动向导' }
+  ).catch(() => '')
+  reporter.check('首次启动弹出引导向导', /欢迎使用|Welcome to/i.test(String(onboardingVisible)), String(onboardingVisible).slice(0, 60))
+  await capture(session, path.join(outDir, '01b-onboarding.png'))
+  const onboardingSkipped = await evalIn(
+    session,
+    `(() => {
+      const btn = [...document.querySelectorAll('.n-modal .n-button')].find((b) => /跳过向导|Skip/i.test(b.innerText || ''))
+      if (!btn) return 'no-btn'
+      btn.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('首次启动向导可跳过', onboardingSkipped === 'clicked', String(onboardingSkipped))
+  const onboardingClosed = await waitFor(
+    async () => {
+      const stillOpen = await evalIn(
+        session,
+        `(() => [...document.querySelectorAll('.n-modal')].some((el) => el.offsetParent !== null && /欢迎使用|Welcome to/i.test(el.innerText || '')))()`
+      )
+      return stillOpen === false ? 'closed' : null
+    },
+    { timeoutMs: 8000, intervalMs: 200, label: '引导向导关闭' }
+  ).catch(() => 'timeout')
+  reporter.check('跳过向导后不再遮挡主界面', onboardingClosed === 'closed', String(onboardingClosed))
+  const onboardingState = await evalIn(
+    session,
+    `(() => {
+      try {
+        const out = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || ''
+          if (/onboarding/i.test(key)) out.push(key + '=' + localStorage.getItem(key))
+        }
+        return out.join('|')
+      } catch { return '' }
+    })()`
+  )
+  reporter.check('跳过状态已持久化（重启后不再打扰）', /skipped/i.test(String(onboardingState)), String(onboardingState))
+
   await capture(session, path.join(outDir, '01-main.png'))
 
   // —— 设置：打开、版本号、自动解压开关 ——
@@ -692,9 +786,10 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   reporter.check('临时关闭后提示立即隐藏', !!afterCloseState && afterCloseState.hasHint === false, JSON.stringify(afterCloseState))
 
   // 关闭设置再重新打开：提示应保持隐藏（sessionStorage 生效）
-  await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
-  await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
-  await sleep(800)
+  // 必须走 closeSettingsDialog：有脏页时会弹「未保存」确认框，直接发 Esc 关不掉，
+  // 后续「重新打开」其实点的是同一个已打开的弹窗，组件不重建、提示状态全错。
+  const closedForSession = await closeSettingsDialog(session)
+  reporter.check('插件页验证前设置弹窗已关闭', closedForSession === 'closed', String(closedForSession))
   const reopenedForSession = await openSettingsDialog(session)
   reporter.check('重新打开设置弹窗（验证临时关闭）', reopenedForSession === 'clicked', String(reopenedForSession))
   await sleep(1400)
@@ -717,9 +812,8 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
 
   // 清掉 sessionStorage 等价于「下次启动应用」：提示应重新出现
   await evalIn(session, `(() => { sessionStorage.clear(); return true })()`)
-  await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
-  await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
-  await sleep(800)
+  const closedBeforeRestart = await closeSettingsDialog(session)
+  reporter.check('清空 sessionStorage 后设置弹窗已关闭', closedBeforeRestart === 'closed', String(closedBeforeRestart))
   await openSettingsDialog(session)
   await sleep(1400)
   const reopenedPluginPane = await evalIn(
@@ -797,10 +891,8 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   await capture(session, path.join(outDir, '03-settings-components.png'))
 
   // —— 关闭设置、新建任务、请求头 ——
-  await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
-  await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
-  await sleep(900)
-  reporter.check('设置弹窗可按 Esc 关闭', (await evalIn(session, `!document.querySelector('.settings-dialog-body')`)) === true)
+  const closedSettings = await closeSettingsDialog(session)
+  reporter.check('设置弹窗可按 Esc 关闭', closedSettings === 'closed', String(closedSettings))
 
   const newTaskOpen = await openNewTaskDialog(session)
   reporter.check('点击新建任务按钮', newTaskOpen === 'clicked', String(newTaskOpen))

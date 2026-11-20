@@ -11,16 +11,24 @@
  */
 
 import http from 'node:http'
+import https from 'node:https'
+import tls from 'node:tls'
 import crypto from 'node:crypto'
+import fs from 'node:fs'
 import os from 'node:os'
+import * as path from 'node:path'
 import { app } from 'electron'
 import { callAria2Rpc } from '../utils/aria2Rpc'
+import { isAllowedDownloadUri } from '../utils/extensionApiCore'
+import { isPathInside } from '../utils/pathContainment'
+import { resolveBaseDownloadDir } from '../../src/shared/fileCategories'
 import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
-import { WEB_CONSOLE_HTML } from '../webConsolePage'
+import { WEB_CONSOLE_CSP, WEB_CONSOLE_HTML } from '../webConsolePage'
 import { ICON_192_PNG_B64, ICON_512_PNG_B64, MASKABLE_192_PNG_B64, MASKABLE_512_PNG_B64, WEB_CONSOLE_MANIFEST, WEB_CONSOLE_SW } from '../webConsoleAssets'
 import { buildOpenApiDocument } from '../webConsoleOpenApi'
 import { isPublicPath, resolveAuthFromSettings, routeScope, scopeAllows } from '../utils/webConsoleAuth'
+import type { WebConsoleSettings } from '../../src/shared/appSettings'
 import logger from 'electron-log'
 
 interface AuditEntry {
@@ -59,6 +67,13 @@ const ICON_ROUTES: Record<string, string> = {
 
 /** lastUsedAt 的写回节流：同一令牌 60 秒内只写一次盘 */
 const LAST_USED_WRITE_INTERVAL_MS = 60_000
+
+/** 审计日志落盘文件名：放在 userData 下，重启后仍能看到历史操作 */
+const AUDIT_FILE_NAME = 'web-console-audit.json'
+/** 审计落盘防抖：连续操作合并成一次写入，避免每个请求都碰磁盘 */
+const AUDIT_FLUSH_DELAY_MS = 1000
+/** SSE 连接的令牌复检间隔：令牌被撤销/删除后最迟这么久断开推送 */
+const SSE_AUTH_CHECK_MS = 30_000
 
 function nowTime(): string {
   return new Date().toLocaleString('zh-CN', { hour12: false })
@@ -105,14 +120,22 @@ export class WebConsoleServer {
   private actualPort = 0
   private token = ''
   private bindHost = '127.0.0.1'
+  /** 当前是否以 HTTPS 监听（决定 getStatus 返回的 URL 协议） */
+  private tlsEnabled = false
   /** 上次为各令牌写 lastUsedAt 的时间（节流用） */
   private lastUsedWrites = new Map<string, number>()
-  /** /api/events 的订阅者（SSE 长连接） */
-  private sseClients = new Set<http.ServerResponse>()
+  /** /api/events 的订阅者（SSE 长连接）→ 建连时的令牌与来源 IP，用于定期复检撤销 */
+  private sseClients = new Map<http.ServerResponse, { token: string; ip: string }>()
   private sseTimer: ReturnType<typeof setInterval> | null = null
   private sseLastBeat = 0
+  /** 上次复检 SSE 令牌的时间（节流用） */
+  private sseLastAuthCheck = 0
   /** 上一帧推送内容，用于抑制无变化的重发 */
   private sseLastPayload = ''
+  /** 审计日志是否已尝试从磁盘载入 */
+  private auditLoaded = false
+  /** 审计落盘防抖定时器 */
+  private auditFlushTimer: ReturnType<typeof setTimeout> | null = null
 
   /** 启动/重启（设置变更时调用；未启用则停止） */
   async apply(): Promise<{ running: boolean; port: number; token: string; error?: string }> {
@@ -145,15 +168,32 @@ export class WebConsoleServer {
     const allowed = (config.allowedIps ?? []).map(item => item.trim()).filter(Boolean)
     const loopbackOnly = allowed.length === 0 || allowed.every(rule => rule === '127.0.0.1' || rule === '::1' || rule === 'localhost')
     const bindHost = loopbackOnly ? '127.0.0.1' : '0.0.0.0'
+
+    // LAN 模式必须加密：明文 HTTP 下同网段任何设备都能抓到 Bearer 令牌（等价 admin）。
+    // 两条合规路径：① 配置证书/私钥走 HTTPS；② 只监听 127.0.0.1，由反向代理终止 TLS。
+    const tls = this.loadTlsCredentials(config)
+    if (tls.error) {
+      this.lastError = tls.error
+      this.bindHost = '127.0.0.1'
+      return { running: false, port: 0, token: '', error: this.lastError }
+    }
+    if (!loopbackOnly && !tls.options) {
+      this.lastError =
+        '局域网访问需要 HTTPS：请在「远程访问」中配置证书与私钥，或改为只监听 127.0.0.1 并由反向代理终止 TLS'
+      this.bindHost = '127.0.0.1'
+      return { running: false, port: 0, token: '', error: this.lastError }
+    }
     this.bindHost = bindHost
+    this.tlsEnabled = Boolean(tls.options)
 
     return await new Promise((resolve) => {
-      const server = http.createServer((req, res) => {
+      const handler = (req: http.IncomingMessage, res: http.ServerResponse) => {
         this.handle(req, res, allowed).catch((error) => {
           logger.error('[WebConsole] Request failed:', error)
           this.sendJson(res, 500, { ok: false, error: 'Internal server error' })
         })
-      })
+      }
+      const server = tls.options ? https.createServer(tls.options, handler) : http.createServer(handler)
       server.on('error', (error) => {
         this.lastError = String(error)
         this.server = null
@@ -173,28 +213,68 @@ export class WebConsoleServer {
 
   async stop(): Promise<void> {
     this.closeEventStreams()
+    this.flushAuditSync()
     const server = this.server
     this.server = null
     this.actualPort = 0
     this.bindHost = '127.0.0.1'
+    this.tlsEnabled = false
     if (!server) return
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve())
+      // server.close() 只是停止接受新连接，已建立的 keep-alive 空闲连接会让回调迟迟不触发
+      // （浏览器默认保活约 5 秒），先关空闲连接、再兜底断开全部连接，重启监听才不会卡顿。
+      server.closeIdleConnections?.()
+      server.closeAllConnections?.()
+    })
   }
 
   getStatus() {
+    this.ensureAuditLoaded()
     const settings = getSettingsFresh()
     const config = settings.webConsole ?? {}
     const port = this.actualPort || Number(config.port) || 6802
     const tokens = Array.isArray(config.tokens) ? config.tokens : []
+    const protocol = this.tlsEnabled ? 'https' : 'http'
     return {
       running: this.server !== null,
       port,
-      url: this.server ? `http://${this.publicHost()}:${port}` : '',
+      url: this.server ? `${protocol}://${this.publicHost()}:${port}` : '',
+      /** 是否以 HTTPS 监听（设置页据此提示） */
+      tls: this.tlsEnabled,
       token: this.token || String(config.token || ''),
       /** 细粒度令牌数量（不含主令牌） */
       tokensCount: tokens.length,
       error: this.lastError,
       audit: this.auditLog.slice(-100)
+    }
+  }
+
+  /**
+   * 读取 HTTPS 证书/私钥。
+   * 未配置返回空对象（走 HTTP，仅允许 loopback）；配置了但读不到/内容非法则返回 error 让 apply() 拒绝启动，
+   * 避免"以为开了 HTTPS 实际还在明文"的静默降级。
+   */
+  private loadTlsCredentials(config: WebConsoleSettings): { options?: https.ServerOptions; error?: string } {
+    const certPath = String(config.tlsCertPath || '').trim()
+    const keyPath = String(config.tlsKeyPath || '').trim()
+    if (!certPath && !keyPath) return {}
+    if (!certPath || !keyPath) {
+      return { error: 'HTTPS 需要同时配置证书与私钥文件路径' }
+    }
+    // 只接受绝对路径：相对路径的解析基准随 cwd 变化，容易被诱导读取任意文件
+    if (!path.isAbsolute(certPath) || !path.isAbsolute(keyPath)) {
+      return { error: 'HTTPS 证书与私钥需要填写绝对路径' }
+    }
+    try {
+      const cert = fs.readFileSync(certPath)
+      const key = fs.readFileSync(keyPath)
+      // 用 tls.createSecureContext 提前校验，避免 listen 时才抛错导致服务半启动
+      tls.createSecureContext({ cert, key })
+      return { options: { cert, key } }
+    } catch (error) {
+      logger.error('[WebConsole] Failed to load TLS credentials:', error)
+      return { error: `HTTPS 证书加载失败：${error instanceof Error ? error.message : String(error)}` }
     }
   }
 
@@ -211,8 +291,84 @@ export class WebConsoleServer {
   }
 
   private record(ip: string, action: string, detail: string, success: boolean) {
+    this.ensureAuditLoaded()
     this.auditLog.push({ time: nowTime(), ip: normalizeIp(ip), action, detail, success })
     if (this.auditLog.length > MAX_AUDIT) this.auditLog.splice(0, this.auditLog.length - MAX_AUDIT)
+    this.scheduleAuditFlush()
+  }
+
+  /**
+   * 审计文件路径。
+   *
+   * 未打包 / 单测环境下 app.getPath('userData') 可能退化成当前工作目录，
+   * 此时直接放弃持久化，避免把运行时审计写进源码仓库。
+   */
+  private resolveAuditFile(): string | null {
+    try {
+      const userData = app.getPath('userData')
+      if (!userData) return null
+      if (path.resolve(userData) === path.resolve(process.cwd())) return null
+      return path.join(userData, AUDIT_FILE_NAME)
+    } catch {
+      return null
+    }
+  }
+
+  /** 首次访问审计时从磁盘载入历史记录（失败按空日志处理，不影响功能） */
+  private ensureAuditLoaded() {
+    if (this.auditLoaded) return
+    this.auditLoaded = true
+    const file = this.resolveAuditFile()
+    if (!file) return
+    try {
+      if (!fs.existsSync(file)) return
+      const parsed: unknown = JSON.parse(fs.readFileSync(file, 'utf8'))
+      if (!Array.isArray(parsed)) return
+      const entries: AuditEntry[] = []
+      for (const item of parsed) {
+        if (!item || typeof item !== 'object') continue
+        const row = item as Partial<AuditEntry>
+        if (typeof row.time !== 'string' || typeof row.ip !== 'string') continue
+        if (typeof row.action !== 'string' || typeof row.detail !== 'string') continue
+        entries.push({
+          time: row.time,
+          ip: row.ip,
+          action: row.action,
+          detail: row.detail,
+          success: row.success === true
+        })
+      }
+      this.auditLog = entries.slice(-MAX_AUDIT)
+    } catch (error) {
+      logger.warn('[WebConsole] 读取审计日志失败，按空日志处理:', error)
+    }
+  }
+
+  private scheduleAuditFlush() {
+    if (this.auditFlushTimer) return
+    this.auditFlushTimer = setTimeout(() => {
+      this.auditFlushTimer = null
+      this.flushAuditSync()
+    }, AUDIT_FLUSH_DELAY_MS)
+    this.auditFlushTimer.unref?.()
+  }
+
+  /** 立即把审计日志写盘（先写临时文件再 rename，避免半截文件） */
+  private flushAuditSync() {
+    if (this.auditFlushTimer) {
+      clearTimeout(this.auditFlushTimer)
+      this.auditFlushTimer = null
+    }
+    const file = this.resolveAuditFile()
+    if (!file) return
+    try {
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      const tmp = file + '.tmp'
+      fs.writeFileSync(tmp, JSON.stringify(this.auditLog.slice(-MAX_AUDIT)), { encoding: 'utf8', mode: 0o600 })
+      fs.renameSync(tmp, file)
+    } catch (error) {
+      logger.warn('[WebConsole] 写入审计日志失败:', error)
+    }
   }
 
   private sendJson(res: http.ServerResponse, status: number, body: unknown) {
@@ -262,7 +418,7 @@ export class WebConsoleServer {
    * 令牌走 Authorization 头而不是 URL 参数：EventSource 无法自定义头，
    * 所以页面侧用 fetch + ReadableStream 消费，避免令牌进入访问日志与浏览器历史。
    */
-  private attachEventStream(req: http.IncomingMessage, res: http.ServerResponse) {
+  private attachEventStream(req: http.IncomingMessage, res: http.ServerResponse, token: string, ip: string) {
     if (this.sseClients.size >= MAX_SSE_CLIENTS) {
       this.sendJson(res, 503, { ok: false, error: 'too_many_streams' })
       return
@@ -275,7 +431,7 @@ export class WebConsoleServer {
       'X-Accel-Buffering': 'no'
     })
     res.write('retry: 3000\n\n')
-    this.sseClients.add(res)
+    this.sseClients.set(res, { token, ip })
     const drop = () => {
       this.sseClients.delete(res)
       this.stopEventStreamTimer()
@@ -309,6 +465,8 @@ export class WebConsoleServer {
       this.stopEventStreamTimer()
       return
     }
+    this.recheckStreamAuth()
+    if (this.sseClients.size === 0) return
     if (Date.now() - this.sseLastBeat >= SSE_HEARTBEAT_MS) {
       this.sseLastBeat = Date.now()
       this.writeToStreams(': ping\n\n')
@@ -331,7 +489,7 @@ export class WebConsoleServer {
   }
 
   private writeToStreams(chunk: string) {
-    for (const client of this.sseClients) {
+    for (const client of this.sseClients.keys()) {
       try {
         client.write(chunk)
       } catch {
@@ -340,13 +498,41 @@ export class WebConsoleServer {
     }
   }
 
+  /**
+   * 定期复检 SSE 订阅者携带的令牌。
+   *
+   * 长连接建好之后不会再走 handle() 的鉴权，令牌若被撤销（主令牌改掉或副令牌删除），
+   * 已建立的推送会一直活着。这里每隔 SSE_AUTH_CHECK_MS 重新解析一次令牌，
+   * 失效的订阅者先收到 event: unauthorized，再被断开。
+   */
+  private recheckStreamAuth() {
+    const now = Date.now()
+    if (now - this.sseLastAuthCheck < SSE_AUTH_CHECK_MS) return
+    this.sseLastAuthCheck = now
+    if (this.sseClients.size === 0) return
+    const settings = getSettingsFresh()
+    for (const [client, meta] of this.sseClients) {
+      const auth = resolveAuthFromSettings(settings, meta.token)
+      if (auth && scopeAllows(auth.scopes, 'tasks:read')) continue
+      this.sseClients.delete(client)
+      try {
+        client.write('event: unauthorized\ndata: {"ok":false,"error":"token_revoked"}\n\n')
+        client.end()
+      } catch {
+        // 连接已断开，忽略
+      }
+      this.record(meta.ip, 'auth', 'SSE 令牌已失效，连接已断开', false)
+    }
+    this.stopEventStreamTimer()
+  }
+
   /** 停止服务时主动断开 SSE（否则 server.close() 会一直等这些长连接） */
   private closeEventStreams() {
     if (this.sseTimer) {
       clearInterval(this.sseTimer)
       this.sseTimer = null
     }
-    for (const client of this.sseClients) {
+    for (const client of this.sseClients.keys()) {
       try {
         client.end()
       } catch {
@@ -413,7 +599,14 @@ export class WebConsoleServer {
   /** 静态资源与文档（免鉴权） */
   private servePublic(pathname: string, res: http.ServerResponse): boolean {
     if (pathname === '/' || pathname === '/index.html') {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'X-Frame-Options': 'DENY' })
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Frame-Options': 'DENY',
+        // 严格 CSP：页面没有任何内联脚本/样式（全部走 data-act 事件委托与外部 hash 白名单），
+        // 双重防护——meta 里也写了一份，响应头优先，避免旧缓存页面漏掉策略。
+        'Content-Security-Policy': WEB_CONSOLE_CSP,
+        'Referrer-Policy': 'no-referrer'
+      })
       res.end(WEB_CONSOLE_HTML)
       return true
     }
@@ -493,26 +686,66 @@ export class WebConsoleServer {
       // SSE：任务状态变化即时推送，替代页面上的 3 秒轮询。
       // 用 Bearer 头而不是 URL 参数携带令牌，避免令牌落进访问日志/浏览器历史。
       if (req.method === 'GET' && pathname === '/api/events') {
-        this.attachEventStream(req, res)
+        this.attachEventStream(req, res, this.presentedToken(req), ip)
         return
       }
 
       if (req.method === 'GET' && pathname === '/api/audit') {
+        this.ensureAuditLoaded()
         this.sendJson(res, 200, { ok: true, items: this.auditLog.slice(-100).reverse() })
         return
       }
 
       if (req.method === 'POST' && pathname === '/api/tasks') {
         const body = await this.readBody(req)
-        const uris = Array.isArray(body.uris) ? body.uris.map(String).filter(Boolean) : []
+        const uris = Array.isArray(body.uris)
+          ? body.uris.map((value) => String(value).trim()).filter(Boolean)
+          : []
         if (uris.length === 0) {
           this.sendJson(res, 400, { ok: false, error: 'uris is required' })
           return
         }
-        const options = body.dir ? { dir: String(body.dir) } : {}
+        if (uris.length > 200) {
+          this.sendJson(res, 400, { ok: false, error: 'too_many_uris', max: 200 })
+          return
+        }
+        const invalidUris = uris.filter((uri) => !isAllowedDownloadUri(uri))
+        if (invalidUris.length > 0) {
+          this.sendJson(res, 400, { ok: false, error: 'invalid_uri', uris: invalidUris.slice(0, 10) })
+          return
+        }
+
+        // tasks:write 只允许写入下载根目录或其相对子目录，避免令牌被拿来向任意路径落盘。
+        let targetDir = ''
+        if (body.dir !== undefined && body.dir !== null && body.dir !== '') {
+          if (typeof body.dir !== 'string') {
+            this.sendJson(res, 400, { ok: false, error: 'invalid_dir' })
+            return
+          }
+          const requested = body.dir.trim()
+          const baseDir = path.resolve(resolveBaseDownloadDir(getSettingsFresh() ?? undefined) || app.getPath('downloads'))
+          const resolved = path.isAbsolute(requested) ? path.resolve(requested) : path.resolve(baseDir, requested)
+          if (!requested || !isPathInside(resolved, baseDir)) {
+            this.sendJson(res, 400, { ok: false, error: 'dir_outside_download_root' })
+            return
+          }
+          targetDir = resolved
+        }
+
+        const options = targetDir ? { dir: targetDir } : {}
         const gid = await callAria2Rpc({ ...activeRpcOptions(), method: 'aria2.addUri', params: [uris, options] })
-        this.record(ip, 'add', uris.join(' '), true)
-        this.sendJson(res, 200, { ok: true, gid })
+        this.record(ip, 'add', `${uris.join(' ')} -> ${targetDir || 'default'}`, true)
+        this.sendJson(res, 200, { ok: true, gid, dir: targetDir || undefined })
+        return
+      }
+
+      const bulkAction = pathname.match(/^\/api\/tasks\/(pauseAll|unpauseAll)$/)
+      if (req.method === 'POST' && bulkAction) {
+        const action = bulkAction[1]
+        const method = action === 'pauseAll' ? 'aria2.pauseAll' : 'aria2.unpauseAll'
+        await callAria2Rpc({ ...activeRpcOptions(), method, params: [] })
+        this.record(ip, action, 'all', true)
+        this.sendJson(res, 200, { ok: true })
         return
       }
 

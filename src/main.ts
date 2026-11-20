@@ -1,17 +1,29 @@
-import { createApp } from 'vue'
+import { createApp, watch } from 'vue'
 import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
+import { applyDocumentDirection } from './composables/useDirection'
 import { installFormA11y } from './utils/formA11y'
 import './styles/theme.css'
+// RTL 镜像样式：只在 <html dir="rtl"> 下生效，LTR 语言零影响
+import './styles/rtl.css'
 
 const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
 app.use(i18n)
+
+// ── 文字方向（D-29）──
+// 阿拉伯语需要 RTL 排版：src/i18n 负责 <html lang/dir>，这里再补上 data-dir 并跟随语言切换，
+// 镜像样式本体在 src/styles/rtl.css。
+// 只在启动时同步一次不够：设置页切语言走的是 setLocale()，方向要跟着一起变。
+applyDocumentDirection(String(i18n.global.locale.value))
+watch(i18n.global.locale, (locale) => {
+  applyDocumentDirection(String(locale))
+})
 
 // ── 渲染层异常上报（落主进程 electron-log）──
 // 打包后用户打不开 devtools，未捕获的异常完全不可见；统一转发到主进程日志文件，

@@ -22,6 +22,7 @@
         placement="left"
         animated
         size="small"
+        :style="navGroupStyle"
       >
         <template #prefix>
           <div class="settings-search">
@@ -37,21 +38,20 @@
               </template>
             </n-input>
             <div v-if="searchQuery.trim()" class="settings-search-panel">
-              <button
-                v-for="(item, index) in searchResults"
-                :key="item.id"
-                type="button"
-                class="settings-search-item"
-                @mousedown.prevent
-                @click="jumpTo(item)"
-              >
-                <span class="settings-search-label">{{ item.label }}</span>
-                <!-- 同一页签的连续结果只在第一行标注归属，避免整列重复同一个词 -->
-                <span
-                  v-if="index === 0 || item.tabLabel !== searchResults[index - 1]?.tabLabel"
-                  class="settings-search-tab"
-                >{{ item.tabLabel }}</span>
-              </button>
+              <!-- 按页签分组：同名项（如 4 个「监听端口」）不再靠行尾小标签猜归属 -->
+              <div v-for="group in searchGroups" :key="group.key" class="settings-search-group">
+                <div class="settings-search-group-title">{{ group.label }}</div>
+                <button
+                  v-for="item in group.items"
+                  :key="item.id"
+                  type="button"
+                  class="settings-search-item"
+                  @mousedown.prevent
+                  @click="jumpTo(item)"
+                >
+                  <span class="settings-search-label">{{ item.label }}</span>
+                </button>
+              </div>
               <div v-if="searchPending" class="settings-search-empty">
                 {{ t('settings.searchLoading') }}
               </div>
@@ -565,6 +565,40 @@ const searchResults = computed(() => {
     .slice(0, 20)
 })
 
+interface SearchGroup {
+  key: string
+  label: string
+  items: SearchEntry[]
+}
+
+/** 搜索结果按页签分组；同名项集中在一个标题下，归属一眼可见 */
+const searchGroups = computed<SearchGroup[]>(() => {
+  const groups: SearchGroup[] = []
+  for (const entry of searchResults.value) {
+    const last = groups[groups.length - 1]
+    if (last && last.key === entry.tabLabel) {
+      last.items.push(entry)
+    } else {
+      groups.push({ key: entry.tabLabel, label: entry.tabLabel, items: [entry] })
+    }
+  }
+  return groups
+})
+
+/** 左侧导航分组标题：先中英 fallback，其他语言使用英文，避免新增 21 份 locale key */
+const navGroupStyle = computed<Record<string, string>>(() => {
+  const zh = locale.value.startsWith('zh')
+  const labels = zh
+    ? ['应用与引擎', '下载与网络', '组件与连接', '维护与安全']
+    : ['App & Engine', 'Download & Network', 'Components & Connections', 'Maintenance & Security']
+  return {
+    '--settings-group-app-label': `'${labels[0]}'`,
+    '--settings-group-download-label': `'${labels[1]}'`,
+    '--settings-group-components-label': `'${labels[2]}'`,
+    '--settings-group-logs-label': `'${labels[3]}'`
+  }
+})
+
 function jumpTo(entry: SearchEntry) {
   const target = searchElementRefs.get(entry.id)
   // 同时切换一级分组与二级子页，避免搜索结果落在隐藏的旧子页上
@@ -779,6 +813,23 @@ watch(visible, (show) => {
   cursor: pointer;
 }
 
+.settings-search-group + .settings-search-group {
+  margin-top: var(--ds-space-4);
+  padding-top: var(--ds-space-4);
+  border-top: 1px solid var(--ds-border-subtle);
+}
+
+.settings-search-group-title {
+  padding: 2px var(--ds-space-8) 3px;
+  font-size: var(--ds-text-micro-size);
+  font-weight: 600;
+  color: var(--ds-text-muted);
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .settings-search-item:hover {
   background: var(--ds-bg-hover);
   color: var(--ds-text-strong);
@@ -826,8 +877,8 @@ watch(visible, (show) => {
 /* 一级导航：与主侧栏 AppSidebar 同一套选中态——accent-subtle 底 + 3px 主色指示条 + accent-text 文字。
    原来只有「淡灰底 + 蓝字」，10 个条目里很难一眼定位当前页。 */
 .settings-dialog-body :deep(.settings-main-tabs > .n-tabs-nav.n-tabs-nav--left) {
-  flex: 0 0 208px;
-  width: 208px;
+  flex: 0 0 224px;
+  width: 224px;
   padding: var(--ds-space-8) var(--ds-space-12);
   border-right: 1px solid var(--ds-border-subtle);
   background: var(--ds-bg-surface);
@@ -854,8 +905,11 @@ watch(visible, (show) => {
   position: relative;
   display: flex;
   align-items: center;
-  height: var(--ds-control-nav-item);
-  padding: 0 var(--ds-space-12);
+  min-height: var(--ds-control-nav-item);
+  height: auto;
+  padding: 6px var(--ds-space-12);
+  white-space: normal;
+  line-height: 1.25;
   border-radius: var(--ds-radius-md);
   font-size: var(--ds-text-body-size);
   font-weight: 450;
@@ -890,8 +944,52 @@ watch(visible, (show) => {
 }
 
 /* 10 项导航的语义分组：应用与引擎 / 下载与网络 / 组件与连接 / 维护与安全。
-   加文字小标题需要 24 个 locale 的新 key（见报告 TODO(i18n)），这里先用 1px 细线分隔；
-   :has() 不受支持时整条规则失效，不会破坏布局。 */
+   标题文本由 navGroupStyle 注入 CSS 变量（先中英 fallback，避免新增 21 份 locale key）；
+   :has() 不受支持时只丢标题，不影响布局。 */
+.settings-dialog-body
+  :deep(
+    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='general'])::before
+  ) {
+  content: var(--settings-group-app-label, 'App & Engine');
+}
+
+.settings-dialog-body
+  :deep(
+    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='download'])::before
+  ) {
+  content: var(--settings-group-download-label, 'Download & Network');
+}
+
+.settings-dialog-body
+  :deep(
+    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='components'])::before
+  ) {
+  content: var(--settings-group-components-label, 'Components & Connections');
+}
+
+.settings-dialog-body
+  :deep(
+    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='logs'])::before
+  ) {
+  content: var(--settings-group-logs-label, 'Maintenance & Security');
+}
+
+.settings-dialog-body
+  :deep(
+    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='general'])::before,
+    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='download'])::before,
+    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='components'])::before,
+    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='logs'])::before
+  ) {
+  display: block;
+  padding: 0 var(--ds-space-12) 4px;
+  font-size: var(--ds-text-micro-size);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ds-text-faint);
+  letter-spacing: 0.02em;
+}
+
 .settings-dialog-body
   :deep(
     .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='download'])
@@ -902,9 +1000,7 @@ watch(visible, (show) => {
   ),
 .settings-dialog-body
   :deep(.settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='logs'])) {
-  margin-top: var(--ds-space-8);
-  padding-top: var(--ds-space-8);
-  border-top: 1px solid var(--ds-border-subtle);
+  margin-top: var(--ds-space-4);
 }
 
 /* 内容区内部滚动：长页面（下载/网络/BT）底部不再被弹窗裁掉。

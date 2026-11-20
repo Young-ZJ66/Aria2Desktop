@@ -119,7 +119,10 @@ import { useI18n } from 'vue-i18n'
 import { message } from '@/utils/feedback'
 import { useUiStore } from '@/stores/uiStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useStatsStore } from '@/stores/statsStore'
 import { CATEGORY_AUTO, CATEGORY_GENERAL, resolveDownloadDir } from '@/shared/fileCategories'
+import { maxUploadFileBytes, parseRpcMaxRequestBytes } from '@/shared/uploadLimit'
+import { formatSize } from '@/utils/taskFormatters'
 import type { TaskTemplate } from '@/shared/appSettings'
 import UriPane from '@/components/newTask/UriPane.vue'
 import TorrentPane from '@/components/newTask/TorrentPane.vue'
@@ -138,6 +141,7 @@ import StreamPane from '@/components/newTask/StreamPane.vue'
 
 const uiStore = useUiStore()
 const settingsStore = useSettingsStore()
+const statsStore = useStatsStore()
 const { t } = useI18n()
 
 const activeTab = ref('uri')
@@ -197,16 +201,34 @@ const visible = computed({
   }
 })
 
-/** aria2 rpc-max-request-size 默认 1MiB，超出上限的种子/metalink 经 base64 上传必然失败 */
-const MAX_UPLOAD_FILE_BYTES = 1 * 1024 * 1024
+/**
+ * 可上传的原始文件上限（D-40）。
+ *
+ * 种子/metalink 经 aria2 RPC 上传时会被 base64 编码，体积膨胀到约 4/3，
+ * 因此上限不能直接取 rpc-max-request-size，而要按膨胀比折算（见 shared/uploadLimit）。
+ * 该值随用户在「设置 → RPC 与安全」里改动的 rpc-max-request-size 实时变化，
+ * 不再写死 1MiB——写死会让放宽过上限的用户仍被拦住，或让调小过上限的用户在提交时才失败。
+ */
+const maxUploadBytes = computed(() =>
+  maxUploadFileBytes(parseRpcMaxRequestBytes(statsStore.globalOptions['rpc-max-request-size']))
+)
 
 function checkFileSize(file: File): boolean {
-  if (file.size > MAX_UPLOAD_FILE_BYTES) {
-    message.error(t('newTask.fileTooLarge'))
+  if (file.size > maxUploadBytes.value) {
+    message.error(t('newTask.fileTooLargeLimit', { limit: formatSize(maxUploadBytes.value) }))
     return false
   }
   return true
 }
+
+// 打开弹窗时刷新一次引擎全局选项：用户可能刚在设置里改过 rpc-max-request-size，
+// 而 globalOptions 有缓存，不主动刷新就会用旧上限判断（失败在提交时才暴露）。
+watch(visible, (show) => {
+  if (!show) return
+  void statsStore.getGlobalOptions(true).catch(() => {
+    // 引擎未连接时保持默认上限（2M 折算），不打断新建流程
+  })
+}, { immediate: true })
 
 /** 读取文件为 Base64（aria2 的 addTorrent/addMetalink 以 base64 传输文件内容） */
 function readFileAsBase64(file: File): Promise<string> {

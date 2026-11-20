@@ -22,6 +22,7 @@ let snifferPaused = false
 let snifferFilter = 'all'
 let snifferItems = []
 let snifferFragmentCount = 0
+let batchState = null
 const snifferSelected = new Set()
 let snifferPollTimer = null
 let snifferLoading = false
@@ -92,7 +93,10 @@ function initI18n() {
   setText('snifferTitle', 'snifferTitle')
   setText('pageVideoTitle', 'pageVideoTitle')
   setText('pageVideoDesc', 'pageVideoDesc')
+  setText('playlistStreamTitle', 'playlistStreamTitle')
+  setText('playlistStreamDesc', 'playlistStreamDesc')
   setText('snifferFilterAll', 'snifferFilterAll')
+  setText('snifferFilterPlaylist', 'snifferFilterPlaylist')
   setText('snifferFilterVideo', 'snifferFilterVideo')
   setText('snifferFilterAudio', 'snifferFilterAudio')
   setText('snifferFilterImage', 'snifferFilterImage')
@@ -102,7 +106,7 @@ function initI18n() {
   setText('snifferPairBannerText', 'sendNeedPairing')
   setText('snifferPairBtn', 'goPair')
   setText('settingsTitle', 'settingsTitle')
-  setText('extensionVersion', 'versionNote', [manifest.version || '1.4.0'])
+  setText('extensionVersion', 'versionNote', [manifest.version || '1.5.0'])
   setText('behaviorTitle', 'behaviorTitle')
   setText('enableLabel', 'enableExt')
   setText('enableDesc', 'enableExtDesc')
@@ -165,6 +169,12 @@ function updateMetrics() {
 
 async function getConfigSafe() { try { return await sendMessage({ action: 'getConfig' }) } catch { return null } }
 
+/**
+ * 是否已具备可用凭据（D-06）：配对 token 或手填的 RPC 密钥，二者其一即可。
+ * 设置页的"已配对/未配对"必须按这个判定，否则用 token 配对的用户会被显示成未配对。
+ */
+function hasCredential(cfg) { return Boolean(cfg && (cfg.token || cfg.secret)) }
+
 async function loadConfig() {
   const cfg = await getConfigSafe()
   if (!cfg) return null
@@ -175,7 +185,7 @@ async function loadConfig() {
   $('enabled').checked = cfg.enabled !== false
   $('interceptAll').checked = cfg.interceptAll === true
   $('allowCookies').checked = cfg.allowCookies === true
-  applyPairingUi(!!cfg.secret)
+  applyPairingUi(hasCredential(cfg))
   updateEndpoint()
   return cfg
 }
@@ -218,7 +228,7 @@ function applyPairingUi(paired) {
 
 async function refreshStatus() {
   const cfg = configCache || await getConfigSafe()
-  if (!cfg?.secret) { setStatus('disconnected', i18n('notConnectedShort')); return }
+  if (!hasCredential(cfg)) { setStatus('disconnected', i18n('notConnectedShort')); return }
   setStatus('loading', i18n('testing'))
   try {
     const appStatus = await sendMessage({ action: 'getAppStatus' })
@@ -272,11 +282,23 @@ async function unpair() {
   resetUnpairArm()
   const btn = $('unpairBtn')
   btn.disabled = true
+  // 先让 App 撤销服务端记录（D-06）：本地清干净但服务端留着，等于"界面说未配对、
+  // 实际仍被授权"，是最糟的中间态。App 不在线时下面照常清本地，只把同步结果降级成提示。
+  const revoked = await sendMessage({ action: 'unpairViaApp' }).catch(() => null)
   $('secret').value = ''
   $('host').value = 'localhost'
   $('port').value = 6800
+  // 解除配对必须同时清掉配对 token，否则扩展仍然"已授权"，只是界面显示未配对
+  if (configCache) configCache = Object.assign({}, configCache, { token: '' })
   await saveConfig()
-  showFeedback(i18n('unpairDone'))
+  // 提示要说清"服务端到底撤没撤"：只说"已解除配对"会让用户以为授权也没了
+  if (revoked && revoked.revoked === true) {
+    showFeedback(i18n('unpairDoneRevoked'))
+  } else if (revoked && revoked.success === false && revoked.code === 'app_unavailable') {
+    showFeedback(i18n('unpairServerPending'), true)
+  } else {
+    showFeedback(i18n('unpairDone'))
+  }
   await loadConfig()
   await refreshStatus()
   btn.disabled = false
@@ -295,12 +317,22 @@ async function saveConfig() {
   const btn = $('saveBtn')
   btn.disabled = true
   try {
-    const config = { host, port, secret: $('secret').value.trim(), enabled: $('enabled').checked, interceptAll: $('interceptAll').checked, allowCookies: $('allowCookies').checked }
+    const config = {
+      host,
+      port,
+      secret: $('secret').value.trim(),
+      // 手工保存不能把配对 token 抹掉：这个表单只管 RPC 直连参数，
+      // 丢 token 会让"能用的配对"在用户点一次保存后凭空失效。
+      token: (configCache && configCache.token) || '',
+      enabled: $('enabled').checked,
+      interceptAll: $('interceptAll').checked,
+      allowCookies: $('allowCookies').checked
+    }
     const response = await sendMessage({ action: 'saveConfig', config })
     if (response?.success) {
       configCache = config
       showFeedback(i18n('settingsSaved'))
-      applyPairingUi(!!config.secret)
+      applyPairingUi(hasCredential(config))
       updateEndpoint()
       await refreshStatus()
       return true
@@ -611,6 +643,7 @@ function startSnifferPolling() {
 function stopSnifferPolling() { if (snifferPollTimer) { clearInterval(snifferPollTimer); snifferPollTimer = null } }
 
 function resourceKindLabel(kind) {
+  if (kind === 'playlist') return i18n('snifferFilterPlaylist')
   if (kind === 'video') return i18n('snifferFilterVideo')
   if (kind === 'audio') return i18n('snifferFilterAudio')
   if (kind === 'image') return i18n('snifferFilterImage')
@@ -618,6 +651,7 @@ function resourceKindLabel(kind) {
 }
 
 function resourceThumb(kind) {
+  if (kind === 'playlist') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11"/><path d="M4 12h11"/><path d="M4 18h7"/><path d="m17 14 5 3-5 3v-6Z"/></svg>'
   if (kind === 'video') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="m10 9 5 3-5 3V9Z"/></svg>'
   if (kind === 'audio') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'
   if (kind === 'image') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>'
@@ -658,18 +692,21 @@ function renderResources() {
     return
   }
   for (const item of filtered) {
+    const isPlaylist = item.playlist === true || item.kind === 'playlist'
     const row = document.createElement('label')
     row.className = 'resource-row' + (item.fragment ? ' is-fragment' : '')
     const check = document.createElement('input')
     check.className = 'resource-check'
     check.type = 'checkbox'
     check.checked = snifferSelected.has(item.url) && !item.fragment
+    // 分片不可选（单独下没意义）；播放列表可选——批量入口会把它交给流媒体而不是直下
     check.disabled = Boolean(item.fragment)
     if (item.fragment) check.title = i18n('snifferFragmentHint')
+    if (isPlaylist) check.title = i18n('snifferPlaylistHint')
     check.addEventListener('change', () => { if (check.checked) snifferSelected.add(item.url); else snifferSelected.delete(item.url); updateSelectionBar() })
     const thumb = document.createElement('span')
-    thumb.className = 'resource-thumb ' + item.kind
-    thumb.innerHTML = resourceThumb(item.kind)
+    thumb.className = 'resource-thumb ' + (isPlaylist ? 'playlist' : item.kind)
+    thumb.innerHTML = resourceThumb(isPlaylist ? 'playlist' : item.kind)
     const copy = document.createElement('span')
     copy.className = 'resource-copy'
     const name = document.createElement('span')
@@ -678,17 +715,28 @@ function renderResources() {
     name.title = item.url
     const meta = document.createElement('span')
     meta.className = 'resource-meta'
-    meta.textContent = (item.method || 'GET') + ' · ' + resourceHost(item) + ' · ' + resourceKindLabel(item.kind) + (item.fragment ? ' · ' + i18n('snifferFragment') : '')
+    meta.textContent = (item.method || 'GET') + ' · ' + resourceHost(item) + ' · ' + resourceKindLabel(isPlaylist ? 'playlist' : item.kind) + (item.fragment ? ' · ' + i18n('snifferFragment') : '')
     copy.appendChild(name); copy.appendChild(meta)
     const download = document.createElement('button')
     download.className = 'resource-dl'
     download.type = 'button'
-    download.title = item.fragment ? i18n('snifferFragmentHint') : i18n('mediaSend')
+    download.title = item.fragment
+      ? i18n('snifferFragmentHint')
+      : isPlaylist ? i18n('snifferPlaylistSend') : i18n('mediaSend')
     download.disabled = Boolean(item.fragment)
-    download.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>'
+    download.innerHTML = isPlaylist
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m8 5 12 7-12 7V5Z"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>'
     download.addEventListener('click', async (event) => {
       event.preventDefault(); event.stopPropagation(); download.disabled = true
       try {
+        if (isPlaylist) {
+          // 播放列表交给 App 的流媒体模式：直下只会得到一个几 KB 的清单文件
+          const result = await sendMessage({ action: 'streamPlaylist', url: item.url, title: resourceName(item) })
+          if (result?.success) showFeedback(i18n('snifferPlaylistSent'))
+          else showFeedback(result?.error || i18n('errUnknown'), true)
+          return
+        }
         const result = await sendMessage({ action: 'sendToAria2', url: item.url, pageUrl: refererFor(item.url) })
         if (result?.success) showFeedback(i18n('sendSuccessUnclassified'))
         else showFeedback(result?.error || i18n('errUnknown'), true)
@@ -698,28 +746,112 @@ function renderResources() {
     list.appendChild(row)
   }
   if (streamHint) streamHint.hidden = snifferFragmentCount <= 0
+  renderBatchProgress()
   updateSelectionBar()
+}
+
+function isPlaylistItem(item) { return item && (item.playlist === true || item.kind === 'playlist') }
+
+/** 选中的条目里，能直接下发的（非分片）与需要交给流媒体的（播放列表）分开 */
+function splitSelection() {
+  const picked = snifferItems.filter(item => snifferSelected.has(item.url) && !item.fragment)
+  return {
+    playlists: picked.filter(isPlaylistItem).map(item => item.url),
+    links: picked.filter(item => !isPlaylistItem(item)).map(item => item.url)
+  }
 }
 
 function updateSelectionBar() {
   const count = snifferSelected.size
   $('selectionBar').hidden = count === 0
   $('selectedCount').textContent = i18n('snifferSelected', [String(count)])
-  $('batchDownload').textContent = i18n('snifferDownload', [String(count)])
+  const { playlists, links } = splitSelection()
+  // 按钮文案要如实反映"这次点下去会发生什么"：全是播放列表时说"下载"会让用户以为下的是 mp4
+  if (playlists.length > 0 && links.length === 0) $('batchDownload').textContent = i18n('snifferBatchStream', [String(playlists.length)])
+  else if (playlists.length > 0) $('batchDownload').textContent = i18n('snifferBatchMixed', [String(links.length), String(playlists.length)])
+  else $('batchDownload').textContent = i18n('snifferDownload', [String(links.length || count)])
 }
 
+/**
+ * 批量发送选中项（D-08）：普通链接走并发队列（逐条回报进度），
+ * 播放列表单独交给流媒体（D-07），两类各走各的通道。
+ */
 async function sendSelectedResources() {
-  const links = [...snifferSelected].filter(url => snifferItems.some(item => item.url === url && !item.fragment))
-  if (links.length === 0) { snifferSelected.clear(); updateSelectionBar(); return }
+  const { playlists, links } = splitSelection()
+  if (playlists.length === 0 && links.length === 0) { snifferSelected.clear(); updateSelectionBar(); return }
   const btn = $('batchDownload')
   btn.disabled = true
   btn.textContent = i18n('sending')
   try {
-    const response = await sendMessage({ action: 'sendGrabbedLinks', links, pageUrl: activeTabUrl })
-    if (response?.sent > 0) { showFeedback(i18n('grabSentCount', [String(response.sent)])); snifferSelected.clear(); await loadSniffer() }
-    else showFeedback(i18n('errUnknown'), true)
+    let playlistSent = 0
+    if (playlists.length > 0) {
+      const streamed = await sendMessage({ action: 'streamPlaylists', urls: playlists })
+      playlistSent = Number(streamed?.sent) || 0
+    }
+    if (links.length > 0) {
+      // 这个 await 会一直等到整批跑完；期间进度由 SW 通过 batchProgress 广播过来
+      const response = await sendMessage({ action: 'sendGrabbedLinks', links, pageUrl: activeTabUrl })
+      const sent = Number(response?.sent) || 0
+      if (sent > 0 || playlistSent > 0) {
+        showFeedback(i18n('grabSentCount', [String(sent + playlistSent)]))
+        snifferSelected.clear()
+      } else {
+        showFeedback(response?.errors?.[0] || i18n('errUnknown'), true)
+      }
+    } else if (playlistSent > 0) {
+      showFeedback(i18n('snifferPlaylistSent'))
+      snifferSelected.clear()
+    } else {
+      showFeedback(i18n('errUnknown'), true)
+    }
+    await loadSniffer()
   } catch { showFeedback(i18n('errUnknown'), true) }
   finally { btn.disabled = false; updateSelectionBar() }
+}
+
+/**
+ * 「播放列表，交给流媒体」入口（D-07）：把当前页嗅探到的所有播放列表一次性交给 App。
+ *
+ * 为什么需要这个独立入口：视频站的分片清单常常一屏几十条，
+ * 逐条点行内按钮不现实；而这个入口只挑 playlist 类，绝不会误把 .ts/.m4s 分片
+ * 当成独立文件塞给引擎。
+ */
+async function streamAllPlaylists() {
+  const playlists = snifferItems.filter(isPlaylistItem).map(item => item.url)
+  const btn = $('playlistStreamBtn')
+  if (playlists.length === 0) {
+    showFeedback(i18n('snifferPlaylistEmpty'), true)
+    return
+  }
+  btn.disabled = true
+  try {
+    const response = await sendMessage({ action: 'streamPlaylists', urls: playlists })
+    if (Number(response?.sent) > 0) showFeedback(i18n('snifferPlaylistSentCount', [String(response.sent)]))
+    else showFeedback(response?.errors?.[0] || i18n('errUnknown'), true)
+  } catch { showFeedback(i18n('errUnknown'), true) }
+  finally { btn.disabled = false }
+}
+
+/** 渲染批量发送进度（D-08）：SW 广播 batchProgress，或弹窗打开时从 storage.session 恢复 */
+function renderBatchProgress() {
+  const bar = $('batchProgress')
+  if (!bar) return
+  if (!batchState || (!batchState.running && batchState.settled >= batchState.total)) {
+    // 跑完了就不再占位：结果已经由 showFeedback 提示过，留着反而像"还在跑"
+    if (!batchState || !batchState.running) { bar.hidden = true; return }
+  }
+  bar.hidden = false
+  const text = $('batchProgressText')
+  if (text) text.textContent = i18n('batchProgress', [String(batchState.settled), String(batchState.total), String(batchState.failed)])
+}
+
+/** 弹窗打开时恢复上次批次的进度：SW 可能还在跑（弹窗关过），也可能刚被回收 */
+async function loadBatchState() {
+  try {
+    const response = await sendMessage({ action: 'getBatchState' })
+    batchState = response?.batch || null
+  } catch { batchState = null }
+  renderBatchProgress()
 }
 
 function switchTab(name) {
@@ -773,6 +905,13 @@ function bindEvents() {
     if (!snifferPaused) loadSniffer()
   })
   $('batchDownload').addEventListener('click', sendSelectedResources)
+  $('playlistStreamBtn').addEventListener('click', streamAllPlaylists)
+  // SW 每发完一条就广播一次进度（D-08）：弹窗只负责显示，不参与调度
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.action !== 'batchProgress') return
+    batchState = message.batch || null
+    renderBatchProgress()
+  })
   $('pairBtn').addEventListener('click', startPairing)
   $('unpairBtn').addEventListener('click', unpair)
   $('bannerPairBtn').addEventListener('click', () => switchTab('settings'))
@@ -823,6 +962,7 @@ async function init() {
   await loadConfig()
   await prefillFromActiveTab()
   await refreshStatus()
+  await loadBatchState()
   switchTab('tasks')
 }
 

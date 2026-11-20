@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { addDownloadToHistory, useDownloadHistoryStore } from './downloadHistoryStore'
+import { addDownloadToHistory, buildDailySeries, useDownloadHistoryStore } from './downloadHistoryStore'
 
 describe('addDownloadToHistory', () => {
   it('累加今日与累计下载量', () => {
@@ -24,6 +24,22 @@ describe('addDownloadToHistory', () => {
     }
     const result = addDownloadToHistory({ totalBytes: 91, daily }, 1, '2026-04-02')
     expect(Object.keys(result.daily).length).toBe(90)
+  })
+})
+
+describe('buildDailySeries', () => {
+  it('生成连续日期并为缺失日期补 0', () => {
+    const series = buildDailySeries({ '2026-11-18': 100, '2026-11-20': 300 }, 3, '2026-11-20')
+    expect(series).toEqual([
+      { dateKey: '2026-11-18', bytes: 100 },
+      { dateKey: '2026-11-19', bytes: 0 },
+      { dateKey: '2026-11-20', bytes: 300 }
+    ])
+  })
+
+  it('跨月时日期连续', () => {
+    const series = buildDailySeries({}, 3, '2026-03-01')
+    expect(series.map(item => item.dateKey)).toEqual(['2026-02-27', '2026-02-28', '2026-03-01'])
   })
 })
 

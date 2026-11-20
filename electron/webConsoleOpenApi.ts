@@ -115,8 +115,8 @@ export function buildOpenApiDocument(appVersion: string): Record<string, unknown
                   type: 'object',
                   required: ['uris'],
                   properties: {
-                    uris: { type: 'array', items: { type: 'string' }, description: 'http/https/ftp 链接或磁力链接' },
-                    dir: { type: 'string', description: '下载目录（可选）' }
+                    uris: { type: 'array', items: { type: 'string' }, description: 'http/https/ftp/sftp 链接或磁力链接（最多 200 条）' },
+                    dir: { type: 'string', description: '下载目录（可选）：下载根目录内的绝对路径，或相对下载根目录的子目录；越界返回 dir_outside_download_root' }
                   }
                 }
               }
@@ -124,9 +124,24 @@ export function buildOpenApiDocument(appVersion: string): Record<string, unknown
           },
           responses: {
             200: { description: '已添加，返回新任务 gid', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, gid: { type: 'string' } } } } } },
-            400: { description: 'uris 缺失或非法', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+            400: { description: 'uris 缺失、超过 200 条、协议不在白名单（invalid_uri）或 dir 越界（dir_outside_download_root）', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
             401: { description: '缺少或错误的令牌', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
             403: { description: '令牌权限不足（需 tasks:write）', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+          }
+        }
+      },
+      '/api/tasks/{action}': {
+        post: {
+          summary: '批量控制任务：pauseAll / unpauseAll',
+          tags: ['任务'],
+          security: securityRequirement(),
+          parameters: [
+            { name: 'action', in: 'path', required: true, schema: { type: 'string', enum: ['pauseAll', 'unpauseAll'] } }
+          ],
+          responses: {
+            200: { description: '操作已提交', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' } } } } } },
+            401: { description: '缺少或错误的令牌', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+            403: { description: '令牌权限不足（需 tasks:control）', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
           }
         }
       },

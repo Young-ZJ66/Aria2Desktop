@@ -1,9 +1,9 @@
 <template>
   <footer class="app-footer">
     <div class="footer-stats">
-      <span class="stat" :aria-label="`${t('footer.downloadSpeed')}: ${formatSpeed(globalStat.downloadSpeed)}`">
+      <span class="stat" :aria-label="`${t('footer.downloadSpeed')}: ${formatSpeed(downloadSpeedTotal)}`">
         <n-icon :size="13" class="stat__icon"><DownloadOutline /></n-icon>
-        <span class="stat__value ds-tnum">{{ formatSpeed(globalStat.downloadSpeed) }}</span>
+        <span class="stat__value ds-tnum">{{ formatSpeed(downloadSpeedTotal) }}</span>
       </span>
       <span class="stat" :aria-label="`${t('footer.uploadSpeed')}: ${formatSpeed(globalStat.uploadSpeed)}`">
         <n-icon :size="13" class="stat__icon"><CloudUploadOutline /></n-icon>
@@ -12,9 +12,9 @@
 
       <span class="footer-sep" aria-hidden="true" />
 
-      <span class="stat stat--count" :aria-label="`${t('footer.active')}: ${globalStat.numActive}`">
+      <span class="stat stat--count" :aria-label="`${t('footer.active')}: ${activeCountTotal}`">
         <span class="stat__label">{{ t('footer.active') }}</span>
-        <span class="stat__value ds-tnum">{{ globalStat.numActive }}</span>
+        <span class="stat__value ds-tnum">{{ activeCountTotal }}</span>
       </span>
       <span class="stat stat--count" :aria-label="`${t('footer.waiting')}: ${globalStat.numWaiting}`">
         <span class="stat__label">{{ t('footer.waiting') }}</span>
@@ -110,6 +110,7 @@ import { useI18n } from 'vue-i18n'
 import { NIcon, NInput, NPopover, NSwitch } from 'naive-ui'
 import { useStatsStore } from '@/stores/statsStore'
 import { useConnectionStore } from '@/stores/connectionStore'
+import { useStreamTaskStore } from '@/stores/streamTaskStore'
 import { formatSpeed } from '@/utils/taskFormatters'
 import { DownloadOutline, CloudUploadOutline, SpeedometerOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
@@ -122,9 +123,20 @@ import {
 
 const statsStore = useStatsStore()
 const connectionStore = useConnectionStore()
+const streamTaskStore = useStreamTaskStore()
 const { t } = useI18n()
 
 const globalStat = computed(() => statsStore.globalStat)
+
+/**
+ * 页脚速度/活动数要把流媒体任务算进来（D-10 一期）。
+ *
+ * yt-dlp 任务不进 aria2 队列，所以 globalStat 里永远看不到它们：
+ * 用户正在下 B 站视频时页脚一直是 0 B/s、活动 0，看起来像卡死了。
+ * 这里做的是"相加"，而不是替换——aria2 仍是主力，两者只是共用同一行汇总。
+ */
+const downloadSpeedTotal = computed(() => globalStat.value.downloadSpeed + streamTaskStore.activeSpeedBytes)
+const activeCountTotal = computed(() => globalStat.value.numActive + streamTaskStore.activeCount)
 
 /** 当前生效的限速值（字节/秒），0 表示不限制 */
 const currentLimitBytes = computed(() => {

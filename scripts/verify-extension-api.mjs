@@ -64,7 +64,19 @@ if (!fs.existsSync(aria2Exe)) {
 }
 
 // ---- 1) 桩掉 electron ----
-const fakeElectron = { app: { isPackaged: false, getVersion: () => '1.0.8', getPath: () => work } }
+// dialog 桩：D-06 起配对确认框由 ExtensionApiServer 自己弹（未注入 confirmPairingWithInfo 时），
+// 这里断言"弹窗被触发且携带了请求侧信息"，再按 pairDecision 决定允许/拒绝。
+let pairDialogInfo = null
+let pairDecision = true // 模拟用户在应用弹窗中点"允许 / 拒绝"
+const fakeElectron = {
+  app: { isPackaged: false, getVersion: () => '1.0.8', getPath: () => work },
+  dialog: {
+    showMessageBox: async (options) => {
+      pairDialogInfo = options
+      return { response: pairDecision ? 0 : 1 }
+    }
+  }
+}
 const originalLoad = Module._load
 Module._load = function (request, ...rest) {
   if (request === 'electron') return fakeElectron
@@ -195,12 +207,11 @@ const run = async () => {
   }
 
   const { ExtensionApiServer } = require(path.join(DIST, 'services/extensionApiServer.js'))
-  let pairDecision = true // 模拟用户在应用弹窗中点"允许 / 拒绝"
   const server = new ExtensionApiServer({
     getAppVersion: () => '1.0.8',
     getEngineProcessInfo: () => ({ isRunning: true, pid: aria2.proc.pid }),
+    // 故意不注入 confirmPairingWithInfo：验证服务自己用 electron dialog 弹确认框（D-06 默认路径）
     confirmPairing: async () => {
-      // 弹窗文案为固定提示语、不携带请求侧数据（扩展 ID 只进日志），这里只断言"弹窗被触发"
       check('配对: 应用弹出确认框询问用户', true)
       return pairDecision
     }
@@ -320,10 +331,23 @@ const run = async () => {
   check('配对: GET 方法 → 405', (await request(pairUrl)).status === 405)
   check('配对: 无 Origin → 403', (await request(pairUrl, pairBody)).status === 403)
   check('配对: 网页来源 → 403', (await request(pairUrl, { ...pairBody, headers: { ...jsonHeaders, Origin: 'https://evil.example.com' } })).status === 403)
-  const allowed = await request(pairUrl, { ...pairBody, headers: { ...jsonHeaders, Origin: extOrigin } })
-  check('配对: 允许 → 返回密钥与端口',
-    allowed.status === 200 && allowed.json?.ok === true && allowed.json?.secret === AUTH_SECRET && allowed.json?.port === ARIA2_PORT,
-    `port=${allowed.json?.port}`)
+  const allowed = await request(pairUrl, { ...pairBody, headers: { ...jsonHeaders, Origin: extOrigin, 'X-Extension-Version': '1.4.0' } })
+  const pairedToken = allowed.json?.token
+  const pairedScopes = Array.isArray(allowed.json?.scopes) ? allowed.json.scopes : []
+  check('配对: 允许 → 返回受限 token（不再下发 RPC 密钥）',
+    allowed.status === 200 && allowed.json?.ok === true
+      && typeof pairedToken === 'string' && /^ext_[A-Za-z0-9_-]{43}$/.test(pairedToken)
+      && allowed.json?.secret === undefined
+      && allowed.json?.port === ARIA2_PORT,
+    `token=${typeof pairedToken === 'string' ? pairedToken.slice(0, 8) + '…' : String(pairedToken)} port=${allowed.json?.port} secret=${String(allowed.json?.secret)}`)
+  check('配对: token 带四项 scope',
+    ['download:add', 'tasks:read', 'tasks:control', 'stream:control'].every(scope => pairedScopes.includes(scope)),
+    pairedScopes.join(','))
+  check('配对: 确认框展示扩展名称/ID/来源',
+    pairDialogInfo !== null
+      && String(pairDialogInfo.detail || '').includes('abcdefghijklmnopabcdefghijklmnop')
+      && String(pairDialogInfo.detail || '').includes(extOrigin),
+    String(pairDialogInfo?.detail || '').split('\n')[0])
   pairDecision = false
   const denied = await request(pairUrl, { ...pairBody, headers: { ...jsonHeaders, Origin: extOrigin } })
   check('配对: 拒绝 → 403 + pairing_denied', denied.status === 403 && denied.json?.code === 'pairing_denied', `code=${denied.json?.code}`)
@@ -334,6 +358,89 @@ const run = async () => {
   check('配对: 引擎未设密钥 → 409 并提示先设置密钥',
     noSecret.status === 409 && noSecret.json?.ok === false && noSecret.json?.code === 'secret_required')
   harnessSettings.aria2.secret = savedSecret
+
+  // ---- H2. token 契约：受限 token 能读任务、能控制任务，但越权请求必须被 scope 拦住 ----
+  // 这一步是 D-06 的核心收益：扩展手里不再有 RPC 密钥，权限边界由服务端 scope 决定。
+  const tokenAuth = (extra = {}) => ({ Authorization: `Bearer ${pairedToken}`, ...extra })
+  const tasksRes = await request(`${API}/api/tasks`, { headers: tokenAuth() })
+  check('token: 可读任务列表（scope=tasks:read）',
+    tasksRes.status === 200 && tasksRes.json?.ok === true && Array.isArray(tasksRes.json?.tasks),
+    `status=${tasksRes.status} code=${tasksRes.json?.code || ''}`)
+
+  const addWithToken = await request(`${API}/api/add`, {
+    method: 'POST', headers: tokenAuth(jsonHeaders),
+    body: JSON.stringify({ url: 'https://example.com/token-add.txt' })
+  })
+  check('token: 可建任务（scope=download:add）',
+    addWithToken.status === 200 && addWithToken.json?.ok === true && typeof addWithToken.json?.gid === 'string',
+    `status=${addWithToken.status} code=${addWithToken.json?.code || ''}`)
+
+  const taskActionWithToken = await request(`${API}/api/task`, {
+    method: 'POST', headers: tokenAuth(jsonHeaders),
+    body: JSON.stringify({ action: 'pause', gid: addWithToken.json?.gid || '' })
+  })
+  check('token: 可控制任务（scope=tasks:control）',
+    taskActionWithToken.status === 200 && taskActionWithToken.json?.ok === true,
+    `status=${taskActionWithToken.status} code=${taskActionWithToken.json?.code || ''}`)
+
+  const badAction = await request(`${API}/api/task`, {
+    method: 'POST', headers: tokenAuth(jsonHeaders),
+    body: JSON.stringify({ action: 'explode', gid: 'x' })
+  })
+  check('token: 非法任务动作 → 400 invalid_action',
+    badAction.status === 400 && badAction.json?.code === 'invalid_action', `code=${badAction.json?.code}`)
+
+  // 手工塞一条只有 tasks:read 的 token：证明 scope 真的在服务端生效，而不是"发什么都能用"
+  const { createExtensionToken } = require(path.join(DIST, 'utils/extensionApiCore.js'))
+  const readOnlyToken = createExtensionToken()
+  const tokenFile = path.join(work, 'extension-tokens.json')
+  const tokenRecords = JSON.parse(fs.readFileSync(tokenFile, 'utf8'))
+  tokenRecords.unshift({
+    token: readOnlyToken,
+    scopes: ['tasks:read'],
+    extensionId: 'abcdefghijklmnopabcdefghijklmnop',
+    extensionName: 'read-only probe',
+    origin: extOrigin,
+    createdAt: Date.now()
+  })
+  fs.writeFileSync(tokenFile, JSON.stringify(tokenRecords))
+  server.apply()
+  const deniedAdd = await request(`${API}/api/add`, {
+    method: 'POST', headers: { Authorization: `Bearer ${readOnlyToken}`, ...jsonHeaders },
+    body: JSON.stringify({ url: 'https://example.com/scope-denied.txt' })
+  })
+  check('token: scope 不足 → 403 insufficient_scope',
+    deniedAdd.status === 403 && deniedAdd.json?.code === 'insufficient_scope',
+    `status=${deniedAdd.status} code=${deniedAdd.json?.code}`)
+  const stillReads = await request(`${API}/api/tasks`, { headers: { Authorization: `Bearer ${readOnlyToken}` } })
+  check('token: 同一 token 仍可读任务', stillReads.status === 200 && stillReads.json?.ok === true)
+
+  // 撤销后立即失效：设置页"撤销"按钮走的就是这个路径
+  const { extensionIdFromOrigin } = require(path.join(DIST, 'utils/extensionApiCore.js'))
+  const revokedCount = server.revokeExtension(extensionIdFromOrigin(extOrigin))
+  check('token: 撤销扩展授权 → 记录被清除', revokedCount >= 1, `revoked=${revokedCount}`)
+  const afterRevoke = await request(`${API}/api/tasks`, { headers: tokenAuth() })
+  check('token: 撤销后原 token → 401', afterRevoke.status === 401, `status=${afterRevoke.status}`)
+
+  // ---- H3. /api/unpair：扩展自己点「解除配对」时必须能交还凭据 ----
+  // 只在扩展侧清本地 token 会让服务端授权永远留在磁盘上，所以这条路径要能被验证。
+  const rePair = await request(pairUrl, { ...pairBody, headers: { ...jsonHeaders, Origin: extOrigin, 'X-Extension-Version': '1.4.0' } })
+  const rePairToken = rePair.json?.token
+  check('解除配对: 重新配对拿到新 token',
+    rePair.status === 200 && typeof rePairToken === 'string' && rePairToken !== pairedToken,
+    `status=${rePair.status}`)
+  const unpairKeyPath = await request(`${API}/api/unpair`, { method: 'POST', headers: withAuth(jsonHeaders), body: '{}' })
+  check('解除配对: 密钥调用不撤销他人授权 → not_a_token',
+    unpairKeyPath.status === 200 && unpairKeyPath.json?.revoked === false && unpairKeyPath.json?.code === 'not_a_token',
+    `code=${unpairKeyPath.json?.code}`)
+  const unpairRes = await request(`${API}/api/unpair`, {
+    method: 'POST', headers: { Authorization: `Bearer ${rePairToken}`, ...jsonHeaders }, body: '{}'
+  })
+  check('解除配对: token 调用 → 撤销成功',
+    unpairRes.status === 200 && unpairRes.json?.ok === true && unpairRes.json?.revoked === true,
+    `revoked=${String(unpairRes.json?.revoked)}`)
+  const afterUnpair = await request(`${API}/api/tasks`, { headers: { Authorization: `Bearer ${rePairToken}` } })
+  check('解除配对: 撤销后该 token 立即失效 → 401', afterUnpair.status === 401, `status=${afterUnpair.status}`)
 
   // ---- G. 畸形请求目标：曾让主进程按"未处理的 Promise 拒绝"直接退出（本轮修复） ----
   // `//` 是最普通的 origin-form 目标，浏览器/curl 随手就能发出；
@@ -415,6 +522,25 @@ const run = async () => {
     (await request(`${API}/api/stream-task`, { headers: withAuth() })).status === 405)
   check('stream-task: 无密钥 → 401',
     (await request(`${API}/api/stream-task`, { method: 'POST', headers: jsonHeaders, body: '{"action":"remove","id":"x"}' })).status === 401)
+
+  // ---- I. 监听开关（D-06）：没有任何可用凭据时不该在 6801 上开着端口 ----
+  // 判定逻辑是"设置里有 RPC 密钥 或 有已配对 token"：两者都没有时接口无从鉴权，
+  // 此时仍然监听只会白送一个攻击面（任何人能探测到端口存在）。
+  check('监听: 有密钥时处于监听状态', server.isListening() === true, `isListening=${server.isListening()}`)
+  server.revokeExtension(extensionIdFromOrigin(extOrigin))
+  const savedSecretForToggle = harnessSettings.aria2.secret
+  harnessSettings.aria2.secret = ''
+  server.apply()
+  await new Promise((r) => setTimeout(r, 200))
+  check('监听: 无密钥且无配对记录 → 停止监听', server.isListening() === false, `isListening=${server.isListening()}`)
+  const whileDown = await request(`${API}/api/status`, { headers: withAuth() })
+  check('监听: 停止后端口不可用（请求打不进来）', whileDown.status === 0, `status=${whileDown.status}`)
+
+  harnessSettings.aria2.secret = savedSecretForToggle
+  server.apply()
+  await new Promise((r) => setTimeout(r, 300))
+  check('监听: 恢复密钥后重新监听', server.isListening() === true, `isListening=${server.isListening()}`)
+  check('监听: 恢复后接口可用', (await request(`${API}/api/status`, { headers: withAuth() })).status === 200)
 
   // ---- 收尾 ----
   server.stop()

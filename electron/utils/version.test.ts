@@ -3,7 +3,7 @@ import { compareVersions } from './version'
 
 /**
  * 版本比较决定"是否有新版本"的判定，一旦方向搞反会导致永远提示有新版本或永远不提示。
- * 语义与重构前完全一致（不处理预发布后缀，调用方需先剥离 v 前缀）。
+ * 语义按 SemVer：核心版本数值比较，预发布按标识排序，调用方需先剥离 v 前缀。
  */
 describe('compareVersions', () => {
   it('逐段数值比较（不是字符串比较）', () => {
@@ -28,8 +28,12 @@ describe('compareVersions', () => {
     expect(compareVersions('0.0.0', '0.0.0')).toBe(0)
   })
 
-  it('预发布/非数字后缀按 0 处理（已知限制，勿依赖它做预发布排序）', () => {
-    expect(compareVersions('1.0.0-beta', '1.0.0')).toBe(0)
+  it('预发布按 SemVer 排序：同核心时正式版高于预发布版', () => {
+    expect(compareVersions('1.0.0-beta', '1.0.0')).toBe(-1)
+    expect(compareVersions('1.0.0', '1.0.0-beta')).toBe(1)
+    expect(compareVersions('1.0.0-rc.1', '1.0.0-beta.9')).toBe(1)
+    expect(compareVersions('1.0.0-beta.2', '1.0.0-beta.10')).toBe(-1)
+    expect(compareVersions('1.0.0-alpha', '1.0.0-alpha.1')).toBe(-1)
     expect(compareVersions('1.0.0+build5', '1.0.0')).toBe(0)
   })
 

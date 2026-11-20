@@ -135,7 +135,16 @@
     "saveTorrentFailed": "No se pudo guardar el torrent: {error}",
     "batchOpen": "Abrir archivos",
     "batchOpenSuccess": "Se abrieron {count} archivos",
-    "batchOpenFailed": "No se pudo abrir ningún archivo"
+    "batchOpenFailed": "No se pudo abrir ningún archivo",
+    "filterByStatus": "Filtrar por estado",
+    "retryAllFailedSummary": "Reintentar todos los fallidos ({count})",
+    "retryAllFailedResult": "{success} tarea(s) reintentada(s), {failed} con error",
+    "batchResultTitle": "Resultado de la acción por lotes",
+    "batchResultSuccess": "{count} correctos",
+    "batchResultFailed": "{count} fallidos",
+    "batchResultSkipped": "{count} omitidos",
+    "batchResultFailures": "Detalles de los fallos",
+    "batchResultMore": "{count} más sin mostrar"
   },
   "status": {
     "active": "Descargando",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} semillas en línea",
     "healthSeeding": "Compartiendo desde este dispositivo",
     "magnetUri": "URI de Magnet",
-    "copyMagnet": "Copiar URI magnet"
+    "copyMagnet": "Copiar URI magnet",
+    "taskSettings": "Ajustes de la tarea",
+    "taskSettingsHint": "Los cambios se aplican al instante y se reutilizan al reintentar esta tarea.",
+    "taskSettingsUnlimitedHint": "0 significa sin límite.",
+    "taskSettingsSaved": "Ajustes de la tarea actualizados",
+    "taskSettingsSaveFailed": "No se pudieron guardar los ajustes: {error}",
+    "taskSettingsLoadFailed": "No se pudieron cargar los ajustes: {error}",
+    "taskSettingsUnavailable": "No se pueden cambiar los ajustes en este estado. Reintenta la tarea primero.",
+    "taskSettingsPartialFailed": "Algunos ajustes no se aplicaron: {options}"
   },
   "taskPeer": {
     "ip": "Dirección IP",
@@ -234,7 +251,15 @@
     "deleteFiles": "Eliminar también los archivos",
     "toTrashHint": "Los archivos se mueven a la papelera del sistema y se pueden restaurar desde allí",
     "deleteTaskAndFiles": "Eliminar tarea y archivos",
-    "taskDeleted": "Tarea eliminada"
+    "taskDeleted": "Tarea eliminada",
+    "errors": {
+      "removeRecordFailed": "No se pudo eliminar el registro de la tarea: {detail}",
+      "deleteFileFailed": "No se pudo eliminar el archivo: {path} ({detail})",
+      "deleteFilesFailed": "Falló la operación de borrado de archivos: {detail}",
+      "deleteFilesException": "Error al eliminar archivos: {detail}",
+      "unknownError": "Error desconocido al eliminar la tarea: {detail}",
+      "processTaskFailed": "Error al procesar la tarea {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "Nueva tarea de descarga",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Haga clic para seleccionar o arrastre un archivo .torrent aquí",
     "dropMetalinkHint": "Haga clic para seleccionar o arrastre un archivo .metalink / .meta4 aquí",
     "fileTooLarge": "El archivo es demasiado grande (>1 MB) para la carga por RPC de aria2. Colóquelo en una ruta local y añádalo mediante una URL",
+    "fileTooLargeLimit": "El archivo supera el límite actual ({limit}). Aumenta rpc-max-request-size en «Ajustes → RPC y seguridad»",
+    "streamTooManyDownloads": "Se alcanzó el límite de descargas simultáneas en streaming (3). Espera a que terminen las actuales",
     "streamPlaylist": "Lista de reproducción",
     "streamPlaylistEmpty": "No se encontraron entradas de la lista (el enlace podría no ser una lista de reproducción)",
     "streamPlaylistSelectAll": "Seleccionar todo",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Archivo extraído ({count} archivos existentes conservados; el archivo comprimido no se eliminó)",
     "engineCrashed": "El motor aria2 se cerró inesperadamente. Reiniciando automáticamente (intento {count}).",
     "engineGaveUp": "El motor aria2 no se pudo reiniciar {count} veces, por lo que se han detenido los reinicios automáticos. Reinícielo manualmente en Configuración → Motor local o abra el registro de la aplicación para más detalles.",
-    "shutdownCancelled": "Se detectó una nueva descarga; se canceló el apagado programado."
+    "shutdownCancelled": "Se detectó una nueva descarga; se canceló el apagado programado.",
+    "unknownTask": "Tarea desconocida ({gid})"
   },
   "notificationCenter": {
     "title": "Notificaciones",
@@ -430,6 +458,8 @@
     "seedingTasks": "Sembrando",
     "trafficChartAria": "Gráfico de tendencia de velocidad de descarga y subida",
     "enabledFeatures": "Funciones activadas",
+    "downloadTrend": "Tendencia de descargas",
+    "noTrendData": "Aún no hay datos de descargas",
     "resetHistory": "Restablecer estadísticas de descarga",
     "resetHistoryConfirm": "¿Borrar las estadísticas de descarga de hoy y totales? Solo afecta a los contadores de esta aplicación; no se eliminarán tareas ni archivos."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "El mercado de plugins devolvió HTTP {status}. Inténtelo de nuevo más tarde.",
       "marketErrorTooLarge": "El registro del mercado de plugins es demasiado grande y se ha rechazado.",
       "marketErrorInvalidRegistry": "El registro del mercado de plugins tiene un formato no válido. Compruebe la URL del registro.",
+      "marketErrorSignature": "La verificación de firma del registro del mercado de complementos ha fallado: es posible que el registro haya sido manipulado o firmado con una clave no confiable. No se ha cargado.",
       "marketErrorNetwork": "No se puede acceder al mercado de plugins. Compruebe su red o proxy y vuelva a intentarlo.",
       "trustedPublishers": "Claves de editores de confianza",
       "trustedPublishersDesc": "Introduzca las claves públicas Ed25519 (PEM) de los editores de confianza, separadas por líneas en blanco. Los plugins firmados del mercado deben superar la verificación de firma antes de instalarse.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Dejar en blanco para generar un token aleatorio automáticamente",
       "allowedIps": "IPs permitidas",
       "allowedIpsPlaceholder": "p. ej. 192.168.1.0/24; dejar en blanco para permitir solo localhost",
+      "tlsCertPath": "Ruta del certificado HTTPS",
+      "tlsKeyPath": "Ruta de la clave privada HTTPS",
+      "tlsPathPlaceholder": "Ruta absoluta de un archivo PEM, p. ej. /etc/ssl/fullchain.pem",
+      "tlsStatus": "Estado de HTTPS",
+      "tlsEnabled": "HTTPS activado",
+      "tlsDisabled": "No activado (solo localhost)",
+      "tlsHint": "El acceso desde la LAN requiere certificado y clave; de lo contrario la consola solo escucha en 127.0.0.1 y el TLS debe terminar en un proxy inverso.",
       "refresh": "Actualizar estado",
       "status": "Estado",
       "running": "En ejecución",
@@ -1450,7 +1488,15 @@
     "unknown": "La operación falló. Inténtelo de nuevo más tarde",
     "tlsHandshake": "Error en la conexión segura con este sitio; es posible que la red la bloquee. Pruebe un proxy u otra fuente",
     "proxy": "Error de conexión con el proxy. Compruebe la configuración del proxy del sistema o de la aplicación",
-    "certificate": "Error de validación del certificado: el certificado del sitio no es válido o ha caducado"
+    "certificate": "Error de validación del certificado: el certificado del sitio no es válido o ha caducado",
+    "errConnectionRefused": "Conexión rechazada. Comprueba que la dirección sea accesible y que Aria2 esté en ejecución",
+    "errConnectionTimedOut": "Se agotó el tiempo de conexión. Revisa la red o la dirección del servidor",
+    "errConnectionReset": "Conexión interrumpida (servidor cerrado o red inestable). Inténtalo de nuevo",
+    "errNameNotResolved": "No se pudo resolver el nombre del host. Revisa la dirección y tu configuración de DNS",
+    "errInternetDisconnected": "Sin conexión de red. Compruébala y vuelve a intentarlo",
+    "errAddressUnreachable": "La dirección no es accesible. Revisa la red o la configuración del proxy",
+    "errCertInvalid": "Falló la validación del certificado: el certificado del sitio no es válido, ha caducado o no es de confianza",
+    "errSslProtocol": "Falló la negociación SSL/TLS; puede que la conexión esté bloqueada o el sitio sea antiguo"
   },
   "localService": {
     "invalidPort": "Puerto no válido; use un puerto entre 1024 y 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "No se pudo guardar: {error}",
     "deleteFailed": "No se pudo eliminar: {error}",
     "operationFailed": "Error en la operación: {error}"
+  },
+  "onboarding": {
+    "title": "Bienvenido a Aria2Desktop",
+    "subtitle": "Cuatro pasos para configurar lo esencial. Puedes omitir cualquiera y cambiarlo luego en Ajustes.",
+    "stepOf": "Paso {current} de {total}",
+    "skip": "Omitir guía",
+    "later": "Más tarde",
+    "next": "Siguiente",
+    "back": "Atrás",
+    "finish": "Empezar",
+    "statusReady": "Listo",
+    "statusPending": "Sin configurar",
+    "stepDownloadTitle": "Elegir carpeta de descargas",
+    "stepDownloadDesc": "Los archivos se guardan aquí por defecto. Puedes cambiarlo en «Ajustes → Descargas».",
+    "stepDownloadAction": "Abrir ajustes de descargas",
+    "stepExtensionTitle": "Vincular la extensión del navegador",
+    "stepExtensionDesc": "Tras instalarla, pulsa una vez el icono de la extensión en el navegador. Las descargas web pasarán a la aplicación de escritorio.",
+    "stepExtensionAction": "Abrir ajustes de la extensión",
+    "stepYtdlpTitle": "Activar descargas de streaming",
+    "stepYtdlpDesc": "Con yt-dlp puedes pegar directamente la URL de una página de vídeo o audio para descargarla.",
+    "stepYtdlpAction": "Abrir ajustes de componentes",
+    "stepRemoteTitle": "Control remoto y reglas al finalizar",
+    "stepRemoteDesc": "Gestiona las descargas desde el navegador con la consola web y define acciones automáticas al terminar.",
+    "stepRemoteAction": "Abrir ajustes de acceso remoto"
   }
 }

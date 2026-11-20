@@ -14,7 +14,11 @@ import { isLocalEngineAddress } from '../../src/shared/localEngine'
 // 仅类型引用：IPC 入参的形状以共享类型为准，避免主/渲染两侧各写一份而漂移
 import type { Aria2UpdateConfig } from '../../src/shared/electronBridge'
 import { createLogger } from '../utils/logger'
+import { DEFAULT_ENGINE_SHUTDOWN_MAX_WAIT_MS, EngineShutdownService, waitForPortRelease } from '../services/engineShutdownService'
+import type { EngineShutdownResult } from '../services/engineShutdownService'
 import type { AppSettings } from '../types/store'
+// 导入的引擎字段抽取是纯函数（不依赖 electron），见 utils/settingsSync
+import { extractImportedEngineSettings } from '../utils/settingsSync'
 
 const logger = createLogger('Aria2Controller')
 
@@ -45,6 +49,14 @@ export class Aria2Controller {
    * 置位后 aria2 会自行保存会话并退出，此时进程退出兜底**不应**再强杀它（会截断正在写的会话文件）。
    */
   private shutdownRequested = false
+
+  /**
+   * 「导入设置后需要重启引擎才能生效」的待投递标记。
+   *
+   * 导入动作发生在 IPC 里，而渲染层此时可能还没挂好监听（冷启动/窗口刚重建），
+   * 直接 send 会石沉大海。这里先记标记，由 main.ts 在渲染层就绪时统一补投一次。
+   */
+  private pendingEngineRestartNotice = false
 
   /** 注：本类不再持有 store —— settings 读写统一走 utils/settingsAccessor */
   constructor(windowController: WindowController) {
@@ -222,11 +234,9 @@ export class Aria2Controller {
       })
 
       if (aria2Config.autoStart) {
-        // 启动前先探一下 RPC 端口：上面若已经有别的引擎，先把原因说清楚——
-        // 否则现场只是一串"新引擎异常退出 → 3 秒后重启"，以及之后各种看不懂的
-        // Unauthorized / "请求关闭失败"。探测只记日志，不改变启动行为。
-        const probe = this.getRpcSettings()
-        await this.warnIfForeignEngineOnPort(probe.port, probe.secret)
+        // 启动前处理遗留引擎：认本机密钥的残留实例会被要求退出并等待端口释放；
+        // 别的程序占用则提前给出明确错误，避免新进程反复启动失败。
+        await this.prepareForManagedStart()
 
         const success = await this.aria2Manager.start()
         logger.info(`Aria2 自动启动结果: ${success}`)
@@ -282,6 +292,109 @@ export class Aria2Controller {
 
   public getManager(): Aria2ProcessManager | null {
     return this.aria2Manager
+  }
+
+  /**
+   * 把导入的 settings 落到引擎侧（aria2.conf + connectionProfiles）。
+   *
+   * 为什么必须单独做一次：settings-import 过去只写 electron-store，aria2.conf 里仍是旧端口/
+   * 旧密钥、连接预设里也仍是旧端口 —— 用户看到的是"导入成功，但引擎行为一点没变"，
+   * 而界面上显示的连接参数又已经变了，于是连接直接失效（最典型的：导入后连不上引擎）。
+   *
+   * 分工：settings 的合并/脱敏由 utils/settingsSync 完成（纯函数、可单测），
+   * 这里只负责"把结论落到引擎与配置文件"，并返回是否需要重启才能生效。
+   *
+   * @returns requiresRestart 是否需要重启引擎；changed 实际写进配置的字段名
+   */
+  public async applyImportedSettings(settings: AppSettings): Promise<{ requiresRestart: boolean; changed: string[] }> {
+    const imported = extractImportedEngineSettings(settings)
+    const changed: string[] = []
+    if (Object.keys(imported).length === 0) return { requiresRestart: false, changed }
+
+    const manager = this.aria2Manager
+    if (!manager) {
+      // 引擎从未初始化（导入发生在启动早期/初始化失败后）：只落 settings，重启后自然生效
+      logger.info('[Aria2Controller] 导入设置时引擎尚未初始化，跳过配置落盘')
+      return { requiresRestart: false, changed }
+    }
+
+    const current = manager.getConfig()
+    const updates: Partial<Aria2ProcessConfig> = {}
+    const portChanged = imported.port !== undefined && imported.port !== current.port
+    if (imported.port !== undefined && portChanged) {
+      updates.port = imported.port
+      changed.push('port')
+    }
+    if (imported.secret !== undefined && imported.secret !== current.secret) {
+      updates.secret = imported.secret
+      changed.push('secret')
+    }
+    if (imported.downloadDir !== undefined && imported.downloadDir !== current.downloadDir) {
+      updates.downloadDir = imported.downloadDir
+      changed.push('downloadDir')
+    }
+    for (const key of ['enableRpc', 'rpcAllowOriginAll', 'rpcListenAll', 'rpcSecure'] as const) {
+      const value = imported[key]
+      if (value !== undefined && value !== current[key]) {
+        updates[key] = value
+        changed.push(key)
+      }
+    }
+
+    if (changed.length === 0) return { requiresRestart: false, changed }
+
+    try {
+      // updateConfig 会落 aria2.conf，并在引擎运行时自动安排一次重启
+      manager.updateConfig(updates)
+      manager.flushConfig()
+    } catch (error) {
+      logger.error('[Aria2Controller] 导入设置写入引擎配置失败:', error)
+      return { requiresRestart: true, changed }
+    }
+
+    // 引擎没在跑：配置已经写进文件，下次启动生效，无需打扰用户
+    if (!manager.isRunning()) {
+      logger.info('[Aria2Controller] 导入设置已写入 aria2.conf（引擎未运行，下次启动生效）', changed)
+      return { requiresRestart: false, changed }
+    }
+
+    // 引擎在跑：updateConfig 只在"需要重启的字段"变化时自动重启。端口/密钥变化后
+    // 界面里的连接参数必须跟着换，否则重启完成的瞬间渲染层还在用旧端口连（连接失败）。
+    if (portChanged || updates.secret !== undefined) {
+      this.syncConnectionProfilesAfterImport(settings, current.port)
+    }
+
+    logger.info('[Aria2Controller] 导入设置已同步到引擎配置，等待自动重启生效', changed)
+    this.pendingEngineRestartNotice = true
+    return { requiresRestart: true, changed }
+  }
+
+  /** 引擎参数变化后，把本机引擎对应的连接预设改成同一组参数（否则导入后界面连不上） */
+  private syncConnectionProfilesAfterImport(settings: AppSettings, oldPort: number): void {
+    const currentSettings = getSettingsFresh()
+    const nextPort = Number(settings.aria2?.port) || oldPort
+    const nextSecret = String(settings.aria2?.secret ?? '')
+    const profiles = currentSettings.connectionProfiles
+    if (!profiles || profiles.length === 0) return
+
+    let touched = false
+    const updatedProfiles = profiles.map((profile) => {
+      if (!profile?.config) return profile
+      if (!isLocalEngineAddress(profile.config.host, profile.config.port, oldPort)) return profile
+      touched = true
+      return { ...profile, config: { ...profile.config, port: nextPort, secret: nextSecret } }
+    })
+    if (!touched) return
+
+    saveSettings({ ...currentSettings, connectionProfiles: updatedProfiles })
+    logger.info('[Aria2Controller] 导入设置后已同步本机连接预设的端口/密钥')
+  }
+
+  /** 取出并清除"导入后需要重启引擎"的待投递标记（由 main.ts 在渲染层就绪时调用） */
+  public consumeEngineRestartNotice(): boolean {
+    const pending = this.pendingEngineRestartNotice
+    this.pendingEngineRestartNotice = false
+    return pending
   }
 
   /**
@@ -355,16 +468,23 @@ export class Aria2Controller {
   }
 
   /**
-   * 启动前探测：RPC 端口上是否已经有一个"不是本次要启动的"引擎。
+   * 托管引擎启动前的统一准备：探测 RPC 端口并处理遗留实例。
    *
-   * 为什么需要它：残留实例（上次没退干净）或别的 aria2 客户端占着端口时，现在的表现是
+   * 为什么需要它：残留实例（上次没退干净）或别的 aria2 客户端占着端口时，直接 start 的表现是
    * "新引擎绑定端口失败 → 异常退出 → 3 秒后重启"的一串日志，用户看不出真正原因；
    * 更糟的是应用随后的 RPC 会打到那个外来引擎上——于是留下"保存会话 Unauthorized +
-   * 请求关闭失败"这类查不出所以然的记录（09-30 23:10 那两次就是这么来的）。
-   *
-   * 只记日志、不改变启动行为：那确实是我们自己的旧引擎时，后续表现与现状一致。
+   * 请求关闭失败"这类查不出所以然的记录。对认本机密钥的遗留 aria2（典型是更新/崩溃后残留），
+   * 这里主动 shutdown/forceShutdown 并等端口释放，实现"新实例接管"；认不出本机密钥或
+   * 根本不是 aria2 的端口占用则给出明确错误，而不是让新进程反复撞墙。
    */
-  private async warnIfForeignEngineOnPort(port: number, secret: string): Promise<void> {
+  public async prepareForManagedStart(): Promise<void> {
+    // 本应用自己的引擎已经在跑（例如用户重复点击启动）：无需也不应把它当成"遗留实例"杀掉
+    if (this.aria2Manager?.isRunning()) return
+    const { port, secret } = this.getRpcSettings()
+    await this.reclaimLeftoverEngineOnPort(port, secret)
+  }
+
+  private async reclaimLeftoverEngineOnPort(port: number, secret: string): Promise<void> {
     let probeError: unknown
     try {
       await callAria2Rpc({ port, secret, method: 'aria2.getVersion', timeoutMs: 1200 })
@@ -374,29 +494,45 @@ export class Aria2Controller {
 
     // 分类见 aria2Rpc.classifyRpcPortProbe（纯函数，每种输入都有用例钉死）
     switch (classifyRpcPortProbe(probeError)) {
-      case 'aria2-with-our-secret':
+      case 'aria2-with-our-secret': {
         logger.warn(
-          `RPC 端口 ${port} 上已有引擎在运行且认可本机密钥：可能是上次未完全退出的残留实例，` +
-            '也可能是手动启动的 aria2。本次启动的新引擎将无法绑定该端口，' +
-            '请检查任务管理器里是否有残留的 aria2c 进程。'
+          `RPC 端口 ${port} 上已有引擎在运行且认可本机密钥：判定为上次未完全退出的遗留实例，` +
+            '正在请求其退出以便本次启动接管端口。'
         )
+        try {
+          await callAria2Rpc({ port, secret, method: 'aria2.shutdown', timeoutMs: 2000 })
+        } catch (error) {
+          logger.warn('[Aria2Controller] 遗留引擎 shutdown 请求失败，稍后尝试 forceShutdown:', error)
+        }
+        let released = await waitForPortRelease(port, 3000)
+        if (!released) {
+          logger.warn(`[Aria2Controller] 遗留引擎在 3s 内未释放端口 ${port}，尝试 aria2.forceShutdown`)
+          try {
+            await callAria2Rpc({ port, secret, method: 'aria2.forceShutdown', timeoutMs: 2000 })
+          } catch (error) {
+            logger.warn('[Aria2Controller] 遗留引擎 forceShutdown 请求失败:', error)
+          }
+          released = await waitForPortRelease(port, 2000)
+        }
+        if (!released) {
+          throw new Error(`RPC 端口 ${port} 上的遗留 aria2 实例未能退出，请手动结束残留的 aria2c 进程后重试`)
+        }
+        logger.info(`[Aria2Controller] 已结束遗留 aria2 实例并释放 RPC 端口 ${port}`)
         break
+      }
       case 'aria2-with-other-secret':
-        logger.warn(
-          `RPC 端口 ${port} 已被另一个引擎占用（它不认本机密钥）：不是本应用当前的引擎，多半是残留实例。` +
-            '本次启动会因端口被占而失败，且应用的请求会打到它上面，' +
-            '表现为 Unauthorized / 请求关闭失败。请结束残留的 aria2c 进程后重试。'
+        throw new Error(
+          `RPC 端口 ${port} 已被另一个 aria2 实例占用（不认可本机密钥）。` +
+            '为避免误杀其它下载器，本应用不会自动结束它；请关闭该实例或更换 rpc-listen-port 后重试。'
         )
-        break
       case 'non-aria2-service':
-        logger.warn(
-          `RPC 端口 ${port} 上监听的服务不是 aria2（响应不是 JSON-RPC）：端口被其它程序占用，` +
+        throw new Error(
+          `RPC 端口 ${port} 上监听的服务不是 aria2（响应不是 JSON-RPC）。` +
             '请在「引擎设置」里换一个 rpc-listen-port。'
         )
-        break
       case 'unknown':
         // 有服务在监听但没正常应答（超时等）：不下结论，但留痕——否则现场只剩一片安静
-        logger.info(`启动前探测 RPC 端口 ${port} 未得到确定结果（端口上可能有服务但未正常应答）：`, probeError)
+        logger.warn(`启动前探测 RPC 端口 ${port} 未得到确定结果（端口上可能有服务但未正常应答）：`, probeError)
         break
       case 'free':
         break // 端口空闲：正常启动路径，不记录
@@ -423,6 +559,69 @@ export class Aria2Controller {
       .catch((error) => {
         logger.warn('请求 aria2 关闭失败，aria2 可能残留并占用 RPC 端口：', error)
       })
+  }
+
+  /**
+   * 请求关闭 aria2 并等待进程退出、RPC 端口释放（用于「重启更新」）。
+   *
+   * 与 requestShutdown 的区别：这里必须等旧引擎真正退出，否则 NSIS 安装程序启动后，
+   * 旧 aria2 仍占着 RPC 端口，更新后的新版本启动引擎会失败。Aria2ProcessManager.stop()
+   * 内部可能等待较久（优雅关闭 + 超时），因此 EngineShutdownService 会并发轮询，
+   * 超过 maxWaitMs 后强制结束进程树（taskkill /T /F），再确认端口释放。
+   */
+  public async requestShutdownAndWait(
+    maxWaitMs: number = DEFAULT_ENGINE_SHUTDOWN_MAX_WAIT_MS
+  ): Promise<EngineShutdownResult> {
+    const manager = this.aria2Manager
+    if (!manager) {
+      return { success: true, forced: false, timedOut: false, processExited: true, portReleased: true, waitedMs: 0 }
+    }
+    const { port } = this.getRpcSettings()
+    const service = new EngineShutdownService({
+      getProcessManager: () => manager,
+      getPort: () => port,
+      logger
+    })
+    return await service.requestShutdownAndWait(maxWaitMs)
+  }
+
+  /**
+   * 安装程序启动失败后的兜底：把刚停掉的下载引擎重新拉起来，避免用户停留在
+   * 「既没装上更新、下载引擎也没了」的状态。返回是否成功启动。
+   */
+  public async restartEngine(): Promise<{ success: boolean; error?: string }> {
+    if (!this.aria2Manager) {
+      await this.initialize()
+      if (!this.aria2Manager) {
+        const error = 'Aria2 manager 未初始化'
+        logger.error('[Aria2Controller] 重启引擎失败：' + error)
+        return { success: false, error }
+      }
+    }
+    if (this.aria2Manager.isRunning()) return { success: true }
+    // EngineShutdownService 超时强杀后，manager.stop() 可能仍在退出等待链里。
+    // stop() 会复用进行中的 Promise：先 join，避免紧接着的 start() 因 isStopping 直接返回 false。
+    try {
+      await this.aria2Manager.stop()
+    } catch (error) {
+      logger.warn('[Aria2Controller] 重启引擎前等待旧进程停止失败，继续尝试启动:', error)
+    }
+    this.aria2Manager.resetRestartCounter()
+    let started = false
+    try {
+      started = await this.aria2Manager.start()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error('[Aria2Controller] 安装程序启动失败后重启引擎异常:', message)
+      return { success: false, error: message }
+    }
+    if (!started) {
+      const error = this.aria2Manager.getLastStderr() || 'Aria2 进程启动失败'
+      logger.error('[Aria2Controller] 安装程序启动失败后重启引擎失败:', error)
+      return { success: false, error }
+    }
+    logger.info('[Aria2Controller] 安装程序启动失败，已重新启动下载引擎')
+    return { success: true }
   }
 
   /**
@@ -506,6 +705,11 @@ export class Aria2Controller {
     registerSecureHandler('aria2-start', async () => {
       if (!this.aria2Manager) await this.initialize()
       if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
+      try {
+        await this.prepareForManagedStart()
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
       // 用户手动启动代表"重新授权重试"：崩溃回环放弃后，计数不清零会让引擎
       // 再崩一次就立刻再次放弃。
       this.aria2Manager.resetRestartCounter()

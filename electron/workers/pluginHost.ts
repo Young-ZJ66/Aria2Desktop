@@ -12,8 +12,10 @@ import type { PluginManifest } from '../types/plugin'
 interface LoadMessage { type: 'load'; pluginId: string; manifest: PluginManifest; code: string }
 interface EventMessage { type: 'event'; event: 'downloadStart' | 'downloadComplete' | 'downloadError'; data: { gid: string; name: string } }
 interface DeactivateMessage { type: 'deactivate' }
+/** 主进程要求本 worker 自行清理并退出（加载超时 / 插件被替换） */
+interface TerminateMessage { type: 'terminate' }
 
-type Incoming = LoadMessage | EventMessage | DeactivateMessage | { type: 'api-response'; id: number; ok: boolean; value?: unknown; error?: string }
+type Incoming = LoadMessage | EventMessage | DeactivateMessage | TerminateMessage | { type: 'api-response'; id: number; ok: boolean; value?: unknown; error?: string }
 type Outgoing =
   | { type: 'ready' }
   | { type: 'loaded'; ok: boolean; error?: string }
@@ -29,6 +31,26 @@ const parentPort = (process as unknown as { parentPort: { postMessage: (message:
 let instance: Record<string, unknown> = {}
 let nextRequestId = 1
 const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
+
+/**
+ * 插件注册的定时器（D-16）。
+ *
+ * 此前沙箱直接暴露裸 setTimeout/setInterval：插件一旦在加载阶段注册了
+ * setInterval 就永远清不掉——加载失败/超时后主进程 kill 进程虽然能收尾，
+ * 但在 kill 之前的窗口里定时器还在跑，且 deactivate 也无法清理。
+ * 这里统一记录，加载失败与 deactivate/terminate 时全部清空。
+ */
+const pluginTimers = new Set<ReturnType<typeof setTimeout>>()
+
+function clearPluginTimers(): void {
+  for (const timer of pluginTimers) {
+    try {
+      clearTimeout(timer)
+      clearInterval(timer as unknown as ReturnType<typeof setInterval>)
+    } catch { /* ignore */ }
+  }
+  pluginTimers.clear()
+}
 
 function send(message: Outgoing): void {
   parentPort.postMessage(message)
@@ -69,14 +91,37 @@ function createContext(): Record<string, unknown> {
     unpause: (gid: string) => callApi('aria2.unpause', gid),
     remove: (gid: string) => callApi('aria2.remove', gid)
   }
+  // 受跟踪的定时器包装：插件只能通过它们注册定时器，宿主才能在
+  // 加载失败/停用时统一清理（签名与 Node 原生一致，插件无感知）
+  const trackedSetTimeout = (handler: (...args: unknown[]) => void, timeout?: number, ...args: unknown[]): ReturnType<typeof setTimeout> => {
+    const timer = setTimeout(() => {
+      pluginTimers.delete(timer)
+      handler(...args)
+    }, timeout)
+    pluginTimers.add(timer)
+    return timer
+  }
+  const trackedSetInterval = (handler: (...args: unknown[]) => void, timeout?: number, ...args: unknown[]): ReturnType<typeof setInterval> => {
+    const timer = setInterval(handler, timeout, ...args)
+    pluginTimers.add(timer as unknown as ReturnType<typeof setTimeout>)
+    return timer
+  }
+  const trackedClearTimeout = (timer?: ReturnType<typeof setTimeout>): void => {
+    if (timer) pluginTimers.delete(timer)
+    clearTimeout(timer as never)
+  }
+  const trackedClearInterval = (timer?: ReturnType<typeof setInterval>): void => {
+    if (timer) pluginTimers.delete(timer as unknown as ReturnType<typeof setTimeout>)
+    clearInterval(timer as never)
+  }
   return {
     module: { exports: {} as Record<string, unknown> },
     exports: {} as Record<string, unknown>,
     console: { log: log('log'), warn: log('warn'), error: log('error') },
-    setTimeout,
-    clearTimeout,
-    setInterval,
-    clearInterval,
+    setTimeout: trackedSetTimeout,
+    clearTimeout: trackedClearTimeout,
+    setInterval: trackedSetInterval,
+    clearInterval: trackedClearInterval,
     Date,
     Math,
     JSON,
@@ -119,6 +164,9 @@ function loadPlugin(message: LoadMessage): void {
     }
   } catch (error) {
     instance = {}
+    // 加载失败（含 runInContext 的 3s 超时）必须清掉本次加载注册的定时器：
+    // 否则插件的半初始化 setInterval 会在宿主进程里一直跑（D-16）
+    clearPluginTimers()
     send({ type: 'loaded', ok: false, error: serializeError(error) })
   }
 }
@@ -145,7 +193,27 @@ async function deactivate(): Promise<void> {
   if (typeof handler === 'function') {
     try { await handler() } catch (error) { send({ type: 'event-error', error: serializeError(error) }) }
   }
+  instance = {}
+  // 停用后插件不应留下任何仍在运行的定时器（20 次启用/禁用验收项）
+  clearPluginTimers()
   send({ type: 'deactivated' })
+}
+
+/**
+ * 主进程要求终止（D-16）：先清理定时器、断开待处理 API 回调，再退出。
+ *
+ * 为什么不直接等主进程 kill：kill 是异步的（主进程给了 200~400ms 宽限），
+ * 这段时间里插件的 setInterval 仍在执行，可能继续调用 API 或写文件。
+ */
+function terminate(): void {
+  clearPluginTimers()
+  instance = {}
+  for (const [, item] of pending) {
+    try { item.reject(new Error('Plugin worker terminated')) } catch { /* ignore */ }
+  }
+  pending.clear()
+  // 给 deactivated 之类的消息一点发送时间，然后主动退出（父进程也会兜底 kill）
+  setTimeout(() => process.exit(0), 50)
 }
 
 parentPort.on('message', (event) => {
@@ -154,6 +222,7 @@ parentPort.on('message', (event) => {
   if (message.type === 'load') { loadPlugin(message); return }
   if (message.type === 'event') { handleEvent(message.event, message.data); return }
   if (message.type === 'deactivate') { void deactivate(); return }
+  if (message.type === 'terminate') { terminate(); return }
   if (message.type === 'api-response') {
     const response = message as unknown as { id: number; ok: boolean; value?: unknown; error?: string }
     const item = pending.get(response.id)

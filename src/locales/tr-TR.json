@@ -135,7 +135,16 @@
     "saveTorrentFailed": "Torrent kaydedilemedi: {error}",
     "batchOpen": "Dosyaları aç",
     "batchOpenSuccess": "{count} dosya açıldı",
-    "batchOpenFailed": "Hiçbir dosya açılamadı"
+    "batchOpenFailed": "Hiçbir dosya açılamadı",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "Toplu işlem sonucu",
+    "batchResultSuccess": "{count} başarılı",
+    "batchResultFailed": "{count} başarısız",
+    "batchResultSkipped": "{count} atlandı",
+    "batchResultFailures": "Hata ayrıntıları",
+    "batchResultMore": "{count} tane daha gösterilmiyor"
   },
   "status": {
     "active": "İndiriliyor",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} tohumlayıcı çevrimiçi",
     "healthSeeding": "Bu cihazdan tohumlama yapılıyor",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "Magnet URI'yi kopyala"
+    "copyMagnet": "Magnet URI'yi kopyala",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "IP Adresi",
@@ -234,7 +251,15 @@
     "deleteFiles": "Dosyaları da sil",
     "toTrashHint": "Dosyalar sistem geri dönüşüm kutusuna taşınır ve oradan geri yüklenebilir",
     "deleteTaskAndFiles": "Görevi ve Dosyaları Sil",
-    "taskDeleted": "Görev silindi"
+    "taskDeleted": "Görev silindi",
+    "errors": {
+      "removeRecordFailed": "Görev kaydı silinemedi: {detail}",
+      "deleteFileFailed": "Dosya silinemedi: {path} ({detail})",
+      "deleteFilesFailed": "Dosya silme işlemi başarısız: {detail}",
+      "deleteFilesException": "Dosyalar silinirken hata oluştu: {detail}",
+      "unknownError": "Görev silinirken bilinmeyen hata: {detail}",
+      "processTaskFailed": "{gid} görevi işlenirken hata oluştu: {detail}"
+    }
   },
   "newTask": {
     "title": "Yeni İndirme Görevi",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Bir .torrent dosyası seçmek için tıklayın veya buraya sürükleyin",
     "dropMetalinkHint": "Bir .metalink / .meta4 dosyası seçmek için tıklayın veya buraya sürükleyin",
     "fileTooLarge": "Dosya aria2 RPC yüklemesi için çok büyük (>1MB). Yerel bir yola koyup URL ile ekleyin",
+    "fileTooLargeLimit": "Dosya geçerli sınırı ({limit}) aşıyor. \"Ayarlar → RPC ve Güvenlik\" bölümünde rpc-max-request-size değerini artırın",
+    "streamTooManyDownloads": "Eşzamanlı akış indirme sınırına (3) ulaşıldı. Mevcut görevlerin bitmesini bekleyin",
     "streamPlaylist": "Oynatma listesi",
     "streamPlaylistEmpty": "Oynatma listesinde girdi bulunamadı (bağlantı bir oynatma listesi olmayabilir)",
     "streamPlaylistSelectAll": "Tümünü seç",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Arşiv Açıldı ({count} mevcut dosya korundu; arşiv silinmedi)",
     "engineCrashed": "aria2 motoru beklenmedik şekilde kapandı. Otomatik olarak yeniden başlatılıyor (deneme {count}).",
     "engineGaveUp": "aria2 motoru {count} kez yeniden başlatılamadı, otomatik yeniden başlatma durduruldu. Ayarlar → Yerel motor bölümünden elle başlatın veya ayrıntılar için uygulama günlüğünü açın.",
-    "shutdownCancelled": "Yeni indirme algılandı — planlanan kapatma iptal edildi."
+    "shutdownCancelled": "Yeni indirme algılandı — planlanan kapatma iptal edildi.",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "Bildirimler",
@@ -430,6 +458,8 @@
     "seedingTasks": "Tohumlama",
     "trafficChartAria": "İndirme ve yükleme hızı eğilim grafiği",
     "enabledFeatures": "Etkin Özellikler",
+    "downloadTrend": "İndirme Eğilimi",
+    "noTrendData": "Henüz indirme verisi yok",
     "resetHistory": "İndirme istatistiklerini sıfırla",
     "resetHistoryConfirm": "Bugünkü ve toplam indirme istatistikleri temizlensin mi? Bu yalnızca bu uygulamanın sayaçlarını etkiler; hiçbir görev veya dosya silinmez."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "Eklenti mağazası HTTP {status} döndürdü. Daha sonra tekrar deneyin.",
       "marketErrorTooLarge": "Eklenti mağazası kayıt defteri çok büyük ve reddedildi.",
       "marketErrorInvalidRegistry": "Eklenti mağazası kayıt defteri geçersiz biçimde. Kayıt URL'sini kontrol edin.",
+      "marketErrorSignature": "Eklenti mağazası kayıt defteri imza doğrulaması başarısız oldu: kayıt defteri kurcalanmış veya güvenilmeyen bir anahtarla imzalanmış olabilir. Yüklenmedi.",
       "marketErrorNetwork": "Eklenti mağazasına ulaşılamıyor. Ağınızı veya proxy'nizi kontrol edip tekrar deneyin.",
       "trustedPublishers": "Güvenilir yayıncı anahtarları",
       "trustedPublishersDesc": "Güvenilir yayıncıların Ed25519 ortak anahtarlarını (PEM) boş satırlarla ayırarak girin. İmzalı mağaza eklentileri yüklenebilmeleri için imza doğrulamasını geçmelidir.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Otomatik rastgele belirteç oluşturmak için boş bırakın",
       "allowedIps": "İzin verilen IP'ler",
       "allowedIpsPlaceholder": "ör. 192.168.1.0/24; yalnızca localhost'a izin vermek için boş bırakın",
+      "tlsCertPath": "HTTPS sertifika yolu",
+      "tlsKeyPath": "HTTPS özel anahtar yolu",
+      "tlsPathPlaceholder": "PEM dosyasının mutlak yolu, örn. /etc/ssl/fullchain.pem",
+      "tlsStatus": "HTTPS durumu",
+      "tlsEnabled": "HTTPS etkin",
+      "tlsDisabled": "Etkin değil (yalnızca localhost)",
+      "tlsHint": "LAN erişimi için sertifika ve anahtar gerekir; aksi halde konsol yalnızca 127.0.0.1 üzerinde dinler ve TLS bir ters proxy'de sonlandırılmalıdır.",
       "refresh": "Durumu yenile",
       "status": "Durum",
       "running": "Çalışıyor",
@@ -1450,7 +1488,15 @@
     "unknown": "İşlem başarısız oldu. Lütfen daha sonra tekrar deneyin",
     "tlsHandshake": "Bu siteye güvenli bağlantı kurulamadı — ağ bunu engelliyor olabilir. Bir proxy veya farklı bir kaynak deneyin",
     "proxy": "Proxy bağlantısı başarısız oldu. Sistem veya uygulama proxy ayarlarınızı kontrol edin",
-    "certificate": "Sertifika doğrulaması başarısız oldu: site sertifikası geçersiz veya süresi dolmuş"
+    "certificate": "Sertifika doğrulaması başarısız oldu: site sertifikası geçersiz veya süresi dolmuş",
+    "errConnectionRefused": "Bağlantı reddedildi. Adresin erişilebilir ve Aria2'nin çalışıyor olduğundan emin olun",
+    "errConnectionTimedOut": "Bağlantı zaman aşımına uğradı. Ağı veya sunucu adresini kontrol edin",
+    "errConnectionReset": "Bağlantı kesildi (sunucu kapandı veya ağ kararsız). Tekrar deneyin",
+    "errNameNotResolved": "Ana bilgisayar adı çözümlenemedi. Adresi ve DNS ayarlarınızı kontrol edin",
+    "errInternetDisconnected": "Ağ bağlantısı yok. Kontrol edip tekrar deneyin",
+    "errAddressUnreachable": "Adrese ulaşılamıyor. Ağ veya proxy ayarlarını kontrol edin",
+    "errCertInvalid": "Sertifika doğrulaması başarısız: sitenin sertifikası geçersiz, süresi dolmuş veya güvenilmez",
+    "errSslProtocol": "SSL/TLS anlaşması başarısız — bağlantı engelleniyor olabilir veya site eski"
   },
   "localService": {
     "invalidPort": "Geçersiz bağlantı noktası, lütfen 1024 ile 65535 arasında bir bağlantı noktası kullanın",
@@ -1768,5 +1814,29 @@
     "saveFailed": "Kaydedilemedi: {error}",
     "deleteFailed": "Silinemedi: {error}",
     "operationFailed": "İşlem başarısız: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

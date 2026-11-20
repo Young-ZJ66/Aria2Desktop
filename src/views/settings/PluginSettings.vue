@@ -128,6 +128,14 @@
                   <span class="market-config-label">{{ t('settings.plugins.marketRegistryUrl') }}</span>
                   <n-input v-model:value="marketRegistryUrl" size="small" :placeholder="t('settings.plugins.marketRegistryPlaceholder')" />
                 </div>
+                <!-- 开发者模式：唯一放行未签名市场包的开关，开启时必须常驻红色警告 -->
+                <div class="market-config-row">
+                  <span class="market-config-label">{{ devModeLabel }}</span>
+                  <n-switch v-model:value="developerMode" size="small" />
+                </div>
+                <n-alert v-if="developerMode" type="error" :bordered="false" :show-icon="true" class="market-dev-warning">
+                  {{ devModeWarning }}
+                </n-alert>
                 <div class="market-config-actions">
                   <n-button size="small" :loading="savingMarketSettings" @click="saveMarketSettings">
                     {{ t('common.save') }}
@@ -239,11 +247,15 @@ interface MarketPlugin {
   description?: string
   author?: string
   publisher?: string
+  /** 安装前预览需要的字段：来源地址、内容哈希与申请的权限 */
+  entryUrl?: string
+  sha256?: string
+  permissions?: string[]
   installed?: boolean
   installedVersion?: string
 }
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const settingsStore = useSettingsStore()
 const plugins = ref<PluginInfo[]>([])
 const loading = ref(false)
@@ -260,6 +272,24 @@ const marketEnabled = ref(settingsStore.settings.pluginMarket?.enabled !== false
 const marketRegistryUrl = ref(settingsStore.settings.pluginMarket?.registryUrl || '')
 const savingMarketSettings = ref(false)
 
+/**
+ * 开发者模式：放行未签名的市场插件包（默认关闭）。
+ * 未签名包无法验证来源，因此开关旁必须常驻红色警告，不能只写在说明里。
+ */
+const developerMode = ref(settingsStore.settings.pluginMarket?.developerMode === true)
+
+/** 本页新增文案尚无 locale 键（locales 由其它改动维护），按中文/其它语言双语兜底 */
+function localized(zh: string, en: string): string {
+  return locale.value.toLowerCase().startsWith('zh') ? zh : en
+}
+
+const devModeLabel = computed(() => localized('开发者模式（允许未签名插件）', 'Developer mode (allow unsigned plugins)'))
+
+const devModeWarning = computed(() => localized(
+  '开发者模式已开启：安装市场插件时不再强制校验发布者签名。未签名插件来源不可信，仅在你自行开发或测试插件时开启。',
+  'Developer mode is ON: publisher signatures are no longer required for market installs. Unsigned plugins cannot be trusted — enable this only while developing or testing your own plugins.'
+))
+
 /** 把插件市场的技术错误码映射为用户能理解的原因，而不是直接暴露 INVALID_REGISTRY_URL 之类的字符串 */
 const marketErrorText = computed(() => {
   const code = marketError.value
@@ -275,6 +305,8 @@ const marketErrorText = computed(() => {
       return t('settings.plugins.marketErrorTooLarge')
     case 'INVALID_REGISTRY':
       return t('settings.plugins.marketErrorInvalidRegistry')
+    case 'REGISTRY_SIGNATURE_INVALID':
+      return t('settings.plugins.marketErrorSignature')
     case 'NETWORK_ERROR':
       return t('settings.plugins.marketErrorNetwork')
     default:
@@ -433,13 +465,22 @@ async function installMarketPlugin(item: MarketPlugin) {
   if (!api?.pluginsMarketInstall) return
   const upgrading = !!item.installed
   const confirmed = await new Promise<boolean>((resolve) => {
+    // 安装前预览：把用户将要信任的东西全部摊开（发布者、来源 URL、SHA-256、申请的权限），
+    // 而不是只给一个名字和版本号就让人点确定。
+    const details = [
+      item.publisher ? `${t('settings.plugins.marketPublisher')}: ${item.publisher}` : '',
+      item.entryUrl ? `URL: ${item.entryUrl}` : '',
+      item.sha256 ? `SHA-256: ${item.sha256}` : '',
+      item.permissions?.length ? `${t('settings.plugins.permissionTitle')} ${item.permissions.join(', ')}` : ''
+    ].filter(Boolean)
+    const head = t(upgrading ? 'settings.plugins.marketUpdateConfirm' : 'settings.plugins.marketInstallConfirm', {
+      name: item.name,
+      version: item.version,
+      from: item.installedVersion || ''
+    })
     confirm({
       title: t(upgrading ? 'settings.plugins.marketUpdateTitle' : 'settings.plugins.marketInstallTitle'),
-      content: t(upgrading ? 'settings.plugins.marketUpdateConfirm' : 'settings.plugins.marketInstallConfirm', {
-        name: item.name,
-        version: item.version,
-        from: item.installedVersion || ''
-      }),
+      content: details.length ? `${head}\n\n${details.join('\n')}` : head,
       positiveText: t(upgrading ? 'settings.plugins.marketUpdate' : 'settings.plugins.marketInstall'),
       negativeText: t('common.cancel'),
       onPositiveClick: () => resolve(true),
@@ -461,6 +502,14 @@ async function installMarketPlugin(item: MarketPlugin) {
         name: item.name,
         version: item.version
       }))
+      // 主进程允许开发者模式装未签名包时会在结果里带 warning：必须显式告警，不能静默放行
+      const warning = (result as { warning?: string } | undefined)?.warning
+      if (warning) {
+        message.warning(localized(
+          `「${item.name}」未通过签名校验，仅以开发者模式安装，请自行确认来源可信。`,
+          `"${item.name}" was installed WITHOUT a verified signature (developer mode). Make sure you trust its source.`
+        ))
+      }
       await loadPlugins()
     } else {
       message.error(t('settings.plugins.marketInstallFailed', { error: result?.error || 'unknown' }))
@@ -495,7 +544,8 @@ async function saveMarketSettings() {
   try {
     await settingsStore.updateSetting('pluginMarket', {
       enabled: marketEnabled.value,
-      registryUrl: marketRegistryUrl.value.trim()
+      registryUrl: marketRegistryUrl.value.trim(),
+      developerMode: developerMode.value
     })
     message.success(t('settings.plugins.marketSettingsSaved'))
     await loadMarket(true)
@@ -598,6 +648,10 @@ onMounted(() => {
 .market-config-actions {
   display: flex;
   justify-content: flex-start;
+}
+
+.market-dev-warning {
+  margin-bottom: var(--ds-space-8);
 }
 
 .publishers-actions {

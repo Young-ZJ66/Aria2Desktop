@@ -494,6 +494,7 @@ import TipLabel from '@/components/settings/TipLabel.vue'
 import AppSwitch from '@/components/AppSwitch.vue'
 import { withMinimumDuration } from '@/composables/useMinimumLoading'
 import { formatSizeWithUnit } from '@/utils/size'
+import { formatDateTime } from '@/utils/taskFormatters'
 import type { SettingSchema } from '@/types/settingSchema'
 import { useSettingSchema } from '@/composables/useSettingSchema'
 import { useGlobalSettingsForm } from '@/composables/useGlobalSettingsForm'
@@ -613,7 +614,7 @@ const btSettingsSchema: SettingSchema = {
 
 const { applyOptions, toOptions, defaults } = useSettingSchema(btSettingsSchema, settings)
 
-const { loading, saving, reloading, loadSettings, handleSave, handleReset } = useGlobalSettingsForm(settings, {
+const { loading, saving, reloading, loadSettings, handleSave, handleReset, markFieldsSynced } = useGlobalSettingsForm(settings, {
   // 未保存离开确认：跟踪全部表单字段（原始值，JSON 序列化对比）
   dirtyTracking: {
     pageId: 'bt',
@@ -737,11 +738,12 @@ const btTrackerText = computed({
   }
 })
 
-// 本地化更新时间展示，空/非法值回退为空串
+// 本地化更新时间展示，空/非法值回退为空串（D-28：走 taskFormatters 的 locale 日期函数，避免跟随系统语言）
 function formatTrackerTime(iso: string): string {
   if (!iso) return ''
   const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString()
+  if (Number.isNaN(date.getTime())) return ''
+  return formatDateTime(date)
 }
 
 // 获取所有启用的订阅来源 URL 列表
@@ -815,7 +817,13 @@ onMounted(async () => {
   unsubscribeTracker = window.electronAPI!.tracker.onUpdated((res) => {
     // loading 由 updateTrackersNow 的 finally 统一结束，避免事件先到导致按钮动画提前消失
     if (res.success) {
-      if (res.csv) settings.btTracker = res.csv
+      if (res.csv) {
+        settings.btTracker = res.csv
+        // 这次回写是主进程订阅任务推来的，不是用户编辑：对齐快照，否则本页凭空变脏，
+        // 关设置弹窗时会被「有未保存的设置」拦住（e2e 里就卡在这里）。
+        // 只对齐 btTracker，用户在同页其他字段上的编辑仍算未保存。
+        markFieldsSynced(['btTracker'])
+      }
       trackerLastUpdate.value = res.lastUpdate ?? null
       trackerLastCount.value = res.count ?? 0
     }

@@ -61,6 +61,9 @@
             <!-- 全局更新弹窗（启动检查与设置页手动检查共用） -->
             <UpdateDialog />
 
+            <!-- 首次启动向导（D-31）：全局唯一实例，状态自行持久化，仅在 pending 时自动弹出 -->
+            <OnboardingWizard />
+
             <!-- 拖拽下载覆盖层 -->
             <transition name="fade-in">
               <div v-if="isDragging" class="drop-overlay">
@@ -80,13 +83,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, h } from 'vue'
+import { computed, ref, onMounted, h, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NIcon } from 'naive-ui'
 import { CloudDownloadOutline, FileTrayOutline } from '@vicons/ionicons5'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useThemeManager } from '@/composables/useThemeManager'
+import { extractSupportedUris } from '@/utils/downloadUri'
 import { useAppLifecycle } from '@/composables/useAppLifecycle'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
@@ -96,6 +100,7 @@ import SettingsDialog from '@/components/dialogs/SettingsDialog.vue'
 import TaskDetailDrawer from '@/components/dialogs/TaskDetailDrawer.vue'
 import NotificationDrawer from '@/components/dialogs/NotificationDrawer.vue'
 import UpdateDialog from '@/components/dialogs/UpdateDialog.vue'
+import OnboardingWizard from '@/components/onboarding/OnboardingWizard.vue'
 
 const connectionStore = useConnectionStore()
 const uiStore = useUiStore()
@@ -169,6 +174,34 @@ function onDragLeave() {
   }
 }
 
+// 新建任务弹窗一次只能预填一个文件（uiStore.newTaskPrefilledFile 是单值），
+// 所以拖入多个文件时排队：先开第一个，弹窗关闭（提交或取消）后再自动开下一个。
+// 这样拖入 5 个种子不会只处理第一个，也不会一次性弹出 5 个窗口。
+const pendingDropFiles = ref<File[]>([])
+
+/** 从队列取下一个文件交给弹窗；队列空时什么也不做 */
+function openNextDroppedFile() {
+  const next = pendingDropFiles.value.shift()
+  if (!next) return
+  uiStore.openNewTaskWithFile(next)
+}
+
+/** 把本次拖入的全部文件入队，并按需推进队首 */
+function enqueueDroppedFiles(files: File[]) {
+  if (files.length === 0) return
+  pendingDropFiles.value.push(...files)
+  // 弹窗已打开时不抢占用户正在填的表单，等它关闭后再继续
+  if (!uiStore.showNewTask) openNextDroppedFile()
+}
+
+// 弹窗关闭后继续处理队列。放到 nextTick：先让本次关闭真正落到 DOM 上，
+// 否则同一个 tick 里 showNewTask 又变回 true，弹窗看起来像没关过。
+watch(() => uiStore.showNewTask, (visible) => {
+  if (visible) return
+  if (pendingDropFiles.value.length === 0) return
+  void nextTick(() => openNextDroppedFile())
+})
+
 function onDrop(event: DragEvent) {
   isDragging.value = false
   dragCounter = 0
@@ -176,19 +209,18 @@ function onDrop(event: DragEvent) {
   const dt = event.dataTransfer
   if (!dt) return
 
-  // 优先处理文件拖拽（.torrent / .metalink）
+  // 优先处理文件拖拽（.torrent / .metalink / 普通文件），逐个入队而不是只取第一个
   if (dt.files.length > 0) {
-    const file = dt.files[0]
-    if (file) {
-      uiStore.openNewTaskWithFile(file)
-      return
-    }
+    enqueueDroppedFiles(Array.from(dt.files))
+    return
   }
 
-  // 处理文本拖拽（URL）
+  // 文本拖拽：一行一个链接，多行时一次填入（UriPane 的文本域按换行拆分）
   const text = dt.getData('text/plain')?.trim()
-  if (text && /^(https?|ftp|magnet):/.test(text)) {
-    uiStore.openNewTaskWithUrl(text)
+  if (!text) return
+  const uris = extractSupportedUris(text)
+  if (uris.length > 0) {
+    uiStore.openNewTaskWithUrl(uris.join('\n'))
   }
 }
 </script>

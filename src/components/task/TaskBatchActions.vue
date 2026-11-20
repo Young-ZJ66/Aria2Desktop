@@ -56,6 +56,23 @@
         </template>
         {{ t('task.batchDelete') }}
       </n-button>
+
+      <!-- D-24：失败任务的重试入口。刻意不依赖勾选状态——失败任务往往散落在
+           列表各处，要求用户先一个个勾选再重试等于把批量操作的意义抹掉了。 -->
+      <n-button
+        v-if="failedCount > 0"
+        size="small"
+        type="default"
+        class="btn-loading-keep-icon retry-failed-btn"
+        :disabled="operating || retryingFailed"
+        :loading="retryingFailed"
+        @click="$emit('retry-failed')"
+      >
+        <template #icon>
+          <n-icon><RefreshOutline /></n-icon>
+        </template>
+        {{ t('task.retryAllFailedSummary', { count: failedCount }) }}
+      </n-button>
     </div>
 
     <span v-if="hasSelection" class="selected-count" aria-live="polite">{{ t('task.selectedCount', { count: selectedCount }) }}</span>
@@ -64,7 +81,13 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { PlayOutline, PauseOutline, TrashOutline, FolderOpenOutline } from '@vicons/ionicons5'
+import {
+  PlayOutline,
+  PauseOutline,
+  TrashOutline,
+  FolderOpenOutline,
+  RefreshOutline
+} from '@vicons/ionicons5'
 
 interface Props {
   selectedCount: number
@@ -77,6 +100,10 @@ interface Props {
   operating?: boolean
   /** 批量删除进行中：删除按钮显示 loading 并禁用 */
   deleting?: boolean
+  /** 当前列表里失败任务的数量：>0 时显示「重试全部失败」 */
+  failedCount?: number
+  /** 「重试全部失败」执行中 */
+  retryingFailed?: boolean
 }
 
 interface Emits {
@@ -84,13 +111,16 @@ interface Emits {
   (e: 'batch-pause'): void
   (e: 'batch-open'): void
   (e: 'batch-delete'): void
+  (e: 'retry-failed'): void
 }
 
 const { t } = useI18n()
 withDefaults(defineProps<Props>(), {
   operating: false,
   deleting: false,
-  canBatchOpen: false
+  canBatchOpen: false,
+  failedCount: 0,
+  retryingFailed: false
 })
 defineEmits<Emits>()
 </script>
@@ -116,6 +146,11 @@ defineEmits<Emits>()
   height: var(--ds-control-height-sm);
   border-radius: var(--ds-radius-sm);
   font-weight: 500;
+}
+
+/* 「重试全部失败」是补救动作，不是主路径：只在失败数 >0 时出现，配色跟随警示色 */
+.retry-failed-btn {
+  color: var(--ds-status-warning-text, var(--ds-text));
 }
 
 .selected-count {

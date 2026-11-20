@@ -187,21 +187,40 @@ export const useConnectionStore = defineStore('connection', () => {
     let targetService: Aria2Service | null = null
 
     try {
-      if (service.value) {
-        service.value.disconnect()
-        service.value = null
-        // 从旧连接切换到新连接时清空前端缓存任务，加载全新列表
-        // （本地已完成记录持久化保留，loadAllTasks 会重新合并）
-        const taskStore = useTaskStore()
-        taskStore.clearTasks()
+      // 第一步只探测新实例：旧连接在整个探测期间保持不动。
+      // 旧实现是先断开旧连接再验证新实例，新实例连不上（地址写错/引擎没起/密钥不对）
+      // 时用户就只剩一个空状态，没有任何回滚路径。
+      targetService = new Aria2Service(targetConfig)
+
+      try {
+        await targetService.connect()
+      } catch (wsError) {
+        console.warn('WebSocket connection failed, will use HTTP:', wsError)
       }
 
-      // 用局部变量持有本次连接的服务实例：并发发起第二次连接会改写 service.value，
-      // 若这里始终读 service.value，第一次的 await 会落到第二次的实例上，相互串扰
-      targetService = new Aria2Service(targetConfig)
+      // 验证连接：这一步失败（鉴权失败、版本不兼容）同样视为本次连接失败
+      await targetService.getVersion()
+
+      // 期间又发起了新的连接：本次结果作废，交还给最新一次尝试。
+      // 只销毁自己这个探测实例，绝不碰 service.value（可能已被更新的连接接管）
+      if (token !== connectToken) {
+        try { targetService.disconnect() } catch { /* 作废实例的清理失败无需上报 */ }
+        return false
+      }
+
+      // 新实例确认可用后才拆旧连接：顺序反过来会在失败时丢掉用户正在用的连接。
+      // 用局部变量持有旧实例，避免后续 await 期间 service.value 被改写。
+      const previous = service.value
+      if (previous) {
+        try { previous.disconnect() } catch { /* 旧实例清理失败不阻塞切换 */ }
+        // 从旧连接切换到新连接时清空前端缓存任务，加载全新列表
+        // （本地已完成记录持久化保留，loadAllTasks 会重新合并）
+        useTaskStore().clearTasks()
+      }
+
       service.value = targetService
 
-      // 设置基本监听器
+      // 监听器只挂在「已接管」的实例上：探测阶段的 connected/error 不应提前改写界面状态
       targetService.on('connected', () => {
         if (token !== connectToken) return
         isConnected.value = true
@@ -218,18 +237,6 @@ export const useConnectionStore = defineStore('connection', () => {
         const err = error as Error
         connectionError.value = err.message || 'Connection error'
       })
-
-      try {
-        await targetService.connect()
-      } catch (wsError) {
-        console.warn('WebSocket connection failed, will use HTTP:', wsError)
-      }
-
-      // 验证连接
-      await targetService.getVersion()
-
-      // 期间又发起了新的连接：本次结果作废，交还给最新一次尝试
-      if (token !== connectToken) return false
 
       isConnected.value = true
       connectionError.value = null
@@ -251,16 +258,21 @@ export const useConnectionStore = defineStore('connection', () => {
 
     } catch (error) {
       // 被更新的连接取代：不报错、不改状态，让最新一次尝试自己汇报结果
-      if (token !== connectToken) return false
-      // 连接失败时必须销毁本次创建的 service：否则 WebSocket 已 onopen 后 getVersion
-      // 失败（鉴权/版本不兼容）会留下 shouldReconnect=true 的实例，在后台无限重连。
-      if (targetService && service.value === targetService) {
-        try { targetService.disconnect() } catch { /* 清理失败不影响错误上报 */ }
-        service.value = null
-        useTaskStore().clearTasks()
+      if (token !== connectToken) {
+        if (targetService) {
+          try { targetService.disconnect() } catch { /* 作废实例的清理失败无需上报 */ }
+        }
+        return false
       }
+      // 连接失败时必须销毁本次创建的探测实例：否则 WebSocket 已 onopen 后 getVersion
+      // 失败（鉴权/版本不兼容）会留下 shouldReconnect=true 的实例，在后台无限重连。
+      if (targetService) {
+        try { targetService.disconnect() } catch { /* 清理失败不影响错误上报 */ }
+      }
+      // 回滚：旧连接与旧状态原样保留（service/isConnected 全程未被改动），
+      // 只把失败原因写进 connectionError，由调用方（连接对话框/实例列表）弹提示。
+      if (!service.value) isConnected.value = false
       connectionError.value = error instanceof Error ? error.message : 'Connection failed'
-      isConnected.value = false
       throw error
     } finally {
       // 只有最新一次尝试才负责收尾，避免旧尝试把新连接的 loading 提前关掉

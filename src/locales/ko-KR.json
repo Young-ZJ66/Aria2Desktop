@@ -135,7 +135,16 @@
     "saveTorrentFailed": "토렌트 저장 실패: {error}",
     "batchOpen": "파일 일괄 열기",
     "batchOpenSuccess": "파일 {count}개를 열었습니다",
-    "batchOpenFailed": "파일을 열지 못했습니다"
+    "batchOpenFailed": "파일을 열지 못했습니다",
+    "filterByStatus": "상태로 필터",
+    "retryAllFailedSummary": "실패 항목 모두 재시도({count})",
+    "retryAllFailedResult": "{success}개 작업을 재시도했고 {failed}개가 실패했습니다",
+    "batchResultTitle": "일괄 작업 결과",
+    "batchResultSuccess": "성공 {count}개",
+    "batchResultFailed": "실패 {count}개",
+    "batchResultSkipped": "건너뜀 {count}개",
+    "batchResultFailures": "실패 상세",
+    "batchResultMore": "{count}개 더 있음"
   },
   "status": {
     "active": "다운로드 중",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count}명의 시더가 온라인입니다",
     "healthSeeding": "이 기기에서 시딩 중",
     "magnetUri": "마그넷 URI",
-    "copyMagnet": "마그넷 URI 복사"
+    "copyMagnet": "마그넷 URI 복사",
+    "taskSettings": "작업 설정",
+    "taskSettingsHint": "변경 사항은 즉시 적용되며 이 작업을 재시도할 때도 사용됩니다.",
+    "taskSettingsUnlimitedHint": "0을 입력하면 속도 제한이 없습니다.",
+    "taskSettingsSaved": "작업 설정을 업데이트했습니다",
+    "taskSettingsSaveFailed": "작업 설정을 저장하지 못했습니다: {error}",
+    "taskSettingsLoadFailed": "작업 설정을 불러오지 못했습니다: {error}",
+    "taskSettingsUnavailable": "현재 상태에서는 설정을 변경할 수 없습니다. 먼저 작업을 재시도하세요.",
+    "taskSettingsPartialFailed": "일부 설정을 적용하지 못했습니다: {options}"
   },
   "taskPeer": {
     "ip": "IP 주소",
@@ -234,7 +251,15 @@
     "deleteFiles": "파일도 삭제",
     "toTrashHint": "파일은 시스템 휴지통으로 이동되어 휴지통에서 복원할 수 있습니다",
     "deleteTaskAndFiles": "작업과 파일 삭제",
-    "taskDeleted": "작업이 삭제되었습니다"
+    "taskDeleted": "작업이 삭제되었습니다",
+    "errors": {
+      "removeRecordFailed": "작업 기록 삭제 실패: {detail}",
+      "deleteFileFailed": "파일 삭제 실패: {path}({detail})",
+      "deleteFilesFailed": "파일 삭제 작업 실패: {detail}",
+      "deleteFilesException": "파일 삭제 중 오류 발생: {detail}",
+      "unknownError": "작업 삭제 중 알 수 없는 오류 발생: {detail}",
+      "processTaskFailed": "작업 {gid} 처리 중 오류 발생: {detail}"
+    }
   },
   "newTask": {
     "title": "새 다운로드 작업",
@@ -351,6 +376,8 @@
     "dropTorrentHint": ".torrent 파일을 클릭하여 선택하거나 여기로 끌어다 놓으세요",
     "dropMetalinkHint": ".metalink / .meta4 파일을 클릭하여 선택하거나 여기로 끌어다 놓으세요",
     "fileTooLarge": "aria2 RPC 업로드에 파일이 너무 큽니다(>1MB). 로컬 경로에 배치하고 URL로 추가하세요",
+    "fileTooLargeLimit": "파일이 현재 한도({limit})를 초과했습니다. \"설정 → RPC 및 보안\"에서 rpc-max-request-size를 늘리세요",
+    "streamTooManyDownloads": "동시 스트리밍 다운로드가 한도(3개)에 도달했습니다. 현재 작업이 끝날 때까지 기다리세요",
     "streamPlaylist": "재생목록",
     "streamPlaylistEmpty": "재생목록 항목을 찾지 못했습니다(링크가 재생목록이 아닐 수 있음)",
     "streamPlaylistSelectAll": "모두 선택",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "압축 파일 추출 완료({count}개의 기존 파일 유지, 압축 파일은 삭제되지 않음)",
     "engineCrashed": "aria2 엔진이 예기치 않게 종료되었습니다. 자동으로 다시 시작하는 중입니다(시도 {count}회).",
     "engineGaveUp": "aria2 엔진이 {count}번 다시 시작하지 못해 자동 재시작이 중단되었습니다. 설정 → 로컬 엔진에서 수동으로 다시 시작하거나 앱 로그를 확인하세요.",
-    "shutdownCancelled": "새 다운로드가 감지되어 예약된 종료가 취소되었습니다."
+    "shutdownCancelled": "새 다운로드가 감지되어 예약된 종료가 취소되었습니다.",
+    "unknownTask": "알 수 없는 작업({gid})"
   },
   "notificationCenter": {
     "title": "알림",
@@ -430,6 +458,8 @@
     "seedingTasks": "시딩 중",
     "trafficChartAria": "다운로드 및 업로드 속도 추이 차트",
     "enabledFeatures": "활성화된 기능",
+    "downloadTrend": "다운로드 추세",
+    "noTrendData": "아직 다운로드 데이터가 없습니다",
     "resetHistory": "다운로드 통계 초기화",
     "resetHistoryConfirm": "오늘 및 전체 다운로드 통계를 지우시겠습니까? 이 앱의 카운터에만 영향을 주며 작업이나 파일은 삭제되지 않습니다."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "플러그인 마켓 서버가 HTTP {status}를 반환했습니다. 잠시 후 다시 시도하세요.",
       "marketErrorTooLarge": "플러그인 마켓 레지스트리 파일이 너무 커서 로드를 거부했습니다.",
       "marketErrorInvalidRegistry": "플러그인 마켓 레지스트리 형식이 올바르지 않습니다. 레지스트리 주소를 확인하세요.",
+      "marketErrorSignature": "플러그인 마켓 레지스트리 서명 검증에 실패했습니다. 레지스트리가 변조되었거나 신뢰할 수 없는 키로 서명되었을 수 있어 로드를 거부했습니다.",
       "marketErrorNetwork": "플러그인 마켓에 연결할 수 없습니다. 네트워크 또는 프록시 설정을 확인한 후 다시 시도하세요.",
       "trustedPublishers": "신뢰할 수 있는 게시자 공개 키",
       "trustedPublishersDesc": "신뢰할 수 있는 게시자의 Ed25519 공개 키(PEM)를 입력하세요. 여러 키는 빈 줄로 구분합니다. 서명된 마켓 플러그인은 서명 검증을 통과해야 설치할 수 있습니다.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "비워 두면 임의의 토큰이 자동 생성됩니다",
       "allowedIps": "허용 IP",
       "allowedIpsPlaceholder": "예: 192.168.1.0/24; 비우면 localhost만 허용",
+      "tlsCertPath": "HTTPS 인증서 경로",
+      "tlsKeyPath": "HTTPS 개인 키 경로",
+      "tlsPathPlaceholder": "PEM 파일의 절대 경로(예: /etc/ssl/fullchain.pem)",
+      "tlsStatus": "HTTPS 상태",
+      "tlsEnabled": "HTTPS 사용 중",
+      "tlsDisabled": "사용 안 함(localhost만)",
+      "tlsHint": "LAN에서 접속하려면 인증서와 개인 키가 필요합니다. 없으면 127.0.0.1에서만 수신하고 TLS는 리버스 프록시에서 종료하세요.",
       "refresh": "상태 새로고침",
       "status": "실행 상태",
       "running": "실행 중",
@@ -1450,7 +1488,15 @@
     "unknown": "작업 실패. 나중에 다시 시도하세요",
     "tlsHandshake": "이 사이트와의 보안 연결에 실패했습니다 — 네트워크에서 차단했을 수 있습니다. 프록시 또는 다른 소스를 사용해 보세요",
     "proxy": "프록시 연결 실패. 시스템 또는 앱 프록시 설정을 확인하세요",
-    "certificate": "인증서 검증 실패: 사이트 인증서가 유효하지 않거나 만료되었습니다"
+    "certificate": "인증서 검증 실패: 사이트 인증서가 유효하지 않거나 만료되었습니다",
+    "errConnectionRefused": "연결이 거부되었습니다. 대상 주소에 접근할 수 있는지, Aria2가 실행 중인지 확인하세요",
+    "errConnectionTimedOut": "연결 시간이 초과되었습니다. 네트워크나 서버 주소를 확인하세요",
+    "errConnectionReset": "연결이 중단되었습니다(서버 종료 또는 네트워크 불안정). 다시 시도하세요",
+    "errNameNotResolved": "호스트 이름을 확인할 수 없습니다. 주소 철자와 DNS 설정을 확인하세요",
+    "errInternetDisconnected": "네트워크가 끊겼습니다. 연결을 확인한 후 다시 시도하세요",
+    "errAddressUnreachable": "대상 주소에 도달할 수 없습니다. 네트워크나 프록시 설정을 확인하세요",
+    "errCertInvalid": "인증서 검증에 실패했습니다. 사이트 인증서가 유효하지 않거나 만료되었거나 신뢰할 수 없습니다",
+    "errSslProtocol": "SSL/TLS 협상에 실패했습니다. 네트워크가 차단되었거나 사이트가 오래되었을 수 있습니다"
   },
   "localService": {
     "invalidPort": "잘못된 포트입니다. 1024~65535 사이의 포트를 사용하세요",
@@ -1768,5 +1814,29 @@
     "saveFailed": "저장 실패: {error}",
     "deleteFailed": "삭제 실패: {error}",
     "operationFailed": "작업 실패: {error}"
+  },
+  "onboarding": {
+    "title": "Aria2Desktop에 오신 것을 환영합니다",
+    "subtitle": "네 단계로 자주 쓰는 설정을 마칠 수 있습니다. 각 단계는 건너뛸 수 있고 나중에 설정에서 변경할 수 있습니다.",
+    "stepOf": "{current} / {total} 단계",
+    "skip": "둘러보기 건너뛰기",
+    "later": "나중에",
+    "next": "다음",
+    "back": "이전",
+    "finish": "시작하기",
+    "statusReady": "준비됨",
+    "statusPending": "설정 안 됨",
+    "stepDownloadTitle": "다운로드 폴더 선택",
+    "stepDownloadDesc": "다운로드한 파일은 기본적으로 이 폴더에 저장됩니다. '설정 → 다운로드'에서 언제든 변경할 수 있습니다.",
+    "stepDownloadAction": "다운로드 설정 열기",
+    "stepExtensionTitle": "브라우저 확장 연결",
+    "stepExtensionDesc": "확장을 설치한 뒤 브라우저에서 확장 아이콘을 한 번 클릭하면 연결됩니다. 웹 다운로드는 자동으로 데스크톱 앱으로 넘어갑니다.",
+    "stepExtensionAction": "확장 설정 열기",
+    "stepYtdlpTitle": "스트리밍 다운로드 사용",
+    "stepYtdlpDesc": "yt-dlp가 있으면 동영상이나 오디오 페이지 URL을 붙여넣어 바로 다운로드할 수 있습니다.",
+    "stepYtdlpAction": "구성 요소 설정 열기",
+    "stepRemoteTitle": "원격 제어 및 완료 규칙",
+    "stepRemoteDesc": "웹 콘솔로 브라우저에서 다운로드를 관리하고 다운로드 완료 후 자동 동작을 설정할 수 있습니다.",
+    "stepRemoteAction": "원격 접속 설정 열기"
   }
 }

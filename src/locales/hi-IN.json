@@ -135,7 +135,16 @@
     "saveTorrentFailed": "टोरेंट सहेजने में विफल: {error}",
     "batchOpen": "फ़ाइलें खोलें",
     "batchOpenSuccess": "{count} फ़ाइलें खोली गईं",
-    "batchOpenFailed": "कोई फ़ाइल नहीं खोली जा सकी"
+    "batchOpenFailed": "कोई फ़ाइल नहीं खोली जा सकी",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "बैच ऑपरेशन परिणाम",
+    "batchResultSuccess": "{count} सफल",
+    "batchResultFailed": "{count} विफल",
+    "batchResultSkipped": "{count} छोड़े गए",
+    "batchResultFailures": "विफलता विवरण",
+    "batchResultMore": "{count} और नहीं दिखाए गए"
   },
   "status": {
     "active": "डाउनलोड हो रहा है",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} सीडर ऑनलाइन",
     "healthSeeding": "इस डिवाइस से सीडिंग हो रही है",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "Magnet URI कॉपी करें"
+    "copyMagnet": "Magnet URI कॉपी करें",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "IP पता",
@@ -234,7 +251,15 @@
     "deleteFiles": "फ़ाइलें भी हटाएँ",
     "toTrashHint": "फ़ाइलें सिस्टम ट्रैश में ले जाई जाती हैं और वहाँ से पुनः प्राप्त की जा सकती हैं",
     "deleteTaskAndFiles": "टास्क और फ़ाइलें हटाएँ",
-    "taskDeleted": "टास्क हटाया गया"
+    "taskDeleted": "टास्क हटाया गया",
+    "errors": {
+      "removeRecordFailed": "कार्य रिकॉर्ड हटाने में विफल: {detail}",
+      "deleteFileFailed": "फ़ाइल हटाने में विफल: {path} ({detail})",
+      "deleteFilesFailed": "फ़ाइल हटाने की क्रिया विफल: {detail}",
+      "deleteFilesException": "फ़ाइलें हटाते समय त्रुटि: {detail}",
+      "unknownError": "कार्य हटाते समय अज्ञात त्रुटि: {detail}",
+      "processTaskFailed": "कार्य {gid} संसाधित करते समय त्रुटि: {detail}"
+    }
   },
   "newTask": {
     "title": "नया डाउनलोड टास्क",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "क्लिक करके .torrent फ़ाइल चुनें या यहाँ खींचकर छोड़ें",
     "dropMetalinkHint": "क्लिक करके .metalink / .meta4 फ़ाइल चुनें या यहाँ खींचकर छोड़ें",
     "fileTooLarge": "aria2 RPC अपलोड के लिए फ़ाइल बहुत बड़ी है (>1MB)। इसे स्थानीय पथ पर रखें और URL से जोड़ें",
+    "fileTooLargeLimit": "फ़ाइल वर्तमान सीमा ({limit}) से बड़ी है। \"सेटिंग्स → RPC और सुरक्षा\" में rpc-max-request-size बढ़ाएँ",
+    "streamTooManyDownloads": "एक साथ स्ट्रीम डाउनलोड की सीमा (3) पूरी हो गई है। वर्तमान कार्यों के पूरा होने की प्रतीक्षा करें",
     "streamPlaylist": "प्लेलिस्ट",
     "streamPlaylistEmpty": "प्लेलिस्ट में कोई प्रविष्टि नहीं मिली (लिंक प्लेलिस्ट का नहीं हो सकता)",
     "streamPlaylistSelectAll": "सभी चुनें",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "आर्काइव निकाला गया ({count} मौजूदा फ़ाइलें रखी गईं; आर्काइव नहीं हटाया गया)",
     "engineCrashed": "aria2 इंजन अप्रत्याशित रूप से बंद हो गया। स्वचालित रूप से पुनः आरंभ किया जा रहा है (प्रयास {count})।",
     "engineGaveUp": "aria2 इंजन {count} बार पुनः आरंभ करने में विफल रहा, इसलिए स्वचालित पुनः आरंभ रुक गया है। सेटिंग्स → लोकल इंजन में इसे मैन्युअल रूप से पुनः आरंभ करें, या विवरण के लिए ऐप लॉग खोलें।",
-    "shutdownCancelled": "नया डाउनलोड मिला — निर्धारित शटडाउन रद्द कर दिया गया।"
+    "shutdownCancelled": "नया डाउनलोड मिला — निर्धारित शटडाउन रद्द कर दिया गया।",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "सूचनाएँ",
@@ -430,6 +458,8 @@
     "seedingTasks": "सीडिंग",
     "trafficChartAria": "डाउनलोड और अपलोड गति के रुझान का चार्ट",
     "enabledFeatures": "सक्षम सुविधाएँ",
+    "downloadTrend": "डाउनलोड रुझान",
+    "noTrendData": "अभी कोई डाउनलोड डेटा नहीं",
     "resetHistory": "डाउनलोड आँकड़े रीसेट करें",
     "resetHistoryConfirm": "आज के और कुल डाउनलोड आँकड़े साफ़ करें? यह केवल इस ऐप के काउंटर प्रभावित करता है; कोई टास्क या फ़ाइल नहीं हटेगी।"
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "प्लगइन मार्केट ने HTTP {status} लौटाया। बाद में पुनः प्रयास करें।",
       "marketErrorTooLarge": "प्लगइन मार्केट रजिस्ट्री बहुत बड़ी है और अस्वीकार कर दी गई।",
       "marketErrorInvalidRegistry": "प्लगइन मार्केट रजिस्ट्री का प्रारूप अमान्य है। रजिस्ट्री URL जाँचें।",
+      "marketErrorSignature": "प्लगइन मार्केट रजिस्ट्री का हस्ताक्षर सत्यापन विफल रहा: रजिस्ट्री के साथ छेड़छाड़ की गई हो सकती है या उस पर किसी अविश्वसनीय कुंजी से हस्ताक्षर किए गए हैं। इसे लोड नहीं किया गया।",
       "marketErrorNetwork": "प्लगइन मार्केट तक नहीं पहुँच सके। अपना नेटवर्क या प्रॉक्सी जाँचें और पुनः प्रयास करें।",
       "trustedPublishers": "विश्वसनीय प्रकाशक कुंजियाँ",
       "trustedPublishersDesc": "विश्वसनीय प्रकाशकों की Ed25519 सार्वजनिक कुंजियाँ (PEM) दर्ज करें, खाली पंक्ति से अलग करें। हस्ताक्षरित मार्केट प्लगइन इंस्टॉल होने से पहले हस्ताक्षर सत्यापन पास करने होंगे।",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "स्वचालित रूप से रैंडम टोकन बनाने के लिए खाली छोड़ें",
       "allowedIps": "अनुमत IP",
       "allowedIpsPlaceholder": "जैसे 192.168.1.0/24; केवल localhost की अनुमति के लिए खाली छोड़ें",
+      "tlsCertPath": "HTTPS प्रमाणपत्र पथ",
+      "tlsKeyPath": "HTTPS निजी कुंजी पथ",
+      "tlsPathPlaceholder": "PEM फ़ाइल का पूर्ण पथ, जैसे /etc/ssl/fullchain.pem",
+      "tlsStatus": "HTTPS स्थिति",
+      "tlsEnabled": "HTTPS सक्षम",
+      "tlsDisabled": "सक्षम नहीं (केवल localhost)",
+      "tlsHint": "LAN से पहुँच के लिए प्रमाणपत्र और कुंजी आवश्यक है; अन्यथा कंसोल केवल 127.0.0.1 पर सुनता है और TLS रिवर्स प्रॉक्सी पर समाप्त करना होगा।",
       "refresh": "स्थिति रीफ़्रेश करें",
       "status": "स्थिति",
       "running": "चल रहा है",
@@ -1450,7 +1488,15 @@
     "unknown": "ऑपरेशन विफल। कृपया बाद में पुनः प्रयास करें",
     "tlsHandshake": "इस साइट से सुरक्षित कनेक्शन विफल — नेटवर्क इसे ब्लॉक कर सकता है। प्रॉक्सी या दूसरा स्रोत आज़माएँ",
     "proxy": "प्रॉक्सी कनेक्शन विफल। अपनी सिस्टम या ऐप प्रॉक्सी सेटिंग्स जाँचें",
-    "certificate": "प्रमाणपत्र सत्यापन विफल: साइट प्रमाणपत्र अमान्य या समाप्त है"
+    "certificate": "प्रमाणपत्र सत्यापन विफल: साइट प्रमाणपत्र अमान्य या समाप्त है",
+    "errConnectionRefused": "कनेक्शन अस्वीकृत। जाँचें कि पता पहुँच योग्य है और Aria2 चल रहा है",
+    "errConnectionTimedOut": "कनेक्शन का समय समाप्त। नेटवर्क या सर्वर पता जाँचें",
+    "errConnectionReset": "कनेक्शन बाधित (सर्वर बंद या नेटवर्क अस्थिर)। फिर से प्रयास करें",
+    "errNameNotResolved": "होस्ट नाम हल नहीं हो सका। पता और DNS सेटिंग्स जाँचें",
+    "errInternetDisconnected": "कोई नेटवर्क कनेक्शन नहीं। जाँचें और फिर से प्रयास करें",
+    "errAddressUnreachable": "पता अगम्य है। नेटवर्क या प्रॉक्सी सेटिंग्स जाँचें",
+    "errCertInvalid": "प्रमाणपत्र सत्यापन विफल: साइट का प्रमाणपत्र अमान्य, समाप्त या अविश्वसनीय है",
+    "errSslProtocol": "SSL/TLS बातचीत विफल — कनेक्शन अवरुद्ध हो सकता है या साइट पुरानी है"
   },
   "localService": {
     "invalidPort": "अमान्य पोर्ट, कृपया 1024 से 65535 के बीच पोर्ट उपयोग करें",
@@ -1768,5 +1814,29 @@
     "saveFailed": "सहेजने में विफल: {error}",
     "deleteFailed": "हटाने में विफल: {error}",
     "operationFailed": "क्रिया विफल: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

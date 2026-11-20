@@ -263,7 +263,201 @@ function timingSafeEqualStr(a: string, b: string): boolean {
 }
 
 /**
- * 判定一次请求能否访问扩展本地接口。三道闸门：
+ * ── 扩展 App token（D-06）────────────────────────────────────────────
+ *
+ * 配对不再把 aria2 的 RPC 密钥交给扩展：那是引擎的**全权**凭据（可暂停/删除任何任务、
+ * 可改全局配置），一旦扩展侧被攻破或被恶意扩展冒充，损失不可控。
+ * 改为签发一枚只代表"这个扩展"的随机 token，并带 scope 限定能力范围：
+ * - 配对时只发 token，密钥始终留在 App 进程内；
+ * - 用户可在设置页撤销（删掉记录即失效，无需改引擎密钥、不牵连其它调用方）；
+ * - 手动填密钥的旧配置继续可用（见 isAuthorizedExtensionRequestWithToken 的 via='secret'）。
+ */
+
+/** 允许签发给扩展的能力范围（只列接口实际需要的，不做通用权限系统） */
+export const EXTENSION_TOKEN_SCOPES = [
+  /** 建下载任务（/api/add、/api/resolve） */
+  'download:add',
+  /** 读取任务列表（/api/tasks、/api/status） */
+  'tasks:read',
+  /** 控制任务：暂停/继续/删除（/api/task） */
+  'tasks:control',
+  /** 交给流媒体下载（/api/stream、/api/stream-tasks） */
+  'stream:control'
+] as const
+
+export type ExtensionTokenScope = (typeof EXTENSION_TOKEN_SCOPES)[number]
+
+/** 新配对默认授予的 scope：够用且不含删除类操作（删除任务仍走 tasks:control，需显式授予） */
+export const DEFAULT_EXTENSION_TOKEN_SCOPES: readonly ExtensionTokenScope[] = [
+  'download:add',
+  'tasks:read',
+  'tasks:control',
+  'stream:control'
+]
+
+/** token 前缀：便于用户在日志/配置里一眼认出这不是 RPC 密钥 */
+export const EXTENSION_TOKEN_PREFIX = 'ext_'
+/** token 随机部分字节数（base64url 后 43 字符，256 bit） */
+const EXTENSION_TOKEN_BYTES = 32
+
+export function isExtensionTokenScope(value: unknown): value is ExtensionTokenScope {
+  return typeof value === 'string' && (EXTENSION_TOKEN_SCOPES as readonly string[]).includes(value)
+}
+
+/** 归一化外部传入的 scope 列表：只保留已知值、去重、保持稳定顺序 */
+export function normalizeTokenScopes(input: unknown): ExtensionTokenScope[] {
+  if (!Array.isArray(input)) return []
+  const wanted = new Set(input.filter(isExtensionTokenScope))
+  return EXTENSION_TOKEN_SCOPES.filter((scope) => wanted.has(scope))
+}
+
+/** 生成一枚新 token（调用方负责持久化；本函数只保证随机性与格式） */
+export function createExtensionToken(): string {
+  return EXTENSION_TOKEN_PREFIX + crypto.randomBytes(EXTENSION_TOKEN_BYTES).toString('base64url')
+}
+
+/** token 格式判定：避免把任意字符串当 token 去比较（也便于日志脱敏时识别） */
+export function isExtensionTokenFormat(token: unknown): boolean {
+  return typeof token === 'string' && /^ext_[A-Za-z0-9_-]{43}$/.test(token)
+}
+
+/** 是否具备某个 scope（未授予/记录缺失一律 false，不做隐式放行） */
+export function hasExtensionScope(granted: readonly string[] | undefined, required: ExtensionTokenScope): boolean {
+  return Array.isArray(granted) && granted.includes(required)
+}
+
+/** 一条已签发的扩展 token 记录（落盘形态，见 extensionApiServer 的 token 存储） */
+export interface ExtensionTokenRecord {
+  token: string
+  scopes: ExtensionTokenScope[]
+  /** 扩展 ID（chromium 32 位 / firefox UUID），仅用于展示与撤销，不参与鉴权 */
+  extensionId: string
+  /** 扩展自报名称（已净化），仅用于展示 */
+  extensionName: string
+  /** 配对时的来源 origin，仅用于展示 */
+  origin: string
+  createdAt: number
+  lastSeenAt?: number
+}
+
+/** 从扩展 Origin 中取出可展示的 ID（非法来源返回空串） */
+export function extensionIdFromOrigin(origin: string | undefined): string {
+  if (!origin) return ''
+  const chrome = /^chrome-extension:\/\/([a-p]{32})$/.exec(origin)
+  if (chrome) return chrome[1]
+  const moz = /^moz-extension:\/\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(origin)
+  return moz ? moz[1].toLowerCase() : ''
+}
+
+/**
+ * 净化扩展自报的名称（配对确认框要显示它）。
+ *
+ * 名称来自请求体（外部输入），会进入**原生对话框**文本：控制字符、换行与超长串一律收敛，
+ * 避免出现"伪造的多行弹窗"或把对话框撑爆。空结果由调用方回落成固定文案。
+ */
+export function sanitizeExtensionName(input: unknown): string {
+  if (typeof input !== 'string') return ''
+  let cleaned = ''
+  for (const ch of input) {
+    const code = ch.charCodeAt(0)
+    if (code <= 0x1f || code === 0x7f) { cleaned += ' '; continue }
+    cleaned += ch
+  }
+  cleaned = cleaned.replace(/\s+/g, ' ').trim()
+  return cleaned.slice(0, 64)
+}
+
+/** 配对确认框需要的展示信息（全部经过净化，服务层不再二次处理） */
+export interface ExtensionPairingInfo {
+  /** 扩展名称（可能为空 → 由展示方回落固定文案） */
+  name: string
+  /** 扩展 ID（chromium 32 位 / firefox UUID） */
+  extensionId: string
+  /** 来源 origin 的展示形态（chrome-extension://<id>） */
+  origin: string
+  /** 扩展版本（X-Extension-Version，未提供为空串） */
+  version: string
+}
+
+/** 从请求头取扩展版本（配对请求也可能带；非法值一律空串） */
+export function normalizeExtensionVersionHeader(value: string | undefined): string {
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  return /^\d{1,4}(\.\d{1,4}){0,3}$/.test(trimmed) ? trimmed : ''
+}
+
+/** 令牌鉴权结果：via 区分"App 签发的 token"与"用户手填的 RPC 密钥" */
+export interface ExtensionRequestAuth {
+  ok: boolean
+  via: 'token' | 'secret' | null
+  /** 命中 token 时为其 scope；密钥路径为 null（等价全权） */
+  scopes: ExtensionTokenScope[] | null
+  /** 命中的 token 记录（密钥路径为 null），调用方据此刷新 lastSeenAt */
+  record: ExtensionTokenRecord | null
+}
+
+/**
+ * 综合鉴权：先按 token 查（常数时间比较），再回落到 RPC 密钥（旧配置兼容）。
+ *
+ * 为什么保留密钥路径：手动填密钥是老用户唯一的配置方式，且密钥本身就等价于引擎全权，
+ * 拒绝它只会把用户挡在门外而不会提升安全性。
+ */
+export function isAuthorizedExtensionRequestWithToken(input: {
+  authorization: string | undefined
+  origin: string | undefined
+  secret: string
+  tokens: readonly ExtensionTokenRecord[]
+}): ExtensionRequestAuth {
+  const denied: ExtensionRequestAuth = { ok: false, via: null, scopes: null, record: null }
+  const { authorization, origin, secret, tokens } = input
+  if (!authorization) return denied
+  const parts = authorization.split(' ')
+  if (parts.length !== 2) return denied
+  const [scheme, credential] = parts
+  if (scheme?.toLowerCase() !== 'bearer') return denied
+  if (!credential) return denied
+
+  // 来源判定与 token 无关：网页上下文即便拿到 token 也不该被放行
+  if (origin && !origin.startsWith('chrome-extension://') && !origin.startsWith('moz-extension://')) return denied
+
+  for (const record of tokens) {
+    if (isExtensionTokenFormat(record.token) && timingSafeEqualStr(credential, record.token)) {
+      return { ok: true, via: 'token', scopes: record.scopes ?? [], record }
+    }
+  }
+
+  if (!secret) return denied
+  if (!timingSafeEqualStr(credential, secret)) return denied
+  return { ok: true, via: 'secret', scopes: null, record: null }
+}
+
+/**
+ * ── 播放列表（D-07）──────────────────────────────────────────────
+ *
+ * `.m3u8` / `.mpd` 是**播放列表**而不是可下载的媒体文件：把它们当普通链接丢给 aria2 只会
+ * 拿到一份文本清单，而真正的媒体被切成成百上千个分片——批量下载既慢又拼不回来。
+ * 正确做法是交给流媒体（yt-dlp 合并音视频），因此嗅探结果单独标成 playlist，
+ * 弹窗据此提供"交给流媒体"入口而不是"下载"。
+ */
+export const PLAYLIST_EXTENSIONS = ['m3u8', 'mpd'] as const
+
+/** URL 是否指向播放列表（按 pathname 末段扩展名判定，忽略查询串与大小写） */
+export function isPlaylistUri(url: string): boolean {
+  if (typeof url !== 'string' || !url) return false
+  try {
+    const pathname = new URL(url).pathname
+    const last = decodeURIComponent(pathname.split('/').pop() || '')
+    const dot = last.lastIndexOf('.')
+    if (dot <= 0 || dot === last.length - 1) return false
+    return (PLAYLIST_EXTENSIONS as readonly string[]).includes(last.slice(dot + 1).toLowerCase())
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 判定一次请求能否访问扩展本地接口（**仅 RPC 密钥路径**，token 路径见
+ * isAuthorizedExtensionRequestWithToken）。三道闸门：
  *
  * 1. **必须已配置 RPC 密钥**——没有密钥就没有可用的鉴权手段，此时直接不开接口
  *    （而不是退化成"仅靠来源判定"）；

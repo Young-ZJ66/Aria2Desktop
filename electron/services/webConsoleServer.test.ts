@@ -1,5 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { PassThrough } from 'node:stream'
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 const { rpcMock, settingsRef, saveMock } = vi.hoisted(() => ({
@@ -8,7 +11,7 @@ const { rpcMock, settingsRef, saveMock } = vi.hoisted(() => ({
   saveMock: vi.fn()
 }))
 
-vi.mock('electron', () => ({ app: { getVersion: () => '1.3.7' } }))
+vi.mock('electron', () => ({ app: { getVersion: () => '1.3.7', getPath: () => process.cwd() } }))
 vi.mock('electron-log', () => ({
   default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
 }))
@@ -36,6 +39,9 @@ const { WebConsoleServer } = await import('./webConsoleServer')
 type AnyServer = {
   handle: (req: IncomingMessage, res: ServerResponse, allowed: string[]) => Promise<void>
   servePublic: (pathname: string, res: ServerResponse) => boolean
+  apply: () => Promise<{ running: boolean; port: number; token: string; error?: string }>
+  stop: () => Promise<void>
+  getStatus: () => { running: boolean; url: string; tls?: boolean }
   token: string
   bindHost: string
 }
@@ -162,6 +168,8 @@ describe('webConsoleAuth', () => {
     expect(routeScope('GET', '/api/events')).toBe('tasks:read')
     expect(routeScope('GET', '/api/audit')).toBe('audit:read')
     expect(routeScope('POST', '/api/tasks')).toBe('tasks:write')
+    expect(routeScope('POST', '/api/tasks/pauseAll')).toBe('tasks:control')
+    expect(routeScope('POST', '/api/tasks/unpauseAll')).toBe('tasks:control')
     expect(routeScope('POST', '/api/tasks/abc123/pause')).toBe('tasks:control')
     expect(routeScope('POST', '/api/tasks/abc123/resume')).toBe('tasks:control')
     expect(routeScope('POST', '/api/tasks/abc123/remove')).toBe('tasks:control')
@@ -192,7 +200,7 @@ describe('OpenAPI 文档', () => {
     }
     expect(doc.openapi).toBe('3.0.3')
     expect(doc.info.version).toBe('1.3.7')
-    expect(Object.keys(doc.paths).sort()).toEqual(['/api/audit', '/api/events', '/api/status', '/api/tasks', '/api/tasks/{gid}/{action}', '/openapi.json'])
+    expect(Object.keys(doc.paths).sort()).toEqual(['/api/audit', '/api/events', '/api/status', '/api/tasks', '/api/tasks/{action}', '/api/tasks/{gid}/{action}', '/openapi.json'])
     expect(doc.components.securitySchemes.bearerAuth).toBeTruthy()
     // 能被 JSON 序列化（无循环引用/函数）
     expect(() => JSON.stringify(doc)).not.toThrow()
@@ -285,10 +293,37 @@ describe('WebConsoleServer.handle', () => {
     }
     const server = makeServer(settings)
     const { res, out } = makeRes()
-    await server.handle(makeReq('POST', '/api/tasks', { authorization: 'Bearer write-token-abcdefgh' }, JSON.stringify({ uris: ['https://example.com/a.bin'], dir: 'D:\\Downloads' })), res, [])
+    await server.handle(makeReq('POST', '/api/tasks', { authorization: 'Bearer write-token-abcdefgh' }, JSON.stringify({ uris: ['https://example.com/a.bin'], dir: process.cwd() })), res, [])
     expect(out.status).toBe(200)
     expect(JSON.parse(out.body || '{}').gid).toBe('newgid')
     expect(rpcMock).toHaveBeenCalledWith(expect.objectContaining({ method: 'aria2.addUri' }))
+  })
+
+  it('拒绝非白名单协议', async () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('POST', '/api/tasks', { authorization: 'Bearer ' + MASTER }, JSON.stringify({ uris: ['file:///etc/passwd'] })), res, [])
+    expect(out.status).toBe(400)
+    expect(JSON.parse(out.body || '{}').error).toBe('invalid_uri')
+    expect(rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('拒绝下载根目录之外的 dir', async () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('POST', '/api/tasks', { authorization: 'Bearer ' + MASTER }, JSON.stringify({ uris: ['https://example.com/a.bin'], dir: path.resolve(process.cwd(), '..') })), res, [])
+    expect(out.status).toBe(400)
+    expect(JSON.parse(out.body || '{}').error).toBe('dir_outside_download_root')
+    expect(rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('相对 dir 解析到下载根目录下', async () => {
+    rpcMock.mockResolvedValue('newgid')
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('POST', '/api/tasks', { authorization: 'Bearer ' + MASTER }, JSON.stringify({ uris: ['https://example.com/a.bin'], dir: 'sub' })), res, [])
+    expect(out.status).toBe(200)
+    expect(rpcMock).toHaveBeenCalledWith(expect.objectContaining({ method: 'aria2.addUri', params: [['https://example.com/a.bin'], { dir: path.resolve(process.cwd(), 'sub') }] }))
   })
 
   it('添加任务缺少 uris 返回 400', async () => {
@@ -314,6 +349,18 @@ describe('WebConsoleServer.handle', () => {
       await server.handle(makeReq('POST', '/api/tasks/g1/' + action, { authorization: 'Bearer ' + MASTER }), res, [])
       expect(out.status).toBe(200)
       expect(rpcMock).toHaveBeenCalledWith(expect.objectContaining({ method, params: ['g1'] }))
+    }
+  })
+
+  it('pauseAll / unpauseAll 映射到全局 RPC 方法', async () => {
+    rpcMock.mockResolvedValue('OK')
+    const server = makeServer({ webConsole: { token: MASTER } })
+    for (const [action, method] of [['pauseAll', 'aria2.pauseAll'], ['unpauseAll', 'aria2.unpauseAll']] as const) {
+      rpcMock.mockClear()
+      const { res, out } = makeRes()
+      await server.handle(makeReq('POST', '/api/tasks/' + action, { authorization: 'Bearer ' + MASTER }), res, [])
+      expect(out.status).toBe(200)
+      expect(rpcMock).toHaveBeenCalledWith(expect.objectContaining({ method, params: [] }))
     }
   })
 
@@ -389,5 +436,78 @@ describe('WebConsoleServer.handle', () => {
     await server.handle(makeReq('GET', '/api/nope'), res, [])
     expect(out.status).toBe(404)
     expect(rpcMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('WebConsoleServer.apply LAN 加密约束', () => {
+  it('允许局域网但未配置 TLS 时拒绝启动（避免明文 HTTP 泄露令牌）', async () => {
+    const server = makeServer({
+      webConsole: { enabled: true, port: 39731, token: MASTER, allowedIps: ['192.168.1.0/24'] }
+    })
+    const result = await server.apply()
+    expect(result.running).toBe(false)
+    expect(result.error).toContain('HTTPS')
+    expect(server.getStatus().running).toBe(false)
+  })
+
+  it('只配置证书未配置私钥时拒绝启动', async () => {
+    const server = makeServer({
+      webConsole: { enabled: true, port: 39732, token: MASTER, allowedIps: [], tlsCertPath: 'C:/certs/a.pem' }
+    })
+    const result = await server.apply()
+    expect(result.running).toBe(false)
+    expect(result.error).toContain('证书与私钥')
+  })
+
+  it('相对路径的证书被拒绝（解析基准随 cwd 变化）', async () => {
+    const server = makeServer({
+      webConsole: {
+        enabled: true,
+        port: 39733,
+        token: MASTER,
+        allowedIps: [],
+        tlsCertPath: 'certs/a.pem',
+        tlsKeyPath: 'certs/a.key'
+      }
+    })
+    const result = await server.apply()
+    expect(result.running).toBe(false)
+    expect(result.error).toContain('绝对路径')
+  })
+
+  it('证书内容非法时拒绝启动而不是静默降级到 HTTP', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aria2-webconsole-'))
+    const certPath = path.join(dir, 'bad.pem')
+    fs.writeFileSync(certPath, 'not a certificate')
+    try {
+      const server = makeServer({
+        webConsole: {
+          enabled: true,
+          port: 39734,
+          token: MASTER,
+          allowedIps: [],
+          tlsCertPath: certPath,
+          tlsKeyPath: certPath
+        }
+      })
+      const result = await server.apply()
+      expect(result.running).toBe(false)
+      expect(result.error).toContain('证书加载失败')
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('仅回环地址且无 TLS 时正常以 HTTP 监听', async () => {
+    const port = 39735
+    const server = makeServer({ webConsole: { enabled: true, port, token: MASTER, allowedIps: [] } })
+    const result = await server.apply()
+    try {
+      expect(result.running).toBe(true)
+      expect(server.getStatus().url.startsWith('http://127.0.0.1:')).toBe(true)
+      expect(server.getStatus().tls).toBe(false)
+    } finally {
+      await server.stop()
+    }
   })
 })

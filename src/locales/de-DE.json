@@ -135,7 +135,16 @@
     "saveTorrentFailed": "Torrent konnte nicht gespeichert werden: {error}",
     "batchOpen": "Dateien öffnen",
     "batchOpenSuccess": "{count} Datei(en) geöffnet",
-    "batchOpenFailed": "Es konnten keine Dateien geöffnet werden"
+    "batchOpenFailed": "Es konnten keine Dateien geöffnet werden",
+    "filterByStatus": "Nach Status filtern",
+    "retryAllFailedSummary": "Alle fehlgeschlagenen wiederholen ({count})",
+    "retryAllFailedResult": "{success} Aufgabe(n) wiederholt, {failed} fehlgeschlagen",
+    "batchResultTitle": "Ergebnis der Stapelaktion",
+    "batchResultSuccess": "{count} erfolgreich",
+    "batchResultFailed": "{count} fehlgeschlagen",
+    "batchResultSkipped": "{count} übersprungen",
+    "batchResultFailures": "Fehlerdetails",
+    "batchResultMore": "{count} weitere nicht angezeigt"
   },
   "status": {
     "active": "Wird heruntergeladen",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} Seeder online",
     "healthSeeding": "Seeding von diesem Gerät",
     "magnetUri": "Magnet-URI",
-    "copyMagnet": "Magnet-URI kopieren"
+    "copyMagnet": "Magnet-URI kopieren",
+    "taskSettings": "Aufgabeneinstellungen",
+    "taskSettingsHint": "Änderungen gelten sofort und werden beim erneuten Versuch dieser Aufgabe verwendet.",
+    "taskSettingsUnlimitedHint": "0 bedeutet unbegrenzt.",
+    "taskSettingsSaved": "Aufgabeneinstellungen aktualisiert",
+    "taskSettingsSaveFailed": "Aufgabeneinstellungen konnten nicht gespeichert werden: {error}",
+    "taskSettingsLoadFailed": "Aufgabeneinstellungen konnten nicht geladen werden: {error}",
+    "taskSettingsUnavailable": "In diesem Status lassen sich die Einstellungen nicht ändern. Bitte zuerst die Aufgabe erneut versuchen.",
+    "taskSettingsPartialFailed": "Einige Einstellungen wurden nicht übernommen: {options}"
   },
   "taskPeer": {
     "ip": "IP-Adresse",
@@ -234,7 +251,15 @@
     "deleteFiles": "Dateien ebenfalls löschen",
     "toTrashHint": "Dateien werden in den Systempapierkorb verschoben und können von dort wiederhergestellt werden",
     "deleteTaskAndFiles": "Aufgabe und Dateien löschen",
-    "taskDeleted": "Aufgabe gelöscht"
+    "taskDeleted": "Aufgabe gelöscht",
+    "errors": {
+      "removeRecordFailed": "Aufgabenprotokoll konnte nicht gelöscht werden: {detail}",
+      "deleteFileFailed": "Datei konnte nicht gelöscht werden: {path} ({detail})",
+      "deleteFilesFailed": "Dateilöschung fehlgeschlagen: {detail}",
+      "deleteFilesException": "Fehler beim Löschen von Dateien: {detail}",
+      "unknownError": "Unbekannter Fehler beim Löschen der Aufgabe: {detail}",
+      "processTaskFailed": "Fehler beim Verarbeiten der Aufgabe {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "Neue Download-Aufgabe",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Klicken Sie zum Auswählen oder ziehen Sie eine .torrent-Datei hierher",
     "dropMetalinkHint": "Klicken Sie zum Auswählen oder ziehen Sie eine .metalink-/.meta4-Datei hierher",
     "fileTooLarge": "Datei zu groß (>1 MB) für den aria2-RPC-Upload. Legen Sie sie an einem lokalen Pfad ab und fügen Sie sie stattdessen per URL hinzu",
+    "fileTooLargeLimit": "Die Datei überschreitet das aktuelle Limit ({limit}). Erhöhen Sie rpc-max-request-size unter „Einstellungen → RPC & Sicherheit“",
+    "streamTooManyDownloads": "Die gleichzeitigen Stream-Downloads haben das Limit (3) erreicht. Warten Sie, bis die aktuellen Aufgaben fertig sind",
     "streamPlaylist": "Wiedergabeliste",
     "streamPlaylistEmpty": "Keine Einträge in der Wiedergabeliste gefunden (der Link ist womöglich keine Wiedergabeliste)",
     "streamPlaylistSelectAll": "Alle auswählen",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Archiv entpackt ({count} vorhandene Datei(en) beibehalten; das Archiv wurde nicht gelöscht)",
     "engineCrashed": "Die aria2-Engine wurde unerwartet beendet. Automatischer Neustart läuft (Versuch {count}).",
     "engineGaveUp": "Die aria2-Engine konnte {count} Mal nicht neu gestartet werden, daher wurden automatische Neustarts eingestellt. Starten Sie sie manuell unter Einstellungen → Lokale Engine neu oder öffnen Sie das App-Protokoll für Details.",
-    "shutdownCancelled": "Neuer Download erkannt — das geplante Herunterfahren wurde abgebrochen."
+    "shutdownCancelled": "Neuer Download erkannt — das geplante Herunterfahren wurde abgebrochen.",
+    "unknownTask": "Unbekannte Aufgabe ({gid})"
   },
   "notificationCenter": {
     "title": "Benachrichtigungen",
@@ -430,6 +458,8 @@
     "seedingTasks": "Seeding",
     "trafficChartAria": "Diagramm der Download- und Upload-Geschwindigkeit",
     "enabledFeatures": "Aktivierte Funktionen",
+    "downloadTrend": "Download-Trend",
+    "noTrendData": "Noch keine Download-Daten",
     "resetHistory": "Download-Statistik zurücksetzen",
     "resetHistoryConfirm": "Heutige und gesamte Download-Statistik löschen? Dies betrifft nur die Zähler dieser App; Aufgaben oder Dateien werden nicht gelöscht."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "Der Plugin-Markt hat HTTP {status} zurückgegeben. Versuche es später erneut.",
       "marketErrorTooLarge": "Die Registrierungsdatei des Plugin-Markts ist zu groß und wurde abgelehnt.",
       "marketErrorInvalidRegistry": "Das Format der Plugin-Markt-Registrierung ist ungültig. Prüfe die Registrierungs-URL.",
+      "marketErrorSignature": "Signaturprüfung der Plugin-Markt-Registry fehlgeschlagen: Die Registry wurde möglicherweise manipuliert oder mit einem nicht vertrauenswürdigen Schlüssel signiert. Sie wurde nicht geladen.",
       "marketErrorNetwork": "Der Plugin-Markt ist nicht erreichbar. Prüfe Netzwerk oder Proxy und versuche es erneut.",
       "trustedPublishers": "Öffentliche Schlüssel vertrauenswürdiger Herausgeber",
       "trustedPublishersDesc": "Geben Sie Ed25519-Schlüssel (PEM) vertrauenswürdiger Herausgeber ein, getrennt durch Leerzeilen. Signierte Marktplatz-Plugins müssen die Signaturprüfung bestehen.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Leer lassen, um automatisch ein zufälliges Token zu erzeugen",
       "allowedIps": "Erlaubte IPs",
       "allowedIpsPlaceholder": "z. B. 192.168.1.0/24; leer = nur localhost",
+      "tlsCertPath": "HTTPS-Zertifikatspfad",
+      "tlsKeyPath": "HTTPS-Schlüsselpfad",
+      "tlsPathPlaceholder": "Absoluter Pfad zu einer PEM-Datei, z. B. /etc/ssl/fullchain.pem",
+      "tlsStatus": "HTTPS-Status",
+      "tlsEnabled": "HTTPS aktiv",
+      "tlsDisabled": "Nicht aktiv (nur localhost)",
+      "tlsHint": "Für LAN-Zugriff sind Zertifikat und Schlüssel erforderlich; sonst lauscht die Konsole nur auf 127.0.0.1 und TLS muss ein Reverse-Proxy beenden.",
       "refresh": "Status aktualisieren",
       "status": "Status",
       "running": "Läuft",
@@ -1450,7 +1488,15 @@
     "unknown": "Vorgang fehlgeschlagen. Bitte später erneut versuchen",
     "tlsHandshake": "Sichere Verbindung zu dieser Website fehlgeschlagen — das Netzwerk blockiert sie möglicherweise. Versuchen Sie einen Proxy oder eine andere Quelle",
     "proxy": "Proxy-Verbindung fehlgeschlagen. Prüfen Sie Ihre System- oder App-Proxy-Einstellungen",
-    "certificate": "Zertifikatsüberprüfung fehlgeschlagen: Das Website-Zertifikat ist ungültig oder abgelaufen"
+    "certificate": "Zertifikatsüberprüfung fehlgeschlagen: Das Website-Zertifikat ist ungültig oder abgelaufen",
+    "errConnectionRefused": "Verbindung abgelehnt. Prüfen Sie, ob die Adresse erreichbar und Aria2 gestartet ist",
+    "errConnectionTimedOut": "Zeitüberschreitung bei der Verbindung. Prüfen Sie Netzwerk oder Serveradresse",
+    "errConnectionReset": "Verbindung unterbrochen (Server geschlossen oder Netzwerk instabil). Bitte erneut versuchen",
+    "errNameNotResolved": "Hostname konnte nicht aufgelöst werden. Prüfen Sie Adresse und DNS-Einstellungen",
+    "errInternetDisconnected": "Keine Netzwerkverbindung. Prüfen Sie diese und versuchen Sie es erneut",
+    "errAddressUnreachable": "Zieladresse nicht erreichbar. Prüfen Sie Netzwerk- oder Proxy-Einstellungen",
+    "errCertInvalid": "Zertifikatsprüfung fehlgeschlagen: Das Zertifikat der Seite ist ungültig, abgelaufen oder nicht vertrauenswürdig",
+    "errSslProtocol": "SSL/TLS-Aushandlung fehlgeschlagen – die Verbindung wird möglicherweise blockiert oder die Seite ist veraltet"
   },
   "localService": {
     "invalidPort": "Ungültiger Port, bitte verwenden Sie einen Port zwischen 1024 und 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "Speichern fehlgeschlagen: {error}",
     "deleteFailed": "Löschen fehlgeschlagen: {error}",
     "operationFailed": "Vorgang fehlgeschlagen: {error}"
+  },
+  "onboarding": {
+    "title": "Willkommen bei Aria2Desktop",
+    "subtitle": "Vier kurze Schritte für die wichtigsten Einstellungen. Jeder Schritt lässt sich überspringen und später in den Einstellungen ändern.",
+    "stepOf": "Schritt {current} von {total}",
+    "skip": "Tour überspringen",
+    "later": "Später",
+    "next": "Weiter",
+    "back": "Zurück",
+    "finish": "Loslegen",
+    "statusReady": "Bereit",
+    "statusPending": "Nicht eingerichtet",
+    "stepDownloadTitle": "Download-Ordner wählen",
+    "stepDownloadDesc": "Downloads werden standardmäßig hier gespeichert. Änderbar jederzeit unter „Einstellungen → Downloads“.",
+    "stepDownloadAction": "Download-Einstellungen öffnen",
+    "stepExtensionTitle": "Browser-Erweiterung koppeln",
+    "stepExtensionDesc": "Nach der Installation einmal auf das Erweiterungssymbol im Browser klicken – danach gehen Web-Downloads automatisch an die Desktop-App.",
+    "stepExtensionAction": "Erweiterungseinstellungen öffnen",
+    "stepYtdlpTitle": "Streaming-Downloads aktivieren",
+    "stepYtdlpDesc": "Mit yt-dlp lässt sich eine Video- oder Audio-URL direkt einfügen und herunterladen.",
+    "stepYtdlpAction": "Komponenten-Einstellungen öffnen",
+    "stepRemoteTitle": "Fernsteuerung & Abschlussregeln",
+    "stepRemoteDesc": "Downloads über die Web-Konsole im Browser verwalten und automatische Aktionen nach dem Abschluss festlegen.",
+    "stepRemoteAction": "Remote-Zugriff-Einstellungen öffnen"
   }
 }

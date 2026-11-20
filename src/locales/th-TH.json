@@ -135,7 +135,16 @@
     "saveTorrentFailed": "บันทึกทอร์เรนต์ไม่สำเร็จ: {error}",
     "batchOpen": "เปิดไฟล์",
     "batchOpenSuccess": "เปิดแล้ว {count} ไฟล์",
-    "batchOpenFailed": "ไม่สามารถเปิดไฟล์ใดได้"
+    "batchOpenFailed": "ไม่สามารถเปิดไฟล์ใดได้",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "ผลลัพธ์การดำเนินการแบบกลุ่ม",
+    "batchResultSuccess": "สำเร็จ {count}",
+    "batchResultFailed": "ล้มเหลว {count}",
+    "batchResultSkipped": "ข้าม {count}",
+    "batchResultFailures": "รายละเอียดความล้มเหลว",
+    "batchResultMore": "อีก {count} รายการไม่ได้แสดง"
   },
   "status": {
     "active": "กำลังดาวน์โหลด",
@@ -197,7 +206,15 @@
     "healthSeeders": "มีซีดเดอร์ออนไลน์ {count} ราย",
     "healthSeeding": "กำลังซีดจากอุปกรณ์นี้",
     "magnetUri": "URI ของ Magnet",
-    "copyMagnet": "คัดลอก URI ของ Magnet"
+    "copyMagnet": "คัดลอก URI ของ Magnet",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "ที่อยู่ IP",
@@ -234,7 +251,15 @@
     "deleteFiles": "ลบไฟล์ด้วย",
     "toTrashHint": "ไฟล์จะถูกย้ายไปถังขยะของระบบและสามารถกู้คืนได้จากที่นั่น",
     "deleteTaskAndFiles": "ลบงานและไฟล์",
-    "taskDeleted": "ลบงานแล้ว"
+    "taskDeleted": "ลบงานแล้ว",
+    "errors": {
+      "removeRecordFailed": "ลบระเบียนงานไม่สำเร็จ: {detail}",
+      "deleteFileFailed": "ลบไฟล์ไม่สำเร็จ: {path} ({detail})",
+      "deleteFilesFailed": "การลบไฟล์ล้มเหลว: {detail}",
+      "deleteFilesException": "เกิดข้อผิดพลาดขณะลบไฟล์: {detail}",
+      "unknownError": "เกิดข้อผิดพลาดไม่ทราบสาเหตุขณะลบงาน: {detail}",
+      "processTaskFailed": "เกิดข้อผิดพลาดขณะประมวลผลงาน {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "งานดาวน์โหลดใหม่",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "คลิกเพื่อเลือกหรือลากไฟล์ .torrent มาวางที่นี่",
     "dropMetalinkHint": "คลิกเพื่อเลือกหรือลากไฟล์ .metalink / .meta4 มาวางที่นี่",
     "fileTooLarge": "ไฟล์ใหญ่เกินไป (>1MB) สำหรับอัปโหลดผ่าน aria2 RPC โปรดวางไฟล์ในพาธท้องถิ่นแล้วเพิ่มผ่าน URL แทน",
+    "fileTooLargeLimit": "ไฟล์เกินขีดจำกัดปัจจุบัน ({limit}) โปรดเพิ่ม rpc-max-request-size ใน \"การตั้งค่า → RPC และความปลอดภัย\"",
+    "streamTooManyDownloads": "จำนวนการดาวน์โหลดสตรีมพร้อมกันถึงขีดจำกัดแล้ว (3) โปรดรอให้งานปัจจุบันเสร็จสิ้น",
     "streamPlaylist": "เพลย์ลิสต์",
     "streamPlaylistEmpty": "ไม่พบรายการในเพลย์ลิสต์ (ลิงก์อาจไม่ใช่เพลย์ลิสต์)",
     "streamPlaylistSelectAll": "เลือกทั้งหมด",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "แตกไฟล์สำเร็จ (เก็บไฟล์เดิมไว้ {count} ไฟล์; ไม่ได้ลบไฟล์บีบอัด)",
     "engineCrashed": "เอนจิน aria2 ออกโดยไม่คาดคิด กำลังเริ่มใหม่โดยอัตโนมัติ (ครั้งที่ {count})",
     "engineGaveUp": "เอนจิน aria2 เริ่มใหม่ไม่สำเร็จ {count} ครั้ง จึงหยุดการเริ่มอัตโนมัติ โปรดเริ่มใหม่ด้วยตนเองที่ การตั้งค่า → เอนจินในเครื่อง หรือเปิดบันทึกของแอปเพื่อดูรายละเอียด",
-    "shutdownCancelled": "ตรวจพบการดาวน์โหลดใหม่ — ยกเลิกการปิดเครื่องตามกำหนดแล้ว"
+    "shutdownCancelled": "ตรวจพบการดาวน์โหลดใหม่ — ยกเลิกการปิดเครื่องตามกำหนดแล้ว",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "การแจ้งเตือน",
@@ -430,6 +458,8 @@
     "seedingTasks": "กำลังซีด",
     "trafficChartAria": "กราฟแนวโน้มความเร็วดาวน์โหลดและอัปโหลด",
     "enabledFeatures": "ฟีเจอร์ที่เปิดใช้งาน",
+    "downloadTrend": "แนวโน้มการดาวน์โหลด",
+    "noTrendData": "ยังไม่มีข้อมูลการดาวน์โหลด",
     "resetHistory": "รีเซ็ตสถิติการดาวน์โหลด",
     "resetHistoryConfirm": "ล้างสถิติการดาวน์โหลดวันนี้และทั้งหมดหรือไม่ การดำเนินการนี้ส่งผลเฉพาะตัวนับของแอปนี้เท่านั้น จะไม่มีการลบงานหรือไฟล์"
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "ตลาดปลั๊กอินส่งคืน HTTP {status} โปรดลองอีกครั้งภายหลัง",
       "marketErrorTooLarge": "รีจิสทรีของตลาดปลั๊กอินมีขนาดใหญ่เกินไปและถูกปฏิเสธ",
       "marketErrorInvalidRegistry": "รูปแบบรีจิสทรีของตลาดปลั๊กอินไม่ถูกต้อง โปรดตรวจสอบ URL ของรีจิสทรี",
+      "marketErrorSignature": "การตรวจสอบลายเซ็นของรีจิสทรีตลาดปลั๊กอินล้มเหลว: รีจิสทรีอาจถูกแก้ไขหรือลงนามด้วยคีย์ที่ไม่น่าเชื่อถือ จึงปฏิเสธการโหลด",
       "marketErrorNetwork": "ไม่สามารถเข้าถึงตลาดปลั๊กอินได้ โปรดตรวจสอบเครือข่ายหรือพร็อกซีแล้วลองอีกครั้ง",
       "trustedPublishers": "คีย์ผู้เผยแพร่ที่เชื่อถือได้",
       "trustedPublishersDesc": "ป้อนคีย์สาธารณะ Ed25519 (PEM) ของผู้เผยแพร่ที่เชื่อถือได้ คั่นด้วยบรรทัดว่าง ปลั๊กอินตลาดที่มีลายเซ็นต้องผ่านการตรวจสอบลายเซ็นก่อนจึงจะติดตั้งได้",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "เว้นว่างเพื่อสร้างโทเค็นแบบสุ่มอัตโนมัติ",
       "allowedIps": "IP ที่อนุญาต",
       "allowedIpsPlaceholder": "เช่น 192.168.1.0/24; เว้นว่างเพื่ออนุญาตเฉพาะ localhost",
+      "tlsCertPath": "พาธใบรับรอง HTTPS",
+      "tlsKeyPath": "พาธคีย์ส่วนตัว HTTPS",
+      "tlsPathPlaceholder": "พาธแบบเต็มของไฟล์ PEM เช่น /etc/ssl/fullchain.pem",
+      "tlsStatus": "สถานะ HTTPS",
+      "tlsEnabled": "เปิดใช้ HTTPS แล้ว",
+      "tlsDisabled": "ยังไม่เปิดใช้ (เฉพาะ localhost)",
+      "tlsHint": "การเข้าถึงผ่าน LAN ต้องมีใบรับรองและคีย์ มิฉะนั้นคอนโซลจะรับฟังเฉพาะ 127.0.0.1 และต้องให้ reverse proxy จัดการ TLS",
       "refresh": "รีเฟรชสถานะ",
       "status": "สถานะ",
       "running": "กำลังทำงาน",
@@ -1450,7 +1488,15 @@
     "unknown": "การดำเนินการล้มเหลว โปรดลองอีกครั้งภายหลัง",
     "tlsHandshake": "การเชื่อมต่อที่ปลอดภัยกับเว็บนี้ล้มเหลว — เครือข่ายอาจบล็อก ลองใช้พร็อกซีหรือแหล่งอื่น",
     "proxy": "การเชื่อมต่อพร็อกซีล้มเหลว ตรวจสอบการตั้งค่าพร็อกซีของระบบหรือแอป",
-    "certificate": "การตรวจสอบใบรับรองล้มเหลว: ใบรับรองของเว็บไม่ถูกต้องหรือหมดอายุ"
+    "certificate": "การตรวจสอบใบรับรองล้มเหลว: ใบรับรองของเว็บไม่ถูกต้องหรือหมดอายุ",
+    "errConnectionRefused": "การเชื่อมต่อถูกปฏิเสธ ตรวจสอบว่าที่อยู่เข้าถึงได้และ Aria2 ทำงานอยู่",
+    "errConnectionTimedOut": "การเชื่อมต่อหมดเวลา ตรวจสอบเครือข่ายหรือที่อยู่เซิร์ฟเวอร์",
+    "errConnectionReset": "การเชื่อมต่อถูกตัด (เซิร์ฟเวอร์ปิดหรือเครือข่ายไม่เสถียร) โปรดลองอีกครั้ง",
+    "errNameNotResolved": "ไม่สามารถแปลงชื่อโฮสต์ได้ ตรวจสอบที่อยู่และการตั้งค่า DNS",
+    "errInternetDisconnected": "ไม่มีการเชื่อมต่อเครือข่าย ตรวจสอบแล้วลองอีกครั้ง",
+    "errAddressUnreachable": "ไม่สามารถเข้าถึงที่อยู่ได้ ตรวจสอบเครือข่ายหรือการตั้งค่าพร็อกซี",
+    "errCertInvalid": "การตรวจสอบใบรับรองล้มเหลว: ใบรับรองของไซต์ไม่ถูกต้อง หมดอายุ หรือไม่น่าเชื่อถือ",
+    "errSslProtocol": "การเจรจา SSL/TLS ล้มเหลว — การเชื่อมต่ออาจถูกบล็อกหรือไซต์ล้าสมัย"
   },
   "localService": {
     "invalidPort": "พอร์ตไม่ถูกต้อง โปรดใช้พอร์ตระหว่าง 1024 ถึง 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "บันทึกไม่สำเร็จ: {error}",
     "deleteFailed": "ลบไม่สำเร็จ: {error}",
     "operationFailed": "ดำเนินการไม่สำเร็จ: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

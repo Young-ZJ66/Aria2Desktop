@@ -45,6 +45,7 @@ import { useConnectionStore } from '@/stores/connectionStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { taskPersistenceService } from '@/services/taskPersistenceService'
 import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
+import { formatDateTime } from '@/utils/taskFormatters'
 
 type CheckStatus = 'pass' | 'warn' | 'fail' | 'info'
 
@@ -302,7 +303,7 @@ async function runDiagnostics() {
     })
 
     checks.value = result
-    lastRun.value = new Date().toLocaleString()
+    lastRun.value = formatDateTime(new Date())
   } finally {
     await ensureMinimumDuration(startedAt)
     running.value = false

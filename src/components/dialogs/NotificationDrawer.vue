@@ -72,7 +72,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import dayjs from 'dayjs'
 import {
   AlertCircleOutline,
   CheckmarkCircleOutline,
@@ -82,6 +81,7 @@ import {
 import { useUiStore } from '@/stores/uiStore'
 import { useNotificationStore, type AppNotification } from '@/stores/notificationStore'
 import UiEmpty from '@/components/ui/UiEmpty.vue'
+import { formatShortDateTime } from '@/utils/taskFormatters'
 
 const { t } = useI18n()
 const uiStore = useUiStore()
@@ -95,8 +95,9 @@ const visible = computed({
   }
 })
 
+// D-28：统一走 taskFormatters 的 locale 日期函数，不再固定 MM-DD HH:mm
 function formatTime(timestamp: number): string {
-  return dayjs(timestamp).format('MM-DD HH:mm')
+  return formatShortDateTime(timestamp)
 }
 
 function openItem(item: AppNotification) {

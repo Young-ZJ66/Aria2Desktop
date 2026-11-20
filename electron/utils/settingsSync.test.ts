@@ -2,9 +2,13 @@ import { describe, expect, it } from 'vitest'
 import type { AppSettings } from '../../src/shared/appSettings'
 import {
   ALLOWED_SETTINGS_KEYS,
+  ENGINE_PORT_MAX,
+  ENGINE_PORT_MIN,
   SETTINGS_EXPORT_APP_ID,
   applySettingsImport,
   buildSettingsExport,
+  extractImportedEngineSettings,
+  normalizeImportedEngineSettings,
   redactSettings
 } from './settingsSync'
 
@@ -311,3 +315,84 @@ describe('applySettingsImport 脱敏保护', () => {
     expect(result.next.aria2?.secret).toBe('')
   })
 })
+
+describe('extractImportedEngineSettings', () => {
+  it('抽出引擎字段并规范化下载目录分隔符', () => {
+    const settings: AppSettings = {
+      aria2: {
+        port: 6800,
+        secret: 'abc',
+        downloadDir: 'D:\\Downloads\\',
+        enableRpc: true,
+        rpcAllowOriginAll: true,
+        rpcListenAll: false,
+        rpcSecure: false
+      }
+    }
+
+    expect(extractImportedEngineSettings(settings)).toEqual({
+      port: 6800,
+      secret: 'abc',
+      downloadDir: 'D:/Downloads/',
+      enableRpc: true,
+      rpcAllowOriginAll: true,
+      rpcListenAll: false,
+      rpcSecure: false
+    })
+  })
+
+  it('越界端口与空下载目录不参与引擎同步', () => {
+    const settings: AppSettings = { aria2: { port: 80, downloadDir: '   ' } }
+    expect(extractImportedEngineSettings(settings)).toEqual({})
+  })
+
+  it('显式空密钥要带出去（用户选择无密钥）', () => {
+    expect(extractImportedEngineSettings({ aria2: { secret: '' } })).toEqual({ secret: '' })
+  })
+
+  it('没有 aria2 段时返回空对象', () => {
+    expect(extractImportedEngineSettings({})).toEqual({})
+  })
+})
+
+describe('normalizeImportedEngineSettings', () => {
+  it('合法设置原样返回且不产生规范化记录', () => {
+    const settings: AppSettings = { aria2: { port: 16800, secret: 's', downloadDir: 'D:/dl' } }
+    const result = normalizeImportedEngineSettings(settings)
+    expect(result.normalized).toEqual([])
+    expect(result.next).toBe(settings)
+  })
+
+  it('端口为字符串数字时归一化，越界时丢弃', () => {
+    const fixed = normalizeImportedEngineSettings({ aria2: { port: '6800' as unknown as number } })
+    expect(fixed.next.aria2?.port).toBe(6800)
+    expect(fixed.normalized).toContain('aria2.port')
+
+    const dropped = normalizeImportedEngineSettings({ aria2: { port: 70000 } })
+    expect(dropped.next.aria2?.port).toBeUndefined()
+    expect(dropped.normalized).toContain('aria2.port')
+    expect(ENGINE_PORT_MIN).toBeLessThan(ENGINE_PORT_MAX)
+  })
+
+  it('反斜杠下载目录被改成斜杠，空串被丢弃', () => {
+    const fixed = normalizeImportedEngineSettings({ aria2: { downloadDir: 'E:\\dl' } })
+    expect(fixed.next.aria2?.downloadDir).toBe('E:/dl')
+
+    const dropped = normalizeImportedEngineSettings({ aria2: { downloadDir: '' } })
+    expect(dropped.next.aria2?.downloadDir).toBeUndefined()
+    expect(dropped.normalized).toContain('aria2.downloadDir')
+  })
+
+  it('非字符串密钥被丢弃', () => {
+    const result = normalizeImportedEngineSettings({ aria2: { secret: 123 as unknown as string } })
+    expect(result.next.aria2?.secret).toBeUndefined()
+    expect(result.normalized).toContain('aria2.secret')
+  })
+
+  it('不修改入参', () => {
+    const settings: AppSettings = { aria2: { port: 80 } }
+    normalizeImportedEngineSettings(settings)
+    expect(settings.aria2?.port).toBe(80)
+  })
+})
+

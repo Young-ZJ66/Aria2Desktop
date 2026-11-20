@@ -33,16 +33,15 @@
     -->
     <UiPanel :title="t('queue.settings')" divided>
       <div class="settings-grid">
-        <label class="setting">
+        <div class="setting">
           <span class="setting__label">{{ t('queue.maxConcurrent') }}</span>
-          <n-input-number
-            v-model:value="maxConcurrent"
-            class="setting__control setting__control--number"
-            :min="1"
-            :max="16"
-            @update:value="scheduleMaxConcurrent"
-          />
-        </label>
+          <div class="setting__control setting__control--readonly">
+            <span class="setting__value ds-tnum">{{ maxConcurrent }}</span>
+            <n-button text type="primary" size="tiny" @click="uiStore.openSettings('download')">
+              {{ t('app.settings') }}
+            </n-button>
+          </div>
+        </div>
 
         <div class="setting">
           <span class="setting__label">{{ t('queue.retryEnabled') }}</span>
@@ -174,6 +173,7 @@ import {
 } from '@vicons/ionicons5'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useStatsStore } from '@/stores/statsStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useUiStore } from '@/stores/uiStore'
 import PageHeader from '@/components/layout/PageHeader.vue'
@@ -181,11 +181,13 @@ import { UiEmpty, UiIconButton, UiPanel, UiStat } from '@/components/ui'
 import { runWithMinimumLoading } from '@/composables/useMinimumLoading'
 import { getTaskName } from '@/utils/taskUtils'
 import { formatSize } from '@/utils/taskFormatters'
+import { getUserFriendlyError } from '@/utils/errorMessages'
 
 const { t } = useI18n()
 const message = useMessage()
 const taskStore = useTaskStore()
 const settingsStore = useSettingsStore()
+const statsStore = useStatsStore()
 const connectionStore = useConnectionStore()
 const uiStore = useUiStore()
 
@@ -202,21 +204,19 @@ function openConnectionDialog(): void {
   connectionStore.showConnectionDialog = true
 }
 
-const maxConcurrent = ref(settingsStore.settings.download?.maxConcurrentDownloads ?? 5)
+// 并发数唯一权威入口在「设置 → 下载 → 并发与分片」；本页只读展示并跳转，
+// 避免同一设置出现两个可编辑副本（D-27）。设置页改的是 aria2 全局选项，
+// 所以这里优先读引擎实际值，未连接时回退到应用默认值。
+const maxConcurrent = computed(() => {
+  const raw = statsStore.globalOptions['max-concurrent-downloads']
+  const parsed = typeof raw === 'string' ? Number.parseInt(raw, 10) : Number.NaN
+  if (Number.isFinite(parsed) && parsed > 0) return parsed
+  return settingsStore.settings.download?.maxConcurrentDownloads ?? 5
+})
 const retryEnabled = ref(settingsStore.settings.queue?.retryEnabled ?? false)
 const retryMaxAttempts = ref(settingsStore.settings.queue?.retryMaxAttempts ?? 3)
 const retryDelaySeconds = ref(settingsStore.settings.queue?.retryDelaySeconds ?? 30)
-let concurrencyTimer: ReturnType<typeof setTimeout> | null = null
 let retryPolicyTimer: ReturnType<typeof setTimeout> | null = null
-
-function scheduleMaxConcurrent(value: number | null): void {
-  if (!value) return
-  if (concurrencyTimer) clearTimeout(concurrencyTimer)
-  concurrencyTimer = setTimeout(() => {
-    concurrencyTimer = null
-    void applyMaxConcurrent(value)
-  }, 500)
-}
 
 function scheduleRetryPolicy(): void {
   if (retryPolicyTimer) clearTimeout(retryPolicyTimer)
@@ -247,23 +247,15 @@ async function refresh(): Promise<void> {
   try {
     await runWithMinimumLoading(refreshing, () => taskStore.loadAllTasks())
   } catch (error) {
-    message.error(String(error))
+    message.error(getUserFriendlyError(error))
   }
 }
 
-async function applyMaxConcurrent(value: number | null): Promise<void> {
-  if (!value) return
-  try {
-    await settingsStore.updateSetting('download', {
-      ...settingsStore.settings.download,
-      maxConcurrentDownloads: value
-    })
-    await connectionStore.service?.changeGlobalOption({
-      'max-concurrent-downloads': String(value)
-    })
-  } catch (error) {
-    message.error(String(error))
-  }
+/** 保存失败时把控件回滚到已落盘的值，避免界面显示"已生效"而实际没保存（D-49） */
+function resetRetryPolicyFromSettings(): void {
+  retryEnabled.value = settingsStore.settings.queue?.retryEnabled ?? false
+  retryMaxAttempts.value = settingsStore.settings.queue?.retryMaxAttempts ?? 3
+  retryDelaySeconds.value = settingsStore.settings.queue?.retryDelaySeconds ?? 30
 }
 
 async function saveRetryPolicy(): Promise<void> {
@@ -275,7 +267,8 @@ async function saveRetryPolicy(): Promise<void> {
       retryDelaySeconds: retryDelaySeconds.value ?? 30
     })
   } catch (error) {
-    message.error(String(error))
+    resetRetryPolicyFromSettings()
+    message.error(getUserFriendlyError(error))
   }
 }
 
@@ -283,7 +276,7 @@ async function move(gid: string, direction: 'up' | 'down' | 'top' | 'bottom'): P
   try {
     await taskStore.moveInQueue(gid, direction)
   } catch (error) {
-    message.error(String(error))
+    message.error(getUserFriendlyError(error))
   }
 }
 
@@ -291,7 +284,7 @@ async function remove(gid: string): Promise<void> {
   try {
     await taskStore.removeTask(gid, false)
   } catch (error) {
-    message.error(String(error))
+    message.error(getUserFriendlyError(error))
   }
 }
 
@@ -299,8 +292,18 @@ async function remove(gid: string): Promise<void> {
 // 避免刚进页面就重复拉一遍
 let activatedOnce = false
 
+async function loadEngineOptions(): Promise<void> {
+  if (!connectionStore.isConnected) return
+  try {
+    await statsStore.getGlobalOptions(true)
+  } catch {
+    // 引擎暂不可达时保留上次值/应用默认值，队列主体错误由任务加载提示
+  }
+}
+
 onMounted(() => {
   void refresh()
+  void loadEngineOptions()
 })
 
 // 页面被 keep-alive 缓存，切回来时不会重新挂载：这里补一次静默刷新，
@@ -311,10 +314,10 @@ onActivated(() => {
     return
   }
   void taskStore.loadAllTasks().catch(() => {})
+  void loadEngineOptions()
 })
 
 onBeforeUnmount(() => {
-  if (concurrencyTimer) clearTimeout(concurrencyTimer)
   if (retryPolicyTimer) clearTimeout(retryPolicyTimer)
 })
 </script>
@@ -379,6 +382,15 @@ onBeforeUnmount(() => {
 
 .setting__control--number {
   width: 120px;
+}
+
+.setting__control--readonly {
+  gap: var(--ds-space-8);
+}
+
+.setting__value {
+  font-size: var(--ds-text-body-size);
+  color: var(--ds-text-base);
 }
 
 .queue-table-scroll {

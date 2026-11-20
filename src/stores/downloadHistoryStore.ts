@@ -41,6 +41,32 @@ function loadHistory(): DownloadHistory {
   }
 }
 
+export interface DailyDownloadPoint {
+  dateKey: string
+  bytes: number
+}
+
+/**
+ * 纯函数：按日期键生成最近 N 天的下载量序列（缺失日期补 0）。
+ * 用于状态页的 7/30 天下载趋势，不改变原有存储结构。
+ */
+export function buildDailySeries(
+  daily: Record<string, number>,
+  days: number,
+  endDateKey = localDateKey()
+): DailyDownloadPoint[] {
+  const [year, month, day] = endDateKey.split('-').map(Number)
+  const end = new Date(year ?? 1970, (month ?? 1) - 1, day ?? 1, 12)
+  const points: DailyDownloadPoint[] = []
+  for (let offset = days - 1; offset >= 0; offset--) {
+    const date = new Date(end)
+    date.setDate(end.getDate() - offset)
+    const key = localDateKey(date)
+    points.push({ dateKey: key, bytes: daily[key] ?? 0 })
+  }
+  return points
+}
+
 /** 纯函数：累加一次下载并裁剪过期日期（便于单测） */
 export function addDownloadToHistory(history: DownloadHistory, bytes: number, dateKey: string): DownloadHistory {
   if (!Number.isFinite(bytes) || bytes <= 0) return history

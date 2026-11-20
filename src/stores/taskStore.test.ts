@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     tellActive: vi.fn(async () => []),
     tellWaiting: vi.fn(async () => []),
     tellStopped: vi.fn(async () => []),
+    addUri: vi.fn(async () => 'g1'),
     removeDownloadResult: vi.fn(async () => {}),
     forceRemove: vi.fn(async () => {}),
     saveSession: vi.fn(async () => {}),
@@ -54,6 +55,10 @@ vi.mock('@/services/taskTimeService', () => ({
 
 vi.mock('@/services/sessionManager', () => ({
   sessionManager: { markTaskForSave: vi.fn() }
+}))
+
+vi.mock('@/services/taskSourceService', () => ({
+  taskSourceService: { record: vi.fn() }
 }))
 
 vi.mock('./connectionStore', () => ({
@@ -150,5 +155,72 @@ describe('taskStore.removeTask 的持久化任务分支', () => {
     await store.removeTask('g1', false)
 
     expect(mocks.service.tellStopped).toHaveBeenCalled()
+  })
+})
+
+describe('taskStore.addUriBatch 多 URL 独立任务', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    mocks.service.addUri.mockReset()
+    mocks.service.addUri.mockResolvedValue('g1')
+    mocks.service.saveSession.mockClear()
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('每个 URI 单独调用 addUri([uri])，不再把多 URI 当作镜像', async () => {
+    mocks.service.addUri
+      .mockResolvedValueOnce('g1')
+      .mockResolvedValueOnce('g2')
+      .mockResolvedValueOnce('g3')
+    const store = useTaskStore()
+
+    const result = await store.addUriBatch([
+      { requestId: '1', uri: 'https://example.com/a.zip', options: { dir: 'D:/Downloads' } },
+      { requestId: '2', uri: 'https://example.com/b.zip', options: { dir: 'D:/Downloads' } },
+      { requestId: '3', uri: 'https://example.com/c.zip', options: { dir: 'D:/Downloads' } }
+    ])
+
+    expect(mocks.service.addUri).toHaveBeenCalledTimes(3)
+    expect(mocks.service.addUri).toHaveBeenNthCalledWith(1, ['https://example.com/a.zip'], { dir: 'D:/Downloads' })
+    expect(mocks.service.addUri).toHaveBeenNthCalledWith(2, ['https://example.com/b.zip'], { dir: 'D:/Downloads' })
+    expect(mocks.service.addUri).toHaveBeenNthCalledWith(3, ['https://example.com/c.zip'], { dir: 'D:/Downloads' })
+    expect(result.added.map(item => item.gid)).toEqual(['g1', 'g2', 'g3'])
+    expect(result.failed).toEqual([])
+    expect(mocks.service.saveSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('单项失败不中断其余项，并回传失败行的 requestId', async () => {
+    mocks.service.addUri
+      .mockResolvedValueOnce('g1')
+      .mockRejectedValueOnce(new Error('RPC failed'))
+      .mockResolvedValueOnce('g3')
+    const store = useTaskStore()
+
+    const result = await store.addUriBatch([
+      { requestId: '1', uri: 'https://example.com/a.zip' },
+      { requestId: '2', uri: 'https://example.com/b.zip' },
+      { requestId: '3', uri: 'https://example.com/c.zip' }
+    ])
+
+    expect(result.added.map(item => item.gid)).toEqual(['g1', 'g3'])
+    expect(result.failed).toEqual([
+      { requestId: '2', uri: 'https://example.com/b.zip', error: 'RPC failed' }
+    ])
+  })
+
+  it('磁力任务逐项保留 bt-save-metadata 语义', async () => {
+    const store = useTaskStore()
+
+    await store.addUriBatch([
+      { requestId: '1', uri: 'magnet:?xt=urn:btih:abc' }
+    ])
+
+    expect(mocks.service.addUri).toHaveBeenCalledWith(
+      ['magnet:?xt=urn:btih:abc'],
+      { 'bt-save-metadata': 'true' }
+    )
   })
 })

@@ -50,7 +50,14 @@ export type StreamDownloadEvent =
     entryIndex?: number
     entryCount?: number
   }
-  | { type: 'completed'; id: string; filePath: string }
+  | {
+    type: 'completed'
+    id: string
+    /** 首个输出文件的绝对路径（兼容字段，等同 filePaths[0]） */
+    filePath: string
+    /** 全部输出文件（播放列表/多字幕会产出多个）；旧主进程不携带时按 filePath 兜底 */
+    filePaths?: string[]
+  }
   | { type: 'paused'; id: string }
   | { type: 'failed'; id: string; error: string }
   | { type: 'cancelled'; id: string }
@@ -365,7 +372,7 @@ export interface ElectronAPI {
     subtitle?: { enabled: boolean; languages: string[]; includeAuto?: boolean }
     cookieFile?: string
     extractAudio?: boolean
-  }) => Promise<{ success: boolean; id?: string; code?: 'ffmpeg_missing' | 'invalid_request'; error?: string }>
+  }) => Promise<{ success: boolean; id?: string; code?: 'ffmpeg_missing' | 'invalid_request' | 'too_many_downloads'; error?: string }>
   streamDownloadCancel: (id: string) => Promise<boolean>
   streamDownloadDiscard: (id: string) => Promise<boolean>
   streamDownloadPause: (id: string) => Promise<boolean>

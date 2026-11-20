@@ -329,3 +329,100 @@ export function applySettingsImport(current: AppSettings, data: unknown): Settin
 
   return { ok: true, next, report }
 }
+
+
+/** 内置引擎 RPC 端口合法范围（与 Aria2Controller 的 MIN_PORT / MAX_PORT 同口径） */
+export const ENGINE_PORT_MIN = 1024
+export const ENGINE_PORT_MAX = 65535
+
+/**
+ * 导入的 settings 里「需要落到 aria2.conf」的引擎字段。
+ *
+ * 为什么单独抽出来：导入只写 settings（electron-store）时，aria2.conf 里仍是旧端口/旧密钥，
+ * 于是"导入了配置但引擎行为没变"，用户看到的是「导入成功却毫无变化」。这些字段必须
+ * 由主进程按 aria2.conf 的键名再落一次盘（见 Aria2Controller.applyImportedSettings）。
+ */
+export interface ImportedEngineSettings {
+  port?: number
+  secret?: string
+  downloadDir?: string
+  enableRpc?: boolean
+  rpcAllowOriginAll?: boolean
+  rpcListenAll?: boolean
+  rpcSecure?: boolean
+}
+
+/** 从 settings 中抽出引擎字段；缺失或类型不对的字段一律不返回（保持引擎当前值） */
+export function extractImportedEngineSettings(settings: AppSettings): ImportedEngineSettings {
+  const result: ImportedEngineSettings = {}
+  const aria2 = settings.aria2
+  if (!aria2) return result
+
+  const port = Number(aria2.port)
+  if (aria2.port !== undefined && Number.isInteger(port) && port >= ENGINE_PORT_MIN && port <= ENGINE_PORT_MAX) {
+    result.port = port
+  }
+  // 空串是有意义的取值（用户显式选择"无密钥"），必须原样带出去
+  if (typeof aria2.secret === 'string') {
+    result.secret = aria2.secret
+  }
+  if (typeof aria2.downloadDir === 'string' && aria2.downloadDir.trim() !== '') {
+    result.downloadDir = aria2.downloadDir.trim().replace(/\\/g, '/')
+  }
+  if (typeof aria2.enableRpc === 'boolean') result.enableRpc = aria2.enableRpc
+  if (typeof aria2.rpcAllowOriginAll === 'boolean') result.rpcAllowOriginAll = aria2.rpcAllowOriginAll
+  if (typeof aria2.rpcListenAll === 'boolean') result.rpcListenAll = aria2.rpcListenAll
+  if (typeof aria2.rpcSecure === 'boolean') result.rpcSecure = aria2.rpcSecure
+  return result
+}
+
+/** 引擎设置的规范化结果：next 为可安全写入的 settings，normalized 记录被调整/丢弃的字段 */
+export interface NormalizedEngineSettings {
+  next: AppSettings
+  normalized: string[]
+}
+
+/**
+ * 规范化导入的引擎设置（纯函数）。
+ *
+ * 导入文件可能来自别的机器或手改过：端口写成字符串/越界、下载目录用反斜杠或空串。
+ * 这些值若原样写进 aria2.conf，引擎会启动失败（越界端口）或把文件写到奇怪的位置，
+ * 因此先就地修正，无法修正的字段直接丢弃（回落到本机当前值），并把字段名回报给调用方记日志。
+ */
+export function normalizeImportedEngineSettings(settings: AppSettings): NormalizedEngineSettings {
+  const aria2 = settings.aria2
+  if (!aria2) return { next: settings, normalized: [] }
+
+  const normalized: string[] = []
+  const nextAria2: NonNullable<AppSettings['aria2']> = { ...aria2 }
+
+  if (aria2.port !== undefined) {
+    const port = Number(aria2.port)
+    if (!Number.isInteger(port) || port < ENGINE_PORT_MIN || port > ENGINE_PORT_MAX) {
+      delete nextAria2.port
+      normalized.push('aria2.port')
+    } else if (port !== aria2.port) {
+      nextAria2.port = port
+      normalized.push('aria2.port')
+    }
+  }
+
+  if (aria2.downloadDir !== undefined) {
+    const dir = String(aria2.downloadDir).trim().replace(/\\/g, '/')
+    if (dir === '') {
+      delete nextAria2.downloadDir
+      normalized.push('aria2.downloadDir')
+    } else if (dir !== aria2.downloadDir) {
+      nextAria2.downloadDir = dir
+      normalized.push('aria2.downloadDir')
+    }
+  }
+
+  if (aria2.secret !== undefined && typeof aria2.secret !== 'string') {
+    delete nextAria2.secret
+    normalized.push('aria2.secret')
+  }
+
+  if (normalized.length === 0) return { next: settings, normalized }
+  return { next: { ...settings, aria2: nextAria2 }, normalized }
+}

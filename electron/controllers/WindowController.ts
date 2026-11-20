@@ -500,6 +500,21 @@ export class WindowController {
     return this.mainWindow
   }
 
+  /**
+   * 把主窗口从最小化/隐藏状态恢复到前台并聚焦。
+   *
+   * 单靠 show() 在 Windows 上不会解除最小化：托盘点击、通知点击或第二次启动唤醒时，
+   * 用户只会看到任务栏图标闪一下、窗口仍是最小化状态。因此先 restore() 再 show()/focus()。
+   */
+  private revealWindow(): void {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return
+    if (this.mainWindow.isMinimized()) {
+      this.mainWindow.restore()
+    }
+    this.mainWindow.show()
+    this.mainWindow.focus()
+  }
+
   public show() {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       // 已有等待内容就绪的重试链在跑，避免重复调用叠加多个 setTimeout 链
@@ -508,8 +523,7 @@ export class WindowController {
       if (this.isContentReady) {
         // 每次显示窗口都会走到这里（托盘恢复/Alt+Tab 等），降级为 debug 避免刷屏
         logger.debug('[WindowController] Showing window (content ready)')
-        this.mainWindow.show()
-        this.mainWindow.focus()
+        this.revealWindow()
       } else {
         logger.debug('[WindowController] Waiting for content to be ready...')
         // 等待 ready-to-show 事件，最多重试 MAX_SHOW_RETRIES 次（10 秒），超时后强制显示
@@ -522,8 +536,7 @@ export class WindowController {
             if (!this.isContentReady) {
               logger.warn('[WindowController] Timed out waiting for content, forcing show')
             }
-            this.mainWindow.show()
-            this.mainWindow.focus()
+            this.revealWindow()
           } else {
             attempts++
             this.pendingShowTimer = setTimeout(showWhenReady, SHOW_RETRY_INTERVAL)

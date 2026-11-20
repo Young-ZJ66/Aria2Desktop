@@ -1,6 +1,8 @@
 name: 构建并发布
 
 # 推送版本 tag（v1.0.0、v1.0.1 等）时自动构建并发布 Release。
+# 带 -beta/-rc 后缀的 tag 会自动标记为 GitHub Pre-release，客户端 releases/latest
+# 只认最新稳定版，因此稳定版用户不会被推到 beta 构建。
 # 发布前依次通过：扩展打包 → 应用端到端测试（真跑一遍应用）→ 创建 Release，
 # 然后 Windows / macOS / Linux 三平台并行构建并上传产物。
 on:
@@ -242,11 +244,14 @@ jobs:
             Get-ChildItem release -Filter "*.crx"
           )
 
+          $prereleaseArgs = @()
+          if ($tag -match '-') { $prereleaseArgs += '--prerelease' }
+
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Aria2 Desktop $tag" --notes-file .github/release-notes.md
+            gh release create $tag --title "Aria2 Desktop $tag" --notes-file .github/release-notes.md @prereleaseArgs
           } else {
-            gh release edit $tag --notes-file .github/release-notes.md
+            gh release edit $tag --notes-file .github/release-notes.md @prereleaseArgs
           }
 
           foreach ($asset in $assets) {
@@ -262,7 +267,7 @@ jobs:
   # 先把 Release 建出来，三个平台的构建才能并行上传：
   # gh release upload 要求 Release 已存在。此前创建动作放在 Windows job 里，
   # mac/linux 只能 needs: [build] 串行等待，白白多等一整个 Windows 构建。
-  # 版本守卫（日志首行必须含 tag 版本）与 build 作业里的一致，谁先跑谁拦。
+  # 版本守卫（package.json 必须与 tag 一致，日志首行必须含核心版本）与 build 作业里的一致，谁先跑谁拦。
   release-init:
     needs: [e2e, quality]
     name: 创建 Release
@@ -271,35 +276,54 @@ jobs:
       - name: 拉取代码
         uses: actions/checkout@v7
 
-      - name: 校验更新日志版本
+      - name: 安装 Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: 校验版本一致性
         run: |
           tag="${GITHUB_REF_NAME}"
-          expected=$(printf '%s' "$tag" | sed -n 's/^v\?\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p')
-          if [ -z "$expected" ]; then
-            echo "无法从 tag「$tag」解析出版本号，请检查 tag 命名（形如 v1.2.1）" >&2
+          expected="${tag#v}"
+          core="${expected%%-*}"
+          if ! printf '%s' "$core" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "无法从 tag「$tag」解析出版本号，请检查 tag 命名（形如 v1.2.1 或 v1.2.1-beta.1）" >&2
+            exit 1
+          fi
+          pkg_version=$(node -p "require('./package.json').version")
+          if [ "$pkg_version" != "$expected" ]; then
+            echo "package.json 版本与 tag 不一致，已终止发布。" >&2
+            echo "tag=$tag；package.json=$pkg_version；期望=$expected" >&2
+            echo "beta 版本必须把 package.json 改成与 tag 完全一致（含 -beta.N 后缀）。" >&2
             exit 1
           fi
           first=$(head -n1 .github/release-notes.md | tr -d '\r')
           case "$first" in
-            *"$expected"*) ;;
+            *"$core"*) ;;
             *)
               echo "更新日志与本次 tag 不匹配，已终止发布。" >&2
-              echo "tag=$tag；期望版本=$expected；日志首行=$first" >&2
+              echo "tag=$tag；期望版本=$core；日志首行=$first" >&2
               echo "请把 .github/release-notes.md 首行改为「# v$expected 更新日志」并提交后重新打 tag。" >&2
               exit 1
               ;;
           esac
-          echo "更新日志版本校验通过：$first"
+          echo "版本校验通过：tag=$tag package=$pkg_version 日志=$first"
 
       - name: 创建或更新 Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF_NAME}"
+          # 带 -beta/-rc 的 tag 一律发布为 GitHub Pre-release：
+          # releases/latest 只指向最新非预发布版本，客户端更新检查因此不会把 beta 推给稳定版用户。
+          prerelease=""
+          case "$tag" in
+            *-*) prerelease="--prerelease" ;;
+          esac
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file .github/release-notes.md
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file .github/release-notes.md $prerelease
           else
-            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "Aria2 Desktop $tag" --notes-file .github/release-notes.md
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "Aria2 Desktop $tag" --notes-file .github/release-notes.md $prerelease
           fi
 
   # macOS 安装包：在真实的 macOS 运行器上构建（Windows 无法交叉产出 dmg）。

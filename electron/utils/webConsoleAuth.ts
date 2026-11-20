@@ -64,6 +64,7 @@ export function routeScope(method: string, pathname: string): WebConsoleScope | 
   if (verb === 'GET' && pathname === '/api/events') return 'tasks:read'
   if (verb === 'GET' && pathname === '/api/audit') return 'audit:read'
   if (verb === 'POST' && pathname === '/api/tasks') return 'tasks:write'
+  if (verb === 'POST' && /^\/api\/tasks\/(pauseAll|unpauseAll)$/.test(pathname)) return 'tasks:control'
   if (verb === 'POST' && /^\/api\/tasks\/[^/]+\/(pause|resume|remove)$/.test(pathname)) return 'tasks:control'
   return null
 }

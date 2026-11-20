@@ -10,6 +10,7 @@ import { DEFAULT_PLUGIN_REGISTRY_URL } from '../../src/shared/appSettings'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { createLogger } from '../utils/logger'
 import type { PluginManager, RegistryPluginEntry } from './pluginManager'
+import { verifyRegistryTrust } from './pluginManager'
 import type { PluginInfo } from '../types/plugin'
 
 const logger = createLogger('PluginMarket')
@@ -92,6 +93,13 @@ export class PluginMarketService {
           ? (parsed as { plugins: unknown[] }).plugins
           : null)
       if (!rawPlugins) return { success: false, plugins: [], error: 'INVALID_REGISTRY' }
+      // D-02：注册表本身也必须由可信发布者签名，否则攻击者改一行 URL 就能换掉全部条目。
+      // 唯一例外是**空清单**：没有条目就没有可安装内容，攻击者把它换成空表只能造成
+      // "市场暂时是空的"（拒绝服务），不能借此装入代码；这样未配置签名私钥的维护者
+      // 也不必让市场永久报错。非空清单一律验签。
+      if (rawPlugins.length > 0 && !verifyRegistryTrust(parsed, settings.trustedPluginPublishers ?? [])) {
+        return { success: false, plugins: [], error: 'REGISTRY_SIGNATURE_INVALID' }
+      }
       const seen = new Set<string>()
       const plugins: MarketPlugin[] = []
       for (const item of rawPlugins) {

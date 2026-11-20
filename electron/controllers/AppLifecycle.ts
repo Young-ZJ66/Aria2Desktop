@@ -1,4 +1,4 @@
-import { dialog } from 'electron'
+import { dialog, Notification, shell } from 'electron'
 import Store from 'electron-store'
 import { WindowController } from './WindowController'
 import { TrayController } from './TrayController'
@@ -6,7 +6,10 @@ import { Aria2Controller } from './Aria2Controller'
 import { IpcController } from './IpcController'
 import { ConfigWatcher } from '../utils/ConfigWatcher'
 import { getSettings } from '../utils/settingsAccessor'
-import { createLogger } from '../utils/logger'
+import { createLogger, getLogFilePaths } from '../utils/logger'
+// 启动失败分类是纯函数（不依赖 electron），便于单测；见 utils/engineStartupFailureCore
+import { ENGINE_STARTUP_ACTION_LABELS, buildEngineStartupFailureInfo } from '../utils/engineStartupFailureCore'
+import type { EngineStartupAction, EngineStartupFailureInfo } from '../utils/engineStartupFailureCore'
 import type { StoreData } from '../types/store'
 
 // 本文件日志文案自带 [AppLifecycle] 前缀（历史风格），故 scope 传空避免前缀重复
@@ -61,8 +64,16 @@ export class AppLifecycle {
 
     try {
       // 步骤 1: 创建窗口（隐藏）
-      logger.info('[AppLifecycle] Step 1: Creating window...')
-      this.windowController.createWindow()
+      //
+      // --headless（服务器/远程管理场景）下**不建窗口**：只跑引擎、Web 控制台与 MCP。
+      // 过去这里无条件建窗，导致无头模式仍会拉起一个 Chromium 渲染进程（常驻内存 + 在
+      // 无 X11 的 Linux 上直接启动失败），"无头"名不副实。
+      if (this.headless) {
+        logger.info('[AppLifecycle] --headless: 跳过创建主窗口（仅引擎与后台服务）')
+      } else {
+        logger.info('[AppLifecycle] Step 1: Creating window...')
+        this.createWindowSafely()
+      }
 
       // 步骤 2: 注册 IPC 处理器
       logger.info('[AppLifecycle] Step 2: Registering IPC handlers...')
@@ -87,9 +98,12 @@ export class AppLifecycle {
       // 步骤 7: 显示窗口（--headless 时保持隐藏，由托盘/远程接口控制）
       if (this.headless) {
         logger.info('[AppLifecycle] --headless: 跳过显示主窗口')
-      } else {
+      } else if (this.windowController.getMainWindow()) {
         logger.info('[AppLifecycle] Step 7: Showing window...')
         this.windowController.show()
+      } else {
+        // 建窗失败（典型：Linux 无 DISPLAY/WAYLAND_DISPLAY）不致命：引擎与后台服务照常工作
+        logger.warn('[AppLifecycle] 无可用主窗口，跳过显示（无 GUI 环境）')
       }
 
     } catch (error) {
@@ -105,37 +119,168 @@ export class AppLifecycle {
   }
 
   /**
-   * 初始化 Aria2，带用户友好的错误处理
+   * 创建主窗口，并对"没有图形环境"做容错。
+   *
+   * 为什么不能让它中断初始化：Linux 服务器/容器里没有 DISPLAY 时 BrowserWindow 构造会抛
+   * "Missing X server or $DISPLAY"。过去这个异常直接冒到 initialize 的 catch，导致引擎、
+   * Web 控制台、MCP 全都起不来 —— 但窗口只是界面载体，缺它不影响任何后台能力。
+   * 这里降级为告警：窗口没建出来，后续 show() 会被跳过（见步骤 7）。
+   */
+  private createWindowSafely(): void {
+    try {
+      this.windowController.createWindow()
+    } catch (error) {
+      logger.warn('[AppLifecycle] 创建主窗口失败，将以无界面模式继续运行:', error)
+    }
+  }
+
+  /**
+   * 初始化 Aria2，带用户友好的错误处理。
+   *
+   * 失败不再只给一个笼统的「继续/退出」：底层（reclaimLeftoverEngineOnPort 的端口探测）
+   * 其实知道到底是"别的 aria2 占着端口"、"端口上是别的服务"还是"可执行文件缺失"，
+   * 这里把它翻译成可点的下一步（换端口 / 重试 / 看日志 / 继续 / 退出）。
    */
   private async initializeAria2WithErrorHandling(): Promise<void> {
-    try {
-      await this.aria2Controller.initialize()
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('[AppLifecycle] Aria2 initialization failed:', errorMessage)
+    for (;;) {
+      try {
+        await this.aria2Controller.initialize()
+        return
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error('[AppLifecycle] Aria2 initialization failed:', errorMessage)
 
-      // 无头模式没有用户可点对话框：直接失败退出，避免后台进程带病运行
-      if (this.headless) {
-        throw new Error(`Aria2 下载引擎启动失败: ${errorMessage}`)
+        // 无头模式没有用户可点对话框：直接失败退出，避免后台进程带病运行
+        if (this.headless) {
+          throw new Error(`Aria2 下载引擎启动失败: ${errorMessage}`)
+        }
+
+        const info = buildEngineStartupFailureInfo(error, this.readConfiguredPort())
+        let action = await this.promptEngineStartupAction(info, errorMessage)
+
+        // 「查看日志」不结束对话：打开日志目录后重新弹一次，让用户看完再决定
+        while (action === 'open-logs') {
+          await this.openLogDirectory()
+          action = await this.promptEngineStartupAction(info, errorMessage)
+        }
+
+        switch (action) {
+          case 'retry':
+            // 端口类问题常常再试一次就好（对方进程刚退出）；重试即重新走一遍完整初始化
+            logger.info('[AppLifecycle] 用户选择重试启动下载引擎')
+            continue
+          case 'change-port':
+            // 不再阻断初始化：把用户送到设置页的引擎分组，改完端口由他自己点启动
+            logger.info('[AppLifecycle] 用户选择更换 RPC 端口，打开引擎设置')
+            await this.openEngineSettings()
+            return
+          case 'quit':
+            throw new UserCancelledError('User cancelled due to Aria2 startup failure')
+          default:
+            // 继续使用：仅记录，不阻断初始化
+            return
+        }
       }
-
-      // 显示用户友好的错误对话框
-      const result = await dialog.showMessageBox({
-        type: 'error',
-        title: 'Aria2 启动失败',
-        message: 'Aria2 下载引擎启动失败',
-        detail: `错误详情: ${errorMessage}\n\n可能的原因:\n• Aria2 可执行文件缺失或损坏\n• 端口已被占用\n• 配置文件错误\n\n您可以继续使用应用，但下载功能将不可用。`,
-        buttons: ['继续', '退出应用'],
-        defaultId: 0,
-        cancelId: 1
-      })
-
-      if (result.response === 1) {
-        // 用户选择退出
-        throw new UserCancelledError('User cancelled due to Aria2 startup failure')
-      }
-      // 用户选择继续 - 仅记录，不阻断初始化
     }
+  }
+
+  /** 读取设置里的 RPC 端口（仅用于失败提示文案；设置不可读时返回 null） */
+  private readConfiguredPort(): number | null {
+    try {
+      const port = Number(getSettings().aria2?.port)
+      return Number.isFinite(port) && port > 0 && port <= 65535 ? port : null
+    } catch {
+      return null
+    }
+  }
+
+  /** 按失败分类弹出带行动项的对话框，返回用户选中的动作 */
+  private async promptEngineStartupAction(
+    info: EngineStartupFailureInfo,
+    errorMessage: string
+  ): Promise<EngineStartupAction> {
+    const buttons = info.actions.map((action) => ENGINE_STARTUP_ACTION_LABELS[action])
+    // 默认项优先「重试启动」；cancelId 指向「退出应用」（Esc 关闭 = 退出，与旧行为一致）
+    const preferred = info.actions.includes('retry') ? 'retry' : info.actions[0]
+    const defaultId = Math.max(info.actions.indexOf(preferred), 0)
+    const cancelId = Math.max(info.actions.indexOf('quit'), 0)
+
+    const result = await dialog.showMessageBox({
+      type: 'error',
+      title: 'Aria2 启动失败',
+      message: 'Aria2 下载引擎启动失败',
+      detail: `${info.summary}\n\n建议下一步：${info.hint}\n\n错误详情: ${errorMessage}`,
+      buttons,
+      defaultId,
+      cancelId,
+      noLink: true
+    })
+
+    return info.actions[result.response] ?? 'continue'
+  }
+
+  /** 打开日志目录（引擎失败时用户最需要的证据都在这里） */
+  private async openLogDirectory(): Promise<void> {
+    try {
+      const { dir } = getLogFilePaths()
+      const failure = await shell.openPath(dir)
+      if (failure) logger.warn('[AppLifecycle] 打开日志目录失败:', failure)
+    } catch (error) {
+      logger.warn('[AppLifecycle] 打开日志目录异常:', error)
+    }
+  }
+
+  /**
+   * 打开设置页的「引擎」分组，让用户就地改 rpc-listen-port。
+   *
+   * 复用渲染层已有的托盘动作通道（tray-action）而不是新开 IPC：切页逻辑只有一份。
+   * 启动失败对话框通常早于页面加载完成，因此这里等渲染层就绪后再投递，否则消息会石沉大海。
+   */
+  private async openEngineSettings(): Promise<void> {
+    if (!this.windowController.getMainWindow()) {
+      logger.warn('[AppLifecycle] 无主窗口，无法打开引擎设置')
+      return
+    }
+    this.windowController.show()
+
+    const deadline = Date.now() + 10000
+    while (Date.now() < deadline && !this.windowController.isRendererContentReady()) {
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+
+    const win = this.windowController.getMainWindow()
+    if (!win || win.isDestroyed()) {
+      logger.warn('[AppLifecycle] 主窗口已销毁，无法打开引擎设置')
+      return
+    }
+    win.webContents.send('tray-action', 'open-engine-settings')
+  }
+
+  /**
+   * 引擎连续崩溃、已放弃自动重启时的**系统级**提醒。
+   *
+   * 为什么需要：过去这条消息只以渲染层 toast（duration 0）的形式存在，托盘模式、
+   * 无头模式或窗口被隐藏时用户完全看不到 —— 而"引擎已经不会再起来"是必须被知道的
+   * 状态，否则他会一直等一个永远不会恢复的下载队列。系统通知不受窗口可见性影响。
+   *
+   * @param attempts 连续失败次数（来自管理器）
+   */
+  public notifyEngineGaveUp(attempts: number): void {
+    const message = `aria2 引擎连续 ${attempts} 次重启失败，已停止自动重启。可在「设置 → 引擎设置」里手动重启，或打开应用日志查看原因。`
+    try {
+      if (Notification.isSupported()) {
+        new Notification({
+          title: 'Aria2 引擎已停止自动重启',
+          body: message.slice(0, 500),
+          urgency: 'critical'
+        }).show()
+      } else {
+        logger.warn('[AppLifecycle] 系统通知不可用，引擎放弃重启事件仅记录日志')
+      }
+    } catch (error) {
+      logger.warn('[AppLifecycle] 发送引擎异常系统通知失败:', error)
+    }
+    logger.error(`[AppLifecycle] ${message}`)
   }
 
   /**

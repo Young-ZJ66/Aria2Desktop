@@ -135,7 +135,16 @@
     "saveTorrentFailed": "Gagal menyimpan torrent: {error}",
     "batchOpen": "Buka file",
     "batchOpenSuccess": "{count} file dibuka",
-    "batchOpenFailed": "Tidak ada file yang dapat dibuka"
+    "batchOpenFailed": "Tidak ada file yang dapat dibuka",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "Hasil operasi massal",
+    "batchResultSuccess": "{count} berhasil",
+    "batchResultFailed": "{count} gagal",
+    "batchResultSkipped": "{count} dilewati",
+    "batchResultFailures": "Detail kegagalan",
+    "batchResultMore": "{count} lainnya tidak ditampilkan"
   },
   "status": {
     "active": "Mengunduh",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} seeder online",
     "healthSeeding": "Seeding dari perangkat ini",
     "magnetUri": "URI Magnet",
-    "copyMagnet": "Salin URI magnet"
+    "copyMagnet": "Salin URI magnet",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "Alamat IP",
@@ -234,7 +251,15 @@
     "deleteFiles": "Hapus juga file",
     "toTrashHint": "File dipindahkan ke tempat sampah sistem dan dapat dipulihkan dari sana",
     "deleteTaskAndFiles": "Hapus Tugas dan File",
-    "taskDeleted": "Tugas dihapus"
+    "taskDeleted": "Tugas dihapus",
+    "errors": {
+      "removeRecordFailed": "Gagal menghapus catatan tugas: {detail}",
+      "deleteFileFailed": "Gagal menghapus file: {path} ({detail})",
+      "deleteFilesFailed": "Operasi penghapusan file gagal: {detail}",
+      "deleteFilesException": "Terjadi kesalahan saat menghapus file: {detail}",
+      "unknownError": "Kesalahan tidak dikenal saat menghapus tugas: {detail}",
+      "processTaskFailed": "Terjadi kesalahan saat memproses tugas {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "Tugas Unduhan Baru",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Klik untuk memilih atau seret file .torrent ke sini",
     "dropMetalinkHint": "Klik untuk memilih atau seret file .metalink / .meta4 ke sini",
     "fileTooLarge": "File terlalu besar (>1MB) untuk unggahan RPC aria2. Tempatkan di jalur lokal dan tambahkan melalui URL",
+    "fileTooLargeLimit": "File melebihi batas saat ini ({limit}). Tingkatkan rpc-max-request-size di \"Pengaturan → RPC & Keamanan\"",
+    "streamTooManyDownloads": "Batas unduhan streaming bersamaan (3) tercapai. Tunggu hingga unduhan saat ini selesai",
     "streamPlaylist": "Daftar putar",
     "streamPlaylistEmpty": "Tidak ada entri daftar putar yang ditemukan (tautan mungkin bukan daftar putar)",
     "streamPlaylistSelectAll": "Pilih semua",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Arsip Diekstrak ({count} file yang sudah ada dipertahankan; arsip tidak dihapus)",
     "engineCrashed": "Mesin aria2 berhenti secara tak terduga. Memulai ulang otomatis (percobaan {count}).",
     "engineGaveUp": "Mesin aria2 gagal dimulai ulang sebanyak {count} kali, jadi mulai ulang otomatis telah dihentikan. Mulai ulang secara manual di Pengaturan → Mesin lokal, atau buka log aplikasi untuk detail.",
-    "shutdownCancelled": "Unduhan baru terdeteksi — jadwal matikan telah dibatalkan."
+    "shutdownCancelled": "Unduhan baru terdeteksi — jadwal matikan telah dibatalkan.",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "Notifikasi",
@@ -430,6 +458,8 @@
     "seedingTasks": "Seeding",
     "trafficChartAria": "Grafik tren kecepatan unduh dan unggah",
     "enabledFeatures": "Fitur Aktif",
+    "downloadTrend": "Tren Unduhan",
+    "noTrendData": "Belum ada data unduhan",
     "resetHistory": "Reset statistik unduhan",
     "resetHistoryConfirm": "Hapus statistik unduhan hari ini dan total? Ini hanya memengaruhi penghitung aplikasi ini; tidak ada tugas atau file yang dihapus."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "Pasar plugin mengembalikan HTTP {status}. Coba lagi nanti.",
       "marketErrorTooLarge": "Registri pasar plugin terlalu besar dan ditolak.",
       "marketErrorInvalidRegistry": "Format registri pasar plugin tidak valid. Periksa URL registri.",
+      "marketErrorSignature": "Verifikasi tanda tangan registri pasar plugin gagal: registri mungkin telah dirusak atau ditandatangani dengan kunci yang tidak tepercaya. Registri tidak dimuat.",
       "marketErrorNetwork": "Tidak dapat menjangkau pasar plugin. Periksa jaringan atau proxy Anda dan coba lagi.",
       "trustedPublishers": "Kunci penerbit tepercaya",
       "trustedPublishersDesc": "Masukkan kunci publik Ed25519 (PEM) penerbit tepercaya, dipisahkan dengan baris kosong. Plugin pasar yang ditandatangani harus lulus verifikasi tanda tangan sebelum dapat dipasang.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Biarkan kosong untuk membuat token acak secara otomatis",
       "allowedIps": "IP yang Diizinkan",
       "allowedIpsPlaceholder": "mis. 192.168.1.0/24; biarkan kosong untuk hanya mengizinkan localhost",
+      "tlsCertPath": "Jalur sertifikat HTTPS",
+      "tlsKeyPath": "Jalur kunci privat HTTPS",
+      "tlsPathPlaceholder": "Jalur absolut ke berkas PEM, mis. /etc/ssl/fullchain.pem",
+      "tlsStatus": "Status HTTPS",
+      "tlsEnabled": "HTTPS aktif",
+      "tlsDisabled": "Belum aktif (hanya localhost)",
+      "tlsHint": "Akses LAN memerlukan sertifikat dan kunci; jika tidak, konsol hanya mendengarkan di 127.0.0.1 dan TLS harus diakhiri oleh reverse proxy.",
       "refresh": "Segarkan status",
       "status": "Status",
       "running": "Berjalan",
@@ -1450,7 +1488,15 @@
     "unknown": "Operasi gagal. Silakan coba lagi nanti",
     "tlsHandshake": "Koneksi aman ke situs ini gagal — jaringan mungkin memblokirnya. Coba proxy atau sumber lain",
     "proxy": "Koneksi proxy gagal. Periksa pengaturan proxy sistem atau aplikasi Anda",
-    "certificate": "Validasi sertifikat gagal: sertifikat situs tidak valid atau sudah kedaluwarsa"
+    "certificate": "Validasi sertifikat gagal: sertifikat situs tidak valid atau sudah kedaluwarsa",
+    "errConnectionRefused": "Koneksi ditolak. Pastikan alamat dapat dijangkau dan Aria2 berjalan",
+    "errConnectionTimedOut": "Waktu koneksi habis. Periksa jaringan atau alamat server",
+    "errConnectionReset": "Koneksi terputus (server ditutup atau jaringan tidak stabil). Coba lagi",
+    "errNameNotResolved": "Nama host tidak dapat diselesaikan. Periksa alamat dan pengaturan DNS",
+    "errInternetDisconnected": "Tidak ada koneksi jaringan. Periksa lalu coba lagi",
+    "errAddressUnreachable": "Alamat tidak dapat dijangkau. Periksa jaringan atau pengaturan proxy",
+    "errCertInvalid": "Validasi sertifikat gagal: sertifikat situs tidak valid, kedaluwarsa, atau tidak tepercaya",
+    "errSslProtocol": "Negosiasi SSL/TLS gagal — koneksi mungkin diblokir atau situs sudah usang"
   },
   "localService": {
     "invalidPort": "Port tidak valid, silakan gunakan port antara 1024 dan 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "Gagal menyimpan: {error}",
     "deleteFailed": "Gagal menghapus: {error}",
     "operationFailed": "Operasi gagal: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

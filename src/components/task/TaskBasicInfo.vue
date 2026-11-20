@@ -14,7 +14,7 @@
           </div>
         </n-descriptions-item>
 
-        <n-descriptions-item v-if="task.files?.length" :label="t('task.fileName')">
+        <n-descriptions-item v-if="displayFilePaths.length" :label="t('task.fileName')">
           <span class="file-name-text">{{ getFileName(firstFilePath) }}</span>
         </n-descriptions-item>
 
@@ -54,12 +54,69 @@
           </div>
         </n-descriptions-item>
 
-        <n-descriptions-item v-if="task.files?.length" :label="t('taskDetail.filePath')" :span="2">
-          <div class="path-with-action">
+        <!-- D-11：多文件（流媒体播放列表、多输出）逐条列出，每条都能打开所在位置或直接打开文件。
+             单文件时保持原来的紧凑一行，不为最常见的场景增加视觉噪音。 -->
+        <n-descriptions-item v-if="displayFilePaths.length" :label="t('taskDetail.filePath')" :span="2">
+          <div v-if="multiFilePaths" class="file-list">
+            <div v-for="(path, index) in displayFilePaths" :key="path" class="file-entry">
+              <span class="file-entry__index">{{ index + 1 }}</span>
+              <div class="mono-block file-entry__path" :title="path">{{ path }}</div>
+              <div class="file-entry__actions">
+                <n-button
+                  v-if="isElectron"
+                  size="tiny"
+                  quaternary
+                  circle
+                  :title="t('task.openLocation')"
+                  :aria-label="t('task.openLocation')"
+                  @click="openFileInFolder(path)"
+                >
+                  <template #icon>
+                    <n-icon><FolderOpenOutline /></n-icon>
+                  </template>
+                </n-button>
+                <n-button
+                  v-if="isElectron"
+                  size="tiny"
+                  quaternary
+                  circle
+                  :title="t('task.openFile')"
+                  :aria-label="t('task.openFile')"
+                  @click="openFile(path)"
+                >
+                  <template #icon>
+                    <n-icon><OpenOutline /></n-icon>
+                  </template>
+                </n-button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="path-with-action">
             <div class="mono-block">{{ firstFilePath }}</div>
-            <n-button v-if="isElectron" size="tiny" quaternary circle :title="t('task.openLocation')" @click="openFileInFolder(firstFilePath)">
+            <n-button
+              v-if="isElectron"
+              size="tiny"
+              quaternary
+              circle
+              :title="t('task.openLocation')"
+              :aria-label="t('task.openLocation')"
+              @click="openFileInFolder(firstFilePath)"
+            >
               <template #icon>
                 <n-icon><FolderOpenOutline /></n-icon>
+              </template>
+            </n-button>
+            <n-button
+              v-if="isElectron"
+              size="tiny"
+              quaternary
+              circle
+              :title="t('task.openFile')"
+              :aria-label="t('task.openFile')"
+              @click="openFile(firstFilePath)"
+            >
+              <template #icon>
+                <n-icon><OpenOutline /></n-icon>
               </template>
             </n-button>
           </div>
@@ -85,12 +142,18 @@
       </n-descriptions>
 
       <!-- 文件操作按钮 -->
-      <div v-if="task.files?.length" class="file-actions">
+      <div v-if="displayFilePaths.length" class="file-actions">
         <n-button v-if="isElectron && task.status === 'complete'" size="small" type="primary" ghost @click="openFileInFolder(firstFilePath)">
           <template #icon>
             <n-icon><FolderOpenOutline /></n-icon>
           </template>
           {{ t('task.openLocation') }}
+        </n-button>
+        <n-button v-if="isElectron && task.status === 'complete'" size="small" ghost @click="openFile(firstFilePath)">
+          <template #icon>
+            <n-icon><OpenOutline /></n-icon>
+          </template>
+          {{ t('task.openFile') }}
         </n-button>
         <!-- 失败任务：带着原链接打开新建弹窗，先改参数再重试 -->
         <n-button v-if="task.status === 'error' && firstUri" size="small" @click="retryWithOptions">
@@ -159,7 +222,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { classifyAria2Error } from '@/shared/aria2Error'
-import { CopyOutline, FolderOpenOutline } from '@vicons/ionicons5'
+import { CopyOutline, FolderOpenOutline, OpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import { useUiStore } from '@/stores/uiStore'
 import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
@@ -168,6 +231,7 @@ import {
   formatSize,
   formatSpeed,
   formatRemainingTime,
+  formatDateTime,
   getProgress,
   getFileName
 } from '@/utils/taskFormatters'
@@ -176,6 +240,12 @@ interface Props {
   task: Aria2Task
   taskUris: Aria2Uri[]
   isElectron: boolean
+  /**
+   * 流媒体任务的全部输出文件（D-11）。
+   * 这类任务不在 aria2 队列里，转成 Aria2Task 形状时只保留了首个文件（见 streamTaskUtils），
+   * 播放列表会产出多个文件，因此由抽屉把完整列表传进来。普通 aria2 任务不传。
+   */
+  streamFilePaths?: string[]
 }
 
 const props = defineProps<Props>()
@@ -239,8 +309,30 @@ const btHealthWarning = computed(() => {
  * 模板里多处引用 `files[0]` / `taskUris[0]`，外层虽已用 v-if 保证存在，
  * 但 noUncheckedIndexedAccess 下直接索引会被判为可能 undefined，故统一在这里兜底空串。
  */
-const firstFilePath = computed(() => props.task.files?.[0]?.path ?? '')
 const firstUri = computed(() => props.taskUris[0]?.uri ?? '')
+
+/**
+ * 详情里要展示的全部文件路径（D-11）。
+ *
+ * 数据来源有两个：aria2 任务的 files 列表，以及流媒体任务由抽屉传入的 filePaths。
+ * 两者都去重、去空，避免播放列表场景下同一个文件出现两遍。
+ */
+const displayFilePaths = computed<string[]>(() => {
+  const collected: string[] = []
+  const pushPath = (value: string | undefined) => {
+    const trimmed = (value ?? '').trim()
+    if (trimmed && !collected.includes(trimmed)) collected.push(trimmed)
+  }
+  for (const filePath of props.streamFilePaths ?? []) pushPath(filePath)
+  for (const file of props.task.files ?? []) pushPath(file?.path)
+  return collected
+})
+
+/** 多于一个文件才切换成列表布局；单文件保持原来的一行展示 */
+const multiFilePaths = computed(() => displayFilePaths.value.length > 1)
+
+/** 首个文件路径：优先取统一路径列表，兼容只有 files 的普通任务与只有 filePaths 的流媒体任务 */
+const firstFilePath = computed(() => displayFilePaths.value[0] ?? '')
 
 const progressClass = computed(() => {
   switch (props.task.status) {
@@ -330,8 +422,10 @@ async function copyUri(uri: string) {
 function formatDate(timestamp: string | number | undefined): string {
   if (!timestamp || timestamp === '0' || timestamp === 0) return t('common.unknown')
   const ts = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp
-  const date = new Date(ts * 1000)
-  return date.toLocaleString()
+  if (!Number.isFinite(ts)) return t('common.unknown')
+  // D-28：统一走 taskFormatters 的 locale 日期函数，不再用不带 locale 的 toLocaleString()
+  const formatted = formatDateTime(new Date(ts * 1000))
+  return formatted === '--' ? t('common.unknown') : formatted
 }
 
 async function openFileInFolder(filePath: string) {
@@ -358,6 +452,27 @@ async function openFileInFolder(filePath: string) {
   } catch (error) {
     console.error('Failed to open file in folder:', error)
     message.error(t('task.openLocationFailed'))
+  }
+}
+
+/** D-11：用系统默认程序打开文件（主进程会校验路径确实在下载目录内） */
+async function openFile(filePath: string) {
+  if (!filePath) return
+  if (!window.electronAPI?.openFile) {
+    message.warning(t('task.desktopOnly'))
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.openFile(filePath)
+    if (result?.success) {
+      message.success(t('task.openedFile'))
+    } else {
+      message.error(t('task.openFileFailed', { error: result?.error || t('common.unknown') }))
+    }
+  } catch (error) {
+    console.error('Failed to open file:', error)
+    message.error(t('task.openFileFailed', { error: t('common.unknown') }))
   }
 }
 </script>
@@ -519,9 +634,47 @@ async function openFileInFolder(filePath: string) {
 .file-actions {
   display: flex;
   justify-content: flex-start;
+  gap: 8px;
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--ds-border-subtle);
+}
+
+/* D-11：多文件列表（播放列表/多输出）。每条一行，路径可换行，操作按钮固定在右侧 */
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.file-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.file-entry__index {
+  flex-shrink: 0;
+  min-width: 18px;
+  text-align: right;
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.file-entry__path {
+  /* 与 .mono-block 共用等宽/底色，只是不再需要 flex:1 之外的自适应 */
+  max-height: 4.6em;
+  overflow-y: auto;
+}
+
+.file-entry__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
 }
 
 .announce-list {

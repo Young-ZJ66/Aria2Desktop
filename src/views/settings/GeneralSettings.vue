@@ -79,6 +79,16 @@
 
         <n-form-item>
           <template #label>
+            <TipLabel :label="t('generalSettings.clipboardMonitor')" :tip="t('generalSettings.clipboardMonitorTip')" />
+          </template>
+          <AppSwitch
+            v-model:value="form.clipboardMonitor"
+            @update:value="handleClipboardMonitorChange"
+          />
+        </n-form-item>
+
+        <n-form-item>
+          <template #label>
             <TipLabel :label="t('generalSettings.downloadCompleteAction')" />
           </template>
           <n-select
@@ -180,6 +190,7 @@ const form = reactive({
   autoConnect: true,
   minimizeToTray: true,
   autoLaunch: false,
+  clipboardMonitor: false,
   autoExtract: false,
   autoDeleteArchive: false,
   downloadCompleteAction: 'none' as 'none' | 'shutdown' | 'hibernate' | 'close' | 'open-folder' | 'open-file'
@@ -264,6 +275,7 @@ watch(
     settingsStore.settings.autoConnect,
     settingsStore.settings.minimizeToTray,
     settingsStore.settings.autoLaunch,
+    settingsStore.settings.clipboardMonitorEnabled,
     settingsStore.settings.downloadCompleteAction,
     settingsStore.settings.download?.autoExtract,
     settingsStore.settings.download?.autoDeleteArchive
@@ -283,6 +295,7 @@ function loadFormData() {
     autoConnect: settingsStore.settings.autoConnect,
     minimizeToTray: settingsStore.settings.minimizeToTray,
     autoLaunch: settingsStore.settings.autoLaunch,
+    clipboardMonitor: settingsStore.settings.clipboardMonitorEnabled === true,
     autoExtract: settingsStore.settings.download?.autoExtract === true,
     autoDeleteArchive: settingsStore.settings.download?.autoDeleteArchive === true,
     downloadCompleteAction: settingsStore.settings.downloadCompleteAction || 'none'
@@ -468,7 +481,22 @@ async function handleAutoLaunchChange() {
   }
 }
 
-// 下载完成后操作变化处理
+// 剪贴板监控开关：保存失败时回滚，避免界面显示已开启但主进程未启动监控
+async function handleClipboardMonitorChange(value: boolean) {
+  const previous = settingsStore.settings.clipboardMonitorEnabled === true
+  form.clipboardMonitor = value
+  try {
+    await settingsStore.updateSetting('clipboardMonitorEnabled', value)
+  } catch (error) {
+    console.error('Clipboard monitor change error:', error)
+    form.clipboardMonitor = previous
+    message.error(t('generalSettings.clipboardMonitorFailed', {
+      error: error instanceof Error ? error.message : t('settings.unknownError')
+    }))
+  }
+}
+
+// 下载完成后操作处理
 async function handleDownloadCompleteActionChange(value: string) {
   const previous = settingsStore.settings.downloadCompleteAction ?? 'none'
   form.downloadCompleteAction = value as 'none' | 'shutdown' | 'hibernate' | 'close' | 'open-folder' | 'open-file'

@@ -24,16 +24,19 @@
 
     <!-- 下载前勾选文件：索引直接对应 aria2 的 select-file 选项 -->
     <div
-      v-if="parsingTorrent || torrentFiles.length > 0 || parseError"
+      v-if="parsingTorrent || torrentParseState.fileCount > 0 || torrentParseState.error"
       class="pane-section"
     >
       <div v-if="parsingTorrent" class="torrent-parsing">
         <n-spin size="small" />
         <span>{{ t('newTask.torrentParsing') }}</span>
       </div>
-      <div v-else-if="torrentFiles.length > 0" class="torrent-files">
+      <div v-else-if="torrentParseState.fileCount > 0" class="torrent-files">
         <div class="torrent-files-header">
-          <span>{{ t('newTask.torrentFiles', { count: torrentFiles.length }) }}</span>
+          <span>
+            {{ t('newTask.torrentFiles', { count: torrentParseState.fileCount }) }}
+            · {{ formatSize(torrentParseState.totalSize) }}
+          </span>
           <span class="torrent-files-summary ds-tnum">
             {{ t('newTask.torrentSelected', { count: selectedFileCount, size: formatSize(selectedFileBytes) }) }}
           </span>
@@ -62,8 +65,9 @@
           </div>
         </div>
       </div>
-      <div v-else-if="parseError" class="torrent-parse-error">
-        {{ t('newTask.torrentParseFailed') }}
+      <div v-else-if="torrentParseState.error" class="torrent-parse-error">
+        <span class="torrent-parse-error-title">{{ t('newTask.torrentParseFailed') }}</span>
+        <span class="torrent-parse-error-reason" :title="torrentParseState.error">{{ torrentParseState.error }}</span>
       </div>
     </div>
 
@@ -133,10 +137,27 @@ const rules: FormRules = {
 
 const dragging = ref(false)
 
-const torrentFiles = ref<TorrentFileEntry[]>([])
+/**
+ * 种子解析结果：结构化保存文件清单、文件数与总大小，失败时保存原因。
+ * 创建任务前用它展示「会下载什么」，解析失败时阻止提交并给出原因，
+ * 而不是像旧实现那样只留一个布尔标记、静默退回「全部文件下载」。
+ */
+interface TorrentParseState {
+  fileCount: number
+  totalSize: number
+  files: TorrentFileEntry[]
+  /** 解析失败原因（空串=解析成功） */
+  error: string
+}
+
+const EMPTY_TORRENT_PARSE: TorrentParseState = { fileCount: 0, totalSize: 0, files: [], error: '' }
+
+const torrentParseState = ref<TorrentParseState>({ ...EMPTY_TORRENT_PARSE })
 const selectedFiles = ref<Set<number>>(new Set())
 const parsingTorrent = ref(false)
-const parseError = ref(false)
+
+/** 已解析出的文件清单（模板与提交逻辑共用） */
+const torrentFiles = computed(() => torrentParseState.value.files)
 
 const selectedFileCount = computed(() => selectedFiles.value.size)
 const selectedFileBytes = computed(() =>
@@ -172,19 +193,28 @@ async function recordRecentSaveDir(dir: string) {
   } catch { /* 记录失败不影响提交结果 */ }
 }
 
-/** 解析种子内容；失败时保留“全部文件下载”的旧行为 */
+/** 解析种子内容并把结果结构化保存；失败时记录具体原因供界面展示 */
 async function loadTorrentFiles(file: File) {
   parsingTorrent.value = true
-  parseError.value = false
-  torrentFiles.value = []
+  torrentParseState.value = { ...EMPTY_TORRENT_PARSE }
   selectedFiles.value = new Set()
   try {
     const bytes = new Uint8Array(await file.arrayBuffer())
     const list = parseTorrentFiles(bytes)
-    torrentFiles.value = list.files
+    const totalSize = list.files.reduce((sum, item) => sum + item.length, 0)
+    torrentParseState.value = {
+      fileCount: list.files.length,
+      totalSize,
+      files: list.files,
+      error: ''
+    }
+    // 默认全选：与「全部文件下载」的旧行为保持一致
     selectedFiles.value = new Set(list.files.map(item => item.index))
-  } catch {
-    parseError.value = true
+  } catch (error) {
+    // 解析失败的原始原因（bencode 结构错误等）直接展示，便于用户判断文件是否损坏
+    const reason = error instanceof Error ? error.message : String(error)
+    console.warn('[TorrentPane] Failed to parse torrent file:', error)
+    torrentParseState.value = { ...EMPTY_TORRENT_PARSE, error: reason }
   } finally {
     parsingTorrent.value = false
   }
@@ -252,6 +282,12 @@ async function handleSubmit() {
       }
       // 超过 aria2 RPC 大小上限的文件直接拒绝，避免大文件上传失败
       if (!props.checkFileSize(file)) return null
+      // 解析失败（结构损坏/非种子文件）时阻止提交：无法确认要下载什么，
+      // 静默退回「全部文件下载」只会把错误留到 aria2 端
+      if (torrentParseState.value.error) {
+        message.error(t('newTask.torrentParseFailed'))
+        return null
+      }
       // 已解析出文件列表时，至少选择一个文件（aria2 会按 select-file 只下选中的）
       if (torrentFiles.value.length > 0 && selectedFiles.value.size === 0) {
         message.error(t('newTask.selectAtLeastOneFile'))
@@ -326,9 +362,8 @@ function askInsufficientSpace(targetDir: string, freeBytes: number): Promise<boo
 function handleReset() {
   formRef.value?.restoreValidation()
   form.torrentFile = null
-  torrentFiles.value = []
+  torrentParseState.value = { ...EMPTY_TORRENT_PARSE }
   selectedFiles.value = new Set()
-  parseError.value = false
 }
 
 // 按钮由弹窗 footer 统一渲染（滚动内容时始终可见）
@@ -468,9 +503,20 @@ defineExpose({
   color: var(--ds-text-muted);
 }
 
+/* 解析失败：结论 + 具体原因两行，原因过长时省略但可 hover 看全文 */
 .torrent-parse-error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
   margin-bottom: var(--ds-space-12);
   font-size: var(--ds-text-small-size);
   color: var(--ds-status-danger-text);
+}
+
+.torrent-parse-error-reason {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ds-text-muted);
 }
 </style>

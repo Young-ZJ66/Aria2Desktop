@@ -16,6 +16,23 @@
 export const MCP_PROTOCOL_VERSION = '2024-11-05'
 export const MCP_SERVER_NAME = 'aria2-desktop'
 
+/**
+ * MCP 工具行为标注（对应规范的 ToolAnnotations）。
+ *
+ * 为什么必须有：客户端据此决定是否要二次确认、是否可并发调用。
+ * 之前 22 个工具全部没有标注，模型无从判断 remove_task 会改变状态。
+ */
+export interface McpToolAnnotations {
+  /** 只读：调用不改变任何状态 */
+  readOnlyHint?: boolean
+  /** 破坏性：可能移除任务/结果（不删文件，但用户仍会丢失队列项） */
+  destructiveHint?: boolean
+  /** 幂等：重复调用结果一致 */
+  idempotentHint?: boolean
+  /** 依赖外部系统（aria2 引擎） */
+  openWorldHint?: boolean
+}
+
 export interface McpToolDefinition {
   name: string
   description: string
@@ -24,12 +41,14 @@ export interface McpToolDefinition {
     properties: Record<string, { type: string; description?: string; enum?: string[] }>
     required?: string[]
   }
+  annotations?: McpToolAnnotations
 }
 
 /** 暴露给 AI 客户端的工具清单（描述写给模型看，需明确副作用与参数语义） */
 export const MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'add_download',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description:
       'Add a download task to Aria2 Desktop. Supports http/https/ftp URLs and magnet links. The app applies its own category folders and duplicate detection.',
     inputSchema: {
@@ -43,6 +62,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'list_tasks',
+    annotations: { readOnlyHint: true, openWorldHint: true },
     description:
       'List download tasks with concise status. Use the status filter to narrow down: active (downloading), waiting (queued or paused), stopped (completed or failed).',
     inputSchema: {
@@ -59,6 +79,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'get_download_status',
+    annotations: { readOnlyHint: true, openWorldHint: true },
     description:
       'Get overall download statistics: global speed, number of active/waiting/stopped tasks. Pass gid to get one task instead.',
     inputSchema: {
@@ -70,6 +91,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'get_task_status',
+    annotations: { readOnlyHint: true, openWorldHint: true },
     description: 'Get detailed status of one download task by gid (progress, speed, files, error).',
     inputSchema: {
       type: 'object',
@@ -79,6 +101,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'pause_task',
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
     description: 'Pause a download task by its gid. Use list_tasks to obtain gids.',
     inputSchema: {
       type: 'object',
@@ -88,6 +111,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'resume_task',
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
     description: 'Resume (unpause) a paused download task by its gid.',
     inputSchema: {
       type: 'object',
@@ -97,26 +121,42 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'remove_task',
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     description:
       'Remove a download task and its aria2 result entry. Downloaded files are NOT deleted. Use list_tasks to obtain gids.',
     inputSchema: {
       type: 'object',
-      properties: { gid: { type: 'string', description: 'Task gid shown by list_tasks' } },
-      required: ['gid']
+      properties: {
+        gid: { type: 'string', description: 'Task gid shown by list_tasks' },
+        confirm: {
+          type: 'boolean',
+          description: 'Must be true. Removing a task is destructive; call again with confirm=true after the user agrees.'
+        }
+      },
+      required: ['gid', 'confirm']
     }
   },
   {
     name: 'pause_all',
-    description: 'Pause all active download tasks.',
-    inputSchema: { type: 'object', properties: {} }
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
+    description: 'Pause all active download tasks. Requires confirm=true because it affects every task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        confirm: { type: 'boolean', description: 'Must be true. Pausing everything affects the whole queue.' }
+      },
+      required: ['confirm']
+    }
   },
   {
     name: 'resume_all',
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
     description: 'Resume all paused/waiting download tasks.',
     inputSchema: { type: 'object', properties: {} }
   },
   {
     name: 'set_speed_limit',
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
     description:
       'Set the global download speed limit in bytes per second. Use 0 to remove the limit. Upload limit can optionally be set too.',
     inputSchema: {
@@ -130,21 +170,25 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'get_global_stats',
+    annotations: { readOnlyHint: true, openWorldHint: true },
     description: 'Get global download/upload speed and active, waiting and stopped task counts.',
     inputSchema: { type: 'object', properties: {} }
   },
   {
     name: 'get_version',
+    annotations: { readOnlyHint: true, openWorldHint: true },
     description: 'Get the aria2 engine version and enabled feature list.',
     inputSchema: { type: 'object', properties: {} }
   },
   {
     name: 'get_session_info',
+    annotations: { readOnlyHint: true, openWorldHint: true },
     description: 'Get aria2 session id and the list of features supported by the engine.',
     inputSchema: { type: 'object', properties: {} }
   },
   {
     name: 'get_task_peers',
+    annotations: { readOnlyHint: true, openWorldHint: true },
     description: 'List peers (address, speed, progress) for a BitTorrent task.',
     inputSchema: {
       type: 'object',
@@ -154,6 +198,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'get_task_servers',
+    annotations: { readOnlyHint: true, openWorldHint: true },
     description: 'List file servers and their download speed for a task.',
     inputSchema: {
       type: 'object',
@@ -163,6 +208,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'get_task_files',
+    annotations: { readOnlyHint: true, openWorldHint: true },
     description: 'List the files belonging to a task with their size, completion and selected state.',
     inputSchema: {
       type: 'object',
@@ -172,6 +218,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'change_task_position',
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
     description:
       'Move a waiting task in the download queue. how=POS_SET uses an absolute 0-based position; POS_CUR is relative to the current position; POS_END appends to the end.',
     inputSchema: {
@@ -190,6 +237,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'set_task_speed_limit',
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
     description:
       'Set per-task download and/or upload speed limits in bytes per second. Use 0 to remove a limit.',
     inputSchema: {
@@ -204,6 +252,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'set_max_concurrent',
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
     description: 'Set the maximum number of simultaneous downloads (1-50).',
     inputSchema: {
       type: 'object',
@@ -213,24 +262,76 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'get_global_options',
+    annotations: { readOnlyHint: true, openWorldHint: true },
     description: 'Get current aria2 global options (speed limits, concurrency, directories and more).',
     inputSchema: { type: 'object', properties: {} }
   },
   {
     name: 'purge_download_result',
-    description: 'Remove one stopped task result entry without deleting any downloaded file.',
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+    description:
+      'Remove one stopped task result entry without deleting any downloaded file. Requires confirm=true.',
     inputSchema: {
       type: 'object',
-      properties: { gid: { type: 'string', description: 'Stopped task gid shown by list_tasks' } },
-      required: ['gid']
+      properties: {
+        gid: { type: 'string', description: 'Stopped task gid shown by list_tasks' },
+        confirm: { type: 'boolean', description: 'Must be true. The task record is removed from the list.' }
+      },
+      required: ['gid', 'confirm']
     }
   },
   {
     name: 'save_session',
+    annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
     description: 'Persist the current download session so it can be restored after restart.',
     inputSchema: { type: 'object', properties: {} }
   }
 ]
+
+/**
+ * 每个 MCP 工具所需的最小扩展 token scope。
+ *
+ * 为什么按工具而不是整个 /api/mcp 端点：端点级只给一个 scope 时，只读客户端
+ * 也会拿到能删任务的能力；反过来只给 tasks:read 又会让 add_download 失败。
+ * 这里按工具声明，handleMcp 在 tools/call 前逐项校验。
+ */
+export const MCP_TOOL_SCOPES: Record<string, 'download:add' | 'tasks:read' | 'tasks:control'> = {
+  add_download: 'download:add',
+  list_tasks: 'tasks:read',
+  get_download_status: 'tasks:read',
+  get_task_status: 'tasks:read',
+  pause_task: 'tasks:control',
+  resume_task: 'tasks:control',
+  remove_task: 'tasks:control',
+  pause_all: 'tasks:control',
+  resume_all: 'tasks:control',
+  set_speed_limit: 'tasks:control',
+  get_global_stats: 'tasks:read',
+  get_version: 'tasks:read',
+  get_session_info: 'tasks:read',
+  get_task_peers: 'tasks:read',
+  get_task_servers: 'tasks:read',
+  get_task_files: 'tasks:read',
+  change_task_position: 'tasks:control',
+  set_task_speed_limit: 'tasks:control',
+  set_max_concurrent: 'tasks:control',
+  get_global_options: 'tasks:read',
+  purge_download_result: 'tasks:control',
+  save_session: 'tasks:control'
+}
+
+/**
+ * 破坏性工具：必须显式传 confirm: true 才执行。
+ *
+ * 为什么不用 prompt/交互：MCP 客户端不保证有人盯着；把确认做成参数，
+ * 模型必须先向用户确认再调用第二次，审计日志也能看出是否走过确认。
+ */
+export const MCP_CONFIRM_REQUIRED_TOOLS = ['remove_task', 'pause_all', 'purge_download_result'] as const
+
+/** 从工具参数里读 confirm 标志（只接受布尔 true） */
+export function optConfirm(args: Record<string, unknown>): boolean {
+  return args.confirm === true
+}
 
 /** JSON-RPC 成功响应 */
 export function mcpResult(id: string | number | null, result: unknown): Record<string, unknown> {
@@ -374,6 +475,23 @@ export interface TaskNameInput {
   files?: Array<{ path?: unknown; uris?: Array<{ uri?: unknown }> }>
 }
 
+/** 任务名最大长度：够区分任务，又不会让一条恶意名占满模型上下文 */
+export const MCP_TASK_NAME_MAX_LENGTH = 120
+
+/**
+ * 清洗任务名：去掉控制字符与双向文本覆盖符，压平空白并限长。
+ *
+ * 为什么必须做：任务名来自远端（BT info.name / URL 末段），完全由下载源控制。
+ * 恶意名可以塞 ANSI 转义、U+202E 反向显示或超长文本，直接进 AI 上下文就是提示注入面。
+ */
+export function sanitizeTaskName(raw: string): string {
+  // eslint-disable-next-line no-control-regex
+  const stripped = raw.replace(/[\u0000-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, ' ')
+  const collapsed = stripped.replace(/\s+/g, ' ').trim()
+  if (collapsed.length <= MCP_TASK_NAME_MAX_LENGTH) return collapsed
+  return `${collapsed.slice(0, MCP_TASK_NAME_MAX_LENGTH)}…`
+}
+
 /**
  * 任务显示名：BT 名 → 文件路径末段 → URI 末段 → gid。
  *
@@ -383,14 +501,14 @@ export interface TaskNameInput {
  */
 export function pickTaskName(task: TaskNameInput): string {
   const btName = task.bittorrent?.info?.name
-  if (typeof btName === 'string' && btName.trim()) return btName.trim()
+  if (typeof btName === 'string' && btName.trim()) return sanitizeTaskName(btName)
 
   const files = Array.isArray(task.files) ? task.files : []
   for (const f of files) {
     const p = typeof f.path === 'string' ? f.path : ''
     if (!p) continue
     const base = p.split(/[\\/]/).pop()
-    if (base) return base
+    if (base) return sanitizeTaskName(base)
   }
 
   for (const f of files) {
@@ -402,7 +520,7 @@ export function pickTaskName(task: TaskNameInput): string {
         const url = new URL(uri)
         const last = url.pathname.split('/').filter(Boolean).pop() ?? ''
         const decoded = decodeURIComponent(last)
-        if (decoded) return decoded
+        if (decoded) return sanitizeTaskName(decoded)
       } catch {
         // magnet / 非法 URI：跳过（它们的文件名在 dn 参数里，不在此处展开）
       }

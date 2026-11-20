@@ -4,9 +4,25 @@
 // 与渲染层共用同一份定义，修改数据结构时只改共享文件。
 
 export type { AppSettings } from '@/shared/appSettings'
-import { DEFAULT_PLUGIN_REGISTRY_URL, type AppSettings } from '@/shared/appSettings'
+import {
+  DEFAULT_PLUGIN_REGISTRY_URL,
+  DEFAULT_TRUSTED_PLUGIN_PUBLISHERS,
+  type AppSettings
+} from '@/shared/appSettings'
 import { mergeCategoryRules } from '@/shared/fileCategories'
 import { pickLocale, systemLocale } from '@/shared/locale'
+
+/**
+ * 归一化受信任发布者清单（D-02）。
+ *
+ * 默认清单必须非空，否则"无签名即拒绝"的策略形同虚设。老用户配置里可能存着
+ * 空数组（旧版本默认值），或用户误删了全部条目 —— 这两种情况都回落内置官方公钥，
+ * 而不是让系统静默变成"不校验签名"。
+ */
+export function normalizeTrustedPluginPublishers(list: readonly string[] | undefined): string[] {
+  const cleaned = (list || []).map(item => String(item ?? '').trim()).filter(item => item.length > 0)
+  return cleaned.length > 0 ? cleaned : [...DEFAULT_TRUSTED_PLUGIN_PUBLISHERS]
+}
 
 export const defaultSettings: AppSettings = {
   // 首次启动没有用户选择，按系统语言定；否则英文用户会先看到一屏中文
@@ -18,7 +34,8 @@ export const defaultSettings: AppSettings = {
   keepWindowState: true,
   autoLaunch: false,
   downloadCompleteAction: 'none',
-  clipboardMonitorEnabled: true,
+  // 隐私敏感：默认关闭，用户在「常规设置」显式开启后才读取剪贴板（D-36）
+  clipboardMonitorEnabled: false,
 
   aria2: {
     host: 'localhost',
@@ -82,9 +99,12 @@ export const defaultSettings: AppSettings = {
   },
   pluginMarket: {
     enabled: true,
-    registryUrl: DEFAULT_PLUGIN_REGISTRY_URL
+    registryUrl: DEFAULT_PLUGIN_REGISTRY_URL,
+    // 开发者模式默认关闭：允许装未签名插件是危险开关，必须用户显式打开
+    developerMode: false
   },
-  trustedPluginPublishers: []
+  // 默认非空 = 默认强制 Ed25519 签名校验（无签名插件直接装不上）
+  trustedPluginPublishers: [...DEFAULT_TRUSTED_PLUGIN_PUBLISHERS]
 }
 
 class SettingsService {
@@ -129,7 +149,7 @@ class SettingsService {
       ...saved,
       // 固定开启项：旧配置/导入文件里的 false 不允许生效
       keepWindowState: true,
-      clipboardMonitorEnabled: true,
+      clipboardMonitorEnabled: saved.clipboardMonitorEnabled === true,
       aria2: { ...defaultSettings.aria2, ...(saved.aria2 || {}) },
       download: { ...defaultSettings.download, ...(saved.download || {}) },
       category: {
@@ -152,7 +172,8 @@ class SettingsService {
       pluginMarket: { ...defaultSettings.pluginMarket, ...(saved.pluginMarket || {}) },
       taskTemplates: saved.taskTemplates ?? defaultSettings.taskTemplates,
       completionRules: saved.completionRules ?? defaultSettings.completionRules,
-      trustedPluginPublishers: saved.trustedPluginPublishers ?? defaultSettings.trustedPluginPublishers
+      // 空清单回落内置官方公钥：旧配置里的 [] 不能让签名校验被静默关掉
+      trustedPluginPublishers: normalizeTrustedPluginPublishers(saved.trustedPluginPublishers)
     }
   }
 
@@ -206,7 +227,7 @@ class SettingsService {
       merged.completionRules = patch.completionRules
     }
     if (patch.trustedPluginPublishers) {
-      merged.trustedPluginPublishers = patch.trustedPluginPublishers
+      merged.trustedPluginPublishers = normalizeTrustedPluginPublishers(patch.trustedPluginPublishers)
     }
     if (patch.connectionProfiles) {
       merged.connectionProfiles = patch.connectionProfiles
@@ -216,7 +237,10 @@ class SettingsService {
     }
     // 固定开启项：即使调用方/导入文件传 false，也不允许关闭
     merged.keepWindowState = true
-    merged.clipboardMonitorEnabled = true
+    // 剪贴板监控是用户可选项，不强制打开；未传时沿用当前值
+    if (patch.clipboardMonitorEnabled !== undefined) {
+      merged.clipboardMonitorEnabled = patch.clipboardMonitorEnabled === true
+    }
     return merged
   }
 
@@ -356,6 +380,17 @@ class SettingsService {
         profile.config.secret = '***'
       }
     })
+    // Web 控制台令牌同样是凭据：导出备份可能被分享/上传，绝不能带明文 token
+    if (exported.webConsole) {
+      if (exported.webConsole.token) {
+        exported.webConsole.token = '***'
+      }
+      exported.webConsole.tokens?.forEach(item => {
+        if (item?.token) {
+          item.token = '***'
+        }
+      })
+    }
     return JSON.stringify(exported, null, 2)
   }
 
@@ -381,6 +416,22 @@ class SettingsService {
        */
       if (settings.aria2) {
         delete settings.aria2.secret
+      }
+      // 导出时 Web 控制台令牌被脱敏为 '***'，导入同样要保留本机值，
+      // 否则一次"备份恢复"就会把用户所有 Web 端设备踢下线
+      if (settings.webConsole) {
+        const localConsole = this.settings.webConsole
+        if (settings.webConsole.token === '***') {
+          delete settings.webConsole.token
+        }
+        if (settings.webConsole.tokens) {
+          const localTokens = localConsole?.tokens || []
+          settings.webConsole.tokens = settings.webConsole.tokens.map(item => {
+            if (item?.token !== '***') return item
+            const local = localTokens.find(t => t.name === item.name)
+            return local ? { ...item, token: local.token } : item
+          })
+        }
       }
       if (settings.connectionProfiles) {
         const localProfiles = this.settings.connectionProfiles || []

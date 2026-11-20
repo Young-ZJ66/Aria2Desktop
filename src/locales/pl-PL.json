@@ -135,7 +135,16 @@
     "saveTorrentFailed": "Nie udało się zapisać torrenta: {error}",
     "batchOpen": "Otwórz pliki",
     "batchOpenSuccess": "Otwarto pliki: {count}",
-    "batchOpenFailed": "Nie udało się otworzyć żadnego pliku"
+    "batchOpenFailed": "Nie udało się otworzyć żadnego pliku",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "Wynik operacji zbiorczej",
+    "batchResultSuccess": "Sukces: {count}",
+    "batchResultFailed": "Błąd: {count}",
+    "batchResultSkipped": "Pominięto: {count}",
+    "batchResultFailures": "Szczegóły błędów",
+    "batchResultMore": "jeszcze {count} niepokazanych"
   },
   "status": {
     "active": "Pobieranie",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} seedujących online",
     "healthSeeding": "Seedowanie z tego urządzenia",
     "magnetUri": "URI magnet",
-    "copyMagnet": "Kopiuj URI magnet"
+    "copyMagnet": "Kopiuj URI magnet",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "Adres IP",
@@ -234,7 +251,15 @@
     "deleteFiles": "Usuń także pliki",
     "toTrashHint": "Pliki trafią do kosza systemowego i będzie można je stamtąd przywrócić",
     "deleteTaskAndFiles": "Usuń zadanie i pliki",
-    "taskDeleted": "Zadanie usunięte"
+    "taskDeleted": "Zadanie usunięte",
+    "errors": {
+      "removeRecordFailed": "Nie udało się usunąć rekordu zadania: {detail}",
+      "deleteFileFailed": "Nie udało się usunąć pliku: {path} ({detail})",
+      "deleteFilesFailed": "Operacja usuwania plików nie powiodła się: {detail}",
+      "deleteFilesException": "Błąd podczas usuwania plików: {detail}",
+      "unknownError": "Nieznany błąd podczas usuwania zadania: {detail}",
+      "processTaskFailed": "Błąd podczas przetwarzania zadania {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "Nowe zadanie pobierania",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Kliknij, aby wybrać, lub przeciągnij plik .torrent tutaj",
     "dropMetalinkHint": "Kliknij, aby wybrać, lub przeciągnij plik .metalink / .meta4 tutaj",
     "fileTooLarge": "Plik jest za duży (>1 MB) do przesłania przez RPC aria2. Umieść go w lokalnej ścieżce i dodaj przez URL",
+    "fileTooLargeLimit": "Plik przekracza bieżący limit ({limit}). Zwiększ rpc-max-request-size w „Ustawienia → RPC i bezpieczeństwo“",
+    "streamTooManyDownloads": "Osiągnięto limit równoczesnych pobrań strumieniowych (3). Poczekaj na zakończenie bieżących",
     "streamPlaylist": "Lista odtwarzania",
     "streamPlaylistEmpty": "Nie znaleziono wpisów na liście odtwarzania (link może nie być listą odtwarzania)",
     "streamPlaylistSelectAll": "Zaznacz wszystko",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Archiwum rozpakowane (zachowano istniejące pliki: {count}; archiwum nie zostało usunięte)",
     "engineCrashed": "Silnik aria2 nieoczekiwanie zakończył działanie. Automatyczne ponowne uruchomienie (próba {count}).",
     "engineGaveUp": "Silnik aria2 nie uruchomił się ponownie {count} razy, więc automatyczne ponowne uruchamianie zostało zatrzymane. Uruchom go ręcznie w Ustawienia → Lokalny silnik lub otwórz dziennik aplikacji, aby poznać szczegóły.",
-    "shutdownCancelled": "Wykryto nowe pobieranie — zaplanowane wyłączenie zostało anulowane."
+    "shutdownCancelled": "Wykryto nowe pobieranie — zaplanowane wyłączenie zostało anulowane.",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "Powiadomienia",
@@ -430,6 +458,8 @@
     "seedingTasks": "Seedowanie",
     "trafficChartAria": "Wykres trendu prędkości pobierania i wysyłania",
     "enabledFeatures": "Włączone funkcje",
+    "downloadTrend": "Trend pobierania",
+    "noTrendData": "Brak danych o pobieraniu",
     "resetHistory": "Resetuj statystyki pobierania",
     "resetHistoryConfirm": "Wyczyścić dzisiejsze i łączne statystyki pobierania? Dotyczy to tylko liczników tej aplikacji; żadne zadania ani pliki nie zostaną usunięte."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "Rynek wtyczek zwrócił HTTP {status}. Spróbuj ponownie później.",
       "marketErrorTooLarge": "Rejestr rynku wtyczek jest zbyt duży i został odrzucony.",
       "marketErrorInvalidRegistry": "Rejestr rynku wtyczek ma nieprawidłowy format. Sprawdź adres URL rejestru.",
+      "marketErrorSignature": "Weryfikacja podpisu rejestru rynku wtyczek nie powiodła się: rejestr mógł zostać zmieniony lub podpisany niezaufanym kluczem. Nie został wczytany.",
       "marketErrorNetwork": "Nie można połączyć się z rynkiem wtyczek. Sprawdź sieć lub proxy i spróbuj ponownie.",
       "trustedPublishers": "Klucze zaufanych wydawców",
       "trustedPublishersDesc": "Wprowadź klucze publiczne Ed25519 (PEM) zaufanych wydawców, oddzielone pustymi wierszami. Podpisane wtyczki z rynku muszą przejść weryfikację podpisu, zanim będzie można je zainstalować.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Pozostaw puste, aby automatycznie wygenerować losowy token",
       "allowedIps": "Dozwolone adresy IP",
       "allowedIpsPlaceholder": "np. 192.168.1.0/24; pozostaw puste, aby zezwolić tylko na localhost",
+      "tlsCertPath": "Ścieżka certyfikatu HTTPS",
+      "tlsKeyPath": "Ścieżka klucza prywatnego HTTPS",
+      "tlsPathPlaceholder": "Bezwzględna ścieżka do pliku PEM, np. /etc/ssl/fullchain.pem",
+      "tlsStatus": "Stan HTTPS",
+      "tlsEnabled": "HTTPS włączony",
+      "tlsDisabled": "Nie włączono (tylko localhost)",
+      "tlsHint": "Dostęp z sieci LAN wymaga certyfikatu i klucza; w przeciwnym razie konsola nasłuchuje tylko na 127.0.0.1, a TLS musi zakończyć reverse proxy.",
       "refresh": "Odśwież stan",
       "status": "Stan",
       "running": "Działa",
@@ -1450,7 +1488,15 @@
     "unknown": "Operacja nie powiodła się. Spróbuj ponownie później",
     "tlsHandshake": "Bezpieczne połączenie z tą witryną nie powiodło się — sieć może je blokować. Spróbuj użyć proxy lub innego źródła",
     "proxy": "Połączenie przez proxy nie powiodło się. Sprawdź ustawienia proxy systemowego lub aplikacji",
-    "certificate": "Weryfikacja certyfikatu nie powiodła się: certyfikat witryny jest nieprawidłowy lub wygasł"
+    "certificate": "Weryfikacja certyfikatu nie powiodła się: certyfikat witryny jest nieprawidłowy lub wygasł",
+    "errConnectionRefused": "Połączenie odrzucone. Sprawdź, czy adres jest osiągalny i czy Aria2 działa",
+    "errConnectionTimedOut": "Przekroczono czas połączenia. Sprawdź sieć lub adres serwera",
+    "errConnectionReset": "Połączenie przerwane (serwer zamknięty lub niestabilna sieć). Spróbuj ponownie",
+    "errNameNotResolved": "Nie udało się rozwiązać nazwy hosta. Sprawdź adres i ustawienia DNS",
+    "errInternetDisconnected": "Brak połączenia sieciowego. Sprawdź je i spróbuj ponownie",
+    "errAddressUnreachable": "Adres nieosiągalny. Sprawdź sieć lub ustawienia proxy",
+    "errCertInvalid": "Weryfikacja certyfikatu nie powiodła się: certyfikat witryny jest nieprawidłowy, wygasł lub niezaufany",
+    "errSslProtocol": "Negocjacja SSL/TLS nie powiodła się — połączenie może być blokowane lub witryna jest przestarzała"
   },
   "localService": {
     "invalidPort": "Nieprawidłowy port, użyj portu w zakresie od 1024 do 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "Nie udało się zapisać: {error}",
     "deleteFailed": "Nie udało się usunąć: {error}",
     "operationFailed": "Nie udało się wykonać operacji: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

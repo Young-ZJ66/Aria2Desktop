@@ -135,7 +135,16 @@
     "saveTorrentFailed": "Не вдалося зберегти torrent: {error}",
     "batchOpen": "Відкрити файли",
     "batchOpenSuccess": "Відкрито файлів: {count}",
-    "batchOpenFailed": "Не вдалося відкрити жодного файлу"
+    "batchOpenFailed": "Не вдалося відкрити жодного файлу",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "Результат групової дії",
+    "batchResultSuccess": "Успішно: {count}",
+    "batchResultFailed": "Помилок: {count}",
+    "batchResultSkipped": "Пропущено: {count}",
+    "batchResultFailures": "Подробиці помилок",
+    "batchResultMore": "Ще {count} не показано"
   },
   "status": {
     "active": "Завантажується",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} сідерів онлайн",
     "healthSeeding": "Роздача з цього пристрою",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "Копіювати magnet URI"
+    "copyMagnet": "Копіювати magnet URI",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "IP-адреса",
@@ -234,7 +251,15 @@
     "deleteFiles": "Також видалити файли",
     "toTrashHint": "Файли переміщуються до системного кошика, звідки їх можна відновити",
     "deleteTaskAndFiles": "Видалити завдання та файли",
-    "taskDeleted": "Завдання видалено"
+    "taskDeleted": "Завдання видалено",
+    "errors": {
+      "removeRecordFailed": "Не вдалося видалити запис завдання: {detail}",
+      "deleteFileFailed": "Не вдалося видалити файл: {path} ({detail})",
+      "deleteFilesFailed": "Не вдалося виконати видалення файлів: {detail}",
+      "deleteFilesException": "Помилка під час видалення файлів: {detail}",
+      "unknownError": "Невідома помилка під час видалення завдання: {detail}",
+      "processTaskFailed": "Помилка під час обробки завдання {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "Нове завдання завантаження",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Натисніть, щоб вибрати, або перетягніть файл .torrent сюди",
     "dropMetalinkHint": "Натисніть, щоб вибрати, або перетягніть файл .metalink / .meta4 сюди",
     "fileTooLarge": "Файл завеликий (>1 МБ) для завантаження через aria2 RPC. Розмістіть його за локальним шляхом і додайте через URL",
+    "fileTooLargeLimit": "Файл перевищує поточний ліміт ({limit}). Збільште rpc-max-request-size у розділі «Налаштування → RPC і безпека»",
+    "streamTooManyDownloads": "Досягнуто ліміту одночасних потокових завантажень (3). Дочекайтеся завершення поточних завдань",
     "streamPlaylist": "Плейлист",
     "streamPlaylistEmpty": "У плейлисті немає записів (можливо, посилання веде не на плейлист)",
     "streamPlaylistSelectAll": "Вибрати всі",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Архів розпаковано (збережено наявних файлів: {count}; архів не видалено)",
     "engineCrashed": "Рушій aria2 несподівано завершив роботу. Автоматичний перезапуск (спроба {count}).",
     "engineGaveUp": "Рушій aria2 не зміг перезапуститися {count} разів, тому автоматичні перезапуски зупинено. Перезапустіть його вручну в Налаштування → Локальний рушій або відкрийте журнал програми для деталей.",
-    "shutdownCancelled": "Виявлено нове завантаження — заплановане вимкнення скасовано."
+    "shutdownCancelled": "Виявлено нове завантаження — заплановане вимкнення скасовано.",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "Сповіщення",
@@ -430,6 +458,8 @@
     "seedingTasks": "Роздача",
     "trafficChartAria": "Графік тенденції швидкості завантаження та вивантаження",
     "enabledFeatures": "Увімкнені функції",
+    "downloadTrend": "Тренд завантажень",
+    "noTrendData": "Даних про завантаження ще немає",
     "resetHistory": "Скинути статистику завантажень",
     "resetHistoryConfirm": "Очистити статистику завантажень за сьогодні та загалом? Це вплине лише на лічильники цієї програми; жодні завдання чи файли не буде видалено."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "Магазин плагінів повернув HTTP {status}. Спробуйте пізніше.",
       "marketErrorTooLarge": "Реєстр магазину плагінів завеликий і був відхилений.",
       "marketErrorInvalidRegistry": "Реєстр магазину плагінів має недійсний формат. Перевірте URL реєстру.",
+      "marketErrorSignature": "Перевірка підпису реєстру магазину плагінів не вдалася: реєстр міг бути змінений або підписаний недовіреним ключем. Завантаження відхилено.",
       "marketErrorNetwork": "Не вдається зв'язатися з магазином плагінів. Перевірте мережу або проксі та повторіть спробу.",
       "trustedPublishers": "Ключі довірених видавців",
       "trustedPublishersDesc": "Введіть публічні ключі Ed25519 (PEM) довірених видавців, розділені порожніми рядками. Підписані плагіни магазину мають пройти перевірку підпису, перш ніж їх можна встановити.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Залиште порожнім, щоб автоматично згенерувати випадковий токен",
       "allowedIps": "Дозволені IP",
       "allowedIpsPlaceholder": "напр. 192.168.1.0/24; залиште порожнім, щоб дозволити лише localhost",
+      "tlsCertPath": "Шлях до сертифіката HTTPS",
+      "tlsKeyPath": "Шлях до закритого ключа HTTPS",
+      "tlsPathPlaceholder": "Абсолютний шлях до PEM-файлу, наприклад /etc/ssl/fullchain.pem",
+      "tlsStatus": "Стан HTTPS",
+      "tlsEnabled": "HTTPS увімкнено",
+      "tlsDisabled": "Не увімкнено (лише localhost)",
+      "tlsHint": "Для доступу з локальної мережі потрібні сертифікат і ключ; інакше консоль слухає лише 127.0.0.1, а TLS має завершуватися на зворотному проксі.",
       "refresh": "Оновити стан",
       "status": "Стан",
       "running": "Працює",
@@ -1450,7 +1488,15 @@
     "unknown": "Операція не вдалася. Спробуйте пізніше",
     "tlsHandshake": "Не вдалося встановити безпечне з'єднання із цим сайтом — можливо, мережа його блокує. Спробуйте проксі або інше джерело",
     "proxy": "Не вдалося підключитися через проксі. Перевірте системні налаштування проксі або проксі програми",
-    "certificate": "Не вдалося перевірити сертифікат: сертифікат сайту недійсний або прострочений"
+    "certificate": "Не вдалося перевірити сертифікат: сертифікат сайту недійсний або прострочений",
+    "errConnectionRefused": "З'єднання відхилено. Перевірте доступність адреси та чи запущено Aria2",
+    "errConnectionTimedOut": "Час очікування з'єднання вичерпано. Перевірте мережу або адресу сервера",
+    "errConnectionReset": "З'єднання перервано (сервер закрито або нестабільна мережа). Спробуйте ще раз",
+    "errNameNotResolved": "Не вдалося розпізнати ім'я хоста. Перевірте адресу та налаштування DNS",
+    "errInternetDisconnected": "Немає підключення до мережі. Перевірте його та спробуйте ще раз",
+    "errAddressUnreachable": "Адреса недоступна. Перевірте мережу або налаштування проксі",
+    "errCertInvalid": "Перевірка сертифіката не вдалася: сертифікат сайту недійсний, прострочений або недовірений",
+    "errSslProtocol": "Не вдалося узгодити SSL/TLS — з'єднання може блокуватися або сайт застарілий"
   },
   "localService": {
     "invalidPort": "Недійсний порт; використовуйте порт від 1024 до 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "Не вдалося зберегти: {error}",
     "deleteFailed": "Не вдалося видалити: {error}",
     "operationFailed": "Не вдалося виконати операцію: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

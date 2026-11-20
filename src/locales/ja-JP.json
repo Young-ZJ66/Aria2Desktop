@@ -135,7 +135,16 @@
     "saveTorrentFailed": "トレントの保存に失敗しました：{error}",
     "batchOpen": "ファイルを一括で開く",
     "batchOpenSuccess": "{count} 個のファイルを開きました",
-    "batchOpenFailed": "ファイルを開けませんでした"
+    "batchOpenFailed": "ファイルを開けませんでした",
+    "filterByStatus": "ステータスで絞り込む",
+    "retryAllFailedSummary": "失敗した項目をすべて再試行（{count}）",
+    "retryAllFailedResult": "{success} 件を再試行しました（{failed} 件失敗）",
+    "batchResultTitle": "一括操作の結果",
+    "batchResultSuccess": "成功 {count} 件",
+    "batchResultFailed": "失敗 {count} 件",
+    "batchResultSkipped": "スキップ {count} 件",
+    "batchResultFailures": "失敗の詳細",
+    "batchResultMore": "他 {count} 件は非表示"
   },
   "status": {
     "active": "ダウンロード中",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} 人のシーダーがオンライン",
     "healthSeeding": "このデバイスからシード中",
     "magnetUri": "マグネット URI",
-    "copyMagnet": "マグネット URI をコピー"
+    "copyMagnet": "マグネット URI をコピー",
+    "taskSettings": "タスク設定",
+    "taskSettingsHint": "変更はすぐに反映され、このタスクの再試行でも使われます。",
+    "taskSettingsUnlimitedHint": "0 を指定すると無制限になります。",
+    "taskSettingsSaved": "タスク設定を更新しました",
+    "taskSettingsSaveFailed": "タスク設定を保存できませんでした：{error}",
+    "taskSettingsLoadFailed": "タスク設定を読み込めませんでした：{error}",
+    "taskSettingsUnavailable": "この状態では設定を変更できません。先にタスクを再試行してください。",
+    "taskSettingsPartialFailed": "一部の設定を適用できませんでした：{options}"
   },
   "taskPeer": {
     "ip": "IP アドレス",
@@ -234,7 +251,15 @@
     "deleteFiles": "ファイルも削除する",
     "toTrashHint": "ファイルはシステムのゴミ箱に移動され、そこから復元できます",
     "deleteTaskAndFiles": "タスクとファイルを削除",
-    "taskDeleted": "タスクを削除しました"
+    "taskDeleted": "タスクを削除しました",
+    "errors": {
+      "removeRecordFailed": "タスク記録の削除に失敗しました：{detail}",
+      "deleteFileFailed": "ファイルの削除に失敗しました：{path}（{detail}）",
+      "deleteFilesFailed": "ファイル削除処理に失敗しました：{detail}",
+      "deleteFilesException": "ファイル削除中にエラーが発生しました：{detail}",
+      "unknownError": "タスク削除中に不明なエラーが発生しました：{detail}",
+      "processTaskFailed": "タスク {gid} の処理中にエラーが発生しました：{detail}"
+    }
   },
   "newTask": {
     "title": "新規ダウンロードタスク",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "クリックして選択するか、.torrent ファイルをここにドラッグ",
     "dropMetalinkHint": "クリックして選択するか、.metalink / .meta4 ファイルをここにドラッグ",
     "fileTooLarge": "ファイルが大きすぎます（>1MB）。aria2 RPC アップロードには対応していません。ローカルパスに置き、URL で追加してください",
+    "fileTooLargeLimit": "ファイルが現在の上限（{limit}）を超えています。「設定 → RPC とセキュリティ」で rpc-max-request-size を増やしてください",
+    "streamTooManyDownloads": "同時実行中のストリーミングダウンロードが上限（3 件）に達しました。現在のタスクの終了をお待ちください",
     "streamPlaylist": "プレイリスト",
     "streamPlaylistEmpty": "プレイリストの項目が見つかりません（リンクがプレイリストでない可能性があります）",
     "streamPlaylistSelectAll": "すべて選択",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "アーカイブを展開しました（{count} 個の既存ファイルを保持。アーカイブは削除されていません）",
     "engineCrashed": "aria2 エンジンが予期せず終了しました。自動的に再起動します（試行 {count} 回目）。",
     "engineGaveUp": "aria2 エンジンの再起動に {count} 回失敗したため、自動再起動を停止しました。設定 → ローカルエンジン で手動で再起動するか、アプリログで詳細を確認してください。",
-    "shutdownCancelled": "新しいダウンロードを検出したため、予定されていたシャットダウンをキャンセルしました。"
+    "shutdownCancelled": "新しいダウンロードを検出したため、予定されていたシャットダウンをキャンセルしました。",
+    "unknownTask": "不明なタスク（{gid}）"
   },
   "notificationCenter": {
     "title": "通知",
@@ -430,6 +458,8 @@
     "seedingTasks": "シード中",
     "trafficChartAria": "ダウンロード・アップロード速度の推移グラフ",
     "enabledFeatures": "有効な機能",
+    "downloadTrend": "ダウンロード傾向",
+    "noTrendData": "ダウンロードデータはまだありません",
     "resetHistory": "ダウンロード統計をリセット",
     "resetHistoryConfirm": "本日および累計のダウンロード統計をクリアしますか？アプリのカウンターのみが対象で、タスクやファイルは削除されません。"
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "プラグインマーケットが HTTP {status} を返しました。しばらくしてから再試行してください。",
       "marketErrorTooLarge": "プラグインマーケットのレジストリが大きすぎるため、読み込みを拒否しました。",
       "marketErrorInvalidRegistry": "プラグインマーケットのレジストリ形式が無効です。レジストリ URL を確認してください。",
+      "marketErrorSignature": "プラグインマーケットのレジストリ署名検証に失敗しました。レジストリが改ざんされているか、信頼されていない鍵で署名されている可能性があるため、読み込みを拒否しました。",
       "marketErrorNetwork": "プラグインマーケットに接続できません。ネットワークまたはプロキシ設定を確認して再試行してください。",
       "trustedPublishers": "信頼できる発行者の公開鍵",
       "trustedPublishersDesc": "信頼できる発行者の Ed25519 公開鍵（PEM）を入力してください。複数の鍵は空行で区切ります。署名付きのマーケットプラグインは署名検証に合格した場合のみインストールできます。",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "空欄の場合はランダムなトークンを自動生成します",
       "allowedIps": "許可 IP",
       "allowedIpsPlaceholder": "例: 192.168.1.0/24。空欄の場合は localhost のみ",
+      "tlsCertPath": "HTTPS 証明書パス",
+      "tlsKeyPath": "HTTPS 秘密鍵パス",
+      "tlsPathPlaceholder": "PEM ファイルの絶対パス（例: /etc/ssl/fullchain.pem）",
+      "tlsStatus": "HTTPS の状態",
+      "tlsEnabled": "HTTPS 有効",
+      "tlsDisabled": "未有効（localhost のみ）",
+      "tlsHint": "LAN からアクセスするには証明書と秘密鍵が必要です。未設定の場合は 127.0.0.1 のみで待ち受け、TLS はリバースプロキシで終端してください。",
       "refresh": "状態を更新",
       "status": "稼働状態",
       "running": "稼働中",
@@ -1450,7 +1488,15 @@
     "unknown": "操作に失敗しました。しばらくしてから再試行してください",
     "tlsHandshake": "このサイトへの安全な接続に失敗しました — ネットワークがブロックしている可能性があります。プロキシまたは別のソースを試してください",
     "proxy": "プロキシ接続に失敗しました。システムまたはアプリのプロキシ設定を確認してください",
-    "certificate": "証明書の検証に失敗しました: サイトの証明書が無効または期限切れです"
+    "certificate": "証明書の検証に失敗しました: サイトの証明書が無効または期限切れです",
+    "errConnectionRefused": "接続が拒否されました。接続先に到達できるか、Aria2 が起動しているか確認してください",
+    "errConnectionTimedOut": "接続がタイムアウトしました。ネットワークまたはサーバーアドレスを確認してください",
+    "errConnectionReset": "接続が中断されました（サーバー側の切断または回線の不安定）。再試行してください",
+    "errNameNotResolved": "ホスト名を解決できませんでした。アドレスの綴りと DNS 設定を確認してください",
+    "errInternetDisconnected": "ネットワークが切断されています。接続を確認して再試行してください",
+    "errAddressUnreachable": "接続先に到達できません。ネットワークまたはプロキシ設定を確認してください",
+    "errCertInvalid": "証明書の検証に失敗しました。サイトの証明書が無効・期限切れ・信頼されていません",
+    "errSslProtocol": "SSL/TLS のネゴシエーションに失敗しました。通信が遮断されているか、サイトが古い可能性があります"
   },
   "localService": {
     "invalidPort": "無効なポートです。1024～65535 の範囲で指定してください",
@@ -1768,5 +1814,29 @@
     "saveFailed": "保存に失敗しました：{error}",
     "deleteFailed": "削除に失敗しました：{error}",
     "operationFailed": "操作に失敗しました：{error}"
+  },
+  "onboarding": {
+    "title": "Aria2Desktop へようこそ",
+    "subtitle": "4 ステップでよく使う設定を済ませられます。各ステップはスキップでき、あとから設定で変更できます。",
+    "stepOf": "ステップ {current} / {total}",
+    "skip": "ツアーをスキップ",
+    "later": "あとで",
+    "next": "次へ",
+    "back": "戻る",
+    "finish": "はじめる",
+    "statusReady": "準備完了",
+    "statusPending": "未設定",
+    "stepDownloadTitle": "ダウンロード先を選ぶ",
+    "stepDownloadDesc": "ダウンロードしたファイルは既定でこのフォルダーに保存されます。「設定 → ダウンロード」でいつでも変更できます。",
+    "stepDownloadAction": "ダウンロード設定を開く",
+    "stepExtensionTitle": "ブラウザー拡張をペアリング",
+    "stepExtensionDesc": "拡張をインストールしたら、ブラウザーで拡張アイコンを一度クリックするだけでペアリングできます。Web のダウンロードは自動的にデスクトップ版へ引き継がれます。",
+    "stepExtensionAction": "拡張の設定を開く",
+    "stepYtdlpTitle": "ストリーミングのダウンロードを有効化",
+    "stepYtdlpDesc": "yt-dlp が見つかると、動画や音声のページ URL を貼り付けるだけでダウンロードできます。",
+    "stepYtdlpAction": "コンポーネント設定を開く",
+    "stepRemoteTitle": "リモート操作と完了時のルール",
+    "stepRemoteDesc": "Web コンソールでブラウザーからダウンロードを管理でき、完了後の自動動作も設定できます。",
+    "stepRemoteAction": "リモートアクセス設定を開く"
   }
 }

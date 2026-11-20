@@ -6,6 +6,7 @@
 
 import { useUiStore } from '@/stores/uiStore'
 import { useTaskStore } from '@/stores/taskStore'
+import { useStreamTaskStore } from '@/stores/streamTaskStore'
 
 /** 检查当前焦点是否在输入元素上 */
 function isInputElement(el: EventTarget | null): boolean {
@@ -19,6 +20,7 @@ function isInputElement(el: EventTarget | null): boolean {
 export function useKeyboardShortcuts() {
   const uiStore = useUiStore()
   const taskStore = useTaskStore()
+  const streamTaskStore = useStreamTaskStore()
 
   function handleKeyDown(event: KeyboardEvent) {
     // 输入元素中不拦截快捷键
@@ -52,7 +54,9 @@ export function useKeyboardShortcuts() {
     // Ctrl/Cmd + Shift + P: 暂停全部
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'P') {
       event.preventDefault()
+      // 流媒体任务不在 aria2 队列里，必须单独暂停，否则"暂停全部"名不副实（D-10）
       void taskStore.pauseAllTasks()
+      void streamTaskStore.pauseAllTasks()
       return
     }
 
@@ -60,6 +64,7 @@ export function useKeyboardShortcuts() {
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'R') {
       event.preventDefault()
       void taskStore.unpauseAllTasks()
+      void streamTaskStore.resumeAllTasks()
       return
     }
 

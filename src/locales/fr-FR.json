@@ -135,7 +135,16 @@
     "saveTorrentFailed": "Échec de l'enregistrement du torrent : {error}",
     "batchOpen": "Ouvrir les fichiers",
     "batchOpenSuccess": "{count} fichier(s) ouvert(s)",
-    "batchOpenFailed": "Aucun fichier n’a pu être ouvert"
+    "batchOpenFailed": "Aucun fichier n’a pu être ouvert",
+    "filterByStatus": "Filtrer par état",
+    "retryAllFailedSummary": "Réessayer tous les échecs ({count})",
+    "retryAllFailedResult": "{success} tâche(s) relancée(s), {failed} en échec",
+    "batchResultTitle": "Résultat de l'action groupée",
+    "batchResultSuccess": "{count} réussie(s)",
+    "batchResultFailed": "{count} échouée(s)",
+    "batchResultSkipped": "{count} ignorée(s)",
+    "batchResultFailures": "Détails des échecs",
+    "batchResultMore": "{count} autre(s) non affichée(s)"
   },
   "status": {
     "active": "Téléchargement",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} sources en ligne",
     "healthSeeding": "Partage depuis cet appareil",
     "magnetUri": "URI magnet",
-    "copyMagnet": "Copier l'URI magnet"
+    "copyMagnet": "Copier l'URI magnet",
+    "taskSettings": "Paramètres de la tâche",
+    "taskSettingsHint": "Les modifications s'appliquent immédiatement et seront réutilisées lors d'une nouvelle tentative.",
+    "taskSettingsUnlimitedHint": "0 signifie illimité.",
+    "taskSettingsSaved": "Paramètres de la tâche mis à jour",
+    "taskSettingsSaveFailed": "Échec de l'enregistrement des paramètres : {error}",
+    "taskSettingsLoadFailed": "Échec du chargement des paramètres : {error}",
+    "taskSettingsUnavailable": "Impossible de modifier les paramètres dans cet état. Relancez d'abord la tâche.",
+    "taskSettingsPartialFailed": "Certains paramètres n'ont pas été appliqués : {options}"
   },
   "taskPeer": {
     "ip": "Adresse IP",
@@ -234,7 +251,15 @@
     "deleteFiles": "Supprimer aussi les fichiers",
     "toTrashHint": "Les fichiers sont déplacés dans la corbeille du système et peuvent y être restaurés",
     "deleteTaskAndFiles": "Supprimer la tâche et les fichiers",
-    "taskDeleted": "Tâche supprimée"
+    "taskDeleted": "Tâche supprimée",
+    "errors": {
+      "removeRecordFailed": "Échec de la suppression de l'enregistrement de la tâche : {detail}",
+      "deleteFileFailed": "Échec de la suppression du fichier : {path} ({detail})",
+      "deleteFilesFailed": "Échec de l'opération de suppression de fichiers : {detail}",
+      "deleteFilesException": "Erreur lors de la suppression des fichiers : {detail}",
+      "unknownError": "Erreur inconnue lors de la suppression de la tâche : {detail}",
+      "processTaskFailed": "Erreur lors du traitement de la tâche {gid} : {detail}"
+    }
   },
   "newTask": {
     "title": "Nouvelle tâche de téléchargement",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Cliquez pour sélectionner ou glissez un fichier .torrent ici",
     "dropMetalinkHint": "Cliquez pour sélectionner ou glissez un fichier .metalink / .meta4 ici",
     "fileTooLarge": "Fichier trop volumineux (>1 Mo) pour l'envoi via aria2 RPC. Placez-le à un chemin local et ajoutez-le via une URL à la place",
+    "fileTooLargeLimit": "Le fichier dépasse la limite actuelle ({limit}). Augmentez rpc-max-request-size dans « Paramètres → RPC et sécurité »",
+    "streamTooManyDownloads": "Le nombre de téléchargements en streaming simultanés a atteint la limite (3). Attendez la fin des tâches en cours",
     "streamPlaylist": "Liste de lecture",
     "streamPlaylistEmpty": "Aucune entrée de liste de lecture trouvée (le lien n'en est peut-être pas une)",
     "streamPlaylistSelectAll": "Tout sélectionner",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Archive extraite ({count} fichier(s) existant(s) conservé(s) ; l'archive n'a pas été supprimée)",
     "engineCrashed": "Le moteur aria2 s'est arrêté de façon inattendue. Redémarrage automatique (tentative {count}).",
     "engineGaveUp": "Le moteur aria2 n'a pas pu redémarrer {count} fois ; les redémarrages automatiques ont donc cessé. Redémarrez-le manuellement dans Paramètres → Moteur local, ou ouvrez le journal de l'application pour plus de détails.",
-    "shutdownCancelled": "Nouveau téléchargement détecté — l'arrêt planifié a été annulé."
+    "shutdownCancelled": "Nouveau téléchargement détecté — l'arrêt planifié a été annulé.",
+    "unknownTask": "Tâche inconnue ({gid})"
   },
   "notificationCenter": {
     "title": "Notifications",
@@ -430,6 +458,8 @@
     "seedingTasks": "Partage en cours",
     "trafficChartAria": "Graphique de tendance des vitesses de téléchargement et d'envoi",
     "enabledFeatures": "Fonctionnalités activées",
+    "downloadTrend": "Tendance des téléchargements",
+    "noTrendData": "Aucune donnée de téléchargement",
     "resetHistory": "Réinitialiser les statistiques de téléchargement",
     "resetHistoryConfirm": "Effacer les statistiques de téléchargement du jour et totales ? Cela n'affecte que les compteurs de cette application ; aucune tâche ni aucun fichier ne sera supprimé."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "Le marché de plugins a renvoyé HTTP {status}. Réessayez plus tard.",
       "marketErrorTooLarge": "Le fichier de registre du marché de plugins est trop volumineux et a été refusé.",
       "marketErrorInvalidRegistry": "Le format du registre du marché de plugins est invalide. Vérifiez l’URL du registre.",
+      "marketErrorSignature": "La vérification de signature du registre du marché des extensions a échoué : le registre a peut-être été falsifié ou signé par une clé non fiable. Il n'a pas été chargé.",
       "marketErrorNetwork": "Impossible de joindre le marché de plugins. Vérifiez votre réseau ou votre proxy et réessayez.",
       "trustedPublishers": "Clés publiques des éditeurs de confiance",
       "trustedPublishersDesc": "Saisissez les clés publiques Ed25519 (PEM) des éditeurs de confiance, séparées par des lignes vides. Les plugins signés du marketplace doivent réussir la vérification de signature.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Laisser vide pour générer automatiquement un jeton aléatoire",
       "allowedIps": "IP autorisées",
       "allowedIpsPlaceholder": "ex. 192.168.1.0/24 ; vide = localhost uniquement",
+      "tlsCertPath": "Chemin du certificat HTTPS",
+      "tlsKeyPath": "Chemin de la clé privée HTTPS",
+      "tlsPathPlaceholder": "Chemin absolu d'un fichier PEM, par ex. /etc/ssl/fullchain.pem",
+      "tlsStatus": "État HTTPS",
+      "tlsEnabled": "HTTPS activé",
+      "tlsDisabled": "Non activé (localhost uniquement)",
+      "tlsHint": "L'accès au réseau local exige un certificat et une clé ; sinon la console n'écoute que sur 127.0.0.1 et le TLS doit être terminé par un reverse proxy.",
       "refresh": "Actualiser l’état",
       "status": "État",
       "running": "En cours",
@@ -1450,7 +1488,15 @@
     "unknown": "Échec de l'opération. Veuillez réessayer plus tard",
     "tlsHandshake": "La connexion sécurisée à ce site a échoué — le réseau la bloque peut-être. Essayez un proxy ou une autre source",
     "proxy": "Échec de la connexion proxy. Vérifiez les paramètres de proxy de votre système ou de l'application",
-    "certificate": "Échec de la validation du certificat : le certificat du site est invalide ou expiré"
+    "certificate": "Échec de la validation du certificat : le certificat du site est invalide ou expiré",
+    "errConnectionRefused": "Connexion refusée. Vérifiez que l'adresse est accessible et qu'Aria2 est démarré",
+    "errConnectionTimedOut": "Délai de connexion dépassé. Vérifiez le réseau ou l'adresse du serveur",
+    "errConnectionReset": "Connexion interrompue (serveur fermé ou réseau instable). Veuillez réessayer",
+    "errNameNotResolved": "Nom d'hôte introuvable. Vérifiez l'adresse et vos paramètres DNS",
+    "errInternetDisconnected": "Aucune connexion réseau. Vérifiez-la puis réessayez",
+    "errAddressUnreachable": "Adresse inaccessible. Vérifiez vos paramètres réseau ou proxy",
+    "errCertInvalid": "Échec de la validation du certificat : le certificat du site est invalide, expiré ou non approuvé",
+    "errSslProtocol": "Négociation SSL/TLS échouée — la connexion est peut-être bloquée ou le site obsolète"
   },
   "localService": {
     "invalidPort": "Port invalide, veuillez utiliser un port entre 1024 et 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "Échec de l'enregistrement : {error}",
     "deleteFailed": "Échec de la suppression : {error}",
     "operationFailed": "Échec de l'opération : {error}"
+  },
+  "onboarding": {
+    "title": "Bienvenue dans Aria2Desktop",
+    "subtitle": "Quatre étapes pour configurer l'essentiel. Chacune peut être ignorée et modifiée plus tard dans les paramètres.",
+    "stepOf": "Étape {current} sur {total}",
+    "skip": "Ignorer la visite",
+    "later": "Plus tard",
+    "next": "Suivant",
+    "back": "Retour",
+    "finish": "Commencer",
+    "statusReady": "Prêt",
+    "statusPending": "Non configuré",
+    "stepDownloadTitle": "Choisir le dossier de téléchargement",
+    "stepDownloadDesc": "Les fichiers sont enregistrés ici par défaut. Modifiable à tout moment dans « Paramètres → Téléchargements ».",
+    "stepDownloadAction": "Ouvrir les paramètres de téléchargement",
+    "stepExtensionTitle": "Associer l'extension du navigateur",
+    "stepExtensionDesc": "Après l'installation, cliquez une fois sur l'icône de l'extension dans le navigateur. Les téléchargements web seront transmis à l'application.",
+    "stepExtensionAction": "Ouvrir les paramètres de l'extension",
+    "stepYtdlpTitle": "Activer les téléchargements en streaming",
+    "stepYtdlpDesc": "Avec yt-dlp, collez directement l'URL d'une page vidéo ou audio pour la télécharger.",
+    "stepYtdlpAction": "Ouvrir les paramètres des composants",
+    "stepRemoteTitle": "Contrôle à distance et règles de fin",
+    "stepRemoteDesc": "Gérez les téléchargements depuis un navigateur via la console web et définissez des actions automatiques en fin de téléchargement.",
+    "stepRemoteAction": "Ouvrir les paramètres d'accès à distance"
   }
 }

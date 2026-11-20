@@ -1,147 +1,140 @@
-# v1.4.0 更新日志
+# v1.5.0-beta.1 更新日志
 
-## ✨ 设计系统与界面一致性
+> 这是 1.5.0 的预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-- 全新的 v2 设计语言：重做设计系统底座与 UI 原语，页面、外壳与主题配色统一到同一套令牌，浅色与深色模式对比度均达到 AA。
-- 设置弹窗改为左侧导航 + 内容区工作台，分组层级、搜索与保存栏更清晰。
-- 设置弹窗标题按设计规格调整为 18px / 650，设置分组标题修正为 14px / 600；设置项、输入框、下拉框与按钮统一到 13px 设计字号，按钮高度统一为 28 / 34 / 40px。
-- 8 个主页面统一页头到内容间距为 16px，去掉不同页面之间的 24px / 16px 混用。
-- 任务详情抽屉移除重复的「基本信息」标题，状态标签移到抽屉标题栏；Peer 数量不再同时出现在标签页和卡片工具栏；抽屉标题栏的 1px 分隔线已移除。
-- 下载页空态让面板填满剩余高度并垂直居中；「还没有任务」与「筛选无结果」改用不同文案。
-- 修正品牌名、快捷键提示、图表标签等散落硬编码字号，统一使用设计令牌；21 种语言补齐 v2 文案，键盘焦点环、表单标签与点击区域一并修正。
-- 任务列表与队列页的表格外观统一：表头、表尾去掉灰色底与多余圆角，白色卡片上不再出现色带；任务列表始终填满列表区域，列宽与快捷键提示收敛，下载任务页按 Ctrl+F 直接聚焦搜索框。
-- 勾选任务时上方的批量操作条保持中性底色，不再变成紫色；服务器信息改用网格布局，复制按钮落在链接右侧。
-- 暂停任务在列表与详情统一显示 0 B/s、剩余时间 --，不再出现残留速度读数。
-- 实例页补充「新增连接」槽位卡，状态页指标带重新排布，剩余时间统一为 H:MM:SS 格式。
-- 新建任务弹窗整理标签页与表单间距、分隔线，URI 输入框内置格式提示，错误态输入框不再发光。
+## 🎯 主题：可信接管
+
+这一版把"装完能不能真的接管浏览器下载、升级会不会坏、配置会不会丢"这条链路修到可信，
+再补齐任务编辑、失败可见性、首次使用引导等主路径体验。
 
 ## 🚀 新功能
 
-- **限速改为自定义数值**：底部状态栏的限速面板不再只有 5 个预设档，可填写任意数值并切换 KB/s、MB/s；输入即生效（停止输入 500ms 后自动应用，回车或失焦立即提交），打开限速开关直接使用面板里填的值；没有历史限速值时不再自动填 1 MB/s。
-- **通知中心支持单条删除**：每条通知右侧有删除按钮（鼠标悬停或键盘聚焦时出现，触屏设备常显），只删除这一条并立即保存。
-- 实例页的连接配置支持直接删除。
-- 设置中文件预分配新增「截断预分配」，适合固态硬盘；窗口状态与剪贴板监听改为固定开启，界面上的开关已移除，避免误关。
+- **首次启动向导**：下载目录 / 浏览器扩展 / 流媒体工具 / 远程访问四步引导，可跳过、可随时在设置中修改。
+- **任务详情可编辑**：支持修改单任务选项（限速、连接数、保存目录、代理等），不必删除重建。
+- **失败可见性**：下载任务页新增"仅看失败"筛选与批量重试；批量操作结果面板统一展示成功 / 失败 / 跳过数量与逐项失败原因，失败项保留选中状态。
+- **状态页趋势图**：新增 7 天 / 30 天下载趋势（复用本地 90 天历史数据）。
+- **Web 控制台**：中英双语界面、明暗主题跟随系统、"暂停全部 / 继续全部"；支持 HTTPS 监听，局域网访问强制加密；新增细粒度 API 令牌与更细的作用域校验。
+- **MCP**：22 个工具补齐只读 / 破坏性标注，按工具粒度校验权限，破坏性工具要求 `confirm: true`。
+- **插件市场**：注册表强制 Ed25519 签名校验，新装插件默认禁用，安装前展示发布者、来源、SHA-256 与权限清单。
+- **流媒体任务持久化**：重启后保留完成 / 失败记录，中断任务标记为可重试；播放列表多文件完整记录。
+- **引擎启动失败分类提示**：区分端口占用 / 遗留进程 / 可执行文件缺失 / 配置错误，并提供更换端口、重试、查看日志等操作；引擎放弃重启时通过系统通知 + 托盘异常态 + 应用内提示三通道告知。
+- **托盘提示气泡**显示当前下载速度与活动任务数。
+- **阿拉伯语从右到左排版**：侧边栏、设置、对话框、表格与开关等写死方向的组件全部镜像。
 
-## 🎬 流媒体下载
+## 🎨 变更
 
-- 通过「智能解析本页视频」发起的流媒体任务，可在任务列表与详情抽屉查看进度、速度与剩余时间，并支持暂停、继续、删除；删除时可勾选「同时删除文件」。
-- 修复下载中标题乱码：以前 yt-dlp 在 Windows 上按本地编码输出标题，开始下载后列表里的中文会变成乱码；现在标题改从 UTF-8 文件读取，下载全程显示正确中文，磁盘上的文件名也保持正常。
-- 修复未下载完就删除任务时残留 .part 分片的问题：分片统一落在临时目录，删除任务或下载完成后自动清理。
-- 修复暂停后任务行速度归零、右上角总速度却不清零的问题，两处现在保持一致。
-- 任务详情移除速度曲线（与当前速度、剩余时间信息重复，且占用空间）。
+- 设置弹窗左侧导航按"应用与引擎 / 下载与网络 / 组件与连接 / 维护与安全"分组，设置项搜索按页签分组展示。
+- 队列页的"最大并发下载数"改为只读展示 + 跳转设置，消除与设置页的重复入口。
+- 流媒体任务纳入统一体验：页脚速度 / 活动数、托盘提示、完成规则（移动 / 重命名 / 打开 / 通知 / Webhook）、下载历史统计；并发上限 3 条，超限时给出明确提示。
+- 剪贴板监控改为默认关闭，需在「常规设置」显式开启。
+- 多 URL 新建下载按行创建独立任务（此前被当成 aria2 镜像合并）；镜像下载仅作为显式高级选项。
+- 种子 / Metalink 上传大小上限跟随引擎的 `rpc-max-request-size` 折算，不再写死 1MB。
+- README 与安装说明改为跨平台表述，补充 macOS / Linux 的未签名安装提示与配置目录位置。
 
-## 🧩 浏览器扩展
+## 🔒 安全
 
-- 扩展弹窗按原型重构为「任务 / 网络嗅探 / 设置」三页（400×600），页面标题 18px / 650、正文 13px、辅助文字 11.5px，按钮与输入框约 28–34px；浅色主题辅助文字对比度提升，并补充键盘 focus-visible 可见边框。
-- 任务页展示实时下载 / 上传速度与活动、等待数量；任务按「进行中 / 失败 / 已完成」三档筛选，可暂停、继续、删除。
-- 任务列表合并 App 里由「智能解析本页视频」发起的流媒体任务（带「流媒体」角标），暂停 / 继续 / 删除与 App 内状态同步；删除任务不会删除已下载的文件。
-- 网络嗅探监听当前标签页的 HTTP(S) 请求，支持按视频 / 音频 / 图片 / 其他筛选、勾选批量下载，并支持「智能解析本页视频」交给 App 的 yt-dlp；B 站等 DASH/MSE 页面的视频 / 音频分片会被识别并提示使用智能解析下载完整视频。
-- 新增 Motrix 风格「新建下载」弹窗：全宽入口，支持 URL、文件名、保存到默认目录与可折叠的请求选项（User-Agent / Referer），含网址校验、Esc / 遮罩关闭；发送时保留页面 Referer 并传递文件名与自定义请求头。
-- 长文件名不再撑宽弹窗，任务列表为空时卡片保持满高。
+- **修复设置保存白名单遗漏**：队列重试策略、任务模板、完成规则 / Webhook、Web 控制台令牌与 TLS 配置、插件市场开关与信任公钥此前会在每次保存时被静默丢弃，现已全部保留并校验。
+- 插件市场注册表固定到发布 tag 并强制 Ed25519 签名；插件 settings 读取强制脱敏 Web 控制台令牌。
+- 扩展配对改为下发受作用域限制的应用令牌，不再返回 aria2 RPC 密钥；配对确认框展示扩展名称与 ID。
+- MCP 工具按作用域鉴权，`remove_task` / `pause_all` / `purge_download_result` 需二次确认；任务名做控制字符清洗防提示注入。
+- Web 控制台页面改用事件委托绑定交互，并下发严格的 `Content-Security-Policy`，消除任务列表拼接 `gid` 造成的注入面；事件流（SSE）在连接期间定期复核令牌，权限被收回时立即断开。
+- Web 控制台新建任务校验下载协议白名单，保存目录限制在下载根目录内；流媒体保存目录按真实路径（含符号链接）限制在下载根目录内。
+- Web 控制台的操作审计日志持久化到用户数据目录，重启后仍在（保留最近 500 条）。
 
-## 🛠 稳定性修复
+## 🛠 修复
 
-- 修复下载完成后的关机 / 休眠 / 退出动作可能在断线重连、删除最后一个活动任务或任务失败时误触发的问题。
-- 连接失败时销毁残留的 Aria2Service / WebSocket，避免界面显示未连接但后台仍在无限重连。
-- 删除任务前先确认引擎结果，失败时不再让任务从列表消失；删除已完成任务的文件失败时保留任务记录，方便重试。
-- 设置保存改为串行队列，保存失败时回滚内存中的设置；Escape 关闭设置弹窗时走未保存确认；重新加载失败不再清除脏标记。
-- 删除任务或清空列表时清理自动重试定时器；BT 洞察快速切换任务时不再叠加多条轮询链。
-- 任务栏进度只在百分比变化时更新，避免每秒重复 IPC。
-- 修复空列表遮住「引擎未连接」提示的问题。
-
-## ⚡ 性能
-
-- 日志查看器只读取日志文件末尾 1MB；刷新时保持用户当前滚动位置；页面不可见时暂停自动刷新；长日志行启用 content-visibility。
-- 状态页流量图移除 O(n²) 的坐标标签重复计算；流量监控在页面隐藏时停止采样。
-- 任务轻量刷新只请求活动任务，不再每秒拉取 5000 条等待任务；轻量刷新与全量刷新互斥，避免旧响应覆盖新列表。
-- SQLite 历史裁剪改为批量触发，避免每次保存都执行 COUNT / DELETE。
-
-## 🖥 Electron 与更新
-
-- ffmpeg 安装失败时恢复旧版本；yt-dlp 更新失败时从备份回滚，避免更新失败后无可用组件。
-- 主窗口关闭后清空引用，macOS 点击 Dock 可重新创建窗口。
-- 应用退出时关闭历史数据库；更新临时目录会清理旧版本半截下载与已完成安装包，减少磁盘占用。
+- **更新"重启并安装"不再留下孤儿 aria2 进程**：退出前等待引擎关闭与端口释放，失败则强制结束进程树；安装程序启动失败会重新拉起引擎。
+- 更新安装包路径持久化，重启后仍可继续安装；下载的安装包被删除时自动清理状态。
+- 托盘"显示主窗口"、双击托盘、磁力链接唤起在窗口最小化时能正确还原。
+- 插件 worker 生命周期加入世代校验，旧 worker 退出不再污染新实例；插件加载超时会终止 worker；升级失败回滚旧版本。
+- `--headless` 模式不再创建渲染窗口，Linux 无 `$DISPLAY` 也能启动。
+- 配置导入会同步写入 `aria2.conf` 并提示需要重启引擎。
+- 切换连接改为"先探测后切换"，新实例连接失败时保留原连接与任务列表。
+- 种子 / Metalink 解析失败会给出具体原因并阻止提交（此前静默按全部文件下载）。
+- 拖拽支持一次拖入多个文件，逐个创建任务；拖入文本支持 `sftp` 链接。
+- 流媒体重试完整透传播放列表 / 字幕 / Cookie / 仅音频等参数；失败任务勾选"删除文件"失败时保留任务记录。
+- 通知中的失败任务标题回退到文件名或链接；通知去重不再被交错任务刷屏；日期时间统一按当前语言格式化。
+- Chromium `ERR_*` 网络错误与队列页错误文案纳入统一错误映射；完成页删除失败的原因改为本地化文案并逐项列明。
+- 关闭 Web 控制台时主动结束 keep-alive 空闲连接，避免停止服务要等到连接超时才返回。
+- 设置弹窗的未保存提示不再误报：命中缓存的设置页在重新加载后正确对齐脏标记。
 
 ## ✅ 验证
 
-- typecheck、86 个测试文件 / 933 项单测、生产构建、扩展校验 21 项、扩展 API 校验 57 项、应用 E2E 159 项全部通过。
-- 21 种语言文案保持完整；扩展 manifest 版本同步为 1.4.0。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；107 个测试文件 / 1203 项单测全部通过。
+- 应用 E2E 144 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、Web 控制台）。
+- 扩展静态校验 21 项通过；21 种语言文案 key 保持完整。
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.3.8...v1.4.0
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.1
 
 ---
 
-# v1.4.0 Release Notes
+# v1.5.0-beta.1 Release Notes
 
-## ✨ Design system and UI consistency
+> This is the pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-- A new v2 design language: the design foundation and UI primitives were rebuilt, so pages, shells and theme colors share one set of tokens and both light and dark themes meet AA contrast.
-- The settings dialog is now a left navigation rail plus a content workspace, with clearer grouping, search and save bar.
-- The settings dialog title follows the design spec at 18px / 650 and settings group headings are corrected to 14px / 600; settings labels, inputs, selects and buttons share the 13px type scale, with button heights standardized at 28 / 34 / 40px.
-- All eight main pages now use a consistent 16px gap between the page header and content, removing the previous 24px / 16px mix.
-- The task detail drawer no longer repeats the "Basic info" title, the status tag moves into the drawer header, the peer count no longer appears twice, and the extra 1px divider in the header is gone.
-- Empty states on the download page now fill the remaining height and center vertically; "no tasks yet" and "no matching results" use different copy.
-- Replaced remaining hard-coded font sizes (brand name, keyboard hints, chart labels) with design tokens; all 21 locales received the v2 copy, and keyboard focus rings, form labels and tap targets were fixed along the way.
-- Table chrome across the task list and queue pages is unified: headers and footers drop the grey fill and extra rounding, so no colour bands break the white cards; the task list always fills its area, column widths and shortcut hints are tightened, and Ctrl+F in the download page focuses the search box.
-- The batch toolbar keeps a neutral background when tasks are selected instead of turning purple; server information uses a grid layout with the copy button next to the link.
-- Paused tasks show 0 B/s and -- in both the list and the detail drawer, with no leftover speed readings.
-- The Instances page gains a "new connection" slot card, the Status page metric strip is re-laid out, and remaining time is standardized to H:MM:SS.
-- The new-task dialog tightens tab and form spacing and dividers, shows the URI format guide inside the textarea, and drops the focus glow on invalid inputs.
+## 🎯 Theme: taking over, verifiably
+
+This release makes the "can it really take over browser downloads, will upgrading break anything, will my configuration survive" path trustworthy, then fills in task editing, failure visibility and first-run guidance.
 
 ## 🚀 New features
 
-- **Custom speed limits**: the status-bar limit panel no longer offers only five presets. Enter any value and switch between KB/s and MB/s; changes apply as you type (500 ms after you stop typing, or immediately on Enter / blur), and turning the limit switch on uses the value in the panel. Without a remembered value, the app no longer fills in 1 MB/s by itself.
-- **Delete individual notifications**: every notification has a delete button on the right (shown on hover or keyboard focus, always visible on touch devices) that removes just that notification and saves immediately.
-- Connection profiles can now be deleted directly from the Instances page.
-- Settings gained a "truncate" file preallocation option, which suits SSDs; window state and clipboard monitoring are now fixed on, with their switches removed from the UI so they cannot be turned off by accident.
+- **First-run wizard**: a four-step guide for download folder / browser extension / stream tooling / remote access, skippable and editable later in Settings.
+- **Editable task options**: change speed limit, connections, save directory and proxy per task without deleting and re-adding it.
+- **Failure visibility**: a "failed only" filter and batch retry on the downloads page; a batch result panel reports succeeded / failed / skipped counts with per-item reasons and keeps failed items selected.
+- **Status trends**: 7-day and 30-day download trends on the Status page, reusing the local 90-day history.
+- **Web console**: bilingual UI, light / dark theme following the system, "pause all / resume all"; HTTPS listening with mandatory encryption for LAN access; fine-grained API tokens with tighter scope checks.
+- **MCP**: all 22 tools now declare read-only / destructive annotations, permissions are checked per tool, and destructive tools require `confirm: true`.
+- **Plugin market**: the registry must be Ed25519-signed, newly installed plugins start disabled, and the install dialog shows publisher, source, SHA-256 and permissions.
+- **Stream task persistence**: completed / failed stream tasks survive a restart, interrupted ones are marked retryable, and playlists record every file.
+- **Engine startup failures** are classified (port in use / leftover engine / missing executable / config error) with actions to change the port, retry or open logs; when the engine gives up, the app notifies through a system notification, the tray and an in-app toast.
+- **Tray tooltip** shows the current download speed and active task count.
+- **Right-to-left layout** for Arabic: sidebar, settings, dialogs, tables and switches are mirrored.
 
-## 🎬 Stream downloads
+## 🎨 Changes
 
-- Stream tasks started from "Resolve this page video" can be followed in the task list and detail drawer with progress, speed and time remaining, and support pause, resume and remove; removing lets you tick "delete the file as well".
-- Fixed garbled titles during download: yt-dlp used to emit titles in the local Windows encoding, so Chinese names turned into mojibake once the download started. Titles are now read from a UTF-8 file, so they stay correct for the whole download and the file on disk keeps its proper name.
-- Fixed leftover .part segments when a stream task is removed before it finishes: partial files now live in a temporary directory and are cleaned up when the task is removed or the download completes.
-- Fixed the header total speed staying above zero after pausing while the task row already showed zero; both now agree.
-- Removed the speed chart from the task detail drawer (it duplicated current speed and time remaining and took up space).
+- Settings navigation is grouped into Application & engine / Download & network / Components & connections / Maintenance & security, and settings search results are grouped by tab.
+- "Max concurrent downloads" on the Queue page is read-only and links to Settings, removing the duplicate control.
+- Stream tasks join the rest of the app: footer speed / active counts, tray tooltip, completion rules (move / rename / open / notify / webhook) and download history, with a concurrency cap of 3 and a clear message when exceeded.
+- Clipboard monitoring is off by default and must be enabled in General settings.
+- Multiple URLs create one task per line (they used to be merged as aria2 mirrors); mirroring is now an explicit advanced option.
+- The torrent / Metalink upload limit follows the engine's `rpc-max-request-size` instead of a hard-coded 1MB.
+- README and install docs are cross-platform, covering unsigned installs on macOS / Linux and their config directories.
 
-## 🧩 Browser extension
+## 🔒 Security
 
-- The extension popup is rebuilt around the prototype with Tasks, Network Sniffer and Settings pages (400×600): 18px / 650 page titles, 13px body, 11.5px secondary text and roughly 28–34px buttons and inputs. Secondary text contrast is improved in the light theme and keyboard focus-visible outlines are visible.
-- The Tasks page shows live download / upload speed plus active and waiting counts; tasks can be filtered by Active / Failed / Completed and paused, resumed or removed.
-- The task list now merges stream tasks started from "Resolve this page video" in the app (marked with a Stream badge); pause, resume and remove stay in sync with the app, and removing a task never deletes the downloaded file.
-- Network Sniffer observes HTTP(S) requests from the current tab, filters video / audio / images / other, supports batch download, and can hand the page to the app's yt-dlp resolver. DASH/MSE segments (e.g. Bilibili) are recognized and point users to the smart resolver for the complete video.
-- Added a Motrix-style New Download dialog with a full-width entry, URL, file name, default save location and collapsible request options (User-Agent / Referer), plus URL validation and Esc / backdrop dismissal; sending preserves the page Referer and passes the file name and custom headers.
-- Long file names no longer widen the popup, and the task list card keeps its full height when empty.
+- **Fixed a settings save whitelist gap**: queue retry policy, task templates, completion rules / webhooks, web console tokens and TLS paths, and plugin market settings plus trusted publishers were silently dropped on every save. They are now preserved and validated.
+- The plugin registry is pinned to a release tag and must be Ed25519-signed; plugin settings reads redact web console tokens.
+- Extension pairing issues a scoped app token instead of the aria2 RPC secret, and the pairing prompt shows the extension name and ID.
+- MCP tools are authorized by scope, `remove_task` / `pause_all` / `purge_download_result` require a second confirmation, and task names are stripped of control characters to prevent prompt injection.
+- The web console page uses event delegation and a strict `Content-Security-Policy`, removing the injection surface from interpolating `gid` into the task table; SSE connections re-check the token periodically and drop immediately when permission is revoked.
+- Web console task creation validates the URI scheme whitelist and confines the save directory to the download root; stream save directories are confined by real path (symlinks resolved).
+- Web console audit logs persist in the user data directory across restarts (last 500 entries kept).
 
-## 🛠 Stability fixes
+## 🛠 Fixes
 
-- Fixed download-complete actions (shutdown / sleep / quit) firing after a reconnect, after deleting the last active task, or when a task failed.
-- Failed connections now dispose of the residual Aria2Service / WebSocket, so the app no longer shows "disconnected" while reconnecting endlessly in the background.
-- Task deletion now waits for the engine result before removing the local row; deleting a completed task's files no longer drops the record when file removal fails, so the user can retry.
-- Settings saves are serialized and roll back in-memory values on failure; Escape from the settings dialog respects the unsaved-changes confirmation; a failed reload no longer clears the dirty state.
-- Auto-retry timers are cleaned up when tasks are deleted or the list is cleared; rapid task switching in BT Insights no longer stacks polling chains.
-- Taskbar progress is sent only when the integer percentage changes, avoiding a redundant IPC call every second.
-- Empty lists no longer hide the "engine disconnected" notice.
-
-## ⚡ Performance
-
-- The log viewer reads only the last 1MB of the log file, preserves the user's scroll position on refresh, pauses auto-refresh while the page is hidden, and enables content-visibility for long log lines.
-- Removed the O(n²) axis-label recomputation from the status traffic chart; traffic sampling stops while the page is hidden.
-- Light task refresh now requests only active tasks instead of pulling 5,000 waiting tasks every second; light and full refreshes are mutually exclusive so stale responses cannot overwrite newer data.
-- SQLite history trimming is batched instead of running COUNT / DELETE on every save.
-
-## 🖥 Electron and updates
-
-- ffmpeg installation restores the previous version on failure; yt-dlp update restores its backup when the new binary fails verification.
-- The main window reference is cleared on close, allowing macOS Dock activation to recreate the window.
-- The history database is closed on shutdown; the update temp directory now removes stale partial downloads and completed installers from older versions.
+- **"Restart and install" no longer leaves an orphaned aria2 process**: the app waits for the engine to shut down and the port to be released, force-kills the process tree on failure, and restarts the engine if the installer fails to launch.
+- The downloaded installer path persists across restarts; deleting the installer clears the state.
+- Tray "show main window", double-click and magnet links restore a minimized window correctly.
+- Plugin workers use generation checks so a stale worker cannot pollute a new instance; loading times out and terminates the worker; a failed upgrade rolls back to the previous version.
+- `--headless` no longer creates a render window and starts on Linux without `$DISPLAY`.
+- Importing a configuration writes `aria2.conf` and prompts for an engine restart.
+- Switching connections probes first and keeps the current connection and task list when the new instance fails.
+- Torrent / Metalink parse failures show the concrete reason and block submission instead of silently downloading every file.
+- Dragging in several files creates one task each; dropped text accepts `sftp` links.
+- Stream retries carry playlist / subtitle / cookie / audio-only options; removing a failed stream task with "delete file" keeps the record when deletion fails.
+- Notification titles for failed tasks fall back to the file name or URL; notification deduplication is no longer flooded by interleaved tasks; dates follow the current language.
+- Chromium `ERR_*` network errors and Queue page errors share the same message mapping; completed-task delete failures use localized per-item reasons.
+- Stopping the web console closes keep-alive idle connections instead of waiting for a timeout.
+- The settings unsaved-changes prompt no longer fires falsely: pages that load from cache realign their dirty state after a reload.
 
 ## ✅ Verification
 
-- typecheck, 86 test files / 933 unit tests, production build, 21 extension checks, 57 extension API checks and 159 application E2E checks all pass.
-- All 21 locales remain complete; the extension manifest version is now 1.4.0.
+- Typecheck (main process, tests, renderer) passes; 107 test files / 1203 unit tests pass.
+- All 144 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, web console).
+- All 21 extension static checks pass; the 21 locales remain complete.
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.3.8...v1.4.0
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.1

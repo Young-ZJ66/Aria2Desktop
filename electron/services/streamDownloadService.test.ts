@@ -33,6 +33,7 @@ const {
   PLAYLIST_ITEMS_VALUE_MAX,
   PROGRESS_MARKER,
   parseProgressLine,
+  readFinalPaths,
   registerStreamTask,
   SUBTITLE_LANG_PATTERN,
   updateStreamTask,
@@ -460,5 +461,51 @@ describe('流媒体任务快照：扩展下载列表的数据源', () => {
     expect(forgetStreamTask('sd-test-f')).toBe(true)
     expect(getStreamTask('sd-test-f')).toBeUndefined()
     expect(forgetStreamTask('sd-test-f')).toBe(false)
+  })
+})
+
+describe('readFinalPaths：completed 事件的全部输出文件（D-38）', () => {
+  /**
+   * 播放列表/多字幕一次会产出多个文件，主进程用 --print-to-file 把所有最终路径写进
+   * 同一个文件。渲染层靠这份列表逐个删除文件，所以这里锁定三件事：
+   * 只收磁盘上真实存在的文件、去重保序、文件缺失/读失败时安全返回空数组。
+   */
+  const tmpDir = path.join(os.tmpdir(), 'stream-final-paths-test')
+
+  function writePrintFile(lines: string[]): string {
+    fs.mkdirSync(tmpDir, { recursive: true })
+    const file = path.join(tmpDir, 'final-paths-' + Math.random().toString(36).slice(2) + '.txt')
+    fs.writeFileSync(file, lines.join('\n'), 'utf8')
+    return file
+  }
+
+  function touch(name: string): string {
+    fs.mkdirSync(tmpDir, { recursive: true })
+    const file = path.join(tmpDir, name)
+    fs.writeFileSync(file, 'x')
+    return file
+  }
+
+  it('返回全部存在的文件路径（保持顺序）', () => {
+    const first = touch('01.mp4')
+    const second = touch('02.mp4')
+    const printFile = writePrintFile([first, second])
+    expect(readFinalPaths(printFile)).toEqual([first, second])
+  })
+
+  it('忽略空行与不存在的路径（yt-dlp 部分条目失败时会打印幽灵路径）', () => {
+    const real = touch('03.mp4')
+    const ghost = path.join(tmpDir, 'missing-' + Date.now() + '.mp4')
+    const printFile = writePrintFile(['', real, '   ', ghost, ''])
+    expect(readFinalPaths(printFile)).toEqual([real])
+  })
+
+  it('重复路径只保留一次', () => {
+    const real = touch('04.mp4')
+    expect(readFinalPaths(writePrintFile([real, real]))).toEqual([real])
+  })
+
+  it('文件不存在或读失败时返回空数组（调用方按单文件兜底）', () => {
+    expect(readFinalPaths(path.join(tmpDir, 'no-such-file.txt'))).toEqual([])
   })
 })

@@ -35,10 +35,13 @@
             :can-batch-open="props.taskType === 'stopped' && selectedTasks.some(task => task.files?.some(file => file.path))"
             :operating="batchOperating || batchOpening"
             :deleting="batchDeleting"
+            :failed-count="failedTaskCount"
+            :retrying-failed="retryingFailed"
             @batch-start="batchStart"
             @batch-pause="batchPause"
             @batch-open="batchOpen"
             @batch-delete="batchDelete"
+            @retry-failed="retryAllFailed"
           />
         </div>
 
@@ -75,6 +78,16 @@
             size="small"
             clearable
             class="filter-select filter-select--kind"
+          />
+          <!-- 状态筛选（D-24）：失败任务是用户最常找的一类，必须能一键筛出来。
+               选项按当前列表裁剪——完成页已把 error 任务排除，给出「失败」只会是空列表。 -->
+          <n-select
+            v-model:value="selectedStatus"
+            :options="statusFilterOptions"
+            :placeholder="t('task.filterByStatus')"
+            size="small"
+            clearable
+            class="filter-select filter-select--status"
           />
           <span class="toolbar-divider" aria-hidden="true" />
           <!-- 任务导出/导入 -->
@@ -152,6 +165,16 @@
       </div>
     </section>
 
+    <!-- 批量操作结果（D-39/D-51）：开始/暂停/删除共用，失败项逐条列明任务名与原因 -->
+    <TaskBatchResult
+      :visible="batchResult !== null"
+      :success="batchResult?.success ?? 0"
+      :failed="batchResult?.failed ?? 0"
+      :skipped="batchResult?.skipped ?? 0"
+      :failures="batchResult?.failures ?? []"
+      @close="closeBatchResult"
+    />
+
     <!-- 批量删除对话框（带文件删除选项） -->
     <DeleteTaskDialog
       v-model="showBatchDeleteDialog"
@@ -200,7 +223,21 @@ import DeleteTaskDialog from '@/components/dialogs/DeleteTaskDialog.vue'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import UiEmpty from '@/components/ui/UiEmpty.vue'
 import TaskBatchActions from '@/components/task/TaskBatchActions.vue'
+import TaskBatchResult from '@/components/task/TaskBatchResult.vue'
+import {
+  createBatchOutcome,
+  needsBatchResult,
+  recordBatchFailure,
+  recordFailure,
+  type BatchOutcome
+} from '@/components/task/batchResult'
 import TaskRowActions from '@/components/task/TaskRowActions.vue'
+import {
+  availableStatusFilters,
+  isFailedTask,
+  matchesStatusFilter,
+  type TaskStatusFilter
+} from '@/components/task/taskStatusFilter'
 import type { Aria2Task } from '@/types/aria2'
 import {
   getTaskStats,
@@ -239,7 +276,12 @@ const isDisconnected = computed(() => !connectionStore.isConnected)
 // 之前共用 noTasks（「没有找到匹配的任务」），空列表时等于告诉用户「你的筛选把任务藏起来了」，
 // 但他根本没筛过——第一印象就是列表坏了。
 const isFiltering = computed(() =>
-  Boolean(searchText.value.trim() || selectedCategory.value || selectedKind.value)
+  Boolean(
+    searchText.value.trim() ||
+      selectedCategory.value ||
+      selectedKind.value ||
+      (selectedStatus.value && selectedStatus.value !== 'all')
+  )
 )
 const emptyDescription = computed(() => {
   if (isDisconnected.value) return t('settings.notConnectedTitle')
@@ -266,6 +308,10 @@ const streamDeleting = ref(false)
 const batchOperating = ref(false)
 // 批量打开文件中
 const batchOpening = ref(false)
+// 「重试全部失败」执行中（D-24）
+const retryingFailed = ref(false)
+// 最近一次批量操作的结果（D-39/D-51）：成功/失败/跳过 + 失败详情，由统一面板渲染
+const batchResult = ref<BatchOutcome | null>(null)
 
 // 操作锁定状态
 const operatingTasks = ref<Set<string>>(new Set())
@@ -279,6 +325,7 @@ const {
   canBatchStart,
   canBatchPause,
   clearSelection,
+  selectTasks,
   selectAll,
   toggleTask,
   updateSelectedTasksData,
@@ -303,6 +350,8 @@ watch(
 const searchText = ref('')
 const selectedCategory = ref<string | null>(null)
 const selectedKind = ref<TaskKind | null>(null)
+// 状态筛选（D-24）：null 表示「全部」，与另外两个下拉的 clearable 语义一致
+const selectedStatus = ref<TaskStatusFilter | null>(null)
 
 // 列头排序状态：Naive UI 的 sorter 是非受控的（组件内部管理三态循环），
 // 但切页/切列表会销毁组件导致排序丢失——这里用受控 sortOrderer 恢复，并在变化时持久化。
@@ -424,6 +473,19 @@ const kindOptions = computed(() => [
   { label: t('task.typeStream'), value: 'stream' }
 ])
 
+/** 状态筛选选项：按当前列表实际会出现哪些状态裁剪，避免出现永远为空的选项 */
+const statusFilterOptions = computed(() =>
+  availableStatusFilters(props.taskType).map(value => ({
+    label: t(`status.${value}`),
+    value
+  }))
+)
+
+/** 当前列表里的失败任务数（用于「重试全部失败」按钮的显示与计数） */
+const failedTaskCount = computed(
+  () => allTasks.value.filter(task => isFailedTask(task.status)).length
+)
+
 /** 任务所属分类（按文件名扩展名，与自动分类落盘使用同一套规则） */
 function taskCategoryId(task: Aria2Task): string {
   return resolveCategory(getTaskName(task), settingsStore.categoryConfig.categories ?? []).id
@@ -510,6 +572,12 @@ const filteredTasks = computed(() => {
   // 搜索过滤（复用 taskUtils.searchTasks 的统一实现，避免两份过滤逻辑漂移）
   if (searchText.value.trim()) {
     tasks = searchTasks(tasks, searchText.value)
+  }
+
+  // 状态筛选（D-24）：放在搜索之后、排序之前，只影响展示不影响队列顺序
+  const statusFilter = selectedStatus.value
+  if (statusFilter && statusFilter !== 'all') {
+    tasks = tasks.filter(task => matchesStatusFilter(task.status, statusFilter))
   }
 
   // 等待队列：保持 tellWaiting 的原始顺序（队列操作的唯一事实来源）
@@ -883,6 +951,60 @@ async function retryTask(gid: string) {
 }
 
 /**
+ * 重试全部失败任务（D-24）。
+ *
+ * 逐个重试而不是并发：aria2 的 retryErrorTask 会先 addUri 再删除旧任务，
+ * 并发时 addUri 的 gid 回填与删除顺序容易交叉，串行是最省心的正确做法。
+ * 单个任务失败不中断整批——失败数会如实汇总给用户。
+ */
+async function retryAllFailed() {
+  if (retryingFailed.value) return
+  const failedTasks = allTasks.value.filter(task => isFailedTask(task.status))
+  if (failedTasks.length === 0) return
+
+  const startedAt = Date.now()
+  retryingFailed.value = true
+  let success = 0
+  let failed = 0
+
+  try {
+    for (const task of failedTasks) {
+      if (operatingTasks.value.has(task.gid)) {
+        failed++
+        continue
+      }
+      operatingTasks.value.add(task.gid)
+      try {
+        // 流媒体任务不走 aria2 队列，用 streamTaskStore 自己的重试
+        if (streamTaskStore.findByGid(task.gid)) {
+          const result = await streamTaskStore.retryTask(task.gid)
+          if (result.success) success++
+          else failed++
+        } else {
+          await taskStore.retryErrorTask(task.gid)
+          success++
+        }
+      } catch (error: unknown) {
+        console.error('重试失败任务出错:', task.gid, error)
+        failed++
+      } finally {
+        operatingTasks.value.delete(task.gid)
+      }
+    }
+
+    await taskStore.loadAllTasks()
+    if (failed === 0) {
+      message.success(t('task.retryAllFailedResult', { success, failed }))
+    } else {
+      message.warning(t('task.retryAllFailedResult', { success, failed }))
+    }
+  } finally {
+    await ensureMinimumDuration(startedAt)
+    retryingFailed.value = false
+  }
+}
+
+/**
  * 流媒体任务（yt-dlp）：暂停 / 继续 / 重试 / 从列表移除。
  * 这些操作不经过 aria2，直接调用 streamTaskStore。
  */
@@ -1215,31 +1337,51 @@ async function batchStart() {
       return
     }
 
-    let startedCount = 0
+    // D-39：逐项执行，单个任务失败只记一笔、不中断整批，最后统一汇总
+    const outcome = createBatchOutcome()
+    const failedTasks: Aria2Task[] = []
     for (const task of startableTasks) {
-      // 流媒体任务没有 aria2 队列：暂停的任务直接继续，失败的任务用原 URL/格式重新发起
-      if (streamTaskStore.findByGid(task.gid)) {
-        if (task.status === 'paused') {
-          if (await streamTaskStore.resumeTask(task.gid)) startedCount++
+      try {
+        // 流媒体任务没有 aria2 队列：暂停的任务直接继续，失败的任务用原 URL/格式重新发起
+        if (streamTaskStore.findByGid(task.gid)) {
+          if (task.status === 'paused') {
+            if (await streamTaskStore.resumeTask(task.gid)) outcome.success++
+            else {
+              recordBatchFailure(outcome, task, t('common.unknown'))
+              failedTasks.push(task)
+            }
+            continue
+          }
+          if (task.status !== 'error') {
+            outcome.skipped++
+            continue
+          }
+          const result = await streamTaskStore.retryTask(task.gid)
+          if (result.success) outcome.success++
+          else {
+            recordBatchFailure(outcome, task, result.error ? getUserFriendlyError(result.error) : t('common.unknown'))
+            failedTasks.push(task)
+          }
           continue
         }
-        if (task.status !== 'error') continue
-        const result = await streamTaskStore.retryTask(task.gid)
-        if (result.success) startedCount++
-        else console.error('重试流媒体任务失败:', result.error)
-        continue
+        if (task.status === 'error') {
+          await taskStore.retryErrorTask(task.gid)
+        } else {
+          await taskStore.unpauseTask(task.gid)
+        }
+        outcome.success++
+      } catch (error) {
+        recordBatchFailure(outcome, task, getUserFriendlyError(error))
+        failedTasks.push(task)
       }
-      if (task.status === 'error') {
-        await taskStore.retryErrorTask(task.gid)
-      } else {
-        await taskStore.unpauseTask(task.gid)
-      }
-      startedCount++
     }
 
     await taskStore.loadAllTasks()
-    message.success(t('task.startedCount', { count: startedCount }))
-    clearSelection()
+    // 全部成功时只给一条轻提示；有失败则交给统一结果面板逐条列明
+    if (outcome.failed === 0) {
+      message.success(t('task.startedCount', { count: outcome.success }))
+    }
+    applyBatchOutcome(outcome, failedTasks)
   } catch (error) {
     console.error('开始任务失败:', error)
     message.error(t('task.startFailed', { error: getUserFriendlyError(error) }))
@@ -1263,19 +1405,32 @@ async function batchPause() {
       return
     }
 
-    let pausedCount = 0
+    // D-39：与批量开始一致，逐项执行并汇总，单个失败不影响其余任务
+    const outcome = createBatchOutcome()
+    const failedTasks: Aria2Task[] = []
     for (const task of pausableTasks) {
-      // 流媒体任务由 yt-dlp 子进程执行，暂停后保留记录并可继续
-      if (streamTaskStore.findByGid(task.gid)) {
-        if (await streamTaskStore.pauseTask(task.gid)) pausedCount++
-        continue
+      try {
+        // 流媒体任务由 yt-dlp 子进程执行，暂停后保留记录并可继续
+        if (streamTaskStore.findByGid(task.gid)) {
+          if (await streamTaskStore.pauseTask(task.gid)) outcome.success++
+          else {
+            recordBatchFailure(outcome, task, t('common.unknown'))
+            failedTasks.push(task)
+          }
+          continue
+        }
+        await taskStore.pauseTask(task.gid, true)
+        outcome.success++
+      } catch (error) {
+        recordBatchFailure(outcome, task, getUserFriendlyError(error))
+        failedTasks.push(task)
       }
-      await taskStore.pauseTask(task.gid, true)
-      pausedCount++
     }
 
-    message.success(t('task.pausedCount', { count: pausedCount }))
-    clearSelection()
+    if (outcome.failed === 0) {
+      message.success(t('task.pausedCount', { count: outcome.success }))
+    }
+    applyBatchOutcome(outcome, failedTasks)
   } catch (error) {
     console.error('暂停任务失败:', error)
     message.error(t('task.pauseFailed', { error: getUserFriendlyError(error) }))
@@ -1331,20 +1486,32 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
   batchDeleting.value = true
   try {
     const tasks = tasksToDelete.value.length > 0 ? tasksToDelete.value : [...selectedTasks.value]
+    // D-51：逐项执行并汇总，失败项带上任务名与原因，交给统一结果面板逐条列明
+    const outcome = createBatchOutcome()
+    const failedTasks: Aria2Task[] = []
+    const taskByGid = new Map(tasks.map(task => [task.gid, task]))
+    let filesDeleted = 0
 
     // 流媒体任务不在 aria2 里：先按 streamTaskStore 逐个取消/移除（可选删文件），
     // 剩下的 aria2 任务再走原有链路。混选时两类任务都要处理，不能整批丢给一边。
     const streamGids = new Set(
       tasks.filter(task => streamTaskStore.findByGid(task.gid)).map(task => task.gid)
     )
-    let streamSuccess = 0
-    let streamFailed = 0
     for (const gid of streamGids) {
-      const result = await streamTaskStore.removeTask(gid, deleteFiles)
-      if (result.success) streamSuccess++
-      else {
-        streamFailed++
-        console.error('Failed to remove stream task ' + gid + ':', result.error)
+      const task = taskByGid.get(gid)
+      try {
+        const result = await streamTaskStore.removeTask(gid, deleteFiles)
+        if (result.success) {
+          outcome.success++
+        } else {
+          const name = task ? getTaskDisplayName(task) : gid
+          recordFailure(outcome, name, result.error ? getUserFriendlyError(result.error) : t('common.unknown'))
+          if (task) failedTasks.push(task)
+        }
+      } catch (error) {
+        const name = task ? getTaskDisplayName(task) : gid
+        recordFailure(outcome, name, getUserFriendlyError(error))
+        if (task) failedTasks.push(task)
       }
     }
     const aria2Tasks = tasks.filter(task => !streamGids.has(task.gid))
@@ -1354,45 +1521,46 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
         ? await completedTaskDeleteService.batchDeleteCompletedTasks(aria2Tasks, deleteFiles, connectionStore.service)
         : { totalTasks: 0, successfulTasks: 0, failedTasks: 0, totalFilesDeleted: 0, results: [], errors: [] as string[] }
       // 把流媒体任务的成败并入统计，用户看到的数字是「这一批」的真实结果
-      result.totalTasks += streamGids.size
-      result.successfulTasks += streamSuccess
-      result.failedTasks += streamFailed
-      await taskStore.loadAllTasks()
-
-      if (result.successfulTasks === result.totalTasks) {
-        let messageText = t('task.deletedCount', { count: result.successfulTasks })
-        if (deleteFiles && result.totalFilesDeleted > 0) {
-          messageText += ` + ${t('task.filesDeletedCount', { count: result.totalFilesDeleted })}`
-        }
-        message.success(messageText)
-      } else {
-        message.warning(t('task.deletedPartial', { success: result.successfulTasks, total: result.totalTasks }))
-        if (result.errors.length > 0) {
-          result.errors.slice(0, 3).forEach(error => message.error(error))
-        }
+      outcome.success += result.successfulTasks
+      filesDeleted += result.totalFilesDeleted
+      // 服务返回的失败项只有 taskId/taskName/errors，这里按 taskId 补回任务对象，
+      // 以便删除后把失败项继续留在选中状态
+      for (const item of result.results) {
+        if (item.success) continue
+        recordFailure(
+          outcome,
+          item.taskName,
+          item.errors.length > 0 ? item.errors.join('；') : t('common.unknown')
+        )
+        const failedTask = taskByGid.get(item.taskId)
+        if (failedTask) failedTasks.push(failedTask)
       }
+      await taskStore.loadAllTasks()
     } else {
-      let successCount = streamSuccess
       for (const task of aria2Tasks) {
         try {
           await taskStore.removeTask(task.gid, deleteFiles)
-          successCount++
+          outcome.success++
         } catch (error) {
-          console.error(`Failed to delete task ${task.gid}:`, error)
+          recordBatchFailure(outcome, task, getUserFriendlyError(error))
+          failedTasks.push(task)
         }
-      }
-
-      if (successCount === tasks.length) {
-        const messageText = deleteFiles
-          ? t('task.deletedCountWithFiles', { count: successCount })
-          : t('task.deletedCount', { count: successCount })
-        message.success(messageText)
-      } else {
-        message.warning(t('task.deletedPartial', { success: successCount, total: tasks.length }))
       }
     }
 
-    clearSelection()
+    // 全部成功时给一条轻提示；有失败时只报汇总，失败明细交给结果面板
+    if (outcome.failed === 0) {
+      let messageText = deleteFiles
+        ? t('task.deletedCountWithFiles', { count: outcome.success })
+        : t('task.deletedCount', { count: outcome.success })
+      if (deleteFiles && filesDeleted > 0) {
+        messageText += ` + ${t('task.filesDeletedCount', { count: filesDeleted })}`
+      }
+      message.success(messageText)
+    } else {
+      message.warning(t('task.deletedPartial', { success: outcome.success, total: tasks.length }))
+    }
+    applyBatchOutcome(outcome, failedTasks)
     tasksToDelete.value = []
   } catch (error) {
     console.error('删除任务失败:', error)
@@ -1402,6 +1570,19 @@ async function handleBatchDeleteConfirm(deleteFiles: boolean) {
     batchDeleting.value = false
     showBatchDeleteDialog.value = false
   }
+}
+
+// 把一次批量操作的结果交给统一面板，并把失败项保留为选中状态（D-51）：
+// 用户看到失败原因后可以直接点「开始/重试」再处理，不用重新勾选。
+function applyBatchOutcome(outcome: BatchOutcome, failedTasks: Aria2Task[]): void {
+  clearSelection()
+  if (failedTasks.length > 0) selectTasks(failedTasks)
+  batchResult.value = needsBatchResult(outcome) ? outcome : null
+}
+
+// 关闭结果面板
+function closeBatchResult(): void {
+  batchResult.value = null
 }
 
 // ── 任务导出/导入（方案 B：两个页面不同行为） ──
@@ -1821,6 +2002,10 @@ watch(
   width: 132px;
 }
 
+.filter-select--status {
+  width: 132px;
+}
+
 /* 选中行：v1 只靠选择列里的勾，1400px 宽的表里几乎看不出选中了哪几行 */
 :deep(.n-data-table-tr.ds-row-selected td) {
   background: var(--ds-bg-selected);
@@ -1903,7 +2088,8 @@ watch(
   }
 
   .filter-select--category,
-  .filter-select--kind {
+  .filter-select--kind,
+  .filter-select--status {
     flex: 1 1 140px;
     width: auto;
     min-width: 120px;

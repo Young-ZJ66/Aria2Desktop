@@ -38,6 +38,7 @@
                 :task="task"
                 :task-uris="taskUris"
                 :is-electron="isElectron"
+                :stream-file-paths="streamFilePaths"
               />
             </n-tab-pane>
 
@@ -55,6 +56,10 @@
 
             <n-tab-pane v-if="!isStreamTask" :name="'pieces'" :tab="t('taskDetail.piecesInfo')">
               <TaskPiecesInfo :task="task" />
+            </n-tab-pane>
+
+            <n-tab-pane v-if="!isStreamTask" :name="'settings'" :tab="t('taskDetail.taskSettings')">
+              <TaskSettingsPanel :gid="gid" :task="task" />
             </n-tab-pane>
           </n-tabs>
 
@@ -101,11 +106,13 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useStreamTaskStore } from '@/stores/streamTaskStore'
 import type { Aria2Task, Aria2Uri, Aria2Server, Aria2Peer } from '@/types/aria2'
 import { getStatusType } from '@/utils/taskFormatters'
+import { streamTaskFilePaths } from '@/utils/streamTaskUtils'
 import TaskBasicInfo from '@/components/task/TaskBasicInfo.vue'
 import TaskFilesInfo from '@/components/task/TaskFilesInfo.vue'
 import TaskServerInfo from '@/components/task/TaskServerInfo.vue'
 import TaskPeerInfo from '@/components/task/TaskPeerInfo.vue'
 import TaskPiecesInfo from '@/components/task/TaskPiecesInfo.vue'
+import TaskSettingsPanel from '@/components/task/TaskSettingsPanel.vue'
 import UiEmpty from '@/components/ui/UiEmpty.vue'
 
 const uiStore = useUiStore()
@@ -130,6 +137,18 @@ const isElectron = computed(() => !!window.electronAPI)
 
 const gid = computed(() => uiStore.taskDetailGid || '')
 const isStreamTask = computed(() => Boolean(gid.value && streamTaskStore.findByGid(gid.value)))
+
+/**
+ * 流媒体任务的全部输出文件（D-11）。
+ *
+ * 这类任务转成 Aria2Task 形状时只保留了首个文件（列表只展示一个名字），
+ * 播放列表/多字幕会产出多个文件，详情里必须能看到每一个。
+ */
+const streamFilePaths = computed<string[]>(() => {
+  if (!gid.value) return []
+  const streamTask = streamTaskStore.findByGid(gid.value)
+  return streamTask ? streamTaskFilePaths(streamTask) : []
+})
 
 // 抽屉开关状态同步（n-drawer 通过 update:show 通知）
 function handleShowChange(value: boolean) {
@@ -302,16 +321,49 @@ async function loadTaskDetail() {
       task.value = foundTask
       // 数据拉取与状态更新分离
       await fetchAndMergeDetails()
+      return
     }
+
+    // D-48：连接正常却查不到这个 gid，说明任务已被外部删除（aria2 队列、清理脚本、另一窗口）。
+    // 此前这里什么都不做，抽屉会一直停留在上一次的旧数据上——用户看到的进度条永远不动。
+    // 上面的「最新请求」校验已排除切换任务的情况，这里只处理真正的任务消失。
+    handleTaskGone()
   } catch (error) {
     if (seq !== loadSeq) return
     console.error('Failed to load task detail:', error)
+    // D-48：aria2 对未知 gid 是抛错而不是返回空（"GID xxx is not found"）。
+    // 这类错误等价于任务已被外部删除，按消失处理而不是报"任务不存在"错误。
+    if (requestedGid === gid.value && isGidNotFoundError(error)) {
+      handleTaskGone()
+      return
+    }
     // 区分"任务不存在"与"RPC 失败"：此前一律提示"任务不存在"，会把断连/超时
     // 误报成任务丢失，误导排查方向
     message.error(connectionStore.isConnected ? t('task.taskNotExist') : t('connection.disconnected'))
   } finally {
     if (seq === loadSeq) loading.value = false
   }
+}
+
+/** aria2 的「gid 不存在」错误文案（客户端把 RPC error.message 拼进 Error.message） */
+function isGidNotFoundError(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error ?? '')
+  return /is not found|not found/i.test(text) && /gid/i.test(text)
+}
+
+/**
+ * 任务在 aria2 侧已消失（D-48）：清空本地详情并关闭抽屉。
+ *
+ * 只提示、不报错：任务被删除是用户/外部工具的正常行为，不是故障。
+ * 文案复用语言包里的「任务已删除」，不新增 key。
+ */
+function handleTaskGone() {
+  task.value = null
+  taskUris.value = []
+  taskPeers.value = []
+  taskServers.value = []
+  uiStore.closeTaskDetail()
+  message.warning(t('delete.taskDeleted'))
 }
 
 async function refresh() {

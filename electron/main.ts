@@ -195,6 +195,8 @@ const downloadScheduler = new DownloadScheduler()
 aria2Controller.setEngineStartedListener(() => {
   speedScheduler.reapply()
   downloadScheduler.reapply()
+  // 引擎恢复：清掉托盘的异常态（否则引擎已手动重启成功，托盘还挂着"已停止自动重启"）
+  trayController.clearEngineGaveUp()
   // 引擎每次真的起来了都告诉界面一声：既用于收掉"已放弃自动重启"那条红色提示，
   // 也让界面对"手动重启成功了"有回应
   const win = windowController.getMainWindow()
@@ -210,11 +212,16 @@ aria2Controller.setEngineCrashListener((retryCount) => {
 })
 // 连续重启失败达到上限后不再自动重启，界面必须知道"它已经不会再起来了"，
 // 否则用户会一直等一个永远不会恢复的连接。
+//
+// 三条通道缺一不可：渲染层 toast（窗口可见时最显眼）、系统通知（窗口隐藏/最小化到托盘/
+// 无头模式时唯一能触达用户的方式）、托盘异常态（之后随时能看到"它已经停了"）。
 aria2Controller.setEngineGaveUpListener((attempts) => {
   const win = windowController.getMainWindow()
   if (win && !win.isDestroyed()) {
     win.webContents.send('aria2-engine-gave-up', { attempts })
   }
+  trayController.setEngineGaveUp(attempts)
+  appLifecycle.notifyEngineGaveUp(attempts)
 })
 
 /**
@@ -348,6 +355,13 @@ async function queueTaskFileFromPath(filePath: string): Promise<void> {
 /** 渲染层就绪：把启动期缓存的链接与文件按到达顺序补投 */
 function flushPendingUrls(): void {
   rendererReady = true
+  // 导入设置可能发生在渲染层就绪之前（此时 send 会丢），就绪后补投一次"需重启引擎"提示
+  if (aria2Controller.consumeEngineRestartNotice()) {
+    const win = windowController.getMainWindow()
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('config:changed', { key: 'engine-restart-required', value: true })
+    }
+  }
   const queued = pendingDownloadUrls.splice(0, pendingDownloadUrls.length)
   for (const url of queued) {
     sendPendingUrl(url)
@@ -471,6 +485,8 @@ if (!gotTheLock) {
   })
 
   app.on('activate', () => {
+    // --headless 下不建窗：否则 macOS 上任何一次"点 Dock 图标"都会把无头进程变成有界面进程
+    if (process.argv.includes('--headless')) return
     const mainWindow = windowController.getMainWindow()
     if (!mainWindow || mainWindow.isDestroyed()) {
       windowController.createWindow()

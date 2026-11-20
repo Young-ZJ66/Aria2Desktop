@@ -125,7 +125,7 @@ import { FolderOutline, TimeOutline } from '@vicons/ionicons5'
 import type { FormInst, FormRules, SelectOption } from 'naive-ui'
 import { confirm, message } from '@/utils/feedback'
 import AppSwitch from '@/components/AppSwitch.vue'
-import { useTaskStore } from '@/stores/taskStore'
+import { useTaskStore, type AddUriBatchRequest } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useNewTaskSubmit } from '@/composables/useNewTaskSubmit'
 import { useDiskFreeSpace } from '@/composables/useDiskFreeSpace'
@@ -133,6 +133,7 @@ import { CATEGORY_AUTO, CATEGORY_GENERAL, getFileNameHintFromUri, resolveCategor
 import { pushRecentSaveDir } from '@/shared/recentSaveDirs'
 import { formatSize } from '@/utils/taskFormatters'
 import { parseCurlCommand } from '@/utils/curlCommand'
+import { isSupportedDownloadUri } from '@/utils/downloadUri'
 import { USER_AGENT_PRESETS } from '@/shared/userAgents'
 import type { Aria2Option } from '@/types/aria2'
 import type { TaskTemplate } from '@/shared/appSettings'
@@ -208,9 +209,6 @@ function applyUserAgentPreset(key: string | null) {
   form.userAgent = preset ? preset.value : ''
 }
 
-/** aria2 支持的下载协议白名单 */
-const SUPPORTED_URI_SCHEMES = ['http:', 'https:', 'ftp:', 'sftp:', 'magnet:']
-
 /**
  * 粘贴 cURL 命令时自动拆出 URL 与请求头。
  * 只在失焦时执行一次：用户仍可在提交前检查/修改解析结果。
@@ -233,17 +231,6 @@ function parseCurlIfPresent() {
   if (extraHeaders.length > 0) form.customHeaders = extraHeaders.join('\n')
 
   message.success(t('newTask.curlParsed'))
-}
-
-/** 校验单个下载 URI：协议合法且（http/https/ftp/sftp）能被 URL 解析；magnet 为特殊格式 */
-function isSupportedDownloadUri(uri: string): boolean {
-  if (uri.startsWith('magnet:')) return true
-  try {
-    const { protocol } = new URL(uri)
-    return SUPPORTED_URI_SCHEMES.includes(protocol)
-  } catch {
-    return false
-  }
 }
 
 const firstUri = computed(() => (form.uris.split('\n').find(u => u.trim()) || '').trim())
@@ -297,34 +284,54 @@ async function handleSubmit() {
   // 保留旧实现的守卫：表单未挂载时不提交
   if (!formRef.value) return
 
-  await runSubmit<string[]>({
+  await runSubmit<Array<{ uri: string; line: number }>>({
     validate: async () => await formRef.value?.validate(),
 
     precheck: () => {
-      const uris = form.uris.split('\n')
-        .map(uri => uri.trim())
-        .filter(uri => uri.length > 0)
+      const lines = form.uris.split('\n')
+      const entries: Array<{ uri: string; line: number }> = []
+      const invalidLines: number[] = []
 
-      if (uris.length === 0) {
+      lines.forEach((raw, index) => {
+        const uri = raw.trim()
+        if (!uri) return
+        // 校验 URL 协议：仅允许 aria2 支持的下载协议，拦截 javascript:/file: 等非法输入
+        if (!isSupportedDownloadUri(uri)) {
+          invalidLines.push(index + 1)
+          return
+        }
+        entries.push({ uri, line: index + 1 })
+      })
+
+      if (entries.length === 0 && invalidLines.length === 0) {
         message.error(t('newTask.invalidUrl'))
         return null
       }
-
-      // 校验 URL 协议：仅允许 aria2 支持的下载协议，拦截 javascript:/file: 等非法输入
-      const invalidUris = uris.filter(uri => !isSupportedDownloadUri(uri))
-      if (invalidUris.length > 0) {
-        console.warn('[UriPane] Blocked unsupported URIs:', invalidUris)
-        message.error(t('newTask.invalidUrlCount', { count: invalidUris.length }))
+      if (invalidLines.length > 0) {
+        console.warn('[UriPane] Blocked unsupported URIs at lines:', invalidLines)
+        message.error(`${t('newTask.invalidUrlCount', { count: invalidLines.length })} (${invalidLines.join(', ')})`)
         return null
       }
 
-      return uris
+      // 自定义请求头必须能解析成 Name: value；过去无冒号的行被静默丢弃，用户以为已生效
+      const badHeaderLines: number[] = []
+      form.customHeaders.split('\n').forEach((raw, index) => {
+        const line = raw.trim()
+        if (line && !line.includes(':')) badHeaderLines.push(index + 1)
+      })
+      if (badHeaderLines.length > 0) {
+        message.error(`${t('newTask.customHeaders')}: ${badHeaderLines.join(', ')} — ${t('newTask.customHeadersPlaceholder')}`)
+        return null
+      }
+
+      return entries
     },
 
-    perform: async (uris) => {
+    perform: async (entries) => {
       // 提交前查重：同一链接已有进行中任务（active/waiting/paused）时先确认。
       // aria2 对相同 URI 不去重（会再下一份副本），文件重名确认只在提交后兜底——
       // 这里在探测文件名等任何开销之前拦一次，取消时不发任何请求。
+      const uris = entries.map(entry => entry.uri)
       const duplicates = taskStore.findDuplicateTasks(uris)
       if (duplicates.length > 0) {
         const shown = duplicates.slice(0, 3).map(d => d.name).join('、')
@@ -335,72 +342,107 @@ async function handleSubmit() {
         if (!proceed) return ''
       }
 
-      const options: Aria2Option = {}
+      const baseOptions: Aria2Option = {}
       const baseDir = form.dir || settingsStore.taskBaseDir
-      // precheck 已保证 uris 非空，`?? ''` 只是满足 noUncheckedIndexedAccess
-      let fileNameHint = form.fileName || getFileNameHintFromUri(uris[0] ?? '')
 
-      // 网盘直链/跳转链接的 URL 里没有文件名，分类无从下手：
-      // 先向文件服务器探测真实文件名（主进程只取响应头、不下载正文），失败则维持原行为
-      const unclassified =
-        form.category === CATEGORY_AUTO &&
-        resolveCategory(fileNameHint, settingsStore.categoryConfig.categories ?? []).id === CATEGORY_GENERAL
-      let probedName = ''
-      if (unclassified && window.electronAPI?.probeDownloadName) {
-        probedName = await window.electronAPI.probeDownloadName(uris[0] ?? '')
-      }
-      if (!form.fileName && probedName) fileNameHint = probedName
-
-      const resolvedDir = props.computeTargetDir(baseDir, form.category, fileNameHint)
-      if (resolvedDir) options.dir = resolvedDir
-
-      // 重名处理：目标文件已存在且无 .aria2 控制文件时，aria2 会因 continue=true 把它当作
-      // "可续传的已完成任务"而秒结束（auto-file-renaming 的改名分支走不到）。
-      // 是否下载新副本交给用户选择：下载为新副本（自动加序号）/ 取消本次任务。
-      let outName = ''
-      let cancelled = false
-      const baseName = form.fileName || probedName || fileNameHint
-      if (baseName && resolvedDir && window.electronAPI?.resolveDownloadConflict) {
-        try {
-          const resolved = await window.electronAPI.resolveDownloadConflict(resolvedDir, baseName)
-          if (resolved?.conflict) {
-            const chosen = await askConflictChoice(baseName, resolved.fileName)
-            if (chosen === null) {
-              cancelled = true
-            } else {
-              outName = chosen
-            }
-          }
-        } catch { /* 检测失败时按原名提交（保持原行为） */ }
-      }
-      // 空串 = 用户取消了本次任务（不提示成功、不关弹窗）
-      if (cancelled) return ''
-      if (outName) options.out = outName
-      else if (form.fileName) options.out = form.fileName
-      else if (probedName) options.out = probedName
-
-      options['max-connection-per-server'] = form.maxConnectionPerServer.toString()
-      options['min-split-size'] = form.minSplitSize
-      if (!form.autoStart) options.pause = 'true'
+      baseOptions['max-connection-per-server'] = form.maxConnectionPerServer.toString()
+      baseOptions['min-split-size'] = form.minSplitSize
+      if (!form.autoStart) baseOptions.pause = 'true'
       // 单任务限速 / 代理（0 与空串表示不限制/不设置）
-      if (form.maxDownloadLimitKB > 0) options['max-download-limit'] = `${form.maxDownloadLimitKB}K`
-      if (form.maxUploadLimitKB > 0) options['max-upload-limit'] = `${form.maxUploadLimitKB}K`
-      if (form.allProxy.trim()) options['all-proxy'] = form.allProxy.trim()
+      if (form.maxDownloadLimitKB > 0) baseOptions['max-download-limit'] = `${form.maxDownloadLimitKB}K`
+      if (form.maxUploadLimitKB > 0) baseOptions['max-upload-limit'] = `${form.maxUploadLimitKB}K`
+      if (form.allProxy.trim()) baseOptions['all-proxy'] = form.allProxy.trim()
 
       // 请求头：Referer / User-Agent 有专用选项，其余按 `Name: value` 走 header 数组。
       // 这里不做净化：值来自用户本人输入，且 aria2 侧会原样发出（与浏览器扩展入口不同，
       // 后者是外部调用方，必须在主进程净化）。
-      if (form.referer.trim()) options.referer = form.referer.trim()
-      if (form.userAgent.trim()) options['user-agent'] = form.userAgent.trim()
+      if (form.referer.trim()) baseOptions.referer = form.referer.trim()
+      if (form.userAgent.trim()) baseOptions['user-agent'] = form.userAgent.trim()
       const extraHeaders = form.customHeaders
         .split('\n')
         .map(line => line.trim())
         .filter(line => line.includes(':'))
-      if (extraHeaders.length > 0) options.header = extraHeaders
+      if (extraHeaders.length > 0) baseOptions.header = extraHeaders
 
-      await taskStore.addUri(uris, options)
-      void recordRecentSaveDir(resolvedDir || baseDir)
-      return t('newTask.addedCount', { count: uris.length })
+      // 每个 URI 单独探测文件名/计算分类目录/处理重名：不能复用第一行的结果
+      const requests: AddUriBatchRequest[] = []
+      let lastResolvedDir = ''
+      for (const entry of entries) {
+        const itemOptions: Aria2Option = { ...baseOptions }
+        let fileNameHint = form.fileName || getFileNameHintFromUri(entry.uri)
+
+        // 网盘直链/跳转链接的 URL 里没有文件名，分类无从下手：
+        // 先向文件服务器探测真实文件名（主进程只取响应头、不下载正文），失败则维持原行为
+        const unclassified =
+          form.category === CATEGORY_AUTO &&
+          resolveCategory(fileNameHint, settingsStore.categoryConfig.categories ?? []).id === CATEGORY_GENERAL
+        let probedName = ''
+        if (unclassified && window.electronAPI?.probeDownloadName) {
+          try {
+            probedName = await window.electronAPI.probeDownloadName(entry.uri)
+          } catch { /* 探测失败按 URL 原名处理 */ }
+        }
+        if (!form.fileName && probedName) fileNameHint = probedName
+
+        const resolvedDir = props.computeTargetDir(baseDir, form.category, fileNameHint)
+        if (resolvedDir) itemOptions.dir = resolvedDir
+        lastResolvedDir = resolvedDir || baseDir
+
+        // 重名处理：目标文件已存在且无 .aria2 控制文件时，aria2 会因 continue=true 把它当作
+        // "可续传的已完成任务"而秒结束（auto-file-renaming 的改名分支走不到）。
+        // 是否下载新副本交给用户选择：下载为新副本（自动加序号）/ 取消本次任务。
+        let outName = ''
+        const baseName = form.fileName || probedName || fileNameHint
+        if (baseName && resolvedDir && window.electronAPI?.resolveDownloadConflict) {
+          try {
+            const resolved = await window.electronAPI.resolveDownloadConflict(resolvedDir, baseName)
+            if (resolved?.conflict) {
+              const chosen = await askConflictChoice(baseName, resolved.fileName)
+              // 与旧行为一致：重名确认选择取消 = 放弃本次提交，且不创建任何任务
+              if (chosen === null) return ''
+              outName = chosen
+            }
+          } catch { /* 检测失败时按原名提交（保持原行为） */ }
+        }
+        if (outName) itemOptions.out = outName
+        else if (form.fileName) itemOptions.out = form.fileName
+        else if (probedName) itemOptions.out = probedName
+
+        requests.push({
+          requestId: String(entry.line),
+          uri: entry.uri,
+          options: itemOptions,
+          fallbackName: baseName || fileNameHint
+        })
+      }
+
+      if (requests.length === 0) return ''
+
+      const result = await taskStore.addUriBatch(requests)
+      void recordRecentSaveDir(lastResolvedDir || baseDir)
+
+      if (result.failed.length === 0) {
+        return t('newTask.addedCount', { count: result.added.length })
+      }
+
+      // 部分失败：只把失败行留在输入框里，用户修正后可直接重试；成功行不再重复提交
+      const failedLineNumbers = result.failed
+        .map(item => Number(item.requestId))
+        .filter(line => Number.isFinite(line))
+      const failedLineSet = new Set(failedLineNumbers)
+      form.uris = entries
+        .filter(entry => failedLineSet.has(entry.line))
+        .map(entry => form.uris.split('\n')[entry.line - 1]?.trim() ?? entry.uri)
+        .join('\n')
+
+      const lineLabel = failedLineNumbers.join(', ')
+      const firstError = result.failed[0]?.error || t('newTask.addFailed')
+      if (result.added.length > 0) {
+        message.warning(`${t('newTask.addedCount', { count: result.added.length })}；${t('newTask.addFailed')} (${lineLabel}): ${firstError}`)
+      } else {
+        message.error(`${t('newTask.addFailed')} (${lineLabel}): ${firstError}`)
+      }
+      return ''
     },
 
     fallbackError: t('newTask.addFailed'),

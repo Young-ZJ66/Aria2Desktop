@@ -135,7 +135,16 @@
     "saveTorrentFailed": "فشل حفظ ملف التورنت: {error}",
     "batchOpen": "فتح الملفات",
     "batchOpenSuccess": "تم فتح {count} ملف",
-    "batchOpenFailed": "لم يتمكن من فتح أي ملف"
+    "batchOpenFailed": "لم يتمكن من فتح أي ملف",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "نتيجة العملية الجماعية",
+    "batchResultSuccess": "نجح {count}",
+    "batchResultFailed": "فشل {count}",
+    "batchResultSkipped": "تم التخطي {count}",
+    "batchResultFailures": "تفاصيل الفشل",
+    "batchResultMore": "{count} أخرى غير معروضة"
   },
   "status": {
     "active": "جارٍ التنزيل",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} باذر متصل",
     "healthSeeding": "جارٍ البذر من هذا الجهاز",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "نسخ Magnet URI"
+    "copyMagnet": "نسخ Magnet URI",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "عنوان IP",
@@ -234,7 +251,15 @@
     "deleteFiles": "حذف الملفات أيضًا",
     "toTrashHint": "تُنقل الملفات إلى سلة المهملات في النظام ويمكن استعادتها من هناك",
     "deleteTaskAndFiles": "حذف المهمة والملفات",
-    "taskDeleted": "تم حذف المهمة"
+    "taskDeleted": "تم حذف المهمة",
+    "errors": {
+      "removeRecordFailed": "فشل حذف سجل المهمة: {detail}",
+      "deleteFileFailed": "فشل حذف الملف: {path} ({detail})",
+      "deleteFilesFailed": "فشلت عملية حذف الملفات: {detail}",
+      "deleteFilesException": "حدث خطأ أثناء حذف الملفات: {detail}",
+      "unknownError": "خطأ غير معروف أثناء حذف المهمة: {detail}",
+      "processTaskFailed": "حدث خطأ أثناء معالجة المهمة {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "مهمة تنزيل جديدة",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "انقر لاختيار ملف .torrent أو اسحبه هنا",
     "dropMetalinkHint": "انقر لاختيار ملف .metalink / .meta4 أو اسحبه هنا",
     "fileTooLarge": "الملف كبير جدًا (>1MB) للرفع عبر aria2 RPC. ضعه في مسار محلي وأضفه عبر URL بدلًا من ذلك",
+    "fileTooLargeLimit": "يتجاوز الملف الحد الحالي ({limit}). زد قيمة rpc-max-request-size في «الإعدادات → RPC والأمان»",
+    "streamTooManyDownloads": "تم الوصول إلى الحد الأقصى للتنزيلات المتدفقة المتزامنة (3). انتظر انتهاء المهام الحالية",
     "streamPlaylist": "قائمة التشغيل",
     "streamPlaylistEmpty": "لا توجد مدخلات في قائمة التشغيل (قد لا تكون الوصلة لقائمة تشغيل)",
     "streamPlaylistSelectAll": "تحديد الكل",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "تم استخراج الأرشيف ({count} ملف موجود تم الاحتفاظ به؛ لم يُحذف الأرشيف)",
     "engineCrashed": "خرج محرك aria2 بشكل غير متوقع. جارٍ إعادة التشغيل تلقائيًا (المحاولة {count}).",
     "engineGaveUp": "فشل محرك aria2 في إعادة التشغيل {count} مرات، لذا توقفت عمليات إعادة التشغيل التلقائية. أعد تشغيله يدويًا من الإعدادات ← المحرك المحلي، أو افتح سجل التطبيق للتفاصيل.",
-    "shutdownCancelled": "تم اكتشاف تنزيل جديد — أُلغيت عملية الإيقاف المجدولة."
+    "shutdownCancelled": "تم اكتشاف تنزيل جديد — أُلغيت عملية الإيقاف المجدولة.",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "الإشعارات",
@@ -430,6 +458,8 @@
     "seedingTasks": "البذر",
     "trafficChartAria": "مخطط اتجاه سرعة التنزيل والرفع",
     "enabledFeatures": "الميزات المفعّلة",
+    "downloadTrend": "اتجاه التنزيل",
+    "noTrendData": "لا توجد بيانات تنزيل بعد",
     "resetHistory": "إعادة تعيين إحصاءات التنزيل",
     "resetHistoryConfirm": "مسح إحصاءات التنزيل اليومية والإجمالية؟ يؤثر هذا فقط على عدادات هذا التطبيق؛ لن يتم حذف أي مهام أو ملفات."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "أعاد متجر الإضافات HTTP {status}. حاول مرة أخرى لاحقًا.",
       "marketErrorTooLarge": "سجل متجر الإضافات كبير جدًا وتم رفضه.",
       "marketErrorInvalidRegistry": "تنسيق سجل متجر الإضافات غير صالح. تحقق من URL السجل.",
+      "marketErrorSignature": "فشل التحقق من توقيع سجل سوق الإضافات: قد يكون السجل قد عُدِّل أو وُقِّع بمفتاح غير موثوق، لذلك تم رفض تحميله.",
       "marketErrorNetwork": "تعذر الوصول إلى متجر الإضافات. تحقق من شبكتك أو وكيلك وحاول مرة أخرى.",
       "trustedPublishers": "مفاتيح الناشرين الموثوقين",
       "trustedPublishersDesc": "أدخل مفاتيح Ed25519 العامة (PEM) للناشرين الموثوقين، مفصولة بأسطر فارغة. يجب أن تجتاز إضافات المتجر الموقّعة التحقق من التوقيع قبل تثبيتها.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "اتركه فارغًا لإنشاء رمز عشوائي تلقائيًا",
       "allowedIps": "عناوين IP المسموحة",
       "allowedIpsPlaceholder": "مثال: 192.168.1.0/24؛ اتركه فارغًا للسماح بـ localhost فقط",
+      "tlsCertPath": "مسار شهادة HTTPS",
+      "tlsKeyPath": "مسار المفتاح الخاص HTTPS",
+      "tlsPathPlaceholder": "المسار المطلق لملف PEM، مثل /etc/ssl/fullchain.pem",
+      "tlsStatus": "حالة HTTPS",
+      "tlsEnabled": "تم تمكين HTTPS",
+      "tlsDisabled": "غير ممكّن (localhost فقط)",
+      "tlsHint": "يتطلب الوصول عبر الشبكة المحلية شهادة ومفتاحًا؛ وإلا فستستمع الوحدة على 127.0.0.1 فقط ويجب إنهاء TLS عبر وكيل عكسي.",
       "refresh": "تحديث الحالة",
       "status": "الحالة",
       "running": "يعمل",
@@ -1450,7 +1488,15 @@
     "unknown": "فشلت العملية. يرجى المحاولة لاحقًا",
     "tlsHandshake": "فشل الاتصال الآمن بهذا الموقع — ربما تحظره الشبكة. جرّب وكيلًا أو مصدرًا آخر",
     "proxy": "فشل اتصال الوكيل. تحقق من إعدادات الوكيل في النظام أو التطبيق",
-    "certificate": "فشل التحقق من الشهادة: شهادة الموقع غير صالحة أو منتهية الصلاحية"
+    "certificate": "فشل التحقق من الشهادة: شهادة الموقع غير صالحة أو منتهية الصلاحية",
+    "errConnectionRefused": "تم رفض الاتصال. تأكد من إمكانية الوصول إلى العنوان ومن تشغيل Aria2",
+    "errConnectionTimedOut": "انتهت مهلة الاتصال. تحقق من الشبكة أو عنوان الخادم",
+    "errConnectionReset": "انقطع الاتصال (إغلاق الخادم أو شبكة غير مستقرة). حاول مرة أخرى",
+    "errNameNotResolved": "تعذر تحليل اسم المضيف. تحقق من العنوان وإعدادات DNS",
+    "errInternetDisconnected": "لا يوجد اتصال بالشبكة. تحقق منه ثم أعد المحاولة",
+    "errAddressUnreachable": "العنوان غير قابل للوصول. تحقق من الشبكة أو إعدادات الوكيل",
+    "errCertInvalid": "فشل التحقق من الشهادة: شهادة الموقع غير صالحة أو منتهية أو غير موثوقة",
+    "errSslProtocol": "فشل التفاوض على SSL/TLS — قد تكون الشبكة محجوبة أو الموقع قديمًا"
   },
   "localService": {
     "invalidPort": "منفذ غير صالح، يرجى استخدام منفذ بين 1024 و65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "فشل الحفظ: {error}",
     "deleteFailed": "فشل الحذف: {error}",
     "operationFailed": "فشلت العملية: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

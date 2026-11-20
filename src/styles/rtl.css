@@ -1,0 +1,234 @@
+/**
+ * 从右到左（RTL）语言的镜像样式。
+ *
+ * 只覆盖「物理方向」属性：组件里写死的 margin-left / padding-left / border-right /
+ * left / right / text-align 在阿拉伯语下会停到错误的一侧。不把 20 多个组件逐条改成
+ * 逻辑属性，是因为这些文件由多人并行维护，逐条改造既慢又容易漏；
+ * 这里集中覆盖一次，[dir='rtl'] 不匹配时对 LTR 零影响。
+ *
+ * 两个注意点：
+ *   1. 这是全局样式表，不能写 Vue 的 :deep()——它只在 SFC 的 scoped 样式里被编译。
+ *      穿透到子组件元素直接用普通后代选择器即可（全局样式本来就不受 scoped 限制）。
+ *   2. 组件 scoped 规则会带一个 [data-v-xxx] 属性选择器，特指度与这里打平时
+ *      会因注入顺序（全局 CSS 先于组件样式）被压住。所以统一加 html[dir='rtl'] 前缀
+ *      抬高一级，个别与 naive-ui 深选择器打平的规则用 !important 兜底。
+ *
+ * 方向属性本身由 src/composables/useDirection.ts 写到 <html dir>。
+ */
+
+/* ── 通用：文字对齐 ─────────────────────────────────────────────── */
+html[dir='rtl'] body {
+  text-align: right;
+}
+
+html[dir='rtl'] .n-data-table th,
+html[dir='rtl'] .n-data-table td,
+html[dir='rtl'] .n-descriptions-table-label,
+html[dir='rtl'] .n-descriptions-table-content {
+  text-align: right;
+}
+
+/* ── 侧边栏（src/components/layout/AppSidebar.vue） ──────────────── */
+html[dir='rtl'] .sidebar {
+  border-right: none !important;
+  border-left: 1px solid var(--ds-border-subtle) !important;
+}
+
+html[dir='rtl'] .nav-item.is-active::before {
+  left: auto !important;
+  right: 0 !important;
+}
+
+html[dir='rtl'] .nav-item__dot {
+  right: auto !important;
+  left: 9px !important;
+}
+
+/* ── 标题栏拖拽区（src/App.vue .content-container） ──────────────── */
+html[dir='rtl'] .app-container.windows-titlebar .content-container {
+  padding-right: 0 !important;
+  padding-left: 32px !important;
+}
+
+/* ── 设置对话框（src/components/dialogs/SettingsDialog.vue） ─────── */
+html[dir='rtl'] .settings-search-panel {
+  left: auto !important;
+  right: 0 !important;
+  text-align: right;
+}
+
+html[dir='rtl'] .settings-main-tabs > .n-tabs-nav.n-tabs-nav--left {
+  border-right: none !important;
+  border-left: 1px solid var(--ds-border-subtle) !important;
+}
+
+html[dir='rtl'] .settings-main-tabs > .n-tabs-nav .n-tabs-tab--active::before {
+  left: auto !important;
+  right: 0 !important;
+}
+
+/* ── 通知抽屉（src/components/dialogs/NotificationDrawer.vue） ───── */
+html[dir='rtl'] .notification-item {
+  padding: var(--ds-space-10) var(--ds-space-12) var(--ds-space-10) 36px !important;
+  text-align: right !important;
+}
+
+html[dir='rtl'] .notification-delete {
+  right: auto !important;
+  left: var(--ds-space-8) !important;
+}
+
+/* ── 删除任务对话框（src/components/dialogs/DeleteTaskDialog.vue） ── */
+html[dir='rtl'] .file-delete-option {
+  text-align: right !important;
+}
+
+html[dir='rtl'] .trash-hint {
+  padding-left: 0 !important;
+  padding-right: 24px !important;
+}
+
+html[dir='rtl'] .dialog-footer {
+  text-align: left !important;
+}
+
+/* ── 新建任务对话框（src/components/dialogs/NewTaskDialog.vue） ───── */
+html[dir='rtl'] .dialog-footer__primary {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* ── 更新日志列表（src/components/dialogs/UpdateDialog.vue） ─────── */
+html[dir='rtl'] .update-notes-body ol,
+html[dir='rtl'] .update-notes-body ul {
+  padding-left: 0 !important;
+  padding-right: 20px !important;
+}
+
+/* ── 任务基本信息（src/components/task/TaskBasicInfo.vue） ───────── */
+html[dir='rtl'] .n-descriptions-table-label {
+  text-align: right !important;
+  padding: 6px 0 6px 16px !important;
+}
+
+html[dir='rtl'] .progress-text {
+  text-align: left !important;
+}
+
+html[dir='rtl'] .and-more {
+  margin-left: 0 !important;
+  margin-right: 4px !important;
+}
+
+/* ── 指标数字（src/components/ui/UiStat.vue） ───────────────────── */
+html[dir='rtl'] .ui-stat__unit {
+  margin-left: 0 !important;
+  margin-right: 2px !important;
+}
+
+/* ── 队列视图 / 状态页的指标带（src/views/QueueView.vue、Status.vue） ── */
+html[dir='rtl'] .stat-cell + .stat-cell {
+  border-left: none !important;
+  border-right: 1px solid var(--ds-border-subtle) !important;
+  padding-left: 0 !important;
+  padding-right: var(--ds-space-24) !important;
+}
+
+html[dir='rtl'] .queue-table th {
+  text-align: right !important;
+}
+
+html[dir='rtl'] .queue-table .col-size {
+  text-align: left !important;
+}
+
+/* ── 状态页（src/views/Status.vue） ─────────────────────────────── */
+html[dir='rtl'] .traffic-row__value {
+  text-align: left !important;
+}
+
+/* ── 实例管理（src/views/InstancesView.vue） ────────────────────── */
+html[dir='rtl'] .instance-card__latency {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  text-align: left !important;
+}
+
+html[dir='rtl'] .instance-card__delete {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+
+html[dir='rtl'] .instance-note {
+  border-left: none !important;
+  border-right: 2px solid var(--ds-accent) !important;
+}
+
+/* ── BT 分析（src/views/BtInsights.vue）：表格首末列内边距镜像 ────── */
+html[dir='rtl'] .bt-insights-view .n-data-table-th:first-child,
+html[dir='rtl'] .bt-insights-view .n-data-table-td:first-child,
+html[dir='rtl'] .bt-insights-view th:first-child,
+html[dir='rtl'] .bt-insights-view td:first-child {
+  padding-left: 0 !important;
+  padding-right: var(--ds-space-20) !important;
+}
+
+html[dir='rtl'] .bt-insights-view .n-data-table-th:last-child,
+html[dir='rtl'] .bt-insights-view .n-data-table-td:last-child,
+html[dir='rtl'] .bt-insights-view th:last-child,
+html[dir='rtl'] .bt-insights-view td:last-child {
+  padding-right: 0 !important;
+  padding-left: var(--ds-space-20) !important;
+}
+
+html[dir='rtl'] .bt-insights-view .col-tier {
+  text-align: left !important;
+}
+
+/* ── 任务列表（src/views/TaskList.vue） ─────────────────────────── */
+html[dir='rtl'] .footer-hints > span {
+  margin-left: 0 !important;
+  margin-right: 2px !important;
+}
+
+html[dir='rtl'] .file-path {
+  padding-left: 0 !important;
+  padding-right: 22px !important;
+}
+
+/* ── 插件/组件设置（src/views/settings/*.vue） ───────────────────── */
+html[dir='rtl'] .plugin-hint {
+  border-left: none !important;
+  border-right: 3px solid var(--ds-status-warning-text) !important;
+}
+
+html[dir='rtl'] .mcp-copy-btn {
+  right: auto !important;
+  left: 6px !important;
+}
+
+/* ── 开关（src/components/AppSwitch.vue）：滑块位置随方向镜像 ─────── */
+html[dir='rtl'] .app-switch__knob {
+  left: auto !important;
+  right: 3px !important;
+}
+
+html[dir='rtl'] .app-switch--active .app-switch__knob {
+  left: auto !important;
+  right: 23px !important;
+}
+
+html[dir='rtl'] .app-switch--active .app-switch__rail:active .app-switch__knob {
+  left: auto !important;
+  right: 19px !important;
+}
+
+html[dir='rtl'] .app-switch__check {
+  left: auto !important;
+  right: 5px !important;
+}
+
+/* ── 方向性图标（返回/前进箭头）在 RTL 下水平翻转，其余图标不翻 ───── */
+html[dir='rtl'] .icon-directional {
+  transform: scaleX(-1);
+}

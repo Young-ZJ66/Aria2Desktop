@@ -5,6 +5,11 @@ import { resolveTrayIconPath } from '../utils/resolvePaths'
 import { createLogger } from '../utils/logger'
 import { formatLimitLabel } from '../utils/speedLimitCore'
 import { readSpeedLimit, toggleSpeedLimit } from '../services/traySpeedLimit'
+import { buildTrayTooltip } from '../utils/trayTooltip'
+import { callAria2Rpc } from '../utils/aria2Rpc'
+import { activeRpcOptions } from '../utils/activeRpcConfig'
+import { getSettingsFresh } from '../utils/settingsAccessor'
+import { activeStreamDownloadCount, activeStreamDownloadSpeedBytes } from '../services/streamDownloadService'
 
 // 本文件日志文案自带 [TrayController] 前缀（历史风格），故 scope 传空避免前缀重复
 const logger = createLogger('')
@@ -14,6 +19,16 @@ export class TrayController {
   private windowController: WindowController
   /** 当前限速状态快照（null = 尚未读到/引擎不可达，菜单显示中性文案） */
   private speedLimitState: { limited: boolean; limitBytes: number } | null = null
+  /** tooltip 刷新定时器（托盘存在期间才有；窗口隐藏时它是唯一的进度反馈） */
+  private tooltipTimer: NodeJS.Timeout | null = null
+  /**
+   * 引擎「已放弃自动重启」时的连续失败次数（null = 引擎正常/未放弃）。
+   *
+   * 为什么托盘要记这个状态：引擎彻底不重启之后，窗口可能被隐藏、渲染层可能根本没起来，
+   * 此时托盘是用户唯一还能看到的东西。过去这种情况托盘仍显示"Aria2 Desktop"和限速状态，
+   * 看起来一切正常，用户只会觉得"下载卡住了"。
+   */
+  private engineGaveUpAttempts: number | null = null
 
   constructor(windowController: WindowController) {
     this.windowController = windowController
@@ -34,6 +49,8 @@ export class TrayController {
       this.tray.setToolTip('Aria2 Desktop')
       // 异步取一次当前限速状态刷新菜单文案（引擎未运行时保持中性文案，静默即可）
       void this.refreshSpeedLimitState()
+      // tooltip 定时刷新：托盘图标是窗口隐藏后唯一的进度入口，固定显示应用名等于没有反馈
+      this.startTooltipUpdates()
     } catch (error) {
       logger.error('Failed to create tray:', error)
     }
@@ -75,10 +92,26 @@ export class TrayController {
       unknown: isZh ? '状态未知（引擎未运行？）' : 'Unknown (engine not running?)',
       show: isZh ? '显示主窗口' : 'Show Main Window',
       hide: isZh ? '隐藏窗口' : 'Hide Window',
-      quit: isZh ? '退出' : 'Quit'
+      quit: isZh ? '退出' : 'Quit',
+      engineStopped: isZh ? '引擎异常：已停止自动重启' : 'Engine failed: auto-restart stopped',
+      restartEngine: isZh ? '重启引擎' : 'Restart Engine'
     }
 
     const contextMenu = Menu.buildFromTemplate([
+      // 引擎异常态置顶：托盘里唯一需要用户立刻处理的条目，不能埋在菜单底部
+      ...(this.engineGaveUpAttempts === null
+        ? []
+        : [
+          {
+            label: `${labels.engineStopped}（${this.engineGaveUpAttempts}）`,
+            enabled: false
+          },
+          {
+            label: labels.restartEngine,
+            click: () => this.sendAction('restart-engine')
+          },
+          { type: 'separator' as const }
+        ]),
       {
         label: labels.newTask,
         click: () => this.sendAction('new-task')
@@ -134,6 +167,82 @@ export class TrayController {
     return `${labels.speedLimit}：${formatLimitLabel(this.speedLimitState.limitBytes)}`
   }
 
+  /**
+   * 启动 tooltip 定时刷新。
+   *
+   * 频率取 2s：与引擎状态轮询同量级，对 CPU 无感；只在托盘存在时运行。
+   * 流媒体任务（yt-dlp）不进 aria2 队列，必须单独合并进来，否则用户下视频时
+   * 托盘一直显示 0 B/s（D-10 一期）。
+   */
+  private startTooltipUpdates(): void {
+    if (this.tooltipTimer) return
+    void this.refreshTooltip()
+    this.tooltipTimer = setInterval(() => {
+      void this.refreshTooltip()
+    }, 2000)
+    // 定时器不应阻止进程退出（托盘销毁时会显式清理，这里再兜一层）
+    this.tooltipTimer.unref?.()
+  }
+
+  /** 读取 aria2 全局统计并合并流媒体任务，刷新托盘 tooltip；引擎不可达时退化为只显示流媒体 */
+  private async refreshTooltip(): Promise<void> {
+    if (!this.tray) return
+    // 引擎异常态优先：此时再去拉 RPC 统计只会拿到 0，显示"0 B/s"会误导成"空闲"
+    if (this.engineGaveUpAttempts !== null) {
+      const zh = app.getLocale().startsWith('zh')
+      this.tray.setToolTip(
+        zh
+          ? `Aria2 Desktop — 引擎已停止自动重启（连续失败 ${this.engineGaveUpAttempts} 次）`
+          : `Aria2 Desktop — engine stopped after ${this.engineGaveUpAttempts} failed restarts`
+      )
+      return
+    }
+    let downloadSpeed = 0
+    let activeCount = 0
+    try {
+      const stat = (await callAria2Rpc({
+        ...activeRpcOptions(getSettingsFresh()),
+        method: 'aria2.getGlobalStat'
+      })) as Record<string, string> | undefined
+      downloadSpeed = Number(stat?.downloadSpeed) || 0
+      activeCount = Number(stat?.numActive) || 0
+    } catch {
+      // 引擎未运行/连接失败：保持 0，只看流媒体任务（静默，不刷日志）
+    }
+    this.tray?.setToolTip(buildTrayTooltip({
+      downloadSpeed,
+      activeCount,
+      streamCount: activeStreamDownloadCount(),
+      streamSpeed: activeStreamDownloadSpeedBytes(),
+      zh: app.getLocale().startsWith('zh')
+    }))
+  }
+
+  /**
+   * 标记引擎已放弃自动重启（由 main.ts 在 engine-gave-up 事件里调用）。
+   *
+   * 只改托盘自身的呈现（菜单 + tooltip），不碰引擎：重启必须由用户显式触发。
+   */
+  public setEngineGaveUp(attempts: number): void {
+    this.engineGaveUpAttempts = attempts
+    this.setupContextMenu()
+    void this.refreshTooltip()
+  }
+
+  /** 引擎恢复（任一次成功启动）后清除异常态 */
+  public clearEngineGaveUp(): void {
+    if (this.engineGaveUpAttempts === null) return
+    this.engineGaveUpAttempts = null
+    this.setupContextMenu()
+    void this.refreshTooltip()
+  }
+
+  private stopTooltipUpdates(): void {
+    if (!this.tooltipTimer) return
+    clearInterval(this.tooltipTimer)
+    this.tooltipTimer = null
+  }
+
   /** 拉取当前限速状态并重建菜单（引擎不可达时保留当前菜单不变） */
   private async refreshSpeedLimitState(): Promise<void> {
     const snapshot = await readSpeedLimit()
@@ -181,6 +290,7 @@ export class TrayController {
   }
 
   public destroy() {
+    this.stopTooltipUpdates()
     if (this.tray) {
       this.tray.destroy()
       this.tray = null

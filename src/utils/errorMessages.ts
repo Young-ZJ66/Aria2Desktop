@@ -17,6 +17,17 @@ const ERROR_PATTERNS: Array<{ pattern: RegExp; key: string }> = [
   // 远程主机强迫关闭了一个现有的连接。 (2746)"
   { pattern: /SSL?[/ ]?TLS handshake|handshake failure|TLS handshake/i, key: 'errors.tlsHandshake' },
   { pattern: /ERR_PROXY|proxy/i, key: 'errors.proxy' },
+  // Chromium 网络栈的 net::ERR_* 码（D-45）：渲染进程里 fetch/下载失败只能拿到这种码，
+  // 没有 errno 可用。必须排在 /certificate|CERT_/ 之前——ERR_CERT_* 会被 CERT_ 的泛化
+  // 规则抢先命中，用户看到的就变成笼统的"证书"而不是更准确的分类。
+  { pattern: /ERR_CERT_|ERR_BAD_SSL_CLIENT_AUTH_CERT/i, key: 'errors.errCertInvalid' },
+  { pattern: /ERR_SSL_|ERR_BAD_SSL/i, key: 'errors.errSslProtocol' },
+  { pattern: /ERR_CONNECTION_REFUSED/i, key: 'errors.errConnectionRefused' },
+  { pattern: /ERR_CONNECTION_TIMED_OUT|ERR_TIMED_OUT/i, key: 'errors.errConnectionTimedOut' },
+  { pattern: /ERR_CONNECTION_RESET|ERR_CONNECTION_CLOSED|ERR_CONNECTION_ABORTED/i, key: 'errors.errConnectionReset' },
+  { pattern: /ERR_NAME_NOT_RESOLVED|ERR_NAME_RESOLUTION_FAILED|ERR_DNS_/i, key: 'errors.errNameNotResolved' },
+  { pattern: /ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED/i, key: 'errors.errInternetDisconnected' },
+  { pattern: /ERR_ADDRESS_UNREACHABLE|ERR_ADDRESS_INVALID|ERR_NETWORK_ACCESS_DENIED/i, key: 'errors.errAddressUnreachable' },
   { pattern: /certificate|CERT_|self.signed/i, key: 'errors.certificate' },
 
   // 连接相关

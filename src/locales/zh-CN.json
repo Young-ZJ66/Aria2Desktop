@@ -135,7 +135,16 @@
     "saveTorrentFailed": "保存种子文件失败：{error}",
     "batchOpen": "批量打开文件",
     "batchOpenSuccess": "已打开 {count} 个文件",
-    "batchOpenFailed": "没有成功打开任何文件"
+    "batchOpenFailed": "没有成功打开任何文件",
+    "filterByStatus": "按状态筛选",
+    "retryAllFailedSummary": "重试全部失败（{count}）",
+    "retryAllFailedResult": "已重试 {success} 个任务，{failed} 个失败",
+    "batchResultTitle": "批量操作结果",
+    "batchResultSuccess": "成功 {count}",
+    "batchResultFailed": "失败 {count}",
+    "batchResultSkipped": "跳过 {count}",
+    "batchResultFailures": "失败详情",
+    "batchResultMore": "还有 {count} 项未显示"
   },
   "status": {
     "active": "下载中",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} 个种子在线",
     "healthSeeding": "本机正在做种",
     "magnetUri": "磁力链接",
-    "copyMagnet": "复制磁力链接"
+    "copyMagnet": "复制磁力链接",
+    "taskSettings": "任务设置",
+    "taskSettingsHint": "修改后立即生效，并会用于该任务的重试。",
+    "taskSettingsUnlimitedHint": "填 0 表示不限速。",
+    "taskSettingsSaved": "任务设置已更新",
+    "taskSettingsSaveFailed": "保存任务设置失败：{error}",
+    "taskSettingsLoadFailed": "读取任务设置失败：{error}",
+    "taskSettingsUnavailable": "当前状态不支持修改设置，请先重试该任务。",
+    "taskSettingsPartialFailed": "部分设置未能应用：{options}"
   },
   "taskPeer": {
     "ip": "IP 地址",
@@ -234,7 +251,15 @@
     "deleteFiles": "同时删除文件",
     "toTrashHint": "文件会移到系统回收站，可从回收站恢复",
     "deleteTaskAndFiles": "删除任务和文件",
-    "taskDeleted": "任务已删除"
+    "taskDeleted": "任务已删除",
+    "errors": {
+      "removeRecordFailed": "删除任务记录失败：{detail}",
+      "deleteFileFailed": "删除文件失败：{path}（{detail}）",
+      "deleteFilesFailed": "文件删除操作失败：{detail}",
+      "deleteFilesException": "删除文件时发生错误：{detail}",
+      "unknownError": "删除任务时发生未知错误：{detail}",
+      "processTaskFailed": "处理任务 {gid} 时发生错误：{detail}"
+    }
   },
   "newTask": {
     "title": "新建下载任务",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "点击选择或拖拽 .torrent 文件到此处",
     "dropMetalinkHint": "点击选择或拖拽 .metalink / .meta4 文件到此处",
     "fileTooLarge": "文件过大（超过 1MB），aria2 RPC 无法直接接收，请放置到本地路径后改用链接添加",
+    "fileTooLargeLimit": "文件超过当前上限（{limit}），可在「设置 → RPC 与安全」中调大 rpc-max-request-size",
+    "streamTooManyDownloads": "同时进行的流媒体下载已达上限（3 条），请等待当前任务结束",
     "streamPlaylist": "播放列表",
     "streamPlaylistEmpty": "未解析到播放列表条目（该链接可能不是播放列表）",
     "streamPlaylistSelectAll": "全选",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "已自动解压（{count} 个同名文件已存在，未覆盖；压缩包已保留）",
     "engineCrashed": "aria2 引擎意外退出，正在自动重启（第 {count} 次）",
     "engineGaveUp": "aria2 引擎连续 {count} 次重启失败，已停止自动重启。可在「设置 → 本地引擎」里手动重启，或打开应用日志查看原因",
-    "shutdownCancelled": "检测到新的下载任务，已取消自动关机"
+    "shutdownCancelled": "检测到新的下载任务，已取消自动关机",
+    "unknownTask": "未知任务（{gid}）"
   },
   "notificationCenter": {
     "title": "通知",
@@ -430,6 +458,8 @@
     "seedingTasks": "正在做种",
     "trafficChartAria": "下载与上传速度趋势图",
     "enabledFeatures": "支持的功能",
+    "downloadTrend": "下载趋势",
+    "noTrendData": "暂无下载记录",
     "resetHistory": "重置下载量统计",
     "resetHistoryConfirm": "确定清空今日与累计下载量统计吗？此操作只影响本应用的统计数字，不会删除任何下载任务或文件。"
   },
@@ -1055,7 +1085,7 @@
       "marketPublisher": "发布者",
       "marketInstall": "安装",
       "marketInstallTitle": "安装插件",
-      "marketInstallConfirm": "确定安装插件「{name}」v{version} 吗？安装后默认启用。",
+      "marketInstallConfirm": "确定安装插件「{name}」v{version} 吗？安装后默认处于禁用状态，请先确认权限再手动启用。",
       "marketInstallSuccess": "插件「{name}」已安装",
       "marketInstallFailed": "插件安装失败：{error}",
       "marketLoadFailed": "插件市场加载失败：{error}",
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "插件市场服务器返回 HTTP {status}，请稍后重试。",
       "marketErrorTooLarge": "插件市场注册表文件过大，已拒绝加载。",
       "marketErrorInvalidRegistry": "插件市场注册表格式无效，请检查注册表地址。",
+      "marketErrorSignature": "插件市场注册表签名校验失败：注册表可能被篡改，或由未受信任的密钥签名，已拒绝加载。",
       "marketErrorNetwork": "无法连接插件市场，请检查网络或代理设置后重试。",
       "trustedPublishers": "可信发布者公钥",
       "trustedPublishersDesc": "填写可信发布者的 Ed25519 公钥（PEM），多个公钥之间用空行分隔。配置后，来自市场且带签名的插件必须通过签名验证才能安装。",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "留空则由应用自动生成随机令牌",
       "allowedIps": "允许的 IP",
       "allowedIpsPlaceholder": "例如 192.168.1.0/24；留空仅允许本机",
+      "tlsCertPath": "HTTPS 证书路径",
+      "tlsKeyPath": "HTTPS 私钥路径",
+      "tlsPathPlaceholder": "PEM 文件的绝对路径，例如 /etc/ssl/fullchain.pem",
+      "tlsStatus": "HTTPS 状态",
+      "tlsEnabled": "已启用 HTTPS",
+      "tlsDisabled": "未启用（仅本机可访问）",
+      "tlsHint": "允许局域网访问时必须配置证书与私钥，否则只能监听 127.0.0.1 并由反向代理终止 TLS。",
       "refresh": "刷新状态",
       "status": "运行状态",
       "running": "运行中",
@@ -1450,7 +1488,15 @@
     "unknown": "操作失败，请稍后重试",
     "tlsHandshake": "与该站点的安全连接建立失败——常见于网络环境拦截或站点被墙，可尝试代理或更换下载源",
     "proxy": "代理连接失败，请检查系统或应用代理设置",
-    "certificate": "证书校验失败：站点证书无效或过期"
+    "certificate": "证书校验失败：站点证书无效或过期",
+    "errConnectionRefused": "连接被拒绝。请确认目标地址可访问，或 Aria2 已启动",
+    "errConnectionTimedOut": "连接超时。请检查网络或服务器地址",
+    "errConnectionReset": "连接被中断（服务器关闭或网络波动），请重试",
+    "errNameNotResolved": "域名解析失败。请检查地址拼写与 DNS 设置",
+    "errInternetDisconnected": "网络已断开，请检查网络连接后重试",
+    "errAddressUnreachable": "目标地址不可达，请检查网络或代理设置",
+    "errCertInvalid": "证书校验失败：站点证书无效、过期或不受信任",
+    "errSslProtocol": "SSL/TLS 协议协商失败，可能是网络被拦截或站点过旧"
   },
   "localService": {
     "invalidPort": "端口无效，请填写 1024-65535 之间的端口号",
@@ -1768,5 +1814,29 @@
     "saveFailed": "保存失败：{error}",
     "deleteFailed": "删除失败：{error}",
     "operationFailed": "操作失败：{error}"
+  },
+  "onboarding": {
+    "title": "欢迎使用 Aria2Desktop",
+    "subtitle": "四步完成常用配置，每一步都可以跳过，之后可在设置中修改。",
+    "stepOf": "第 {current} / {total} 步",
+    "skip": "跳过向导",
+    "later": "稍后再说",
+    "next": "下一步",
+    "back": "上一步",
+    "finish": "开始使用",
+    "statusReady": "已就绪",
+    "statusPending": "未配置",
+    "stepDownloadTitle": "选择下载目录",
+    "stepDownloadDesc": "下载的文件默认保存在该目录，可在「设置 → 下载」中随时修改。",
+    "stepDownloadAction": "打开下载设置",
+    "stepExtensionTitle": "配对浏览器扩展",
+    "stepExtensionDesc": "安装扩展后在浏览器里点一次扩展图标即可配对，网页下载会自动交给桌面端。",
+    "stepExtensionAction": "查看扩展设置",
+    "stepYtdlpTitle": "启用流媒体下载",
+    "stepYtdlpDesc": "检测到 yt-dlp 后，可以直接粘贴视频或音频页面链接下载。",
+    "stepYtdlpAction": "打开组件设置",
+    "stepRemoteTitle": "远程控制与完成规则",
+    "stepRemoteDesc": "可通过 Web 控制台在浏览器里管理下载，并设置下载完成后的自动动作。",
+    "stepRemoteAction": "打开远程访问设置"
   }
 }

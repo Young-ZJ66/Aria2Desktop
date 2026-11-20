@@ -200,6 +200,41 @@ describe('connectionStore 连接切换竞态', () => {
     expect(store.activeProfileId).toBe('default')
   })
 
+  it('切换实例失败时保留原连接，不清空任务也不改当前预设', async () => {
+    const store = await createStore()
+
+    // 先建立一个可用的旧连接（本地引擎）
+    const established = store.connect(undefined, 'default')
+    const previousService = mocks.FakeAria2Service.instances[0]!
+    previousService.connectGate.resolve()
+    await flush()
+    previousService.versionGate.resolve({ version: '1.37.0' })
+    await expect(established).resolves.toBe(true)
+    expect(store.service).toBe(previousService)
+    expect(store.activeProfileId).toBe('default')
+    mocks.clearTasks.mockClear()
+
+    // 再切到连不上的备用实例：探测失败必须回滚，旧连接继续可用
+    const switched = store.connect(undefined, 'backup')
+    const probeService = mocks.FakeAria2Service.instances[1]!
+    probeService.connectGate.resolve()
+    await flush()
+    probeService.versionGate.reject(new Error('Connection refused'))
+    await expect(switched).rejects.toThrow('Connection refused')
+
+    // 旧连接没有被拆掉：service 仍是它，且从未被 disconnect
+    expect(store.service).toBe(previousService)
+    expect(previousService.disconnectCalls).toBe(0)
+    // 界面状态保持「已连接旧实例」，失败原因单独上报给调用方
+    expect(store.isConnected).toBe(true)
+    expect(store.activeProfileId).toBe('default')
+    expect(store.connectionError).toBe('Connection refused')
+    // 只有探测实例被销毁，任务列表不该被清空
+    expect(probeService.disconnectCalls).toBe(1)
+    expect(mocks.clearTasks).not.toHaveBeenCalled()
+    expect(store.isConnecting).toBe(false)
+  })
+
   it('连接成功但预设写盘失败时保持连接可用', async () => {
     mocks.updateSettings.mockRejectedValueOnce(new Error('disk full'))
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

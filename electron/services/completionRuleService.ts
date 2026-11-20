@@ -174,6 +174,62 @@ async function readTaskStatus(gid: string): Promise<Aria2TaskStatus | null> {
 }
 
 /**
+ * 归一化后的任务信息：让完成规则既能用于 aria2 任务，也能用于流媒体（yt-dlp）任务。
+ *
+ * 为什么需要这层：规则匹配/执行只关心"状态 + 文件列表 + 目录 + 名称"，
+ * 而 aria2 的 tellStatus 形状是它的实现细节。流媒体任务不在 aria2 队列里（D-10），
+ * 若把规则绑死在 tellStatus 形状上，yt-dlp 下完的视频永远不会触发移动/重命名/通知/Webhook。
+ */
+export interface CompletionTaskInfo {
+  gid?: string
+  status: 'complete' | 'error'
+  /** 任务级目录（用于相对路径还原与"打开所在文件夹"） */
+  dir: string
+  /** 任务产出的文件绝对路径列表（播放列表可能多个） */
+  files: string[]
+  /** 展示名（BT 名/视频标题），用于通知与 webhook 载荷 */
+  name?: string
+  errorMessage?: string
+}
+
+/** 把归一化任务转成规则内部使用的 tellStatus 形状，避免规则逻辑写两遍 */
+function toTaskStatus(task: CompletionTaskInfo): Aria2TaskStatus {
+  return {
+    gid: task.gid,
+    status: task.status,
+    dir: task.dir,
+    files: task.files.map(filePath => ({ path: filePath })),
+    bittorrent: task.name ? { name: task.name } : undefined,
+    errorMessage: task.errorMessage
+  }
+}
+
+/**
+ * 对已结束的任意来源任务执行完成规则（aria2 与流媒体共用）。
+ * 与 applyCompletionRules 的区别：调用方已知道结果，不需要轮询引擎状态。
+ */
+export async function applyCompletionRulesForTask(task: CompletionTaskInfo): Promise<boolean> {
+  const rules = getSettingsFresh().completionRules || []
+  if (rules.length === 0) return false
+  const status = toTaskStatus(task)
+  const succeeded = task.status === 'complete'
+  let matched = false
+  for (const rule of rules) {
+    if (!ruleMatches(rule, status, succeeded)) continue
+    matched = true
+    logger.info(`执行完成规则 "${rule.name}" (gid=${task.gid || task.name || task.files[0] || ''})`)
+    for (const action of rule.actions || []) {
+      try {
+        await executeAction(action, status)
+      } catch (error) {
+        logger.warn(`完成规则 "${rule.name}" 的动作 ${action.type} 失败`, error)
+      }
+    }
+  }
+  return matched
+}
+
+/**
  * 对单个完成任务执行匹配的规则；返回是否有规则被触发。
  *
  * aria2 的 downloadComplete/downloadError 通知可能早于 tellStatus 的状态切换，

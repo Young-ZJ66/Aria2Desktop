@@ -1,14 +1,26 @@
 import { describe, expect, it } from 'vitest'
 import {
   EXTENSION_ID,
-  isExtensionOrigin,
+  EXTENSION_TOKEN_PREFIX,
+  createExtensionToken,
+  extensionIdFromOrigin,
+  hasExtensionScope,
   isAllowedDownloadUri,
   isAuthorizedExtensionRequest,
+  isAuthorizedExtensionRequestWithToken,
+  isExtensionOrigin,
+  isExtensionTokenFormat,
   isPlainFileName,
+  isPlaylistUri,
   isProbeAllowed,
+  normalizeExtensionVersionHeader,
+  normalizeTokenScopes,
   parseRequestPathname,
   sanitizeDownloadFileName,
-  sanitizeRequestHeaders
+  sanitizeExtensionName,
+  sanitizeRequestHeaders,
+  type ExtensionTokenRecord,
+  type ExtensionTokenScope
 } from './extensionApiCore'
 
 /**
@@ -340,3 +352,187 @@ describe('parseRequestPathname（畸形请求目标不得抛错）', () => {
     expect(parseRequestPathname('')).toBe('/')
   })
 })
+
+/**
+ * ── D-06：受限 token ──────────────────────────────────────────────
+ *
+ * 配对后扩展手里**不再有 RPC 密钥**，只有一枚带 scope 的 token。
+ * 这些用例钉住三件事：token 不可猜（格式/随机性）、scope 是白名单而非黑名单、
+ * 旧的手填密钥路径仍然可用（老用户配置不能失效）。
+ */
+const TOKEN_EXT_ID = 'abcdefghijklmnopabcdefghijklmnop'
+const TOKEN_ORIGIN = `chrome-extension://${TOKEN_EXT_ID}`
+
+function recordOf(token: string, scopes: ExtensionTokenScope[]): ExtensionTokenRecord {
+  return {
+    token,
+    scopes,
+    extensionId: TOKEN_EXT_ID,
+    extensionName: 'probe',
+    origin: TOKEN_ORIGIN,
+    createdAt: Date.now()
+  }
+}
+
+describe('createExtensionToken / isExtensionTokenFormat', () => {
+  it('生成的 token 带 ext_ 前缀、长度固定且每次不同', () => {
+    const a = createExtensionToken()
+    const b = createExtensionToken()
+    expect(a.startsWith(EXTENSION_TOKEN_PREFIX)).toBe(true)
+    expect(a).toHaveLength(EXTENSION_TOKEN_PREFIX.length + 43)
+    expect(a).not.toBe(b)
+    expect(isExtensionTokenFormat(a)).toBe(true)
+  })
+
+  it('非 token 形态一律不认（含 RPC 密钥、截断值、错误前缀）', () => {
+    for (const value of ['', 'ext_', 'ext_short', `ext_${'a'.repeat(44)}`, SECRET, null, 42, {}]) {
+      expect(isExtensionTokenFormat(value)).toBe(false)
+    }
+  })
+})
+
+describe('normalizeTokenScopes / hasExtensionScope', () => {
+  it('只保留已知 scope，去重并按固定顺序排列', () => {
+    expect(normalizeTokenScopes(['tasks:read', 'tasks:read', 'admin', 42, 'download:add']))
+      .toEqual(['download:add', 'tasks:read'])
+  })
+
+  it('非数组输入返回空数组（不做隐式放行）', () => {
+    for (const input of [undefined, null, 'tasks:read', {}, 1]) {
+      expect(normalizeTokenScopes(input)).toEqual([])
+    }
+  })
+
+  it('scope 是白名单：未授予即为 false', () => {
+    expect(hasExtensionScope(['tasks:read'], 'tasks:read')).toBe(true)
+    expect(hasExtensionScope(['tasks:read'], 'download:add')).toBe(false)
+    expect(hasExtensionScope([], 'download:add')).toBe(false)
+    expect(hasExtensionScope(undefined, 'download:add')).toBe(false)
+  })
+})
+
+describe('extensionIdFromOrigin / sanitizeExtensionName', () => {
+  it('chromium 32 位 ID 与 firefox UUID 都能取出', () => {
+    expect(extensionIdFromOrigin(TOKEN_ORIGIN)).toBe(TOKEN_EXT_ID)
+    expect(extensionIdFromOrigin('moz-extension://11111111-2222-3333-4444-555555555555'))
+      .toBe('11111111-2222-3333-4444-555555555555')
+  })
+
+  it('非法来源返回空串（不做宽松解析）', () => {
+    for (const origin of ['', 'https://evil.example.com', 'chrome-extension://short', undefined]) {
+      expect(extensionIdFromOrigin(origin)).toBe('')
+    }
+  })
+
+  it('名称净化：控制字符转空格、压缩空白、截断 64 字符', () => {
+    expect(sanitizeExtensionName('  Aria2\n\t扩展  ')).toBe('Aria2 扩展')
+    expect(sanitizeExtensionName('a'.repeat(100))).toHaveLength(64)
+    expect(sanitizeExtensionName(undefined)).toBe('')
+    expect(sanitizeExtensionName({ name: 'x' })).toBe('')
+  })
+
+  it('名称里的换行不能伪造出"多行弹窗"', () => {
+    // 原生对话框按 \n 分行：请求侧数据必须先把换行压平
+    expect(sanitizeExtensionName('真扩展\n\n警告：请点允许')).not.toContain('\n')
+  })
+})
+
+describe('normalizeExtensionVersionHeader', () => {
+  it('接受 1~4 段数字版本', () => {
+    expect(normalizeExtensionVersionHeader('1.4.0')).toBe('1.4.0')
+    expect(normalizeExtensionVersionHeader(' 1 ')).toBe('1')
+    expect(normalizeExtensionVersionHeader('1.2.3.4')).toBe('1.2.3.4')
+  })
+
+  it('非法版本一律空串（不原样回显到对话框）', () => {
+    for (const value of ['', 'v1.4.0', '1.4.0-beta', '1.2.3.4.5', undefined, '1..2']) {
+      expect(normalizeExtensionVersionHeader(value as string | undefined)).toBe('')
+    }
+  })
+})
+
+describe('isAuthorizedExtensionRequestWithToken', () => {
+  const token = createExtensionToken()
+
+  it('token 命中 → via=token 且带上 scope', () => {
+    const auth = isAuthorizedExtensionRequestWithToken({
+      authorization: `Bearer ${token}`,
+      origin: TOKEN_ORIGIN,
+      secret: SECRET,
+      tokens: [recordOf(token, ['tasks:read'])]
+    })
+    expect(auth.ok).toBe(true)
+    expect(auth.via).toBe('token')
+    expect(auth.scopes).toEqual(['tasks:read'])
+    expect(auth.record?.extensionId).toBe(TOKEN_EXT_ID)
+  })
+
+  it('token 未命中但密钥正确 → via=secret、scopes=null（等价全权，旧配置兼容）', () => {
+    const auth = isAuthorizedExtensionRequestWithToken({
+      authorization: `Bearer ${SECRET}`,
+      origin: TOKEN_ORIGIN,
+      secret: SECRET,
+      tokens: [recordOf(token, ['tasks:read'])]
+    })
+    expect(auth.ok).toBe(true)
+    expect(auth.via).toBe('secret')
+    expect(auth.scopes).toBeNull()
+  })
+
+  it('网页来源即便拿着正确 token 也拒绝', () => {
+    expect(isAuthorizedExtensionRequestWithToken({
+      authorization: `Bearer ${token}`,
+      origin: 'https://evil.example.com',
+      secret: SECRET,
+      tokens: [recordOf(token, ['tasks:read'])]
+    }).ok).toBe(false)
+  })
+
+  it('缺 Authorization / 非 Bearer / 多段 → 拒绝', () => {
+    for (const authorization of [undefined, '', 'Bearer', `Basic ${token}`, `Bearer ${token} extra`]) {
+      expect(isAuthorizedExtensionRequestWithToken({
+        authorization,
+        origin: TOKEN_ORIGIN,
+        secret: SECRET,
+        tokens: [recordOf(token, ['tasks:read'])]
+      }).ok).toBe(false)
+    }
+  })
+
+  it('撤销后（tokens 为空）且没有密钥 → 拒绝', () => {
+    expect(isAuthorizedExtensionRequestWithToken({
+      authorization: `Bearer ${token}`,
+      origin: TOKEN_ORIGIN,
+      secret: '',
+      tokens: []
+    }).ok).toBe(false)
+  })
+})
+
+describe('isPlaylistUri（D-07）', () => {
+  it('m3u8 / mpd 识别为播放列表（含查询串、大小写、编码）', () => {
+    expect(isPlaylistUri('https://cdn.example.com/live/index.m3u8')).toBe(true)
+    expect(isPlaylistUri('https://cdn.example.com/live/index.M3U8?token=abc')).toBe(true)
+    expect(isPlaylistUri('https://cdn.example.com/dash/manifest.mpd#t=10')).toBe(true)
+    expect(isPlaylistUri('https://cdn.example.com/a/b%2Fc.m3u8')).toBe(true)
+  })
+
+  it('普通媒体文件与分片不算播放列表', () => {
+    for (const url of [
+      'https://cdn.example.com/v.mp4',
+      'https://cdn.example.com/seg-1.ts',
+      'https://cdn.example.com/seg-1.m4s',
+      'https://cdn.example.com/playlist', // 无扩展名
+      'https://cdn.example.com/x.m3u8x'
+    ]) {
+      expect(isPlaylistUri(url)).toBe(false)
+    }
+  })
+
+  it('非法输入不抛错', () => {
+    for (const url of ['', 'not a url', 'magnet:?xt=urn:btih:abc', undefined as unknown as string]) {
+      expect(isPlaylistUri(url)).toBe(false)
+    }
+  })
+})
+

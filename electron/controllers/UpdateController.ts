@@ -25,6 +25,39 @@ const RELEASES_ATOM_URL = `https://github.com/${GITHUB_REPO}/releases.atom`
 const RELEASES_LATEST_URL = `https://github.com/${GITHUB_REPO}/releases/latest`
 const MAX_REDIRECTS = 5
 
+/** 已下载待安装更新的持久化文件名（存放在 app.getPath('userData') 下） */
+const UPDATE_STATE_FILE_NAME = 'update-state.json'
+
+export interface PersistedUpdateState {
+  downloadedPath: string
+  downloadedVersion: string
+  notes: string
+  savedAt: number
+}
+
+/**
+ * 解析 update-state.json。纯函数、宽松校验：任何字段缺失/类型不符都返回 null，
+ * 不让损坏的缓存文件阻塞更新检查（最坏情况只是重新下载）。
+ */
+export function parsePersistedUpdateState(raw: string): PersistedUpdateState | null {
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown> | null
+    if (!parsed || typeof parsed !== 'object') return null
+    const downloadedPath = parsed.downloadedPath
+    const downloadedVersion = parsed.downloadedVersion
+    if (typeof downloadedPath !== 'string' || !downloadedPath.trim()) return null
+    if (typeof downloadedVersion !== 'string' || !downloadedVersion.trim()) return null
+    return {
+      downloadedPath,
+      downloadedVersion: downloadedVersion.trim(),
+      notes: typeof parsed.notes === 'string' ? parsed.notes : '',
+      savedAt: typeof parsed.savedAt === 'number' && Number.isFinite(parsed.savedAt) ? parsed.savedAt : 0
+    }
+  } catch {
+    return null
+  }
+}
+
 /**
  * UpdateController - 检查更新流程：
  * 1. 通过 `releases/latest` 的 302 重定向获取最新稳定版 tag（服务端保证非 pre-release），
@@ -43,10 +76,63 @@ export class UpdateController {
   private getWindow: () => BrowserWindow | null
   private downloadedPath: string = ''
   private downloadedVersion: string = ''
+  private persistedNotes: string = ''
+  private persistedStateLoaded = false
   private isDownloading = false
 
   constructor(getWindow: () => BrowserWindow | null) {
     this.getWindow = getWindow
+  }
+
+  /** 持久化更新状态文件路径。必须惰性获取：控制器在 app ready 之前实例化，部分平台早期 getPath 不可用。 */
+  private getUpdateStatePath(): string {
+    return path.join(app.getPath('userData'), UPDATE_STATE_FILE_NAME)
+  }
+
+  /** 进程启动后首次检查/安装时恢复上次已下载的安装包信息（同一份 userData 跨启动有效）。 */
+  private ensurePersistedUpdateState(): void {
+    if (this.persistedStateLoaded) return
+    this.persistedStateLoaded = true
+    try {
+      const statePath = this.getUpdateStatePath()
+      if (!fs.existsSync(statePath)) return
+      const state = parsePersistedUpdateState(fs.readFileSync(statePath, 'utf-8'))
+      if (!state) {
+        logger.warn('[UpdateController] 忽略损坏的更新状态文件:', statePath)
+        return
+      }
+      if (!fs.existsSync(state.downloadedPath)) {
+        // 临时目录可能被系统清理：状态文件一并清掉，避免每次启动都提示一个不存在的安装包
+        logger.info('[UpdateController] 待安装安装包已不存在，清理过期更新状态:', state.downloadedPath)
+        try { fs.unlinkSync(statePath) } catch { /* 清理失败不影响启动 */ }
+        return
+      }
+      this.downloadedPath = state.downloadedPath
+      this.downloadedVersion = state.downloadedVersion
+      this.persistedNotes = state.notes
+      logger.info(`[UpdateController] 已恢复待安装更新状态: v${state.downloadedVersion}`)
+    } catch (error) {
+      logger.warn('[UpdateController] 读取更新状态文件失败（将重新检查）:', error)
+    }
+  }
+
+  /** 下载成功后落盘，重启应用仍能识别“已有安装包待安装”。失败只记日志，不影响本次更新。 */
+  private persistUpdateState(notes: string): void {
+    if (!this.downloadedPath || !this.downloadedVersion) return
+    try {
+      const statePath = this.getUpdateStatePath()
+      const state: PersistedUpdateState = {
+        downloadedPath: this.downloadedPath,
+        downloadedVersion: this.downloadedVersion,
+        notes: notes || this.persistedNotes,
+        savedAt: Date.now()
+      }
+      fs.mkdirSync(path.dirname(statePath), { recursive: true })
+      fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8')
+      this.persistedNotes = state.notes
+    } catch (error) {
+      logger.warn('[UpdateController] 持久化更新状态失败（不影响本次更新）:', error)
+    }
   }
 
   /** 向主窗口推送更新状态 */
@@ -72,8 +158,11 @@ export class UpdateController {
     if (!isPackagedApp) {
       return { success: false, hasUpdate: false, error: 'Development mode does not support auto update' }
     }
+    this.ensurePersistedUpdateState()
     try {
-      const { tag, notes } = await this.fetchLatestReleaseInfo()
+      const { tag, notes: fetchedNotes } = await this.fetchLatestReleaseInfo()
+      // 持久化的 release notes 只作为兜底：atom 拉取失败时仍能在更新弹窗里展示上次拿到的说明
+      const notes = fetchedNotes || this.persistedNotes
       const latestVersion = tag.replace(/^v/i, '')
       if (compareVersions(latestVersion, app.getVersion()) <= 0) {
         this.sendToRenderer({ state: 'not-available' })
@@ -127,14 +216,16 @@ export class UpdateController {
     if (this.isDownloading) {
       return { success: false, error: 'Download already in progress' }
     }
+    this.ensurePersistedUpdateState()
     try {
-      const { tag } = await this.fetchLatestReleaseInfo()
+      const { tag, notes } = await this.fetchLatestReleaseInfo()
       const latestVersion = tag.replace(/^v/i, '')
       if (compareVersions(latestVersion, app.getVersion()) <= 0) {
         return { success: false, error: 'No update available' }
       }
       // 同版本已下载完成时直接复用，不重复下载
       if (this.downloadedVersion === latestVersion && this.downloadedPath && fs.existsSync(this.downloadedPath)) {
+        this.persistUpdateState(notes)
         this.sendToRenderer({ state: 'downloaded', version: latestVersion })
         return { success: true }
       }
@@ -142,6 +233,7 @@ export class UpdateController {
       this.isDownloading = true
       const artifact = this.buildInstallerArtifact(latestVersion)
       const { checksumUnavailable } = await this.downloadInstaller(artifact.url, latestVersion, artifact.fileName)
+      this.persistUpdateState(notes)
       this.sendToRenderer({ state: 'downloaded', version: latestVersion })
       return { success: true, checksumUnavailable }
     } catch (error) {
@@ -154,6 +246,7 @@ export class UpdateController {
 
   /** 重启更新：按平台启动安装程序/替换 AppImage，并退出应用 */
   async restartAndInstall(): Promise<{ success: boolean; error?: string }> {
+    this.ensurePersistedUpdateState()
     if (!this.downloadedPath || !fs.existsSync(this.downloadedPath)) {
       return { success: false, error: 'Installer not downloaded' }
     }
@@ -173,7 +266,7 @@ export class UpdateController {
       // 让进程立即退出。NSIS 安装程序会等待旧进程退出后才继续安装，
       // app.quit() 会触发耗时的优雅关闭导致安装程序与旧进程死锁。
       // 注意：这里既不保存会话也不停引擎 —— 都由调用方（restart-and-install handler）在安装前补齐：
-      // 先 aria2.saveSession 落盘，再 fire-and-forget 地请求 aria2 关闭（否则它会成为孤儿进程占住 RPC 端口）。
+      // 先 aria2.saveSession 落盘，再请求 aria2 关闭并等待进程退出/端口释放（见 engineShutdownService）。
       setTimeout(() => app.exit(0), 500)
       return { success: true }
     } catch (error) {
@@ -243,9 +336,8 @@ export class UpdateController {
    * 探测最新稳定版 tag。
    *
    * 为什么用 `releases/latest` 的 302 而不是继续解析 atom 的第一条：atom 按时间排序，
-   * 只要发过 pre-release，第一条就是它——而 `compareVersions` 明确不处理预发布后缀
-   * （"1.0.0-beta" 等价于 "1.0.0"），会把 beta 当正式版推给所有用户，且按 beta tag
-   * 拼出的安装包地址不存在，全体用户的更新检查会变成"发现新版本 → 下载失败"。
+   * 只要发过 pre-release，第一条就是它——稳定版用户不应收到 beta，而按 beta tag 拼出的
+   * 安装包地址也可能不存在，更新检查会变成"发现新版本 → 下载失败"。
    * GitHub 对 `releases/latest` 的定义就是"最新非 pre-release"，服务端过滤最可靠。
    *
    * 实测行为：HEAD 请求 → 302 → `Location: https://github.com/<repo>/releases/tag/v1.0.9`，

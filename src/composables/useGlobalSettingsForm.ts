@@ -77,6 +77,10 @@ export function useGlobalSettingsForm<T extends object>(
   let lastSaveOk = true
   // 最近一次加载是否成功：重载失败时不能把快照对齐当前值，否则脏标记会被清掉
   let lastLoadOk = false
+  // 把「未保存修改」的快照对齐当前表单值（由 dirtyTracking 注册，未注册时为空操作）。
+  // 只在**加载成功/保存成功**或页面明确声明「这个字段是程序写入的」时调用：
+  // 否则会把用户真实编辑一起洗掉，关闭弹窗就不再提醒，改动无声丢失。
+  let realignDirtySnapshot: ((only?: string[]) => void) | null = null
 
   // 用已缓存的服务端配置初始化表单，首次渲染直接显示真实值，避免异步加载闪烁
   const cached = statsStore.globalOptions
@@ -119,6 +123,9 @@ export function useGlobalSettingsForm<T extends object>(
         loading.value = false
       }
       if (force) reloading.value = false
+      // 命中缓存时 loading 不翻转（见上方 watch(loading) 的注释），这里补一次对齐：
+      // 加载成功才对齐，失败保持原快照，避免把未保存的修改洗成"已保存"。
+      if (lastLoadOk) realignDirtySnapshot?.()
     }
   }
 
@@ -226,8 +233,20 @@ export function useGlobalSettingsForm<T extends object>(
   if (options.dirtyTracking) {
     const { pageId, fields } = options.dirtyTracking
     const serialize = () => JSON.stringify(pickFields(form, fields))
-    let snapshot = serialize()
-    dirtyPages.set(pageId, () => serialize() !== snapshot)
+    // 快照存字段值而不是序列化串：这样外部推送（如 tracker 更新回写 btTracker）
+    // 可以只对齐自己写的那几个字段，不会顺手清掉用户在同页其他字段上的编辑。
+    let snapshot: Record<string, unknown> = pickFields(form, fields)
+    realignDirtySnapshot = (only) => {
+      const current = pickFields(form, fields)
+      if (!only) {
+        snapshot = current
+        return
+      }
+      for (const key of only) {
+        if (key in current) snapshot[key] = current[key]
+      }
+    }
+    dirtyPages.set(pageId, () => serialize() !== JSON.stringify(snapshot))
     dirtyPageSavers.set(pageId, async () => {
       try {
         return await handleSave()
@@ -235,14 +254,17 @@ export function useGlobalSettingsForm<T extends object>(
         return false
       }
     })
-    // 保存完成 / 重新加载完成——把快照对齐当前值（handleSave/handleReset 内部改动经此收敛）。
+    // 保存完成——把快照对齐当前值（handleSave 内部改动经此收敛）。
     // 只有**保存成功**才对齐：保存失败（未连接、校验没过、RPC 与配置双失败）时若也对齐，
     // 脏标记就被清掉了——用户接着关弹窗不再被提醒，改动就这么丢了。
     watch(saving, (s, was) => {
-      if (was && !s && lastSaveOk) snapshot = serialize()
+      if (was && !s && lastSaveOk) realignDirtySnapshot?.()
     })
+    // 重新加载完成同理。注意不能只依赖 watch(loading)：命中 globalOptions 缓存时
+    // showLoading 为 false，loading 全程不翻转，watch 永不触发（旧实现在这里卡死，
+    // 导致设置弹窗关不掉）。所以 loadSettings 成功后还会直接对齐一次。
     watch(loading, (l, was) => {
-      if (was && !l && lastLoadOk) snapshot = serialize()
+      if (was && !l && lastLoadOk) realignDirtySnapshot?.()
     })
     onBeforeUnmount(() => {
       dirtyPages.delete(pageId)
@@ -250,7 +272,14 @@ export function useGlobalSettingsForm<T extends object>(
     })
   }
 
-  return { loading, saving, reloading, loadSettings, handleSave, handleReset }
+  // 页面把「由程序写入、不算用户编辑」的字段声明给脏追踪（例如 BtSettings 收到
+  // 主进程 tracker 推送后回写 bt-tracker）：只对齐这些字段的快照，用户在同页其他
+  // 字段上的编辑仍然算未保存，关闭弹窗照样提醒。
+  function markFieldsSynced(fields: string[]): void {
+    realignDirtySnapshot?.(fields)
+  }
+
+  return { loading, saving, reloading, loadSettings, handleSave, handleReset, markFieldsSynced }
 }
 
 function pickFields<T extends object>(form: T, fields: Array<keyof T & string>): Record<string, unknown> {

@@ -141,3 +141,53 @@ export function formatCompleteTime(timestamp: number): string {
     minute: '2-digit'
   })
 }
+
+/**
+ * 日期时间输入：Date 对象、毫秒时间戳或可被 Date 解析的字符串
+ */
+export type DateTimeInput = Date | number | string | null | undefined
+
+/**
+ * 把各种输入规整成合法 Date，无法解析时返回 null
+ */
+function toValidDate(value: DateTimeInput): Date | null {
+  if (value === null || value === undefined || value === '') return null
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+/**
+ * 按当前语言环境格式化完整日期时间（日期 + 时分秒）
+ *
+ * 替代各处直接调用 toLocaleString()：后者不传 locale，会跟随操作系统语言，
+ * 与界面语言不一致（D-28）。
+ */
+export function formatDateTime(value: DateTimeInput): string {
+  const date = toValidDate(value)
+  if (!date) return '--'
+  const locale = getLocale()
+  return date.toLocaleString(locale, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
+
+/**
+ * 按当前语言环境格式化紧凑日期时间（月日 + 时分），用于通知中心这类空间有限的列表
+ */
+export function formatShortDateTime(value: DateTimeInput): string {
+  const date = toValidDate(value)
+  if (!date) return '--'
+  const locale = getLocale()
+  return date.toLocaleDateString(locale, {
+    month: '2-digit',
+    day: '2-digit'
+  }) + ' ' + date.toLocaleTimeString(locale, {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}

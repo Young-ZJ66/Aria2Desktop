@@ -10,9 +10,35 @@
  * 渲染层通过 defaultSettings / mergeWithDefaults 提供缺省值。
  */
 
-/** 官方插件市场注册表默认地址（pluginMarket.registryUrl 留空时使用） */
+/**
+ * 官方插件市场注册表固定的 release tag。
+ *
+ * 安全约束（D-02）：注册表必须指向某个**不可变的 tag**，绝不能用 `main`。
+ * `main` 分支内容随时可变，攻击者只要拿到仓库写权限（或上游被入侵），
+ * 就能把恶意插件条目塞进所有人默认使用的目录里。tag 由发布流程打，
+ * 内容与签名清单一一对应，改它等于发新版本，可审计。
+ *
+ * 升级 tag 时必须同时更新 DEFAULT_TRUSTED_PLUGIN_PUBLISHERS，
+ * 否则新 tag 下的签名校验不过（这是有意的：密钥轮换要走发布流程）。
+ */
+export const PLUGIN_REGISTRY_PINNED_TAG = 'v1.5.0-beta.1'
+
+/** 官方插件市场注册表默认地址（pluginMarket.registryUrl 留空时使用，固定到 tag） */
 export const DEFAULT_PLUGIN_REGISTRY_URL =
-  'https://raw.githubusercontent.com/Young-ZJ66/Aria2Desktop/main/plugin-registry.json'
+  `https://raw.githubusercontent.com/Young-ZJ66/Aria2Desktop/${PLUGIN_REGISTRY_PINNED_TAG}/plugin-registry.json`
+
+/**
+ * 内置的官方插件发布者公钥（Ed25519，SPKI PEM）。
+ *
+ * 安全约束（D-02）：这个清单**默认非空**，因此默认配置下所有插件都必须带
+ * Ed25519 签名，无签名包直接拒绝安装（开发者模式是唯一例外，且需用户显式开启）。
+ * 此前默认是空数组 + "有发布者才校验"的机会式校验，等于默认不校验任何签名。
+ *
+ * 注意：本常量只能追加/轮换密钥，不能为了让某个未签名插件装上而清空。
+ */
+export const DEFAULT_TRUSTED_PLUGIN_PUBLISHERS: readonly string[] = [
+  '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA4Rmv4/jOy/70hje6bblF/l5OBYpT381uIA9UjENDPhU=\n-----END PUBLIC KEY-----'
+]
 
 export interface ConnectionProfileConfig {
   host: string
@@ -137,6 +163,14 @@ export interface WebConsoleSettings {
   tokens?: WebConsoleToken[]
   /** 允许访问的 IP/CIDR；空数组表示仅本机 127.0.0.1/::1 */
   allowedIps?: string[]
+  /**
+   * HTTPS 证书（PEM 文件绝对路径）。
+   * 配置 allowedIps 允许局域网访问时必填：明文 HTTP 下同网段可抓取 Bearer 令牌。
+   * 留空则只能监听 127.0.0.1，由反向代理终止 TLS。
+   */
+  tlsCertPath?: string
+  /** HTTPS 私钥（PEM 文件绝对路径） */
+  tlsKeyPath?: string
 }
 
 export interface AppSettings {
@@ -244,6 +278,11 @@ export interface AppSettings {
     enabled?: boolean
     /** 市场目录 JSON 地址；留空使用官方默认地址 */
     registryUrl?: string
+    /**
+     * 开发者模式：允许安装未签名插件（本地自建插件用）。
+     * 默认关闭；开启后安装未签名包会带红色警告，且不会自动启用。
+     */
+    developerMode?: boolean
   }
 
   /** 受信任的插件发布者公钥（PEM，Ed25519）。用于校验插件签名 */

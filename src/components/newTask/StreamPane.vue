@@ -183,6 +183,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from '@/utils/feedback'
+import { isValidStreamUrl } from '@/utils/downloadUri'
 import { ensureMinimumDuration } from '@/composables/useMinimumLoading'
 import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 import { useUiStore } from '@/stores/uiStore'
@@ -507,6 +508,13 @@ async function resolveOutputDir(): Promise<string> {
 }
 
 async function handleStreamDownload() {
+  // 链接校验前置：空串或非 http/https（ftp/magnet/本地路径）交给 yt-dlp 只会
+  // 在解析阶段失败，先把错误挡在提交之前
+  if (!isValidStreamUrl(streamUrl.value)) {
+    message.warning(t('newTask.invalidUrl'))
+    return
+  }
+
   // 播放列表：必须勾选至少一条（序号即 yt-dlp 的 --playlist-items 值）
   if (playlistInfo.value && selectedPlaylistKeys.value.size === 0) {
     message.warning(t('newTask.streamPlaylistNoneSelected'))
@@ -605,6 +613,10 @@ async function startStreamModeDownload() {
       if (result.code === 'ffmpeg_missing') {
         message.warning(t('newTask.streamFfmpegRequired'))
         await componentStore.checkFfmpeg(true)
+      } else if (result.code === 'too_many_downloads') {
+        // 并发上限是主进程侧的硬限制（避免批量下载打满 CPU），
+        // 这里提示用户先等现有任务，而不是把任务加入队列排队。
+        message.warning(result.error || t('newTask.streamTooManyDownloads'))
       } else {
         message.error(result.error || t('newTask.streamParseFailed'))
       }
@@ -644,6 +656,8 @@ defineExpose({
   submitting: computed(() => streamDownloading.value || streamStarting.value),
   actionVisible: true,
   actionDisabled: computed(() => {
+    // 链接必须是合法的 http/https 地址（流媒体只支持这两种协议）
+    if (!isValidStreamUrl(streamUrl.value)) return true
     // 播放列表模式：勾选至少一条才可下载
     if (playlistInfo.value && selectedPlaylistKeys.value.size === 0) return true
     // 自定义预设：需要先解析并选中具体格式

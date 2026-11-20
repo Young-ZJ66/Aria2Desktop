@@ -18,6 +18,21 @@ import type { Aria2ClientEvent } from '@/services/aria2Client'
 /** 单次拉取等待/停止任务的最大数量 */
 const MAX_TELL_COUNT = 5000
 
+/** 新建任务页单行提交：一个 URI = 一个独立任务（不是 aria2 的 mirror 语义） */
+export interface AddUriBatchRequest {
+  /** 调用方行号等标识，原样回传给结果，便于定位失败行 */
+  requestId?: string
+  uri: string
+  options?: Aria2Option
+  /** 任务时间线里的初始名称，缺省从 URI 推断 */
+  fallbackName?: string
+}
+
+export interface AddUriBatchResult {
+  added: Array<{ requestId?: string; uri: string; gid: string }>
+  failed: Array<{ requestId?: string; uri: string; error: string }>
+}
+
 /** WS 事件补刷的最大递归深度，避免事件密集时无界递归 */
 const MAX_RELOAD_DEPTH = 3
 
@@ -354,6 +369,59 @@ export const useTaskStore = defineStore('task', () => {
     const remaining = uris.filter(u => !matchedInputs.has(normalizeUrlForCompare(u)))
     matches.push(...findMagnetDuplicates(remaining, magnetUriIndex, inProgress))
     return matches
+  }
+
+  /**
+   * 多 URL 新建任务：逐行创建独立任务，而不是把整个数组交给 aria2.addUri。
+   * aria2 对同一次 addUri 的多个 URI 按“同一文件的镜像”处理，只返回一个 gid；
+   * 用户粘贴多个不同链接时会被错误合并，因此新建任务页必须走这里。
+   * 单项失败不中断其余项，返回逐项结果供调用方提示失败行。
+   */
+  async function addUriBatch(requests: AddUriBatchRequest[]): Promise<AddUriBatchResult> {
+    const service = connectionStore.service
+    if (!service) throw new Error('Not connected')
+
+    const added: AddUriBatchResult['added'] = []
+    const failed: AddUriBatchResult['failed'] = []
+
+    for (const request of requests) {
+      try {
+        if (connectionStore.service !== service) throw new Error('Connection changed')
+        const hasMagnet = request.uri.trim().toLowerCase().startsWith('magnet:')
+        const effectiveOptions: Aria2Option | undefined = hasMagnet
+          ? { ...(request.options ?? {}), 'bt-save-metadata': 'true' }
+          : request.options
+        const gid = await service.addUri([request.uri], effectiveOptions)
+        taskSourceService.record(gid, { kind: 'uri', uris: [request.uri] }, effectiveOptions)
+        if (hasMagnet) {
+          magnetUriIndex.set(normalizeUrlForCompare(request.uri), gid)
+        }
+        const fallbackName = request.fallbackName ||
+          request.uri.split('/').pop()?.split('\\').pop()?.split('?')[0] ||
+          'Unknown'
+        taskTimeService.recordTaskAdd(gid, fallbackName)
+        sessionManager.markTaskForSave(gid)
+        added.push({ requestId: request.requestId, uri: request.uri, gid })
+      } catch (error) {
+        failed.push({
+          requestId: request.requestId,
+          uri: request.uri,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    if (added.length > 0) {
+      // 与单任务 addUri 一致：立即保存一次会话，避免防抖窗口内退出丢任务
+      try {
+        await service.saveSession()
+      } catch (error) {
+        console.warn('Failed to save session immediately:', error)
+      }
+      await loadAllTasks()
+    }
+
+    return { added, failed }
   }
 
   async function addUri(uris: string[], options?: Aria2Option) {
@@ -880,6 +948,7 @@ export const useTaskStore = defineStore('task', () => {
     loadLightTasks,
     findDuplicateTasks,
     addUri,
+    addUriBatch,
     addTorrent,
     addMetalink,
     removeTask,

@@ -1,5 +1,7 @@
+import * as fs from 'fs'
 import * as http from 'http'
-import { app } from 'electron'
+import * as path from 'path'
+import { app, dialog } from 'electron'
 import { createLogger } from '../utils/logger'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { activeRpcOptions } from '../utils/activeRpcConfig'
@@ -16,20 +18,32 @@ import {
 } from './streamDownloadService'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
 import {
+  DEFAULT_EXTENSION_TOKEN_SCOPES,
   EXTENSION_API_HOST,
   EXTENSION_API_PORT,
+  createExtensionToken,
+  extensionIdFromOrigin,
+  hasExtensionScope,
   isAllowedDownloadUri,
-  isAuthorizedExtensionRequest,
+  isAuthorizedExtensionRequestWithToken,
   isExtensionOrigin,
   isPlainFileName,
   isProbeAllowed,
+  normalizeExtensionVersionHeader,
   parseRequestPathname,
   sanitizeDownloadFileName,
+  sanitizeExtensionName,
   sanitizeRequestHeaders,
+  type ExtensionPairingInfo,
+  type ExtensionRequestAuth,
+  type ExtensionTokenRecord,
+  type ExtensionTokenScope,
   type SanitizedRequestHeaders
 } from '../utils/extensionApiCore'
 import {
+  MCP_CONFIRM_REQUIRED_TOOLS,
   MCP_ERROR_CODES,
+  MCP_TOOL_SCOPES,
   buildInitializeResult,
   buildPromptsListResult,
   buildResourcesListResult,
@@ -39,6 +53,7 @@ import {
   isNotification,
   mcpError,
   mcpResult,
+  optConfirm,
   optNumber,
   optString,
   parseToolCallParams,
@@ -93,10 +108,21 @@ export interface ExtensionApiDeps {
    */
   confirmPairing: () => Promise<boolean>
   /**
+   * 带信息的配对确认（D-06）。注入后优先于 confirmPairing：
+   * 对话框里展示**净化过**的扩展名称 / ID / 来源，用户据此判断是不是自己装的那个扩展。
+   * 未注入时服务自己用 electron dialog 展示（见 showPairingDialog）。
+   */
+  confirmPairingWithInfo?: (info: ExtensionPairingInfo) => Promise<boolean>
+  /**
    * 把流媒体下载事件转发给主窗口。
    * 扩展发起的下载没有走渲染层的「流媒体页」，需要渲染层靠这些事件建立任务列表记录。
    */
   sendStreamEvent: (event: StreamDownloadEvent) => void
+  /**
+   * 用户级开关（设置页「扩展服务」）。未注入时视为启用；返回 false 时 apply() 会停止监听。
+   * 真正的接线在 main.ts（由 root 统一接入），本服务只消费判定结果。
+   */
+  getServiceEnabled?: () => boolean
 }
 
 /** 引擎版本查询超时：接口要快速返回，拿不到版本不影响其它字段 */
@@ -104,6 +130,121 @@ const ENGINE_RPC_TIMEOUT_MS = 3000
 /** 代建任务的 RPC 超时：本机调用，给足余量即可；必须明显小于扩展侧 20s 的请求超时，
  *  否则扩展先超时、而 App 其实已建好任务，容易让人误以为失败 */
 const ADD_RPC_TIMEOUT_MS = 5000
+
+/** 配对签发的 token 落盘文件名（放在 userData 下，与 settings.json 分开：它是凭据不是配置） */
+const TOKEN_FILE_NAME = 'extension-tokens.json'
+/** 最多保留的 token 条数：防止反复配对把文件撑大（超出时淘汰最久未使用的） */
+const MAX_TOKEN_RECORDS = 20
+
+/**
+ * 扩展 token 存储（D-06）。
+ *
+ * 为什么单独落一个 JSON 文件、而不是塞进 settings：
+ * - token 是**凭据**，不该出现在设置页的明文展示面里，也不该跟着设置导入导出走；
+ * - 撤销只需要删掉一条记录，与引擎 RPC 密钥解耦（改密钥不再让所有扩展掉线，反之亦然）。
+ *
+ * 写入走"临时文件 + rename"：断电/崩溃时不会留下半截 JSON 把扩展永久挡在门外。
+ * 读取失败（文件损坏/权限不足）一律按"没有已配对扩展"处理并记日志——
+ * 宁可让用户重新配对，也不要因为读盘异常让服务起不来。
+ */
+class ExtensionTokenStore {
+  private records: ExtensionTokenRecord[] | null = null
+  /** 上次读到/写入时的文件指纹（mtime+size），用于发现"被外部改写"的配对记录 */
+  private stamp: string | null = null
+
+  constructor(
+    private readonly filePath: string,
+    private readonly logger: { warn: (message: string, error?: unknown) => void }
+  ) {}
+
+  /**
+   * 读文件指纹。缓存不能只靠"读过一次"就永久有效：
+   * 端到端验证脚本、设置导入、用户手动修复都会直接改写这个文件，
+   * 只认内存缓存会让这些场景必须重启应用才生效。
+   */
+  private fileStamp(): string | null {
+    try {
+      const stat = fs.statSync(this.filePath)
+      return `${stat.mtimeMs}:${stat.size}`
+    } catch {
+      return null
+    }
+  }
+
+  list(): ExtensionTokenRecord[] {
+    const stamp = this.fileStamp()
+    if (this.records && stamp === this.stamp) return this.records
+    try {
+      const raw = fs.readFileSync(this.filePath, 'utf8')
+      const parsed = JSON.parse(raw) as unknown
+      const rows = Array.isArray(parsed) ? parsed : []
+      this.records = rows.filter((row): row is ExtensionTokenRecord => {
+        const record = row as ExtensionTokenRecord
+        return typeof record?.token === 'string' && Array.isArray(record?.scopes)
+      })
+      this.stamp = stamp
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code
+      if (code !== 'ENOENT') this.logger.warn('读取扩展配对记录失败，按未配对处理:', error)
+      this.records = []
+      this.stamp = null
+    }
+    return this.records
+  }
+
+  /** 新增一条记录并落盘；同一扩展重复配对时替换旧记录（旧 token 立即失效） */
+  add(record: ExtensionTokenRecord): void {
+    const rows = this.list().filter((row) => row.extensionId !== record.extensionId)
+    rows.unshift(record)
+    this.records = rows.slice(0, MAX_TOKEN_RECORDS)
+    this.flush()
+  }
+
+  /** 撤销一枚 token（按值删除），返回是否真的删掉了 */
+  revoke(token: string): boolean {
+    const rows = this.list()
+    const next = rows.filter((row) => row.token !== token)
+    if (next.length === rows.length) return false
+    this.records = next
+    this.flush()
+    return true
+  }
+
+  /** 撤销某个扩展的全部 token（设置页"撤销"按扩展维度操作） */
+  revokeExtension(extensionId: string): number {
+    const rows = this.list()
+    const next = rows.filter((row) => row.extensionId !== extensionId)
+    const removed = rows.length - next.length
+    if (removed > 0) {
+      this.records = next
+      this.flush()
+    }
+    return removed
+  }
+
+  /** 刷新 lastSeenAt（只在跨过一分钟时才落盘，避免每次调用都写文件） */
+  touch(token: string): void {
+    const record = this.list().find((row) => row.token === token)
+    if (!record) return
+    const now = Date.now()
+    if (record.lastSeenAt && now - record.lastSeenAt < 60_000) return
+    record.lastSeenAt = now
+    this.flush()
+  }
+
+  private flush(): void {
+    const rows = this.records ?? []
+    try {
+      const tmp = `${this.filePath}.tmp`
+      fs.writeFileSync(tmp, JSON.stringify(rows, null, 2), { mode: 0o600 })
+      fs.renameSync(tmp, this.filePath)
+      // 自己写完就更新指纹，否则下次 list() 会以为"文件被外部改了"而白读一遍
+      this.stamp = this.fileStamp()
+    } catch (error) {
+      this.logger.warn('写入扩展配对记录失败:', error)
+    }
+  }
+}
 
 /** 解析结果：目标目录、最终文件名、分类与重名信息 */
 interface ResolvedTarget {
@@ -127,8 +268,91 @@ export class ExtensionApiServer {
   private extensionConnection: ExtensionConnection = { ...EMPTY_EXTENSION_CONNECTION }
   /** 上一次记过日志的版本，避免扩展频繁调用时同一行日志刷屏 */
   private loggedExtensionVersion: string | null = null
+  /** 最近一次 start() 指定的端口，供 apply() 在条件变化后重新监听 */
+  private requestedPort: number = EXTENSION_API_PORT
+  /** 实际监听状态：监听是异步的，只有 listen 回调里才置 true */
+  private listening = false
+  /** token 存储（懒初始化：app.getPath 在 app ready 前不可用） */
+  private tokenStore: ExtensionTokenStore | null = null
 
   constructor(private readonly deps: ExtensionApiDeps) {}
+
+  /**
+   * 已签发的扩展 token（只读副本，给设置页展示"已配对扩展"用）。
+   * 刻意**不**返回 token 原文以外的东西做隐藏：设置页要能按扩展撤销，就必须能区分是哪一个。
+   */
+  listPairedExtensions(): Array<Omit<ExtensionTokenRecord, 'token'> & { tokenPreview: string }> {
+    return this.store().list().map((record) => ({
+      scopes: record.scopes,
+      extensionId: record.extensionId,
+      extensionName: record.extensionName,
+      origin: record.origin,
+      createdAt: record.createdAt,
+      lastSeenAt: record.lastSeenAt,
+      // 只给前 8 位：足够让用户分辨，又不足以在截图/日志里泄露完整凭据
+      tokenPreview: record.token.slice(0, 8)
+    }))
+  }
+
+  /** 撤销某个扩展的全部配对凭据（设置页"撤销"按钮），返回撤销条数 */
+  revokeExtension(extensionId: string): number {
+    const removed = this.store().revokeExtension(extensionId)
+    if (removed > 0) this.logger.info(`已撤销扩展 ${extensionId} 的配对凭据（${removed} 条）`)
+    this.apply()
+    return removed
+  }
+
+  /** 撤销单枚 token（按值），返回是否撤销成功 */
+  revokeToken(token: string): boolean {
+    const removed = this.store().revoke(token)
+    if (removed) this.apply()
+    return removed
+  }
+
+  private store(): ExtensionTokenStore {
+    if (this.tokenStore) return this.tokenStore
+    let filePath = ''
+    try {
+      filePath = path.join(app.getPath('userData'), TOKEN_FILE_NAME)
+    } catch (error) {
+      // app 尚未 ready 或环境异常：退化成纯内存存储，本次会话内仍可配对
+      this.logger.warn('无法定位 userData 目录，扩展配对记录仅保存在内存:', error)
+    }
+    this.tokenStore = new ExtensionTokenStore(filePath, this.logger)
+    return this.tokenStore
+  }
+
+  /**
+   * 当前是否具备监听条件（D-06）：
+   * - 用户在设置页关掉了扩展服务 → 不监听；
+   * - 既没有 RPC 密钥、也没有任何已签发 token → 无法鉴权，不监听
+   *   （旧实现会照常监听然后对每个请求回 401，等于凭空多开一个可探测端口）。
+   */
+  private shouldListen(): boolean {
+    if (this.deps.getServiceEnabled && !this.deps.getServiceEnabled()) return false
+    if (getSettingsFresh()?.aria2?.secret) return true
+    return this.store().list().length > 0
+  }
+
+  /** 接口是否正在监听（设置页据此显示"扩展服务已开启/关闭"） */
+  isListening(): boolean {
+    return this.server !== null && this.listening
+  }
+
+  /**
+   * 按当前条件同步监听状态：条件满足且未监听则开始监听，否则停止。
+   * 幂等，可在设置变更（密钥/开关）后随时调用。
+   */
+  apply(): void {
+    if (this.shouldListen()) {
+      if (!this.server) this.listen(this.requestedPort)
+      return
+    }
+    if (this.server) {
+      this.logger.info('扩展服务已停用（未启用或无可用凭据），停止监听本地接口')
+      this.stop()
+    }
+  }
 
   /** 最近一次扩展连接（设置页据此提示"该更新扩展了"；返回副本，调用方改不动内部状态） */
   getExtensionConnection(): ExtensionConnection {
@@ -156,8 +380,19 @@ export class ExtensionApiServer {
     }
   }
 
-  /** 启动接口；重复调用无副作用 */
+  /**
+   * 启动接口；重复调用无副作用。
+   *
+   * 注意这里**不一定**会真的监听：监听与否交给 apply() 按当前条件判断
+   * （D-06：用户关掉扩展服务、或既无 RPC 密钥也无已配对 token 时不应占端口）。
+   */
   start(port: number = EXTENSION_API_PORT): void {
+    this.requestedPort = port
+    this.apply()
+  }
+
+  /** 真正开始监听（只在 apply() 判定条件满足时调用） */
+  private listen(port: number): void {
     if (this.server) return
 
     const server = http.createServer((req, res) => {
@@ -192,9 +427,11 @@ export class ExtensionApiServer {
         this.logger.warn('浏览器扩展本地接口启动失败:', error)
       }
       this.server = null
+      this.listening = false
     })
 
     server.listen(port, EXTENSION_API_HOST, () => {
+      this.listening = true
       this.logger.info(`浏览器扩展本地接口已启动: http://${EXTENSION_API_HOST}:${port}`)
     })
     // 不阻止进程退出：接口不在应用的关键路径上
@@ -203,6 +440,7 @@ export class ExtensionApiServer {
   }
 
   stop(): void {
+    this.listening = false
     if (!this.server) return
     this.server.close()
     this.server = null
@@ -229,16 +467,23 @@ export class ExtensionApiServer {
     // 密钥每次都直读（settings 的 secret 变化后必须立即生效，不能吃到缓存值）。
     // 扩展与内置引擎的直连回退共用这个密钥，因此保持本机引擎语义，不跟随远程预设。
     const secret = getSettingsFresh()?.aria2?.secret ?? ''
-    const authorized = isAuthorizedExtensionRequest({
+    // 两条凭据路径（D-06）：配对签发的受限 token（带 scope）优先，其次是用户手填的 RPC 密钥。
+    // 后者是 1.4 及更早版本的手动配置方式，必须继续可用，否则老用户升级后扩展直接断连。
+    const auth = isAuthorizedExtensionRequestWithToken({
       authorization: req.headers.authorization,
       origin: req.headers.origin,
-      secret
+      secret,
+      tokens: this.store().list()
     })
-    if (!authorized) {
+    if (!auth.ok) {
       // 不区分"密钥错误"与"来源非法"，避免给探测者额外信息
       this.logger.warn(`拒绝未授权的接口调用（来源 ${req.headers.origin ?? '无'}）`)
       this.send(res, 401, { ok: false, code: 'unauthorized', error: 'Unauthorized' })
       return
+    }
+    if (auth.via === 'token' && auth.record) {
+      // 记一次活跃时间（内部 60s 节流），设置页据此显示"最近使用"
+      this.store().touch(auth.record.token)
     }
 
     // 鉴权通过才记版本：未经授权的请求不该影响"扩展已连接"的显示
@@ -258,11 +503,86 @@ export class ExtensionApiServer {
       return
     }
 
+    /**
+     * GET /api/tasks：aria2 任务快照（受 tasks:read scope 保护）。
+     *
+     * 为什么加：1.4 里扩展要展示任务列表，只能拿 App 的 RPC 密钥直连 6800——
+     * 这等于把"能删任意文件/改任意配置"的完整引擎凭据交给扩展。
+     * 拆出只读端点后，配对得到的 token 只够读列表，拿不到引擎本身。
+     */
+    if (pathname === '/api/tasks') {
+      if (req.method !== 'GET') {
+        this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
+        return
+      }
+      if (!this.requireScope(auth, res, 'tasks:read')) return
+      this.send(res, 200, await this.buildTasksSnapshot())
+      return
+    }
+
+    /**
+     * POST /api/task：对 aria2 任务执行 pause / resume / remove（受 tasks:control scope 保护）。
+     * remove 语义与 aria2 一致：从队列移除，**不删**已下载文件。
+     */
+    if (pathname === '/api/task') {
+      if (req.method !== 'POST') {
+        this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
+        return
+      }
+      if (!this.requireScope(auth, res, 'tasks:control')) return
+      let payload: unknown
+      try {
+        payload = await readJsonBody(req)
+      } catch (error) {
+        this.send(res, 400, { ok: false, code: 'bad_request', error: error instanceof Error ? error.message : 'Bad Request' })
+        return
+      }
+      const action = (payload as { action?: unknown })?.action
+      const gid = (payload as { gid?: unknown })?.gid
+      if (typeof gid !== 'string' || !gid) {
+        this.send(res, 400, { ok: false, code: 'invalid_gid', error: 'Invalid task gid' })
+        return
+      }
+      if (action !== 'pause' && action !== 'resume' && action !== 'remove') {
+        this.send(res, 400, { ok: false, code: 'invalid_action', error: 'Unsupported action' })
+        return
+      }
+      this.send(res, 200, await this.applyTaskAction(action, gid))
+      return
+    }
+
+    /**
+     * POST /api/unpair：扩展主动交还自己的凭据（弹窗「解除配对」走这里）。
+     *
+     * 为什么需要：token 存在扩展的 storage 里，用户在本机应用里点「撤销」能清掉服务端记录，
+     * 但扩展侧仍会拿着一枚死 token 反复 401；反过来用户在扩展里点「解除配对」时，
+     * 服务端记录也必须一起删掉，否则"已配对"的授权会一直留在磁盘上。
+     * 只允许撤销**本次请求所用的那枚 token**，密钥路径不能借这个端点删别人的授权。
+     */
+    if (pathname === '/api/unpair') {
+      if (req.method !== 'POST') {
+        this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
+        return
+      }
+      const record = auth.record
+      if (auth.via !== 'token' || !record) {
+        // 用密钥来的调用没有"自己的 token"可撤，明确告知而不是假装成功
+        this.send(res, 200, { ok: true, revoked: false, code: 'not_a_token' })
+        return
+      }
+      const revoked = this.store().revoke(record.token)
+      this.logger.info(`扩展主动解除配对（${record.extensionName || record.extensionId || 'unknown'}）`)
+      this.apply()
+      this.send(res, 200, { ok: true, revoked })
+      return
+    }
+
     if (pathname === '/api/resolve') {
       if (req.method !== 'POST') {
         this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
         return
       }
+      if (!this.requireScope(auth, res, 'download:add')) return
       const body = await this.readBodyOrReject(req, res)
       if (!body) return
       if (!isAllowedDownloadUri(body.url)) {
@@ -278,6 +598,7 @@ export class ExtensionApiServer {
         this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
         return
       }
+      if (!this.requireScope(auth, res, 'download:add')) return
       const body = await this.readBodyOrReject(req, res)
       if (!body) return
       const { status, payload } = await this.buildAdd(body.url, body.fileName, body.headers)
@@ -295,6 +616,7 @@ export class ExtensionApiServer {
         this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
         return
       }
+      if (!this.requireScope(auth, res, 'stream:control')) return
       const body = await this.readBodyOrReject(req, res)
       if (!body) return
       if (!isAllowedDownloadUri(body.url)) {
@@ -337,6 +659,7 @@ export class ExtensionApiServer {
         this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
         return
       }
+      if (!this.requireScope(auth, res, 'stream:control')) return
       this.send(res, 200, { ok: true, tasks: listStreamTasks() })
       return
     }
@@ -353,6 +676,7 @@ export class ExtensionApiServer {
         this.send(res, 405, { ok: false, code: 'method_not_allowed', error: 'Method Not Allowed' })
         return
       }
+      if (!this.requireScope(auth, res, 'stream:control')) return
       let payload: unknown
       try {
         payload = await readJsonBody(req)
@@ -398,7 +722,7 @@ export class ExtensionApiServer {
         this.send(res, 200, mcpError(null, MCP_ERROR_CODES.invalidRequest, 'Payload must be a JSON object'))
         return
       }
-      await this.handleMcp(payload as Record<string, unknown>, res)
+      await this.handleMcp(payload as Record<string, unknown>, res, auth)
       return
     }
 
@@ -410,7 +734,11 @@ export class ExtensionApiServer {
    * 通知（无 id）返回 202 无响应体；方法未知返回 -32601。
    * 工具执行失败用 buildToolErrorResult（isError: true），让模型看到原因而非协议错误。
    */
-  private async handleMcp(body: Record<string, unknown>, res: http.ServerResponse): Promise<void> {
+  private async handleMcp(
+    body: Record<string, unknown>,
+    res: http.ServerResponse,
+    auth: ExtensionRequestAuth
+  ): Promise<void> {
     const id = body.id
     const rpcId = typeof id === 'string' || typeof id === 'number' ? id : null
     const method = typeof body.method === 'string' ? body.method : ''
@@ -483,6 +811,28 @@ export class ExtensionApiServer {
         this.send(res, 200, mcpError(rpcId, MCP_ERROR_CODES.invalidParams, parsed.error))
         return
       }
+      // 工具级 scope：MCP 之前完全没有 scope 校验，只读 token 也能删任务
+      const requiredScope = MCP_TOOL_SCOPES[parsed.toolName]
+      if (requiredScope && !this.requireScope(auth, res, requiredScope)) return
+
+      // 破坏性工具必须显式确认：返回可读错误让模型去问用户，而不是直接执行
+      if (
+        (MCP_CONFIRM_REQUIRED_TOOLS as readonly string[]).includes(parsed.toolName) &&
+        !optConfirm(parsed.args)
+      ) {
+        this.send(
+          res,
+          200,
+          mcpResult(
+            rpcId,
+            buildToolErrorResult(
+              `${parsed.toolName} is destructive and requires confirm=true. Ask the user for permission first, then call it again with confirm: true.`
+            )
+          )
+        )
+        return
+      }
+
       const result = await this.callMcpTool(parsed.toolName, parsed.args)
       this.send(res, 200, mcpResult(rpcId, result))
       return
@@ -842,11 +1192,48 @@ export class ExtensionApiServer {
       return
     }
 
+    // 扩展自报的名称/版本只用于**展示**，一律先净化：
+    // 名称来自请求体（可被任意字符串填充），绝不能原样进对话框或日志。
+    let requestedName = ''
+    try {
+      const body = await readJsonBody(req)
+      if (typeof body === 'object' && body !== null && !Array.isArray(body)) {
+        requestedName = sanitizeExtensionName((body as { name?: unknown }).name)
+      }
+    } catch {
+      // 配对请求体是可选的：解析失败按"未提供名称"处理，不影响配对本身
+      requestedName = ''
+    }
+    const origin = req.headers.origin ?? ''
+    // 头值类型是 string | string[] | undefined（重复头会变数组），版本号只认单值
+    const versionHeader = req.headers['x-extension-version']
+    const info: ExtensionPairingInfo = {
+      name: requestedName || 'Aria2 下载扩展',
+      extensionId: extensionIdFromOrigin(origin),
+      origin,
+      version: normalizeExtensionVersionHeader(typeof versionHeader === 'string' ? versionHeader : undefined)
+    }
+
     let allowed = false
     try {
-      allowed = await this.deps.confirmPairing()
-    } catch {
-      allowed = false
+      // 确认链（D-06）：调用方注入的带信息确认框 → 服务内置的带信息对话框 → 旧的固定文案确认。
+      // 之所以内置一份而不是要求 main.ts 注入：D-06 只改服务层就能落地，不必和正在改 main.ts 的分支冲突。
+      if (this.deps.confirmPairingWithInfo) {
+        allowed = await this.deps.confirmPairingWithInfo(info)
+      } else if (typeof dialog?.showMessageBox === 'function') {
+        allowed = await this.showPairingDialog(info)
+      } else {
+        // 无 GUI 环境（自动化脚本/无 dialog 的宿主）兜底到旧回调
+        allowed = await this.deps.confirmPairing()
+      }
+    } catch (error) {
+      // 对话框本身失败（宿主无 GUI、dialog 未就绪）时不能静默放行，回落到旧确认
+      this.logger.warn('扩展配对确认框不可用，回落到旧确认流程:', error)
+      try {
+        allowed = await this.deps.confirmPairing()
+      } catch {
+        allowed = false
+      }
     }
     if (!allowed) {
       this.logger.warn('用户拒绝了浏览器扩展的配对请求')
@@ -854,14 +1241,74 @@ export class ExtensionApiServer {
       return
     }
 
-    this.logger.info('已允许浏览器扩展配对')
-    // 用户确认后才直读密钥（确认期间密钥可能已被修改）
+    // 签发受限 token：**不再把 RPC 密钥交给扩展**（D-06）。
+    // 密钥能删任意文件、改任意配置；token 只能做 scope 里列出的四件事，
+    // 且可在设置页按扩展单独撤销，泄露面小得多。
+    const token = createExtensionToken()
+    const scopes = [...DEFAULT_EXTENSION_TOKEN_SCOPES]
+    this.store().add({
+      token,
+      scopes,
+      extensionId: info.extensionId,
+      extensionName: info.name,
+      origin: info.origin,
+      createdAt: Date.now()
+    })
+    this.logger.info(`已允许浏览器扩展配对（${info.name} / ${info.extensionId || 'unknown'}）`)
+
+    // 刚签发的 token 可能让"原本没有凭据所以没监听"的接口具备监听条件
+    this.apply()
+
     const fresh = getSettingsFresh()
     this.send(res, 200, {
       ok: true,
-      secret: fresh?.aria2?.secret ?? '',
-      port: fresh?.aria2?.port ?? 6800
+      token,
+      scopes,
+      port: fresh?.aria2?.port ?? 6800,
+      extensionId: info.extensionId
     })
+  }
+
+  /**
+   * 默认的配对确认框（D-06）：调用方未注入 confirmPairingWithInfo 时使用。
+   * 展示净化后的扩展名称/ID/来源，让用户能判断"是不是我刚装的那个扩展"。
+   */
+  private async showPairingDialog(info: ExtensionPairingInfo): Promise<boolean> {
+    const detail = [
+      `扩展名称：${info.name}`,
+      `扩展 ID：${info.extensionId || '未知'}`,
+      `来源：${info.origin}`,
+      info.version ? `版本：${info.version}` : '',
+      '',
+      '允许后该扩展可以：添加下载任务、查看与控制任务列表、发起流媒体下载。',
+      '它**不会**拿到你的 RPC 密钥，你可以随时在扩展设置页撤销授权。'
+    ].filter((line) => line !== '').join('\n')
+    const result = await dialog.showMessageBox({
+      type: 'question',
+      buttons: ['允许', '拒绝'],
+      defaultId: 0,
+      cancelId: 1,
+      title: '浏览器扩展请求配对',
+      message: '是否允许该浏览器扩展连接 Aria2 Desktop？',
+      detail
+    })
+    return result.response === 0
+  }
+
+  /**
+   * scope 闸门：RPC 密钥路径（scopes === null）视为全权，token 路径按 scope 判定。
+   * 不满足时直接回 403 并返回 false，调用方立即 return。
+   */
+  private requireScope(
+    auth: ExtensionRequestAuth,
+    res: http.ServerResponse,
+    required: ExtensionTokenScope
+  ): boolean {
+    if (auth.scopes === null) return true
+    if (hasExtensionScope(auth.scopes, required)) return true
+    this.logger.warn(`扩展 token 缺少 scope：${required}`)
+    this.send(res, 403, { ok: false, code: 'insufficient_scope', error: 'Forbidden' })
+    return false
   }
 
   /** 读取并校验请求体：URL 必填，非法时直接回应 400 并返回 null */
@@ -1042,6 +1489,93 @@ export class ExtensionApiServer {
     await discardStreamDownload(id)
     forgetStreamTask(id)
     return { ok: true }
+  }
+
+  /**
+   * GET /api/tasks：aria2 任务快照（D-06 新增，受 tasks:read scope 保护）。
+   *
+   * 形状对齐扩展侧已有的 getTasksSnapshot()：{ tasks, stats }。
+   * 之所以不复用 MCP 的 list_tasks：那边返回给模型的是文本，这里是给扩展渲染的 JSON，
+   * 字段与 aria2 原始键保持一致（扩展已经有 taskDisplayName/normalizeTask 在做映射）。
+   */
+  private async buildTasksSnapshot(): Promise<Record<string, unknown>> {
+    const settings = getSettingsFresh()
+    const rpc = (method: string, params: unknown[] = []) =>
+      callAria2Rpc({ ...activeRpcOptions(settings), method, params, timeoutMs: ENGINE_RPC_TIMEOUT_MS })
+
+    const keys = ['gid', 'status', 'totalLength', 'completedLength', 'downloadSpeed', 'files', 'bittorrent', 'errorCode', 'errorMessage']
+    const fetchList = async (method: string, extra: unknown[] = []): Promise<Array<Record<string, unknown>>> => {
+      const list = (await rpc(method, [...extra, keys])) as Array<Record<string, unknown>> | undefined
+      return (list ?? []).map((task) => ({
+        gid: task.gid,
+        status: task.status,
+        name: pickTaskName(task as Parameters<typeof pickTaskName>[0]),
+        totalLength: task.totalLength,
+        completedLength: task.completedLength,
+        downloadSpeed: task.downloadSpeed,
+        files: task.files,
+        bittorrent: task.bittorrent,
+        errorCode: task.errorCode,
+        errorMessage: task.errorMessage
+      }))
+    }
+
+    try {
+      const [active, waiting, stopped, globalStat] = await Promise.all([
+        fetchList('aria2.tellActive'),
+        fetchList('aria2.tellWaiting', [0, 100]),
+        fetchList('aria2.tellStopped', [0, 100]),
+        rpc('aria2.getGlobalStat') as Promise<Record<string, unknown> | undefined>
+      ])
+      return {
+        ok: true,
+        tasks: [...active, ...waiting, ...stopped],
+        stats: {
+          downloadSpeed: globalStat?.downloadSpeed ?? '0',
+          uploadSpeed: globalStat?.uploadSpeed ?? '0',
+          numActive: globalStat?.numActive ?? '0',
+          numWaiting: globalStat?.numWaiting ?? '0',
+          numStopped: globalStat?.numStopped ?? '0'
+        }
+      }
+    } catch (error) {
+      // 引擎未启动/RPC 不可用：与 /api/add 一致用 200 + ok:false，让扩展按错误码提示
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger.warn(`读取任务列表失败: ${message}`)
+      return { ok: false, code: 'engine_unavailable', error: message }
+    }
+  }
+
+  /**
+   * POST /api/task：对 aria2 任务执行 pause / resume / remove（受 tasks:control scope 保护）。
+   * remove 与 aria2 一致：从队列移除，**不删**已下载文件。
+   */
+  private async applyTaskAction(
+    action: 'pause' | 'resume' | 'remove',
+    gid: string
+  ): Promise<{ ok: boolean; code?: string; error?: string }> {
+    const settings = getSettingsFresh()
+    const rpc = (method: string, params: unknown[] = []) =>
+      callAria2Rpc({ ...activeRpcOptions(settings), method, params, timeoutMs: ENGINE_RPC_TIMEOUT_MS })
+
+    try {
+      if (action === 'pause') await rpc('aria2.pause', [gid])
+      else if (action === 'resume') await rpc('aria2.unpause', [gid])
+      else {
+        await rpc('aria2.remove', [gid])
+        // remove 只是停止下载，结果仍留在 stopped 列表里；再清一次结果才真正从列表消失
+        try {
+          await rpc('aria2.removeDownloadResult', [gid])
+        } catch {
+          // 已经不在结果列表里（例如刚完成）时忽略
+        }
+      }
+      return { ok: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger.warn(`任务操作 ${action} 失败: ${message}`)
+      return { ok: false, code: 'engine_unavailable', error: message }
+    }
   }
 
   /** GET /api/status：应用版本、引擎进程状态与版本、当前下载目录 */

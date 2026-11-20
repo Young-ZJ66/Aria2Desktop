@@ -99,7 +99,7 @@
 Download the package for your platform from [Releases](../../releases): <code>Setup.exe</code> (or the portable <code>portable.zip</code>) on Windows,
 <code>dmg</code> on macOS, <code>AppImage</code> or <code>deb</code> on Linux.
 
-> Windows installers are currently unsigned, so SmartScreen may show "Unknown publisher"; public macOS builds are unsigned and not notarized, so right-click → Open on first launch.
+> Public builds are unsigned: Windows may show "Unknown publisher" (SmartScreen), macOS builds are unsigned and not notarized (right-click → Open on first launch), and on Linux the <code>AppImage</code> needs <code>chmod +x</code> before running.
 > Every asset has a matching <code>.sha256</code> file for verification.
 
 ### 2. Add your first download
@@ -133,8 +133,8 @@ An existing yt-dlp / ffmpeg on your PATH is used directly.
 The app may be running in the tray. The installer asks it to exit gracefully first (up to 12 seconds, to save the session), then terminates it if needed.
 If it still fails, exit from the tray menu and try again.
 
-**Windows shows an unknown publisher / SmartScreen warning**
-Windows installers are currently unsigned. Click "More info → Run anyway"; verify the <code>.sha256</code> on the Release page when needed.
+**The installer shows an unknown publisher / cannot be verified**
+Windows installers are unsigned: click "More info → Run anyway". macOS blocks the first launch of an unsigned build: right-click → Open. On Linux, run <code>chmod +x Aria2Desktop-*.AppImage</code> first. Verify the <code>.sha256</code> on the Release page when needed.
 
 **The extension cannot connect to the app**
 Make sure the app is running and the secret in the extension matches "Settings → RPC & Security".
@@ -147,7 +147,7 @@ Another Aria2 Desktop instance or another download tool is probably using it. Qu
 The app compares the downloaded file with the Release <code>.sha256</code>; on mismatch it refuses to install and falls back to a full download. You can also download and install the package manually.
 
 **Files remain after uninstalling**
-Settings remain in <code>%APPDATA%/aria2-desktop</code> (configuration and session data). Delete that directory manually for a complete cleanup.
+Settings are not removed on uninstall (configuration and session data). Delete the directory manually for a complete cleanup: <code>%APPDATA%/aria2-desktop</code> on Windows, <code>~/Library/Application Support/aria2-desktop</code> on macOS, <code>~/.config/aria2-desktop</code> on Linux.
 
 ## Privacy
 
@@ -177,6 +177,7 @@ npm run test:run          # unit tests
 npm run typecheck         # type checking (main process + test code + renderer)
 npm run test:e2e          # end-to-end (launches the real app and exercises download/extract/settings)
 npm run dist:win64        # package Windows x64 installer + portable zip
+npm run dist:mac          # package macOS (x64 + arm64)
 npm run dist:linux:arm64  # package Linux arm64
 ~~~
 
@@ -184,7 +185,7 @@ Project structure and development conventions (logging, type checking, dependenc
 
 ## Changelog
 
-Release notes, published versions, installers and full release descriptions are on [GitHub Releases](../../releases).
+See [CHANGELOG.md](CHANGELOG.md) for version history; installers and full release descriptions are on [GitHub Releases](../../releases).
 
 ## Contributing
 

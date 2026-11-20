@@ -10,7 +10,7 @@ import * as fs from 'fs'
 import { registerSecureHandler, registerSecureListener } from '../utils/ipcSecurity'
 import { isSecretEncryptionAvailable } from '../utils/secretCipher'
 import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
-import { applySettingsImport, buildSettingsExport } from '../utils/settingsSync'
+import { applySettingsImport, buildSettingsExport, normalizeImportedEngineSettings } from '../utils/settingsSync'
 import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { callAria2Rpc } from '../utils/aria2Rpc'
 import { probeDownloadFileName, resolveConflictingFileName } from '../utils/downloadNameProbe'
@@ -39,6 +39,8 @@ import { HistoryDatabase } from '../services/historyDatabase'
 import { webConsoleServer } from '../services/webConsoleServer'
 import { lookupPeerLocations } from '../utils/ipGeo'
 import { createLogger, getLogFilePaths } from '../utils/logger'
+import { performRestartAndInstall } from '../services/engineShutdownService'
+import { isInsideDownloadRoot } from '../utils/downloadPathPolicy'
 // 主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import { resolveBaseDownloadDir } from '../../src/shared/fileCategories'
 import type { ExtensionConnection } from '../../src/shared/extensionVersion'
@@ -83,28 +85,6 @@ function runSystemCommand(file: string, args: string[]): Promise<void> {
       else resolve()
     })
   })
-}
-
-/**
- * 判定路径是否位于下载根目录内（realpath + 大小写不敏感比较）。
- *
- * 与 delete-files 用同一口径：先解析符号链接，再做前缀比较，
- * 避免"校验时是链接、删除时已指向别处"的 TOCTOU 绕过。
- */
-async function isInsideDownloadRoot(targetPath: string, rootDir: string): Promise<boolean> {
-  const realPathIfExists = async (p: string): Promise<string> => {
-    try {
-      return fs.existsSync(p) ? await fs.promises.realpath(p) : p
-    } catch {
-      return p
-    }
-  }
-  const isWindows = process.platform === 'win32'
-  const normalizeCase = (p: string): string => (isWindows ? p.toLowerCase() : p)
-
-  const root = normalizeCase(await realPathIfExists(path.resolve(rootDir)))
-  const target = normalizeCase(await realPathIfExists(path.resolve(targetPath)))
-  return isPathInside(target, root, false)
 }
 
 export class IpcController {
@@ -172,6 +152,19 @@ export class IpcController {
   private windowRef = () => this.windowController.getMainWindow()
 
   /**
+   * 告知渲染层「导入的引擎设置需要重启才能生效」。
+   *
+   * 走 config:changed 通道而不是新开 IPC：渲染层已有该订阅（useAppLifecycle），
+   * 新增一种 key 即可，无需改动 preload 与类型声明。
+   * 窗口未就绪时由 main.ts 在渲染层 ready 后补投（见 Aria2Controller.consumeEngineRestartNotice）。
+   */
+  private notifyEngineRestartRequired(): void {
+    const win = this.windowRef()
+    if (!win || win.isDestroyed() || !this.windowController.isRendererContentReady()) return
+    win.webContents.send('config:changed', { key: 'engine-restart-required', value: true })
+  }
+
+  /**
    * 应用类通道。
    *
    * 统一经 ipcSecurity 的工厂注册：来源校验由工厂在结构上保证，不再逐条手写
@@ -193,7 +186,7 @@ export class IpcController {
     // Headless Web 控制台状态（设置页展示地址/令牌/审计记录）
     registerSecureHandler('web-console-status', () => webConsoleServer.getStatus(), {
       getMainWindow: this.windowRef,
-      failureValue: { running: false, port: 0, url: '', token: '', tokensCount: 0, error: 'Unauthorized', audit: [] }
+      failureValue: { running: false, port: 0, url: '', tls: false, token: '', tokensCount: 0, error: 'Unauthorized', audit: [] }
     })
     registerSecureHandler('lookup-peer-locations', async (_event, ips: unknown) => {
       if (!Array.isArray(ips) || ips.length > 100) return {}
@@ -219,14 +212,35 @@ export class IpcController {
     }, { getMainWindow: this.windowRef, failureValue: { success: false, error: 'Unauthorized' } })
 
     // 设置导入：dryRun 只返回合并报告不落盘；落盘走与 set-store-value 相同的 saveSettings 路径，
-    // 保存后由 ConfigWatcher 监听 store 变更自动广播 config:changed，此处无需手动广播
-    registerSecureHandler('settings-import', (_event, data: unknown, options?: { dryRun?: boolean }) => {
+    // 保存后由 ConfigWatcher 监听 store 变更自动广播 config:changed，此处无需手动广播。
+    //
+    // 但 settings 只是"界面上的设置"：引擎真正读的是 aria2.conf。过去只写 settings 导致
+    // 导入后引擎仍用旧端口/旧密钥（连不上、行为没变），必须再同步一次引擎侧配置与连接预设。
+    registerSecureHandler('settings-import', async (_event, data: unknown, options?: { dryRun?: boolean }) => {
       try {
         const result = applySettingsImport(getSettingsFresh(), data)
         if (!result.ok) return { success: false, error: result.error }
         if (options?.dryRun === true) return { success: true, report: result.report }
-        saveSettings(result.next)
+
+        // 导入文件来自外部，端口可能是字符串/越界值、下载目录可能是空串。
+        // 这些值会直接写进 aria2.conf，脏值等于把引擎弄成起不来的状态，先规范化再落盘。
+        const normalized = normalizeImportedEngineSettings(result.next)
+        if (normalized.normalized.length > 0) {
+          logger.warn('[Settings] 导入数据中的引擎配置已规范化:', normalized.normalized.join(','))
+        }
+
+        saveSettings(normalized.next)
         logger.info('[Settings] 配置导入已应用')
+
+        // 引擎侧同步：落 aria2.conf、必要时同步本机连接预设，并告知是否需要重启引擎
+        const engine = await this.aria2Controller.applyImportedSettings(normalized.next)
+        if (engine.changed.length > 0) {
+          logger.info('[Settings] 导入的引擎配置已写入 aria2.conf:', engine.changed.join(','))
+        }
+        if (engine.requiresRestart) {
+          this.notifyEngineRestartRequired()
+        }
+
         // 与 set-store-value 保持一致：端口/UPnP 相关设置变化后重新协商映射
         void upnpService.reconcile()
         return { success: true, report: result.report }
@@ -282,18 +296,16 @@ export class IpcController {
 
     // 自动更新：重启更新（启动安装程序并退出应用）
     // 安装流程用 app.exit() 跳过 before-quit 的优雅关闭（为避免 NSIS 安装程序与旧进程死锁），
-    // 因此这里要手动补两件事：
-    //   1) 保存会话——否则未完成任务会从下次启动的恢复列表里消失；
-    //   2) 请求 aria2 关闭（不等退出）——否则它会成为孤儿进程继续占着 RPC 端口，
-    //      更新后的新版本启动引擎就会因端口占用失败。
-    // 只发 RPC、不等待进程退出，所以不会拖慢退出，也不会与安装程序互等（原注释担心的死锁）。
+    // 因此必须手动完成：保存会话 → 请求 aria2 关闭并等待进程退出/端口释放 → 启动安装程序。
+    // 若安装程序启动失败，则重启下载引擎，避免用户停留在"无引擎"状态。
     registerSecureHandler('restart-and-install', async () => {
-      const saved = await this.aria2Controller.saveSession(3000)
-      if (!saved.success) {
-        logger.warn('[IpcController] 更新安装前保存 aria2 会话失败，未完成任务可能从恢复列表消失:', saved.error)
-      }
-      this.aria2Controller.requestShutdown()
-      return await this.updateController.restartAndInstall()
+      return await performRestartAndInstall({
+        saveSession: (timeoutMs) => this.aria2Controller.saveSession(timeoutMs),
+        requestShutdownAndWait: (maxWaitMs) => this.aria2Controller.requestShutdownAndWait(maxWaitMs),
+        restartAndInstall: () => this.updateController.restartAndInstall(),
+        restartEngine: () => this.aria2Controller.restartEngine(),
+        logger
+      })
     }, { getMainWindow: this.windowRef })
 
     registerSecureHandler('set-tray-enabled', (event, enabled: boolean) => {
@@ -400,18 +412,14 @@ export class IpcController {
     }, { getMainWindow: this.windowRef })
 
     // 系统通知（通过 Electron Notification API，比 Web API 更可靠）
-    // 注：点击回调里的 getMainWindow()/show()/focus() 与来源校验无关，保持原样
+    // 点击通知统一走 WindowController.show()：其内部会先 restore 最小化窗口再显示/聚焦。
     registerSecureHandler('send-notification', (event, title: string, body: string) => {
       try {
         if (Notification.isSupported()) {
           const notification = new Notification({ title, body, silent: false })
           notification.show()
           notification.on('click', () => {
-            const win = this.windowController.getMainWindow()
-            if (win && !win.isDestroyed()) {
-              win.show()
-              win.focus()
-            }
+            this.windowController.show()
           })
         }
       } catch (e) {
@@ -982,6 +990,15 @@ export class IpcController {
       ) {
         return { success: false, code: 'invalid_request', error: 'Invalid request' }
       }
+      // D-19：流媒体保存目录必须落在用户配置的下载根目录内。
+      // 这里不能只信渲染层传参：yt-dlp 会按该路径 mkdir -p 并写入最终文件，
+      // 不校验等于把“向任意绝对路径写文件”的能力交给了渲染层。
+      const outputDir = input.outputDir.trim()
+      const baseDir = resolveBaseDownloadDir(getSettingsFresh() ?? undefined) || app.getPath('downloads')
+      if (!outputDir || !path.isAbsolute(outputDir) || !(await isInsideDownloadRoot(outputDir, baseDir))) {
+        logger.warn('[IpcController] 拦截 stream-download-start：保存目录不在下载目录内')
+        return { success: false, code: 'path_not_allowed', error: 'Output directory outside download root' }
+      }
       // playlist/subtitle 是嵌套结构，这里只查顶层形状（对象/数组），逐项校验在服务内完成：
       // 校验规则（id/语言/数量上限等）只存在于服务一处，避免 handler 与服务双份漂移
       if (
@@ -1000,7 +1017,7 @@ export class IpcController {
           formatId: input.formatId,
           merge: input.merge,
           title: input.title,
-          outputDir: input.outputDir,
+          outputDir,
           playlist: input.playlist,
           subtitle: input.subtitle,
           cookieFile: input.cookieFile,

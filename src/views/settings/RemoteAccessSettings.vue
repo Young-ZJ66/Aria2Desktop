@@ -53,6 +53,26 @@
           />
         </n-form-item>
 
+        <!-- LAN 访问必须加密：明文 HTTP 下同网段可直接嗅探到 Bearer 令牌 -->
+        <n-form-item :label="t('settings.webConsole.tlsCertPath')">
+          <n-input
+            v-model:value="webConsole.tlsCertPath"
+            :placeholder="t('settings.webConsole.tlsPathPlaceholder')"
+          />
+        </n-form-item>
+        <n-form-item :label="t('settings.webConsole.tlsKeyPath')">
+          <n-input
+            v-model:value="webConsole.tlsKeyPath"
+            :placeholder="t('settings.webConsole.tlsPathPlaceholder')"
+          />
+        </n-form-item>
+        <n-form-item :label="t('settings.webConsole.tlsStatus')">
+          <n-tag :type="webConsoleStatus?.tls ? 'success' : 'warning'" size="small">
+            {{ webConsoleStatus?.tls ? t('settings.webConsole.tlsEnabled') : t('settings.webConsole.tlsDisabled') }}
+          </n-tag>
+          <span class="runtime-url">{{ t('settings.webConsole.tlsHint') }}</span>
+        </n-form-item>
+
         <n-form-item v-if="webConsoleStatus?.token" :label="t('settings.webConsole.activeToken')">
           <code class="runtime-token">{{ webConsoleStatus.token }}</code>
         </n-form-item>
@@ -203,6 +223,7 @@ import { useI18n } from 'vue-i18n'
 import { message } from '@/utils/feedback'
 import { KeyOutline } from '@vicons/ionicons5'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { formatDateTime } from '@/utils/taskFormatters'
 import SettingsPage from '@/components/settings/SettingsPage.vue'
 import { UiEmpty } from '@/components/ui'
 import TipLabel from '@/components/settings/TipLabel.vue'
@@ -225,6 +246,8 @@ interface WebConsoleStatus {
   running: boolean
   port: number
   url: string
+  /** 是否以 HTTPS 监听（局域网访问必须为 true） */
+  tls?: boolean
   token: string
   error?: string
   audit?: WebConsoleAuditEntry[]
@@ -234,7 +257,9 @@ const webConsole = reactive({
   enabled: false,
   port: 6802,
   token: '',
-  allowedIps: ''
+  allowedIps: '',
+  tlsCertPath: '',
+  tlsKeyPath: ''
 })
 const webConsoleStatus = ref<WebConsoleStatus | null>(null)
 const webConsoleLoading = ref(false)
@@ -274,12 +299,6 @@ function scopeLabel(scope: WebConsoleScope): string {
   return t('settings.webConsole.' + scopeKey(scope))
 }
 
-function formatDateTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
-
 /** 生成 18 字节随机数的 hex（36 位），满足主进程 >= 16 位的下限 */
 function generateTokenValue(): string {
   const bytes = new Uint8Array(18)
@@ -317,6 +336,8 @@ async function persistTokens(next: WebConsoleToken[]): Promise<boolean> {
     port: current?.port ?? 6802,
     token: current?.token ?? '',
     allowedIps: current?.allowedIps ?? [],
+    tlsCertPath: current?.tlsCertPath ?? '',
+    tlsKeyPath: current?.tlsKeyPath ?? '',
     tokens: next
   })
   webConsoleTokens.value = next
@@ -396,6 +417,8 @@ function syncWebConsoleFromSettings(): void {
   webConsole.port = current?.port ?? 6802
   webConsole.token = current?.token ?? ''
   webConsole.allowedIps = (current?.allowedIps ?? []).join('\n')
+  webConsole.tlsCertPath = current?.tlsCertPath ?? ''
+  webConsole.tlsKeyPath = current?.tlsKeyPath ?? ''
   webConsoleTokens.value = (current?.tokens ?? []).map((token) => ({ ...token }))
 }
 
@@ -423,6 +446,8 @@ async function saveWebConsole(): Promise<void> {
       port: Math.min(65535, Math.max(1024, Number(webConsole.port) || 6802)),
       token: webConsole.token.trim(),
       allowedIps,
+      tlsCertPath: webConsole.tlsCertPath.trim(),
+      tlsKeyPath: webConsole.tlsKeyPath.trim(),
       // 整键替换语义：不带上 tokens 会把已配置的细粒度令牌抹掉
       tokens: webConsoleTokens.value
     })

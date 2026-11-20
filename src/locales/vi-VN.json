@@ -135,7 +135,16 @@
     "saveTorrentFailed": "Không thể lưu torrent: {error}",
     "batchOpen": "Mở tệp",
     "batchOpenSuccess": "Đã mở {count} tệp",
-    "batchOpenFailed": "Không thể mở tệp nào"
+    "batchOpenFailed": "Không thể mở tệp nào",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "Kết quả thao tác hàng loạt",
+    "batchResultSuccess": "{count} thành công",
+    "batchResultFailed": "{count} thất bại",
+    "batchResultSkipped": "{count} bỏ qua",
+    "batchResultFailures": "Chi tiết lỗi",
+    "batchResultMore": "{count} mục khác không hiển thị"
   },
   "status": {
     "active": "Đang tải xuống",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} seeder trực tuyến",
     "healthSeeding": "Đang seed từ thiết bị này",
     "magnetUri": "URI magnet",
-    "copyMagnet": "Sao chép URI magnet"
+    "copyMagnet": "Sao chép URI magnet",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "Địa chỉ IP",
@@ -234,7 +251,15 @@
     "deleteFiles": "Xóa cả tệp",
     "toTrashHint": "Tệp sẽ được chuyển vào thùng rác hệ thống và có thể khôi phục từ đó",
     "deleteTaskAndFiles": "Xóa tác vụ và tệp",
-    "taskDeleted": "Đã xóa tác vụ"
+    "taskDeleted": "Đã xóa tác vụ",
+    "errors": {
+      "removeRecordFailed": "Không xóa được bản ghi tác vụ: {detail}",
+      "deleteFileFailed": "Không xóa được tệp: {path} ({detail})",
+      "deleteFilesFailed": "Thao tác xóa tệp thất bại: {detail}",
+      "deleteFilesException": "Lỗi khi xóa tệp: {detail}",
+      "unknownError": "Lỗi không xác định khi xóa tác vụ: {detail}",
+      "processTaskFailed": "Lỗi khi xử lý tác vụ {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "Tác vụ tải xuống mới",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Nhấp để chọn hoặc kéo tệp .torrent vào đây",
     "dropMetalinkHint": "Nhấp để chọn hoặc kéo tệp .metalink / .meta4 vào đây",
     "fileTooLarge": "Tệp quá lớn (>1MB) để tải lên qua RPC aria2. Hãy đặt tệp ở đường dẫn cục bộ và thêm bằng URL thay thế",
+    "fileTooLargeLimit": "Tệp vượt quá giới hạn hiện tại ({limit}). Hãy tăng rpc-max-request-size trong \"Cài đặt → RPC & Bảo mật\"",
+    "streamTooManyDownloads": "Đã đạt giới hạn tải xuống trực tuyến đồng thời (3). Hãy đợi các tác vụ hiện tại kết thúc",
     "streamPlaylist": "Danh sách phát",
     "streamPlaylistEmpty": "Không tìm thấy mục nào trong danh sách phát (liên kết có thể không phải danh sách phát)",
     "streamPlaylistSelectAll": "Chọn tất cả",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Đã giải nén ({count} tệp đã có được giữ lại; tệp lưu trữ không bị xóa)",
     "engineCrashed": "Engine aria2 đã thoát bất ngờ. Đang tự động khởi động lại (lần thử {count}).",
     "engineGaveUp": "Engine aria2 đã không thể khởi động lại sau {count} lần nên đã ngừng tự động khởi động lại. Hãy khởi động lại thủ công trong Cài đặt → Engine cục bộ, hoặc mở nhật ký ứng dụng để xem chi tiết.",
-    "shutdownCancelled": "Phát hiện tải xuống mới — đã hủy việc tắt máy theo lịch."
+    "shutdownCancelled": "Phát hiện tải xuống mới — đã hủy việc tắt máy theo lịch.",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "Thông báo",
@@ -430,6 +458,8 @@
     "seedingTasks": "Đang seed",
     "trafficChartAria": "Biểu đồ xu hướng tốc độ tải xuống và tải lên",
     "enabledFeatures": "Tính năng đã bật",
+    "downloadTrend": "Xu hướng tải xuống",
+    "noTrendData": "Chưa có dữ liệu tải xuống",
     "resetHistory": "Đặt lại thống kê tải xuống",
     "resetHistoryConfirm": "Xóa thống kê tải xuống hôm nay và tổng cộng? Việc này chỉ ảnh hưởng đến bộ đếm của ứng dụng; không tác vụ hay tệp nào bị xóa."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "Chợ plugin trả về HTTP {status}. Vui lòng thử lại sau.",
       "marketErrorTooLarge": "Registry chợ plugin quá lớn nên đã bị từ chối.",
       "marketErrorInvalidRegistry": "Registry chợ plugin có định dạng không hợp lệ. Hãy kiểm tra URL registry.",
+      "marketErrorSignature": "Kiểm tra chữ ký của sổ đăng ký chợ plugin thất bại: sổ đăng ký có thể đã bị sửa đổi hoặc được ký bằng khóa không đáng tin cậy. Đã từ chối tải.",
       "marketErrorNetwork": "Không thể kết nối tới chợ plugin. Hãy kiểm tra mạng hoặc proxy và thử lại.",
       "trustedPublishers": "Khóa nhà phát hành tin cậy",
       "trustedPublishersDesc": "Nhập khóa công khai Ed25519 (PEM) của nhà phát hành tin cậy, phân tách bằng dòng trống. Plugin có chữ ký từ chợ phải vượt qua xác minh chữ ký trước khi cài đặt.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Để trống để tự động tạo mã thông báo ngẫu nhiên",
       "allowedIps": "IP được phép",
       "allowedIpsPlaceholder": "ví dụ: 192.168.1.0/24; để trống chỉ cho phép localhost",
+      "tlsCertPath": "Đường dẫn chứng chỉ HTTPS",
+      "tlsKeyPath": "Đường dẫn khóa riêng HTTPS",
+      "tlsPathPlaceholder": "Đường dẫn tuyệt đối tới tệp PEM, ví dụ /etc/ssl/fullchain.pem",
+      "tlsStatus": "Trạng thái HTTPS",
+      "tlsEnabled": "Đã bật HTTPS",
+      "tlsDisabled": "Chưa bật (chỉ localhost)",
+      "tlsHint": "Truy cập qua LAN cần chứng chỉ và khóa; nếu không, bảng điều khiển chỉ lắng nghe trên 127.0.0.1 và TLS phải do reverse proxy kết thúc.",
       "refresh": "Làm mới trạng thái",
       "status": "Trạng thái",
       "running": "Đang chạy",
@@ -1450,7 +1488,15 @@
     "unknown": "Thao tác thất bại. Vui lòng thử lại sau",
     "tlsHandshake": "Kết nối bảo mật tới trang này thất bại — mạng có thể chặn. Hãy thử proxy hoặc nguồn khác",
     "proxy": "Kết nối proxy thất bại. Hãy kiểm tra cài đặt proxy của hệ thống hoặc ứng dụng",
-    "certificate": "Xác minh chứng chỉ thất bại: chứng chỉ của trang không hợp lệ hoặc đã hết hạn"
+    "certificate": "Xác minh chứng chỉ thất bại: chứng chỉ của trang không hợp lệ hoặc đã hết hạn",
+    "errConnectionRefused": "Kết nối bị từ chối. Kiểm tra địa chỉ có truy cập được và Aria2 đang chạy",
+    "errConnectionTimedOut": "Kết nối quá thời gian. Kiểm tra mạng hoặc địa chỉ máy chủ",
+    "errConnectionReset": "Kết nối bị ngắt (máy chủ đóng hoặc mạng không ổn định). Vui lòng thử lại",
+    "errNameNotResolved": "Không phân giải được tên máy chủ. Kiểm tra địa chỉ và cài đặt DNS",
+    "errInternetDisconnected": "Không có kết nối mạng. Kiểm tra rồi thử lại",
+    "errAddressUnreachable": "Không thể truy cập địa chỉ. Kiểm tra mạng hoặc cài đặt proxy",
+    "errCertInvalid": "Xác thực chứng chỉ thất bại: chứng chỉ của trang không hợp lệ, đã hết hạn hoặc không đáng tin cậy",
+    "errSslProtocol": "Thương lượng SSL/TLS thất bại — kết nối có thể bị chặn hoặc trang đã lỗi thời"
   },
   "localService": {
     "invalidPort": "Cổng không hợp lệ, vui lòng dùng cổng trong khoảng 1024 đến 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "Lưu thất bại: {error}",
     "deleteFailed": "Xóa thất bại: {error}",
     "operationFailed": "Thao tác thất bại: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

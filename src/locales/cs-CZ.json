@@ -135,7 +135,16 @@
     "saveTorrentFailed": "Torrent se nepodařilo uložit: {error}",
     "batchOpen": "Otevřít soubory",
     "batchOpenSuccess": "Otevřeno souborů: {count}",
-    "batchOpenFailed": "Žádný soubor nebylo možné otevřít"
+    "batchOpenFailed": "Žádný soubor nebylo možné otevřít",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "Výsledek hromadné akce",
+    "batchResultSuccess": "Úspěšně: {count}",
+    "batchResultFailed": "Selhalo: {count}",
+    "batchResultSkipped": "Přeskočeno: {count}",
+    "batchResultFailures": "Podrobnosti chyb",
+    "batchResultMore": "dalších {count} nezobrazeno"
   },
   "status": {
     "active": "Stahování",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} seedů online",
     "healthSeeding": "Sdílení z tohoto zařízení",
     "magnetUri": "URI magnetu",
-    "copyMagnet": "Kopírovat URI magnetu"
+    "copyMagnet": "Kopírovat URI magnetu",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "IP adresa",
@@ -234,7 +251,15 @@
     "deleteFiles": "Smazat také soubory",
     "toTrashHint": "Soubory budou přesunuty do systémového koše, odkud je lze obnovit",
     "deleteTaskAndFiles": "Smazat úlohu a soubory",
-    "taskDeleted": "Úloha smazána"
+    "taskDeleted": "Úloha smazána",
+    "errors": {
+      "removeRecordFailed": "Nepodařilo se odstranit záznam úlohy: {detail}",
+      "deleteFileFailed": "Nepodařilo se smazat soubor: {path} ({detail})",
+      "deleteFilesFailed": "Operace mazání souborů selhala: {detail}",
+      "deleteFilesException": "Chyba při mazání souborů: {detail}",
+      "unknownError": "Neznámá chyba při mazání úlohy: {detail}",
+      "processTaskFailed": "Chyba při zpracování úlohy {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "Nová úloha stahování",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Kliknutím vyberte nebo přetáhněte soubor .torrent sem",
     "dropMetalinkHint": "Kliknutím vyberte nebo přetáhněte soubor .metalink / .meta4 sem",
     "fileTooLarge": "Soubor je příliš velký (>1 MB) pro nahrání přes aria2 RPC. Umístěte jej na místní cestu a přidejte jej prostřednictvím URL",
+    "fileTooLargeLimit": "Soubor překračuje aktuální limit ({limit}). Zvyšte rpc-max-request-size v „Nastavení → RPC a zabezpečení“",
+    "streamTooManyDownloads": "Byl dosažen limit souběžných streamovacích stahování (3). Počkejte na dokončení aktuálních",
     "streamPlaylist": "Playlist",
     "streamPlaylistEmpty": "V playlistu nebyly nalezeny žádné položky (odkaz možná není playlist)",
     "streamPlaylistSelectAll": "Vybrat vše",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Archiv rozbalen ({count} existujících souborů zachováno; archiv nebyl smazán)",
     "engineCrashed": "Engine aria2 neočekávaně skončil. Automaticky se restartuje (pokus {count}).",
     "engineGaveUp": "Engine aria2 se nepodařilo restartovat {count}krát, proto automatické restarty ustaly. Restartujte jej ručně v Nastavení → Místní engine nebo otevřete protokol aplikace pro podrobnosti.",
-    "shutdownCancelled": "Zjištěno nové stahování — plánované vypnutí bylo zrušeno."
+    "shutdownCancelled": "Zjištěno nové stahování — plánované vypnutí bylo zrušeno.",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "Oznámení",
@@ -430,6 +458,8 @@
     "seedingTasks": "Sdílení",
     "trafficChartAria": "Graf vývoje rychlosti stahování a odesílání",
     "enabledFeatures": "Povolené funkce",
+    "downloadTrend": "Trend stahování",
+    "noTrendData": "Zatím žádná data o stahování",
     "resetHistory": "Obnovit statistiky stahování",
     "resetHistoryConfirm": "Vymazat dnešní a celkové statistiky stahování? Ovlivní to pouze počítadla této aplikace; žádné úlohy ani soubory nebudou smazány."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "Trh s pluginy vrátil HTTP {status}. Zkuste to později.",
       "marketErrorTooLarge": "Registr trhu s pluginy je příliš velký a byl odmítnut.",
       "marketErrorInvalidRegistry": "Registr trhu s pluginy má neplatný formát. Zkontrolujte URL registru.",
+      "marketErrorSignature": "Ověření podpisu registru tržiště pluginů selhalo: registr mohl být pozměněn nebo podepsán nedůvěryhodným klíčem. Nebyl načten.",
       "marketErrorNetwork": "Trh s pluginy je nedostupný. Zkontrolujte síť nebo proxy a zkuste to znovu.",
       "trustedPublishers": "Klíče důvěryhodných vydavatelů",
       "trustedPublishersDesc": "Zadejte veřejné klíče Ed25519 (PEM) důvěryhodných vydavatelů oddělené prázdnými řádky. Podepsané pluginy z trhu musí před instalací projít ověřením podpisu.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Ponechte prázdné pro automatické vygenerování náhodného tokenu",
       "allowedIps": "Povolené IP",
       "allowedIpsPlaceholder": "např. 192.168.1.0/24; ponechte prázdné pro povolení pouze localhostu",
+      "tlsCertPath": "Cesta k certifikátu HTTPS",
+      "tlsKeyPath": "Cesta k soukromému klíči HTTPS",
+      "tlsPathPlaceholder": "Absolutní cesta k souboru PEM, např. /etc/ssl/fullchain.pem",
+      "tlsStatus": "Stav HTTPS",
+      "tlsEnabled": "HTTPS zapnuto",
+      "tlsDisabled": "Nezapnuto (pouze localhost)",
+      "tlsHint": "Přístup z LAN vyžaduje certifikát a klíč; jinak konzole naslouchá pouze na 127.0.0.1 a TLS musí ukončit reverzní proxy.",
       "refresh": "Obnovit stav",
       "status": "Stav",
       "running": "Běží",
@@ -1450,7 +1488,15 @@
     "unknown": "Operace se nezdařila. Zkuste to prosím později",
     "tlsHandshake": "Zabezpečené připojení k tomuto webu se nezdařilo — síť je může blokovat. Zkuste proxy nebo jiný zdroj",
     "proxy": "Připojení přes proxy se nezdařilo. Zkontrolujte nastavení systémové nebo aplikované proxy",
-    "certificate": "Ověření certifikátu se nezdařilo: certifikát webu je neplatný nebo vypršel"
+    "certificate": "Ověření certifikátu se nezdařilo: certifikát webu je neplatný nebo vypršel",
+    "errConnectionRefused": "Připojení odmítnuto. Zkontrolujte dostupnost adresy a zda běží Aria2",
+    "errConnectionTimedOut": "Vypršel časový limit připojení. Zkontrolujte síť nebo adresu serveru",
+    "errConnectionReset": "Připojení přerušeno (server uzavřen nebo nestabilní síť). Zkuste to znovu",
+    "errNameNotResolved": "Nepodařilo se přeložit název hostitele. Zkontrolujte adresu a nastavení DNS",
+    "errInternetDisconnected": "Žádné síťové připojení. Zkontrolujte ho a zkuste to znovu",
+    "errAddressUnreachable": "Adresa je nedostupná. Zkontrolujte síť nebo nastavení proxy",
+    "errCertInvalid": "Ověření certifikátu selhalo: certifikát webu je neplatný, prošlý nebo nedůvěryhodný",
+    "errSslProtocol": "Vyjednání SSL/TLS selhalo – spojení může být blokováno nebo je web zastaralý"
   },
   "localService": {
     "invalidPort": "Neplatný port, použijte prosím port v rozmezí 1024 až 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "Uložení se nezdařilo: {error}",
     "deleteFailed": "Smazání se nezdařilo: {error}",
     "operationFailed": "Operace se nezdařila: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

@@ -293,8 +293,14 @@
   "unpairDone": {
     "message": "已解除配对，连接配置已恢复默认"
   },
+  "unpairDoneRevoked": {
+    "message": "已解除配对：本地配置已清空，App 侧授权也已撤销"
+  },
+  "unpairServerPending": {
+    "message": "已解除配对；但 App 未响应，服务端授权可能仍在（下次连上 App 后可再撤销）"
+  },
   "unpairHint": {
-    "message": "仅清除扩展侧密钥；彻底撤销请在 App 更换访问密钥"
+    "message": "解除配对会同时撤销本扩展在 App 侧的授权"
   },
   "sectionPairing": {
     "message": "配对"
@@ -680,5 +686,87 @@
   },
   "rePair": {
     "message": "重新配对"
+  },
+  "errInsufficientScope": {
+    "message": "扩展的授权范围不足，请重新配对"
+  },
+  "errAppUnavailable": {
+    "message": "无法连接 Aria2 Desktop，请确认应用正在运行"
+  },
+  "interceptFallbackTitle": {
+    "message": "已改由浏览器下载"
+  },
+  "interceptFallbackDesc": {
+    "message": "Aria2 未能接管这次下载，已带上原文件名与来源信息重新交给浏览器。"
+  },
+  "interceptManualRetry": {
+    "message": "Aria2 与浏览器都没能完成下载，请手动重试：$URL$",
+    "placeholders": {
+      "url": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferFilterPlaylist": {
+    "message": "播放列表"
+  },
+  "snifferPlaylistHint": {
+    "message": "播放列表会交给 App 的流媒体模式解析，不会作为文件直接下载"
+  },
+  "snifferPlaylistSend": {
+    "message": "交给流媒体"
+  },
+  "snifferPlaylistSent": {
+    "message": "已交给流媒体解析"
+  },
+  "snifferPlaylistEmpty": {
+    "message": "当前页面没有检测到播放列表"
+  },
+  "snifferPlaylistSentCount": {
+    "message": "已把 $COUNT$ 个播放列表交给流媒体",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "playlistStreamTitle": {
+    "message": "播放列表，交给流媒体"
+  },
+  "playlistStreamDesc": {
+    "message": "解析 m3u8/mpd 清单，合并分片后保存完整视频"
+  },
+  "snifferBatchStream": {
+    "message": "交给流媒体（$COUNT$ 个）",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferBatchMixed": {
+    "message": "下载 $LINKS$ 个 · 流媒体 $PLAYLISTS$ 个",
+    "placeholders": {
+      "links": {
+        "content": "$1"
+      },
+      "playlists": {
+        "content": "$2"
+      }
+    }
+  },
+  "batchProgress": {
+    "message": "已处理 $SETTLED$/$TOTAL$ 个，失败 $FAILED$ 个",
+    "placeholders": {
+      "settled": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      },
+      "failed": {
+        "content": "$3"
+      }
+    }
   }
 }

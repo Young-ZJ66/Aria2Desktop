@@ -135,7 +135,16 @@
     "saveTorrentFailed": "儲存種子檔失敗：{error}",
     "batchOpen": "開啟檔案",
     "batchOpenSuccess": "已開啟 {count} 個檔案",
-    "batchOpenFailed": "無法開啟任何檔案"
+    "batchOpenFailed": "無法開啟任何檔案",
+    "filterByStatus": "按狀態篩選",
+    "retryAllFailedSummary": "重試全部失敗（{count}）",
+    "retryAllFailedResult": "已重試 {success} 個任務，{failed} 個失敗",
+    "batchResultTitle": "批次操作結果",
+    "batchResultSuccess": "成功 {count}",
+    "batchResultFailed": "失敗 {count}",
+    "batchResultSkipped": "略過 {count}",
+    "batchResultFailures": "失敗詳情",
+    "batchResultMore": "還有 {count} 項未顯示"
   },
   "status": {
     "active": "下載中",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} 個做種者線上",
     "healthSeeding": "正在從此裝置做種",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "複製 Magnet URI"
+    "copyMagnet": "複製 Magnet URI",
+    "taskSettings": "任務設定",
+    "taskSettingsHint": "修改後立即生效，並會用於該任務的重試。",
+    "taskSettingsUnlimitedHint": "填 0 表示不限速。",
+    "taskSettingsSaved": "任務設定已更新",
+    "taskSettingsSaveFailed": "儲存任務設定失敗：{error}",
+    "taskSettingsLoadFailed": "讀取任務設定失敗：{error}",
+    "taskSettingsUnavailable": "目前狀態不支援修改設定，請先重試該任務。",
+    "taskSettingsPartialFailed": "部分設定未能套用：{options}"
   },
   "taskPeer": {
     "ip": "IP 位址",
@@ -234,7 +251,15 @@
     "deleteFiles": "一併刪除檔案",
     "toTrashHint": "檔案會移至系統資源回收筒，可從中還原",
     "deleteTaskAndFiles": "刪除任務及檔案",
-    "taskDeleted": "任務已刪除"
+    "taskDeleted": "任務已刪除",
+    "errors": {
+      "removeRecordFailed": "刪除任務記錄失敗：{detail}",
+      "deleteFileFailed": "刪除檔案失敗：{path}（{detail}）",
+      "deleteFilesFailed": "檔案刪除操作失敗：{detail}",
+      "deleteFilesException": "刪除檔案時發生錯誤：{detail}",
+      "unknownError": "刪除任務時發生未知錯誤：{detail}",
+      "processTaskFailed": "處理任務 {gid} 時發生錯誤：{detail}"
+    }
   },
   "newTask": {
     "title": "新增下載任務",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "點按以選擇，或將 .torrent 檔案拖曳到此處",
     "dropMetalinkHint": "點按以選擇，或將 .metalink / .meta4 檔案拖曳到此處",
     "fileTooLarge": "檔案過大（>1MB），無法透過 aria2 RPC 上傳。請放置在本機路徑並改用 URL 新增",
+    "fileTooLargeLimit": "檔案超過目前上限（{limit}），可在「設定 → RPC 與安全性」中調大 rpc-max-request-size",
+    "streamTooManyDownloads": "同時進行的串流下載已達上限（3 條），請等待目前任務結束",
     "streamPlaylist": "播放清單",
     "streamPlaylistEmpty": "沒有找到播放清單條目（該連結可能不是播放清單）",
     "streamPlaylistSelectAll": "全選",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "壓縮檔已解壓縮（保留 {count} 個現有檔案；壓縮檔未刪除）",
     "engineCrashed": "aria2 引擎意外結束。正在自動重新啟動（第 {count} 次嘗試）。",
     "engineGaveUp": "aria2 引擎重新啟動失敗 {count} 次，已停止自動重新啟動。請在「設定 → 本機引擎」中手動重新啟動，或開啟應用程式記錄檔查看詳細資料。",
-    "shutdownCancelled": "偵測到新下載，已取消排定的關機。"
+    "shutdownCancelled": "偵測到新下載，已取消排定的關機。",
+    "unknownTask": "未知任務（{gid}）"
   },
   "notificationCenter": {
     "title": "通知",
@@ -430,6 +458,8 @@
     "seedingTasks": "做種中",
     "trafficChartAria": "下載與上傳速度趨勢圖",
     "enabledFeatures": "已啟用功能",
+    "downloadTrend": "下載趨勢",
+    "noTrendData": "尚無下載記錄",
     "resetHistory": "重設下載統計",
     "resetHistoryConfirm": "要清除今日與累計下載統計嗎？這只會影響此應用程式的計數，不會刪除任何任務或檔案。"
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "外掛市集傳回 HTTP {status}。請稍後再試。",
       "marketErrorTooLarge": "外掛市集登錄過大，已拒絕。",
       "marketErrorInvalidRegistry": "外掛市集登錄格式無效。請檢查登錄 URL。",
+      "marketErrorSignature": "外掛市集註冊表簽章驗證失敗：註冊表可能遭竄改，或由未受信任的金鑰簽署，已拒絕載入。",
       "marketErrorNetwork": "無法連線至外掛市集。請檢查網路或代理後再試。",
       "trustedPublishers": "信任的發行者金鑰",
       "trustedPublishersDesc": "輸入信任發行者的 Ed25519 公開金鑰（PEM），以空行分隔。已簽署的市集外掛必須通過簽章驗證才能安裝。",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "留空以自動產生隨機權杖",
       "allowedIps": "允許的 IP",
       "allowedIpsPlaceholder": "例如 192.168.1.0/24；留空僅允許本機",
+      "tlsCertPath": "HTTPS 憑證路徑",
+      "tlsKeyPath": "HTTPS 私鑰路徑",
+      "tlsPathPlaceholder": "PEM 檔案的絕對路徑，例如 /etc/ssl/fullchain.pem",
+      "tlsStatus": "HTTPS 狀態",
+      "tlsEnabled": "已啟用 HTTPS",
+      "tlsDisabled": "未啟用（僅本機可存取）",
+      "tlsHint": "允許區域網路存取時必須設定憑證與私鑰，否則只能監聽 127.0.0.1 並由反向代理終止 TLS。",
       "refresh": "重新整理狀態",
       "status": "狀態",
       "running": "執行中",
@@ -1450,7 +1488,15 @@
     "unknown": "操作失敗。請稍後再試",
     "tlsHandshake": "與此網站的安全連線失敗，網路可能封鎖了它。請嘗試代理或其他來源",
     "proxy": "代理連線失敗。請檢查系統或應用程式代理設定",
-    "certificate": "憑證驗證失敗：網站憑證無效或已過期"
+    "certificate": "憑證驗證失敗：網站憑證無效或已過期",
+    "errConnectionRefused": "連線被拒絕。請確認目標位址可存取，或 Aria2 已啟動",
+    "errConnectionTimedOut": "連線逾時。請檢查網路或伺服器位址",
+    "errConnectionReset": "連線被中斷（伺服器關閉或網路不穩），請重試",
+    "errNameNotResolved": "網域名稱解析失敗。請檢查位址拼字與 DNS 設定",
+    "errInternetDisconnected": "網路已中斷，請檢查網路連線後重試",
+    "errAddressUnreachable": "目標位址無法到達，請檢查網路或 Proxy 設定",
+    "errCertInvalid": "憑證驗證失敗：站台憑證無效、過期或不受信任",
+    "errSslProtocol": "SSL/TLS 協定協商失敗，可能是網路被攔截或站台過舊"
   },
   "localService": {
     "invalidPort": "連接埠無效，請使用 1024 至 65535 之間的連接埠",
@@ -1768,5 +1814,29 @@
     "saveFailed": "儲存失敗：{error}",
     "deleteFailed": "刪除失敗：{error}",
     "operationFailed": "操作失敗：{error}"
+  },
+  "onboarding": {
+    "title": "歡迎使用 Aria2Desktop",
+    "subtitle": "四步完成常用設定，每一步都可以跳過，之後可在設定中修改。",
+    "stepOf": "第 {current} / {total} 步",
+    "skip": "跳過導覽",
+    "later": "稍後再說",
+    "next": "下一步",
+    "back": "上一步",
+    "finish": "開始使用",
+    "statusReady": "已就緒",
+    "statusPending": "未設定",
+    "stepDownloadTitle": "選擇下載目錄",
+    "stepDownloadDesc": "下載的檔案預設儲存在該目錄，可在「設定 → 下載」中隨時修改。",
+    "stepDownloadAction": "開啟下載設定",
+    "stepExtensionTitle": "配對瀏覽器擴充功能",
+    "stepExtensionDesc": "安裝擴充功能後在瀏覽器裡點一次圖示即可配對，網頁下載會自動交給桌面端。",
+    "stepExtensionAction": "檢視擴充功能設定",
+    "stepYtdlpTitle": "啟用串流下載",
+    "stepYtdlpDesc": "偵測到 yt-dlp 後，可以直接貼上影片或音訊頁面連結下載。",
+    "stepYtdlpAction": "開啟元件設定",
+    "stepRemoteTitle": "遠端控制與完成規則",
+    "stepRemoteDesc": "可透過 Web 控制台在瀏覽器裡管理下載，並設定下載完成後的自動動作。",
+    "stepRemoteAction": "開啟遠端存取設定"
   }
 }

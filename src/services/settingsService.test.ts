@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
+import { PLUGIN_REGISTRY_PINNED_TAG } from '../shared/appSettings'
 
 /**
  * settingsService 是设置的唯一读写入口，其中三条不变式一旦破坏，用户是"静默"受损的：
@@ -35,6 +36,9 @@ interface SavedPayload {
   aria2: { port?: number; secret?: string }
   download: { defaultDir?: string; maxConcurrentDownloads?: number; autoStart?: boolean }
   connectionProfiles: Array<{ id: string; name?: string; config?: { secret?: string } }>
+  webConsole?: { token?: string; tokens?: Array<{ name?: string; token?: string }> }
+  pluginMarket?: { enabled?: boolean; registryUrl?: string; developerMode?: boolean }
+  trustedPluginPublishers?: string[]
 }
 
 /** 取第 n 次（默认最后一次）setStoreValue 落盘的载荷 */
@@ -90,30 +94,32 @@ describe('加载与合并', () => {
     expect(settings.refreshInterval).toBe(defaults.refreshInterval)
   })
 
-  it('窗口状态记忆与剪贴板监控默认开启（两项均为固定开启）', async () => {
+  it('窗口状态默认开启，剪贴板监控默认关闭（D-36）', async () => {
     const { service, defaults } = await loadService({ stored: {} })
     expect(defaults.keepWindowState).toBe(true)
-    expect(defaults.clipboardMonitorEnabled).toBe(true)
+    expect(defaults.clipboardMonitorEnabled).toBe(false)
     expect(service.getSettings().keepWindowState).toBe(true)
-    expect(service.getSettings().clipboardMonitorEnabled).toBe(true)
+    expect(service.getSettings().clipboardMonitorEnabled).toBe(false)
   })
 
-  it('固定开启项不能被旧配置关闭', async () => {
+  it('窗口状态不能被旧配置关闭，剪贴板关闭状态被尊重', async () => {
     const { service } = await loadService({
       stored: { keepWindowState: false, clipboardMonitorEnabled: false }
     })
 
     expect(service.getSettings().keepWindowState).toBe(true)
-    expect(service.getSettings().clipboardMonitorEnabled).toBe(true)
+    expect(service.getSettings().clipboardMonitorEnabled).toBe(false)
   })
 
-  it('固定开启项不能被 saveSettings 关闭', async () => {
+  it('剪贴板监控可以被 saveSettings 开启，也可以再关闭', async () => {
     const { service } = await loadService()
 
-    await service.saveSettings({ keepWindowState: false, clipboardMonitorEnabled: false })
-
+    await service.saveSettings({ keepWindowState: false, clipboardMonitorEnabled: true })
     expect(service.getSettings().keepWindowState).toBe(true)
     expect(service.getSettings().clipboardMonitorEnabled).toBe(true)
+
+    await service.saveSettings({ clipboardMonitorEnabled: false })
+    expect(service.getSettings().clipboardMonitorEnabled).toBe(false)
   })
 
   it('读取失败时回落到默认设置并清掉损坏的本地副本', async () => {
@@ -328,6 +334,95 @@ describe('设置变更日志', () => {
     await service.saveSettings({})
 
     expect(api!.writeLog).not.toHaveBeenCalled()
+  })
+})
+
+describe('插件市场默认安全策略（D-02）', () => {
+  it('默认注册表地址固定在发布 tag 上，不读 main 分支', async () => {
+    const { service } = await loadService()
+
+    const url = service.getSettings().pluginMarket?.registryUrl || ''
+    // 读 main 等于"任何人往主分支推一个 commit 就能给所有用户下发插件代码"
+    expect(url).not.toMatch(/\/main\//)
+    // 断言用常量而不是写死版本号：升级 tag 是发布流程的一部分，不该让单测跟着改
+    expect(PLUGIN_REGISTRY_PINNED_TAG).toMatch(/^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/)
+    expect(url).toContain(`/${PLUGIN_REGISTRY_PINNED_TAG}/`)
+    expect(url.endsWith('/plugin-registry.json')).toBe(true)
+  })
+
+  it('默认可信发布者非空且是 PEM 公钥', async () => {
+    const { service } = await loadService()
+
+    const publishers = service.getSettings().trustedPluginPublishers || []
+    expect(publishers.length).toBeGreaterThan(0)
+    expect(publishers[0]).toContain('BEGIN PUBLIC KEY')
+  })
+
+  it('老配置里存了空数组时回落到默认公钥，不会静默关掉签名校验', async () => {
+    const { service, defaults } = await loadService({
+      stored: { trustedPluginPublishers: [] }
+    })
+
+    expect(service.getSettings().trustedPluginPublishers).toEqual(defaults.trustedPluginPublishers)
+    expect((service.getSettings().trustedPluginPublishers || []).length).toBeGreaterThan(0)
+  })
+
+  it('用户自定义公钥会原样保留，不追加默认值', async () => {
+    const { service } = await loadService({
+      stored: { trustedPluginPublishers: ['-----BEGIN PUBLIC KEY-----\ncustom\n-----END PUBLIC KEY-----'] }
+    })
+
+    expect(service.getSettings().trustedPluginPublishers).toEqual([
+      '-----BEGIN PUBLIC KEY-----\ncustom\n-----END PUBLIC KEY-----'
+    ])
+  })
+
+  it('开发者模式默认关闭，重置后仍关闭', async () => {
+    const { service, api } = await loadService({ stored: { pluginMarket: { developerMode: true } } })
+
+    expect(service.getSettings().pluginMarket?.developerMode).toBe(true)
+
+    await service.resetSettings()
+
+    expect(savedPayload(api!).pluginMarket?.developerMode).toBe(false)
+  })
+
+  it('重置设置后可信发布者仍是默认公钥（不能重置成空数组）', async () => {
+    const { service, api, defaults } = await loadService({
+      stored: { trustedPluginPublishers: ['custom-key'] }
+    })
+
+    await service.resetSettings()
+
+    expect(savedPayload(api!).trustedPluginPublishers).toEqual(defaults.trustedPluginPublishers)
+    expect((savedPayload(api!).trustedPluginPublishers || []).length).toBeGreaterThan(0)
+  })
+
+  it('导出时把 Web 控制台令牌一并脱敏，导入时保留本机令牌', async () => {
+    const { service, api } = await loadService({
+      stored: {
+        webConsole: {
+          token: 'console-secret',
+          tokens: [{ name: 'phone', token: 'phone-secret' }]
+        }
+      }
+    })
+
+    const exported = service.exportSettings()
+    expect(exported).not.toContain('console-secret')
+    expect(exported).not.toContain('phone-secret')
+    expect(JSON.parse(exported).webConsole.token).toBe('***')
+
+    await service.importSettings(JSON.stringify({
+      webConsole: {
+        token: '***',
+        tokens: [{ name: 'phone', token: '***' }]
+      }
+    }))
+
+    const saved = savedPayload(api!)
+    expect(saved.webConsole?.token).toBe('console-secret')
+    expect(saved.webConsole?.tokens?.[0]?.token).toBe('phone-secret')
   })
 })
 

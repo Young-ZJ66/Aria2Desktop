@@ -135,7 +135,16 @@
     "saveTorrentFailed": "Не удалось сохранить торрент: {error}",
     "batchOpen": "Открыть файлы",
     "batchOpenSuccess": "Открыто файлов: {count}",
-    "batchOpenFailed": "Не удалось открыть ни одного файла"
+    "batchOpenFailed": "Не удалось открыть ни одного файла",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "Результат групповой операции",
+    "batchResultSuccess": "Успешно: {count}",
+    "batchResultFailed": "Ошибок: {count}",
+    "batchResultSkipped": "Пропущено: {count}",
+    "batchResultFailures": "Подробности ошибок",
+    "batchResultMore": "Ещё {count} не показано"
   },
   "status": {
     "active": "Загрузка",
@@ -197,7 +206,15 @@
     "healthSeeders": "В сети сидов: {count}",
     "healthSeeding": "Раздача с этого устройства",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "Копировать Magnet URI"
+    "copyMagnet": "Копировать Magnet URI",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "IP-адрес",
@@ -234,7 +251,15 @@
     "deleteFiles": "Также удалить файлы",
     "toTrashHint": "Файлы перемещаются в системную корзину, откуда их можно восстановить",
     "deleteTaskAndFiles": "Удалить задачу и файлы",
-    "taskDeleted": "Задача удалена"
+    "taskDeleted": "Задача удалена",
+    "errors": {
+      "removeRecordFailed": "Не удалось удалить запись задачи: {detail}",
+      "deleteFileFailed": "Не удалось удалить файл: {path} ({detail})",
+      "deleteFilesFailed": "Не удалось выполнить удаление файлов: {detail}",
+      "deleteFilesException": "Ошибка при удалении файлов: {detail}",
+      "unknownError": "Неизвестная ошибка при удалении задачи: {detail}",
+      "processTaskFailed": "Ошибка при обработке задачи {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "Новая задача загрузки",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Нажмите, чтобы выбрать, или перетащите сюда файл .torrent",
     "dropMetalinkHint": "Нажмите, чтобы выбрать, или перетащите сюда файл .metalink / .meta4",
     "fileTooLarge": "Файл слишком большой (>1 МБ) для загрузки через RPC aria2. Укажите его локальный путь и добавьте через URL",
+    "fileTooLargeLimit": "Файл превышает текущий лимит ({limit}). Увеличьте rpc-max-request-size в разделе «Настройки → RPC и безопасность»",
+    "streamTooManyDownloads": "Достигнут предел одновременных потоковых загрузок (3). Дождитесь завершения текущих задач",
     "streamPlaylist": "Плейлист",
     "streamPlaylistEmpty": "В плейлисте нет записей (возможно, ссылка ведёт не на плейлист)",
     "streamPlaylistSelectAll": "Выбрать все",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Архив извлечён (сохранено существующих файлов: {count}; архив не удалён)",
     "engineCrashed": "Движок aria2 неожиданно завершился. Автоматический перезапуск (попытка {count}).",
     "engineGaveUp": "Движок aria2 не смог перезапуститься {count} раз, поэтому автоматические перезапуски остановлены. Перезапустите его вручную в разделе «Настройки → Локальный движок» или откройте журнал приложения для подробностей.",
-    "shutdownCancelled": "Обнаружена новая загрузка — запланированное завершение работы отменено."
+    "shutdownCancelled": "Обнаружена новая загрузка — запланированное завершение работы отменено.",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "Уведомления",
@@ -430,6 +458,8 @@
     "seedingTasks": "Раздача",
     "trafficChartAria": "График изменения скорости скачивания и отдачи",
     "enabledFeatures": "Включённые функции",
+    "downloadTrend": "Тренд загрузок",
+    "noTrendData": "Данных о загрузках пока нет",
     "resetHistory": "Сбросить статистику загрузок",
     "resetHistoryConfirm": "Очистить статистику за сегодня и общую статистику загрузок? Это повлияет только на счётчики приложения; задачи и файлы не будут удалены."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "Магазин плагинов вернул HTTP {status}. Повторите попытку позже.",
       "marketErrorTooLarge": "Реестр магазина плагинов слишком большой и был отклонён.",
       "marketErrorInvalidRegistry": "Недопустимый формат реестра магазина плагинов. Проверьте URL реестра.",
+      "marketErrorSignature": "Проверка подписи реестра магазина плагинов не удалась: реестр мог быть изменён или подписан недоверенным ключом. Загрузка отклонена.",
       "marketErrorNetwork": "Не удалось подключиться к магазину плагинов. Проверьте сеть или прокси и повторите попытку.",
       "trustedPublishers": "Ключи доверенных издателей",
       "trustedPublishersDesc": "Введите открытые ключи Ed25519 (PEM) доверенных издателей, разделяя их пустыми строками. Подписанные плагины магазина должны пройти проверку подписи, прежде чем их можно будет установить.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Оставьте пустым для автоматической генерации случайного токена",
       "allowedIps": "Разрешённые IP",
       "allowedIpsPlaceholder": "например 192.168.1.0/24; оставьте пустым, чтобы разрешить только localhost",
+      "tlsCertPath": "Путь к сертификату HTTPS",
+      "tlsKeyPath": "Путь к закрытому ключу HTTPS",
+      "tlsPathPlaceholder": "Абсолютный путь к PEM-файлу, например /etc/ssl/fullchain.pem",
+      "tlsStatus": "Состояние HTTPS",
+      "tlsEnabled": "HTTPS включён",
+      "tlsDisabled": "Не включён (только localhost)",
+      "tlsHint": "Для доступа из локальной сети нужны сертификат и ключ; иначе консоль слушает только 127.0.0.1, а TLS должен завершаться на обратном прокси.",
       "refresh": "Обновить статус",
       "status": "Статус",
       "running": "Работает",
@@ -1450,7 +1488,15 @@
     "unknown": "Операция не удалась. Повторите попытку позже",
     "tlsHandshake": "Не удалось установить защищённое соединение с этим сайтом — сеть может его блокировать. Попробуйте прокси или другой источник",
     "proxy": "Не удалось подключиться через прокси. Проверьте системные настройки прокси или настройки прокси приложения",
-    "certificate": "Ошибка проверки сертификата: сертификат сайта недействителен или истёк"
+    "certificate": "Ошибка проверки сертификата: сертификат сайта недействителен или истёк",
+    "errConnectionRefused": "Соединение отклонено. Проверьте доступность адреса и запущен ли Aria2",
+    "errConnectionTimedOut": "Время ожидания соединения истекло. Проверьте сеть или адрес сервера",
+    "errConnectionReset": "Соединение прервано (сервер закрыт или сеть нестабильна). Повторите попытку",
+    "errNameNotResolved": "Не удалось разрешить имя хоста. Проверьте адрес и настройки DNS",
+    "errInternetDisconnected": "Нет подключения к сети. Проверьте подключение и повторите попытку",
+    "errAddressUnreachable": "Адрес недоступен. Проверьте сеть или настройки прокси",
+    "errCertInvalid": "Проверка сертификата не пройдена: сертификат сайта недействителен, просрочен или не доверен",
+    "errSslProtocol": "Согласование SSL/TLS не удалось — соединение может блокироваться, либо сайт устарел"
   },
   "localService": {
     "invalidPort": "Недопустимый порт, используйте порт от 1024 до 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "Не удалось сохранить: {error}",
     "deleteFailed": "Не удалось удалить: {error}",
     "operationFailed": "Не удалось выполнить операцию: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

@@ -17,8 +17,8 @@
 
 ## 简介
 
-**Aria2 Desktop** 是一款基于 Electron + Vue 3 的桌面下载管理器，把 Aria2 引擎和图形界面打包在一起：
-装完打开就能用，不需要命令行，也不需要单独配置引擎。
+**Aria2 Desktop** 是一款基于 Electron + Vue 3 的跨平台桌面下载管理器（Windows / macOS / Linux），
+把 Aria2 引擎和图形界面打包在一起：装完打开就能用，不需要命令行，也不需要单独配置引擎。
 
 - **开箱即用**：安装包内置 Aria2（Windows / Linux 1.37.0，macOS 1.36.0），不依赖系统环境
 - **协议齐全**：HTTP/HTTPS、FTP/SFTP、BitTorrent、磁力链接、Metalink
@@ -100,7 +100,8 @@
 到 [Releases](../../releases) 下载对应平台的包：Windows 用 `Setup.exe`（或免安装的 `portable.zip`），
 macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 
-> Windows 安装包当前未签名，SmartScreen 可能提示「未知发布者」；macOS 公开构建未签名/未公证，首次打开需右键 →「打开」。
+> 公开构建均未签名：Windows 可能提示「未知发布者」（SmartScreen），macOS 首次打开需右键 →「打开」（未公证），
+> Linux 的 `AppImage` 需先 `chmod +x` 再运行、`deb` 用系统包管理器安装时可能提示未签名。
 > 每个资产都附带同名 `.sha256`，可自行校验。
 
 ### 2. 添加第一个下载
@@ -134,8 +135,9 @@ macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 应用可能驻留在托盘。安装程序会先请求它正常退出（最多等 12 秒，以便保存会话）再结束进程；
 若仍失败，从托盘菜单退出后重试。
 
-**Windows 提示未知发布者 / SmartScreen 拦截**
-当前 Windows 安装包未签名，可点「更多信息 → 仍要运行」；需要校验时比对 Release 页的 `.sha256`。
+**安装时提示来源未知 / 无法验证开发者**
+Windows 会提示「未知发布者」，可点「更多信息 → 仍要运行」；macOS 首次打开被拦时右键 →「打开」；
+Linux 的 `AppImage` 需要先 `chmod +x Aria2Desktop-*.AppImage`。需要校验时比对 Release 页的 `.sha256`。
 
 **扩展连不上 App**
 先确认 App 在运行、扩展里填的密钥与「设置 → RPC 与安全」一致。
@@ -148,7 +150,9 @@ macOS 用 `dmg`，Linux 用 `AppImage` 或 `deb`。
 应用会比对 Release 的 `.sha256`，不匹配就拒绝安装并回落完整下载；网络异常时可手动下载安装包覆盖安装。
 
 **卸载后有残留**
-设置文件留在 `%APPDATA%/aria2-desktop`（含配置与会话），需要彻底清理时手动删除该目录。
+设置文件不会随卸载删除（含配置与会话），需要彻底清理时手动删除对应目录：
+Windows 为 `%APPDATA%/aria2-desktop`，macOS 为 `~/Library/Application Support/aria2-desktop`，
+Linux 为 `~/.config/aria2-desktop`。
 
 ## 隐私
 
@@ -178,6 +182,7 @@ npm run test:run     # 单元测试
 npm run typecheck    # 类型检查（主进程 + 测试代码 + 渲染层）
 npm run test:e2e     # 端到端（真启动应用跑一遍下载/解压/设置）
 npm run dist:win64   # 打包 Windows x64 安装包 + 便携版
+npm run dist:mac     # 打包 macOS（x64 + arm64）
 npm run dist:linux:arm64  # 打包 Linux arm64 安装包
 ```
 
@@ -185,7 +190,7 @@ npm run dist:linux:arm64  # 打包 Linux arm64 安装包
 
 ## 更新日志
 
-各版本的更新说明、安装包与完整发布说明见 [GitHub Releases](../../releases)。
+版本变更记录见 [CHANGELOG.md](CHANGELOG.md)；安装包与完整发布说明见 [GitHub Releases](../../releases)。
 
 ## 贡献
 

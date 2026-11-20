@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MCP_CONFIRM_REQUIRED_TOOLS,
   MCP_PROTOCOL_VERSION,
   MCP_ERROR_CODES,
+  MCP_TASK_NAME_MAX_LENGTH,
+  MCP_TOOLS,
+  MCP_TOOL_SCOPES,
   buildInitializeResult,
   buildToolErrorResult,
   buildToolTextResult,
@@ -9,10 +13,12 @@ import {
   isNotification,
   mcpError,
   mcpResult,
+  optConfirm,
   optNumber,
   optString,
   parseToolCallParams,
-  pickTaskName
+  pickTaskName,
+  sanitizeTaskName
 } from './mcpCore'
 
 describe('mcpResult / mcpError', () => {
@@ -172,5 +178,68 @@ describe('pickTaskName', () => {
   it('无 files 时回落 gid；异常形状不抛错', () => {
     expect(pickTaskName({ gid: 'g6' })).toBe('g6')
     expect(pickTaskName({} as never)).toBe('')
+  })
+
+  it('任务名清洗控制字符与双向覆盖符（提示注入面）', () => {
+    // BT 名来自远端，可以塞 ANSI 转义 / RTL 覆盖符 / 超长文本
+    expect(sanitizeTaskName('evil\u001b[31mname')).toBe('evil [31mname')
+    expect(sanitizeTaskName('invoice\u202Egnp.exe')).toBe('invoice gnp.exe')
+    expect(sanitizeTaskName('  a\n\tb  ')).toBe('a b')
+    expect(sanitizeTaskName('')).toBe('')
+  })
+
+  it('任务名超长时截断并加省略号', () => {
+    const long = 'x'.repeat(MCP_TASK_NAME_MAX_LENGTH + 50)
+    const out = sanitizeTaskName(long)
+    expect(out.length).toBe(MCP_TASK_NAME_MAX_LENGTH + 1)
+    expect(out.endsWith('…')).toBe(true)
+  })
+
+  it('pickTaskName 对 BT 名与文件名都做清洗', () => {
+    expect(
+      pickTaskName({ gid: 'g7', bittorrent: { info: { name: 'a\u0000b' } } })
+    ).toBe('a b')
+    expect(
+      pickTaskName({ gid: 'g8', files: [{ path: '/dl/evil\u202Ename.bin' }] })
+    ).toBe('evil name.bin')
+  })
+})
+
+describe('MCP 工具标注与权限', () => {
+  it('22 个工具全部带 annotations', () => {
+    for (const tool of MCP_TOOLS) {
+      expect(tool.annotations, `${tool.name} 缺少 annotations`).toBeTruthy()
+    }
+  })
+
+  it('只读工具标 readOnlyHint，写操作不标', () => {
+    const byName = new Map(MCP_TOOLS.map(t => [t.name, t]))
+    expect(byName.get('list_tasks')?.annotations?.readOnlyHint).toBe(true)
+    expect(byName.get('get_global_stats')?.annotations?.readOnlyHint).toBe(true)
+    expect(byName.get('remove_task')?.annotations?.readOnlyHint).toBe(false)
+    expect(byName.get('add_download')?.annotations?.readOnlyHint).toBe(false)
+  })
+
+  it('破坏性工具标 destructiveHint', () => {
+    const byName = new Map(MCP_TOOLS.map(t => [t.name, t]))
+    expect(byName.get('remove_task')?.annotations?.destructiveHint).toBe(true)
+    expect(byName.get('purge_download_result')?.annotations?.destructiveHint).toBe(true)
+    expect(byName.get('pause_task')?.annotations?.destructiveHint).toBeUndefined()
+  })
+
+  it('每个工具都有 scope 映射，且破坏性工具要求 confirm', () => {
+    for (const tool of MCP_TOOLS) {
+      expect(MCP_TOOL_SCOPES[tool.name], `${tool.name} 缺少 scope 映射`).toBeTruthy()
+    }
+    const byName = new Map(MCP_TOOLS.map(t => [t.name, t]))
+    for (const name of MCP_CONFIRM_REQUIRED_TOOLS) {
+      expect(byName.get(name)?.inputSchema.required).toContain('confirm')
+    }
+  })
+
+  it('optConfirm 只接受布尔 true', () => {
+    expect(optConfirm({ confirm: true })).toBe(true)
+    expect(optConfirm({ confirm: 'true' })).toBe(false)
+    expect(optConfirm({})).toBe(false)
   })
 })

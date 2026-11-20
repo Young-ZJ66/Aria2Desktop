@@ -135,7 +135,16 @@
     "saveTorrentFailed": "Torrent opslaan mislukt: {error}",
     "batchOpen": "Bestanden openen",
     "batchOpenSuccess": "{count} bestand(en) geopend",
-    "batchOpenFailed": "Er konden geen bestanden worden geopend"
+    "batchOpenFailed": "Er konden geen bestanden worden geopend",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "Resultaat van bulkactie",
+    "batchResultSuccess": "{count} geslaagd",
+    "batchResultFailed": "{count} mislukt",
+    "batchResultSkipped": "{count} overgeslagen",
+    "batchResultFailures": "Foutdetails",
+    "batchResultMore": "nog {count} niet getoond"
   },
   "status": {
     "active": "Downloaden",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} seeders online",
     "healthSeeding": "Seeden vanaf dit apparaat",
     "magnetUri": "Magnet-URI",
-    "copyMagnet": "Magnet-URI kopiëren"
+    "copyMagnet": "Magnet-URI kopiëren",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "IP-adres",
@@ -234,7 +251,15 @@
     "deleteFiles": "Ook bestanden verwijderen",
     "toTrashHint": "Bestanden worden naar de prullenbak van het systeem verplaatst en kunnen daaruit worden hersteld",
     "deleteTaskAndFiles": "Taak en bestanden verwijderen",
-    "taskDeleted": "Taak verwijderd"
+    "taskDeleted": "Taak verwijderd",
+    "errors": {
+      "removeRecordFailed": "Taakrecord verwijderen mislukt: {detail}",
+      "deleteFileFailed": "Bestand verwijderen mislukt: {path} ({detail})",
+      "deleteFilesFailed": "Verwijderen van bestanden mislukt: {detail}",
+      "deleteFilesException": "Fout bij het verwijderen van bestanden: {detail}",
+      "unknownError": "Onbekende fout bij het verwijderen van de taak: {detail}",
+      "processTaskFailed": "Fout bij het verwerken van taak {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "Nieuwe downloadtaak",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Klik om te selecteren of sleep een .torrent-bestand hierheen",
     "dropMetalinkHint": "Klik om te selecteren of sleep een .metalink- of .meta4-bestand hierheen",
     "fileTooLarge": "Bestand te groot (>1 MB) voor upload via aria2 RPC. Plaats het op een lokaal pad en voeg het via URL toe",
+    "fileTooLargeLimit": "Het bestand overschrijdt de huidige limiet ({limit}). Verhoog rpc-max-request-size in \"Instellingen → RPC en beveiliging\"",
+    "streamTooManyDownloads": "Het maximum aantal gelijktijdige streamdownloads (3) is bereikt. Wacht tot de huidige klaar zijn",
     "streamPlaylist": "Afspeellijst",
     "streamPlaylistEmpty": "Geen items in de afspeellijst gevonden (de link is er mogelijk geen)",
     "streamPlaylistSelectAll": "Alles selecteren",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Archief uitgepakt ({count} bestaande bestand(en) behouden; het archief is niet verwijderd)",
     "engineCrashed": "De aria2-engine is onverwacht gestopt. Automatisch opnieuw starten (poging {count}).",
     "engineGaveUp": "De aria2-engine kon {count} keer niet opnieuw worden gestart, dus automatische herstarts zijn gestopt. Start hem handmatig opnieuw in Instellingen → Lokale engine, of open het app-logboek voor details.",
-    "shutdownCancelled": "Nieuwe download gedetecteerd — de geplande afsluiting is geannuleerd."
+    "shutdownCancelled": "Nieuwe download gedetecteerd — de geplande afsluiting is geannuleerd.",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "Meldingen",
@@ -430,6 +458,8 @@
     "seedingTasks": "Seeden",
     "trafficChartAria": "Grafiek met downloadsnelheid en uploadsnelheid in de tijd",
     "enabledFeatures": "Ingeschakelde functies",
+    "downloadTrend": "Downloadtrend",
+    "noTrendData": "Nog geen downloadgegevens",
     "resetHistory": "Downloadstatistieken resetten",
     "resetHistoryConfirm": "De downloadstatistieken van vandaag en het totaal wissen? Dit beïnvloedt alleen de tellers van deze app; er worden geen taken of bestanden verwijderd."
   },
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "De plug-inmarkt retourneerde HTTP {status}. Probeer het later opnieuw.",
       "marketErrorTooLarge": "De registry van de plug-inmarkt is te groot en is geweigerd.",
       "marketErrorInvalidRegistry": "De registry van de plug-inmarkt heeft een ongeldig formaat. Controleer de registry-URL.",
+      "marketErrorSignature": "De handtekeningcontrole van het register van de plug-inmarkt is mislukt: het register is mogelijk gemanipuleerd of ondertekend met een niet-vertrouwde sleutel. Het is niet geladen.",
       "marketErrorNetwork": "Kan de plug-inmarkt niet bereiken. Controleer je netwerk of proxy en probeer het opnieuw.",
       "trustedPublishers": "Sleutels van vertrouwde uitgevers",
       "trustedPublishersDesc": "Voer Ed25519-openbare sleutels (PEM) van vertrouwde uitgevers in, gescheiden door lege regels. Ondertekende marktplug-ins moeten de handtekeningverificatie doorstaan voordat ze kunnen worden geïnstalleerd.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Leeg laten om automatisch een willekeurig token te genereren",
       "allowedIps": "Toegestane IP's",
       "allowedIpsPlaceholder": "bijv. 192.168.1.0/24; leeg laten om alleen localhost toe te staan",
+      "tlsCertPath": "Pad naar HTTPS-certificaat",
+      "tlsKeyPath": "Pad naar HTTPS-privésleutel",
+      "tlsPathPlaceholder": "Absoluut pad naar een PEM-bestand, bijv. /etc/ssl/fullchain.pem",
+      "tlsStatus": "HTTPS-status",
+      "tlsEnabled": "HTTPS ingeschakeld",
+      "tlsDisabled": "Niet ingeschakeld (alleen localhost)",
+      "tlsHint": "LAN-toegang vereist een certificaat en sleutel; anders luistert de console alleen op 127.0.0.1 en moet TLS door een reverse proxy worden beëindigd.",
       "refresh": "Status vernieuwen",
       "status": "Status",
       "running": "Actief",
@@ -1450,7 +1488,15 @@
     "unknown": "Bewerking mislukt. Probeer het later opnieuw",
     "tlsHandshake": "Beveiligde verbinding met deze site mislukt — het netwerk blokkeert deze mogelijk. Probeer een proxy of een andere bron",
     "proxy": "Proxyverbinding mislukt. Controleer je systeem- of app-proxyinstellingen",
-    "certificate": "Certificaatvalidatie mislukt: het sitecertificaat is ongeldig of verlopen"
+    "certificate": "Certificaatvalidatie mislukt: het sitecertificaat is ongeldig of verlopen",
+    "errConnectionRefused": "Verbinding geweigerd. Controleer of het adres bereikbaar is en Aria2 draait",
+    "errConnectionTimedOut": "Time-out bij verbinden. Controleer het netwerk of serveradres",
+    "errConnectionReset": "Verbinding verbroken (server gesloten of netwerk instabiel). Probeer opnieuw",
+    "errNameNotResolved": "Hostnaam kon niet worden opgelost. Controleer het adres en je DNS-instellingen",
+    "errInternetDisconnected": "Geen netwerkverbinding. Controleer deze en probeer opnieuw",
+    "errAddressUnreachable": "Adres niet bereikbaar. Controleer netwerk- of proxyinstellingen",
+    "errCertInvalid": "Certificaatvalidatie mislukt: het certificaat van de site is ongeldig, verlopen of niet vertrouwd",
+    "errSslProtocol": "SSL/TLS-onderhandeling mislukt — de verbinding wordt mogelijk geblokkeerd of de site is verouderd"
   },
   "localService": {
     "invalidPort": "Ongeldige poort, gebruik een poort tussen 1024 en 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "Opslaan mislukt: {error}",
     "deleteFailed": "Verwijderen mislukt: {error}",
     "operationFailed": "Bewerking mislukt: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

@@ -9,14 +9,28 @@
  * - 已知字段类型错误 → 整个请求拒绝（不静默丢字段，否则用户设置会"保存成功但没生效"）；
  * - 未知字段 → 丢弃（前后端版本不一致时容忍旧字段，绝不把任意键写进磁盘）；
  * - 字符串/数组都限制长度，防止用超大载荷撑爆 electron-store。
+ *
+ * **顶层键必须与 AppSettings 保持同步**：渲染层每次保存都会把整包 settings 发过来，
+ * 这里没列出的顶层键会被整键丢弃（磁盘上的值随之消失）。历史上 queue / taskTemplates /
+ * completionRules / webConsole / pluginMarket / trustedPluginPublishers 就是这样被静默清空的。
+ * ipcInputValidation.test.ts 里以 settingsSync 的 ALLOWED_SETTINGS_KEYS（有编译期守护）
+ * 为准做"全部顶层键都能原样保留"的用例，新增顶层键时该用例会直接报红。
  */
 
 import type {
   AppSettings,
   CategoryRule,
+  CompletionRule,
+  CompletionRuleAction,
   ConnectionProfile,
-  SpeedScheduleRule
+  QueueSettings,
+  SpeedScheduleRule,
+  TaskTemplate,
+  WebConsoleScope,
+  WebConsoleSettings,
+  WebConsoleToken
 } from '../../src/shared/appSettings'
+import { ALL_WEB_CONSOLE_SCOPES } from './webConsoleAuth'
 
 type JsonRecord = Record<string, unknown>
 
@@ -138,6 +152,174 @@ function readConnectionProfile(value: unknown, field: string): ConnectionProfile
   }
 }
 
+function readOptionalHttpUrl(value: unknown, field: string): string {
+  const text = readString(value, field, 2048)
+  if (text.trim() === '') return text
+  let parsed: URL
+  try {
+    parsed = new URL(text)
+  } catch {
+    fail(`${field} 必须是合法 URL`)
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') fail(`${field} 只允许 http/https`)
+  return text
+}
+
+function readQueueSettings(value: unknown, field: string): QueueSettings {
+  if (!isRecord(value)) fail(`${field} 必须是对象`)
+  const queue: QueueSettings = {}
+  if (value.maxConcurrent !== undefined) queue.maxConcurrent = readInteger(value.maxConcurrent, `${field}.maxConcurrent`, 1, 16)
+  if (value.retryEnabled !== undefined) queue.retryEnabled = readBoolean(value.retryEnabled, `${field}.retryEnabled`)
+  if (value.retryMaxAttempts !== undefined) queue.retryMaxAttempts = readInteger(value.retryMaxAttempts, `${field}.retryMaxAttempts`, 1, 20)
+  if (value.retryDelaySeconds !== undefined) queue.retryDelaySeconds = readInteger(value.retryDelaySeconds, `${field}.retryDelaySeconds`, 0, 3600)
+  return queue
+}
+
+function readTaskTemplate(value: unknown, field: string): TaskTemplate {
+  if (!isRecord(value)) fail(`${field} 必须是对象`)
+  const template: TaskTemplate = {
+    id: readString(value.id, `${field}.id`, 100),
+    name: readString(value.name, `${field}.name`, 100)
+  }
+  for (const key of ['dir', 'proxy', 'userAgent', 'referer'] as const) {
+    if (value[key] !== undefined) template[key] = readString(value[key], `${field}.${key}`, 4096)
+  }
+  // 凭据字段（Cookie/自定义请求头）可能很长，单独放宽上限
+  for (const key of ['cookie', 'headers'] as const) {
+    if (value[key] !== undefined) template[key] = readString(value[key], `${field}.${key}`, 16384)
+  }
+  if (value.split !== undefined) template.split = readInteger(value.split, `${field}.split`, 1, 64)
+  if (value.maxConnectionPerServer !== undefined) {
+    template.maxConnectionPerServer = readInteger(value.maxConnectionPerServer, `${field}.maxConnectionPerServer`, 1, 64)
+  }
+  return template
+}
+
+function readCompletionRuleAction(value: unknown, field: string): CompletionRuleAction {
+  if (!isRecord(value)) fail(`${field} 必须是对象`)
+  switch (value.type) {
+    case 'move':
+      return { type: 'move', targetDir: readString(value.targetDir, `${field}.targetDir`) }
+    case 'rename':
+      return { type: 'rename', pattern: readString(value.pattern, `${field}.pattern`, 1024) }
+    case 'open':
+      return { type: 'open' }
+    case 'extract':
+      return { type: 'extract' }
+    case 'notify': {
+      const action: Extract<CompletionRuleAction, { type: 'notify' }> = { type: 'notify' }
+      if (value.title !== undefined) action.title = readString(value.title, `${field}.title`, 200)
+      if (value.body !== undefined) action.body = readString(value.body, `${field}.body`, 2000)
+      return action
+    }
+    case 'webhook': {
+      const action: Extract<CompletionRuleAction, { type: 'webhook' }> = {
+        type: 'webhook',
+        url: readOptionalHttpUrl(value.url, `${field}.url`)
+      }
+      if (value.method !== undefined) {
+        if (value.method !== 'POST' && value.method !== 'GET') fail(`${field}.method 只允许 POST/GET`)
+        action.method = value.method
+      }
+      // HMAC 签名密钥：属于凭据，保留原值不截断（限长防滥用）
+      if (value.secret !== undefined) action.secret = readString(value.secret, `${field}.secret`, 4096)
+      if (value.maxRetries !== undefined) action.maxRetries = readInteger(value.maxRetries, `${field}.maxRetries`, 0, 10)
+      if (value.retryDelaySeconds !== undefined) {
+        action.retryDelaySeconds = readInteger(value.retryDelaySeconds, `${field}.retryDelaySeconds`, 0, 21600)
+      }
+      return action
+    }
+    default:
+      fail(`${field}.type 非法`)
+  }
+}
+
+function readCompletionRule(value: unknown, field: string): CompletionRule {
+  if (!isRecord(value)) fail(`${field} 必须是对象`)
+  const rule: CompletionRule = {
+    id: readString(value.id, `${field}.id`, 100),
+    name: readString(value.name, `${field}.name`, 200),
+    enabled: readBoolean(value.enabled, `${field}.enabled`),
+    actions: readArray(value.actions, `${field}.actions`, 50, (item, index) =>
+      readCompletionRuleAction(item, `${field}.actions[${index}]`)
+    )
+  }
+  if (value.condition !== undefined) {
+    if (!isRecord(value.condition)) fail(`${field}.condition 必须是对象`)
+    const condition: NonNullable<CompletionRule['condition']> = {}
+    if (value.condition.category !== undefined) {
+      condition.category = readString(value.condition.category, `${field}.condition.category`, 100)
+    }
+    if (value.condition.extensions !== undefined) {
+      condition.extensions = readArray<string>(value.condition.extensions, `${field}.condition.extensions`, 200, (item, index) =>
+        readString(item, `${field}.condition.extensions[${index}]`, 32).replace(/^\./, '').toLowerCase()
+      )
+    }
+    if (value.condition.status !== undefined) {
+      if (value.condition.status !== 'complete' && value.condition.status !== 'error') {
+        fail(`${field}.condition.status 非法`)
+      }
+      condition.status = value.condition.status
+    }
+    rule.condition = condition
+  }
+  return rule
+}
+
+function readWebConsoleScope(value: unknown, field: string): WebConsoleScope {
+  if (typeof value !== 'string' || !ALL_WEB_CONSOLE_SCOPES.includes(value as WebConsoleScope)) {
+    fail(`${field} 权限范围非法`)
+  }
+  return value as WebConsoleScope
+}
+
+function readWebConsoleToken(value: unknown, field: string): WebConsoleToken {
+  if (!isRecord(value)) fail(`${field} 必须是对象`)
+  const token: WebConsoleToken = {
+    id: readString(value.id, `${field}.id`, 100),
+    name: readString(value.name, `${field}.name`, 100),
+    token: readString(value.token, `${field}.token`, 512),
+    scopes: readArray<WebConsoleScope>(value.scopes, `${field}.scopes`, 8, (item, index) =>
+      readWebConsoleScope(item, `${field}.scopes[${index}]`)
+    )
+  }
+  for (const key of ['createdAt', 'lastUsedAt'] as const) {
+    if (value[key] !== undefined) token[key] = readString(value[key], `${field}.${key}`, 64)
+  }
+  return token
+}
+
+function readWebConsoleSettings(value: unknown, field: string): WebConsoleSettings {
+  if (!isRecord(value)) fail(`${field} 必须是对象`)
+  const webConsole: WebConsoleSettings = {}
+  if (value.enabled !== undefined) webConsole.enabled = readBoolean(value.enabled, `${field}.enabled`)
+  if (value.port !== undefined) webConsole.port = readInteger(value.port, `${field}.port`, 1024, 65535)
+  // 主令牌等价 admin：保留原值，只做长度约束
+  if (value.token !== undefined) webConsole.token = readString(value.token, `${field}.token`, 512)
+  if (value.tokens !== undefined) {
+    webConsole.tokens = readArray(value.tokens, `${field}.tokens`, 50, (item, index) =>
+      readWebConsoleToken(item, `${field}.tokens[${index}]`)
+    )
+  }
+  if (value.allowedIps !== undefined) {
+    webConsole.allowedIps = readArray<string>(value.allowedIps, `${field}.allowedIps`, 100, (item, index) =>
+      readString(item, `${field}.allowedIps[${index}]`, 64)
+    )
+  }
+  if (value.tlsCertPath !== undefined) webConsole.tlsCertPath = readString(value.tlsCertPath, `${field}.tlsCertPath`, 4096)
+  if (value.tlsKeyPath !== undefined) webConsole.tlsKeyPath = readString(value.tlsKeyPath, `${field}.tlsKeyPath`, 4096)
+  return webConsole
+}
+
+function readPluginMarketSettings(value: unknown, field: string): NonNullable<AppSettings['pluginMarket']> {
+  if (!isRecord(value)) fail(`${field} 必须是对象`)
+  const market: NonNullable<AppSettings['pluginMarket']> = {}
+  if (value.enabled !== undefined) market.enabled = readBoolean(value.enabled, `${field}.enabled`)
+  if (value.registryUrl !== undefined) market.registryUrl = readOptionalHttpUrl(value.registryUrl, `${field}.registryUrl`)
+  if (value.developerMode !== undefined) market.developerMode = readBoolean(value.developerMode, `${field}.developerMode`)
+  return market
+}
+
 /** 校验并归一化 settings；返回只包含已知字段的新对象 */
 export function sanitizeSettingsInput(input: unknown): AppSettings {
   if (!isRecord(input)) fail('settings 必须是对象')
@@ -243,6 +425,38 @@ export function sanitizeSettingsInput(input: unknown): AppSettings {
     if (!isRecord(input.bt)) fail('settings.bt 必须是对象')
     out.bt = {}
     if ('upnpEnabled' in input.bt) out.bt.upnpEnabled = readBoolean(input.bt.upnpEnabled, 'settings.bt.upnpEnabled')
+  }
+
+  if ('queue' in input && input.queue !== undefined) out.queue = readQueueSettings(input.queue, 'settings.queue')
+
+  if ('taskTemplates' in input && input.taskTemplates !== undefined) {
+    out.taskTemplates = readArray(input.taskTemplates, 'settings.taskTemplates', 100, (item, index) =>
+      readTaskTemplate(item, `settings.taskTemplates[${index}]`)
+    )
+  }
+
+  if ('completionRules' in input && input.completionRules !== undefined) {
+    out.completionRules = readArray(input.completionRules, 'settings.completionRules', 100, (item, index) =>
+      readCompletionRule(item, `settings.completionRules[${index}]`)
+    )
+  }
+
+  if ('webConsole' in input && input.webConsole !== undefined) {
+    out.webConsole = readWebConsoleSettings(input.webConsole, 'settings.webConsole')
+  }
+
+  if ('pluginMarket' in input && input.pluginMarket !== undefined) {
+    out.pluginMarket = readPluginMarketSettings(input.pluginMarket, 'settings.pluginMarket')
+  }
+
+  if ('trustedPluginPublishers' in input && input.trustedPluginPublishers !== undefined) {
+    // Ed25519 公钥 PEM（用于插件签名校验）：只做类型/长度约束，合法性由 pluginManager 校验
+    out.trustedPluginPublishers = readArray<string>(
+      input.trustedPluginPublishers,
+      'settings.trustedPluginPublishers',
+      20,
+      (item, index) => readString(item, `settings.trustedPluginPublishers[${index}]`, 4096)
+    )
   }
 
   return out

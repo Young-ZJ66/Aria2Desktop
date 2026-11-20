@@ -293,8 +293,14 @@
   "unpairDone": {
     "message": "Unpaired — connection settings restored to defaults"
   },
+  "unpairDoneRevoked": {
+    "message": "Unpaired — local settings cleared and the app-side grant revoked"
+  },
+  "unpairServerPending": {
+    "message": "Unpaired locally, but the app did not respond — the app-side grant may still exist"
+  },
   "unpairHint": {
-    "message": "Clears the extension-side secret only; to revoke access, change the secret in the app"
+    "message": "Unpairing also revokes this extension's grant in the app"
   },
   "sectionPairing": {
     "message": "Pairing"
@@ -680,5 +686,87 @@
   },
   "rePair": {
     "message": "Re-pair"
+  },
+  "errInsufficientScope": {
+    "message": "This extension lacks the required permission. Please pair again."
+  },
+  "errAppUnavailable": {
+    "message": "Cannot reach Aria2 Desktop. Make sure the app is running."
+  },
+  "interceptFallbackTitle": {
+    "message": "Handed back to the browser"
+  },
+  "interceptFallbackDesc": {
+    "message": "Aria2 could not take over this download, so the browser restarted it with the original file name and referrer."
+  },
+  "interceptManualRetry": {
+    "message": "Neither Aria2 nor the browser could finish this download. Please retry manually: $URL$",
+    "placeholders": {
+      "url": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferFilterPlaylist": {
+    "message": "Playlist"
+  },
+  "snifferPlaylistHint": {
+    "message": "Playlists are handed to the app's streaming mode and are not downloaded as a single file"
+  },
+  "snifferPlaylistSend": {
+    "message": "Send to streaming"
+  },
+  "snifferPlaylistSent": {
+    "message": "Sent to streaming"
+  },
+  "snifferPlaylistEmpty": {
+    "message": "No playlist detected on this page"
+  },
+  "snifferPlaylistSentCount": {
+    "message": "Sent $COUNT$ playlist(s) to streaming",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "playlistStreamTitle": {
+    "message": "Playlist, send to streaming"
+  },
+  "playlistStreamDesc": {
+    "message": "Resolve m3u8/mpd manifests and merge segments into one video"
+  },
+  "snifferBatchStream": {
+    "message": "Send to streaming ($COUNT$)",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "snifferBatchMixed": {
+    "message": "Download $LINKS$ · Stream $PLAYLISTS$",
+    "placeholders": {
+      "links": {
+        "content": "$1"
+      },
+      "playlists": {
+        "content": "$2"
+      }
+    }
+  },
+  "batchProgress": {
+    "message": "Processed $SETTLED$/$TOTAL$, $FAILED$ failed",
+    "placeholders": {
+      "settled": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      },
+      "failed": {
+        "content": "$3"
+      }
+    }
   }
 }

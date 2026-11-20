@@ -135,7 +135,16 @@
     "saveTorrentFailed": "Failed to save torrent: {error}",
     "batchOpen": "Open files",
     "batchOpenSuccess": "Opened {count} file(s)",
-    "batchOpenFailed": "No files could be opened"
+    "batchOpenFailed": "No files could be opened",
+    "filterByStatus": "Filter by status",
+    "retryAllFailedSummary": "Retry all failed ({count})",
+    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "batchResultTitle": "Batch operation result",
+    "batchResultSuccess": "{count} succeeded",
+    "batchResultFailed": "{count} failed",
+    "batchResultSkipped": "{count} skipped",
+    "batchResultFailures": "Failure details",
+    "batchResultMore": "{count} more not shown"
   },
   "status": {
     "active": "Downloading",
@@ -197,7 +206,15 @@
     "healthSeeders": "{count} seeders online",
     "healthSeeding": "Seeding from this device",
     "magnetUri": "Magnet URI",
-    "copyMagnet": "Copy magnet URI"
+    "copyMagnet": "Copy magnet URI",
+    "taskSettings": "Task settings",
+    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
+    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
+    "taskSettingsSaved": "Task settings updated",
+    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
+    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
+    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
+    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
   },
   "taskPeer": {
     "ip": "IP Address",
@@ -234,7 +251,15 @@
     "deleteFiles": "Also delete files",
     "toTrashHint": "Files are moved to the system trash and can be restored from there",
     "deleteTaskAndFiles": "Delete Task and Files",
-    "taskDeleted": "Task deleted"
+    "taskDeleted": "Task deleted",
+    "errors": {
+      "removeRecordFailed": "Failed to remove the task record: {detail}",
+      "deleteFileFailed": "Failed to delete file: {path} ({detail})",
+      "deleteFilesFailed": "File deletion failed: {detail}",
+      "deleteFilesException": "Error while deleting files: {detail}",
+      "unknownError": "Unknown error while deleting the task: {detail}",
+      "processTaskFailed": "Error while processing task {gid}: {detail}"
+    }
   },
   "newTask": {
     "title": "New Download Task",
@@ -351,6 +376,8 @@
     "dropTorrentHint": "Click to select or drag a .torrent file here",
     "dropMetalinkHint": "Click to select or drag a .metalink / .meta4 file here",
     "fileTooLarge": "File too large (>1MB) for aria2 RPC upload. Place it at a local path and add it via URL instead",
+    "fileTooLargeLimit": "File exceeds the current limit ({limit}). Increase rpc-max-request-size in Settings → RPC & Security.",
+    "streamTooManyDownloads": "Too many concurrent stream downloads (limit: 3). Wait for the current ones to finish.",
     "streamPlaylist": "Playlist",
     "streamPlaylistEmpty": "No playlist entries found (the link may not be a playlist)",
     "streamPlaylistSelectAll": "Select all",
@@ -404,7 +431,8 @@
     "archiveExtractedPartial": "Archive Extracted ({count} existing file(s) kept; the archive was not deleted)",
     "engineCrashed": "The aria2 engine exited unexpectedly. Restarting automatically (attempt {count}).",
     "engineGaveUp": "The aria2 engine failed to restart {count} times, so automatic restarts have stopped. Restart it manually in Settings → Local engine, or open the app log for details.",
-    "shutdownCancelled": "New download detected — the scheduled shutdown was cancelled."
+    "shutdownCancelled": "New download detected — the scheduled shutdown was cancelled.",
+    "unknownTask": "Unknown task ({gid})"
   },
   "notificationCenter": {
     "title": "Notifications",
@@ -430,6 +458,8 @@
     "seedingTasks": "Seeding",
     "trafficChartAria": "Download and upload speed trend chart",
     "enabledFeatures": "Enabled Features",
+    "downloadTrend": "Download Trend",
+    "noTrendData": "No download data yet",
     "resetHistory": "Reset download statistics",
     "resetHistoryConfirm": "Clear today's and total download statistics? This only affects this app's counters; no tasks or files will be deleted."
   },
@@ -1055,7 +1085,7 @@
       "marketPublisher": "Publisher",
       "marketInstall": "Install",
       "marketInstallTitle": "Install Plugin",
-      "marketInstallConfirm": "Install \"{name}\" v{version}? It will be enabled by default.",
+      "marketInstallConfirm": "Install \"{name}\" v{version}? It will be installed disabled; enable it manually after reviewing its permissions.",
       "marketInstallSuccess": "Plugin \"{name}\" installed",
       "marketInstallFailed": "Plugin installation failed: {error}",
       "marketLoadFailed": "Failed to load plugin market: {error}",
@@ -1066,6 +1096,7 @@
       "marketErrorHttp": "The plugin market returned HTTP {status}. Try again later.",
       "marketErrorTooLarge": "The plugin market registry is too large and was rejected.",
       "marketErrorInvalidRegistry": "The plugin market registry has an invalid format. Check the registry URL.",
+      "marketErrorSignature": "Plugin market registry signature check failed: the registry may have been tampered with, or it was signed by an untrusted key. It was not loaded.",
       "marketErrorNetwork": "Unable to reach the plugin market. Check your network or proxy and try again.",
       "trustedPublishers": "Trusted publisher keys",
       "trustedPublishersDesc": "Enter Ed25519 public keys (PEM) of trusted publishers, separated by blank lines. Signed market plugins must pass signature verification before they can be installed.",
@@ -1151,6 +1182,13 @@
       "tokenPlaceholder": "Leave blank to generate a random token automatically",
       "allowedIps": "Allowed IPs",
       "allowedIpsPlaceholder": "e.g. 192.168.1.0/24; leave blank to allow localhost only",
+      "tlsCertPath": "HTTPS certificate path",
+      "tlsKeyPath": "HTTPS private key path",
+      "tlsPathPlaceholder": "Absolute path to a PEM file, e.g. /etc/ssl/fullchain.pem",
+      "tlsStatus": "HTTPS status",
+      "tlsEnabled": "HTTPS enabled",
+      "tlsDisabled": "Not enabled (localhost only)",
+      "tlsHint": "LAN access requires a certificate and key; otherwise the console only listens on 127.0.0.1 and TLS must be terminated by a reverse proxy.",
       "refresh": "Refresh status",
       "status": "Status",
       "running": "Running",
@@ -1450,7 +1488,15 @@
     "unknown": "Operation failed. Please try again later",
     "tlsHandshake": "Secure connection to this site failed — the network may block it. Try a proxy or a different source",
     "proxy": "Proxy connection failed. Check your system or app proxy settings",
-    "certificate": "Certificate validation failed: the site certificate is invalid or expired"
+    "certificate": "Certificate validation failed: the site certificate is invalid or expired",
+    "errConnectionRefused": "Connection refused. Make sure the address is reachable and Aria2 is running",
+    "errConnectionTimedOut": "Connection timed out. Check your network or the server address",
+    "errConnectionReset": "Connection was interrupted (server closed or network drop). Please retry",
+    "errNameNotResolved": "Domain name could not be resolved. Check the address and your DNS settings",
+    "errInternetDisconnected": "No network connection. Check it and try again",
+    "errAddressUnreachable": "The address is unreachable. Check your network or proxy settings",
+    "errCertInvalid": "Certificate validation failed: the site certificate is invalid, expired or untrusted",
+    "errSslProtocol": "SSL/TLS negotiation failed — the connection may be blocked or the site is outdated"
   },
   "localService": {
     "invalidPort": "Invalid port, please use a port between 1024 and 65535",
@@ -1768,5 +1814,29 @@
     "saveFailed": "Save failed: {error}",
     "deleteFailed": "Delete failed: {error}",
     "operationFailed": "Operation failed: {error}"
+  },
+  "onboarding": {
+    "title": "Welcome to Aria2Desktop",
+    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "later": "Maybe later",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "statusReady": "Ready",
+    "statusPending": "Not set up",
+    "stepDownloadTitle": "Choose a download folder",
+    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
+    "stepDownloadAction": "Open download settings",
+    "stepExtensionTitle": "Pair the browser extension",
+    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
+    "stepExtensionAction": "Open extension settings",
+    "stepYtdlpTitle": "Enable stream downloads",
+    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
+    "stepYtdlpAction": "Open component settings",
+    "stepRemoteTitle": "Remote control & completion rules",
+    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
+    "stepRemoteAction": "Open remote access settings"
   }
 }

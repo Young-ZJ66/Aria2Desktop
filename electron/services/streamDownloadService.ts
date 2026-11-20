@@ -17,6 +17,7 @@ import { getYtdlpExecutablePath } from './ytdlpService'
 import { checkFfmpegAvailable, getFfmpegLocation } from './ffmpegService'
 import { createLogger } from '../utils/logger'
 import { isSafeHttpUrl } from '../utils/ipcInputValidation'
+import { applyCompletionRulesForTask } from './completionRuleService'
 
 const logger = createLogger('StreamDownload')
 
@@ -41,6 +42,34 @@ const PROGRESS_TEMPLATE =
 
 /** 进行中的下载（允许多条并发：App 流媒体页与扩展整页下载都可能发起） */
 const activeDownloads = new Map<string, ActiveDownload>()
+
+/**
+ * 同时运行的 yt-dlp 进程上限。
+ *
+ * 每条任务都是一个独立子进程 + ffmpeg 合并，没有上限时"全选批量下载"会把
+ * CPU/磁盘打满（Gopeed 用户反馈里的 CPU 跑满即此类）。aria2 侧靠
+ * max-concurrent-downloads 自限，这里没有队列机制，所以直接拒绝超限请求，
+ * 由界面提示用户等待当前任务结束。
+ */
+export const MAX_CONCURRENT_STREAM_DOWNLOADS = 3
+
+/** 进行中流媒体任务的合计速度（字节/秒）：托盘/页脚需要与 aria2 速度相加（D-10） */
+export function activeStreamDownloadSpeedBytes(): number {
+  let total = 0
+  for (const task of streamTaskRegistry.values()) {
+    if (task.status === 'active') total += task.speedBytes || 0
+  }
+  return total
+}
+
+/** 当前正在运行的下载数（不含已暂停） */
+export function activeStreamDownloadCount(): number {
+  let count = 0
+  for (const record of activeDownloads.values()) {
+    if (!record.paused) count += 1
+  }
+  return count
+}
 
 export interface StreamDownloadRequest {
   url: string
@@ -94,7 +123,14 @@ export type StreamDownloadEvent =
     entryIndex?: number
     entryCount?: number
   }
-  | { type: 'completed'; id: string; filePath: string }
+  | {
+    type: 'completed'
+    id: string
+    /** 首个输出文件（兼容字段，等同 filePaths[0]） */
+    filePath: string
+    /** 全部输出文件：播放列表/多字幕一次会产出多个文件，渲染层据此支持逐个删除 */
+    filePaths?: string[]
+  }
   | { type: 'paused'; id: string }
   | { type: 'failed'; id: string; error: string }
   | { type: 'cancelled'; id: string }
@@ -102,8 +138,11 @@ export type StreamDownloadEvent =
 export interface StreamDownloadStartResult {
   success: boolean
   id?: string
-  /** ffmpeg_missing：需要先安装/配置 ffmpeg（界面据此显示安装入口） */
-  code?: 'ffmpeg_missing' | 'invalid_request'
+  /**
+   * ffmpeg_missing：需要先安装/配置 ffmpeg（界面据此显示安装入口）
+   * too_many_downloads：并发流媒体任务已达上限，等当前任务结束再试
+   */
+  code?: 'ffmpeg_missing' | 'invalid_request' | 'too_many_downloads'
   error?: string
 }
 
@@ -154,7 +193,10 @@ export interface StreamTaskSnapshot {
   downloadedBytes: number
   totalBytes: number
   outputDir: string
+  /** 主输出文件（单文件任务即唯一产物；多文件时取第一个，兼容旧字段） */
   filePath?: string
+  /** 全部输出文件（播放列表/多字幕一次产出多个）；单文件任务与 [filePath] 一致 */
+  filePaths?: string[]
   error?: string
   createdAt: number
   updatedAt: number
@@ -425,6 +467,13 @@ export async function startStreamDownload(
   if (cookieError) {
     return { success: false, code: 'invalid_request', error: cookieError }
   }
+  if (activeStreamDownloadCount() >= MAX_CONCURRENT_STREAM_DOWNLOADS) {
+    return {
+      success: false,
+      code: 'too_many_downloads',
+      error: `同时进行的流媒体下载已达上限（${MAX_CONCURRENT_STREAM_DOWNLOADS} 条），请等待当前任务结束`
+    }
+  }
 
   // 有指定格式：预设表达式可能自带音频分支（bestvideo*+bestaudio/best），再拼 +bestaudio 会
   // 产生冗余但合法的表达式；旧单格式 id（如 137）仍需要 +bestaudio/best 兜底音轨
@@ -630,6 +679,9 @@ function launchStreamProcess(id: string, record: ActiveDownload): void {
     activeDownloads.delete(id)
     record.proc = null
     const cancelled = record.cancelled
+    // 必须在 cleanupStreamFiles 之前读：它会把 --print-to-file 的临时文件一并删掉。
+    // 播放列表/多字幕一次会产出多个文件，这里把全部有效行都收进来（D-38）。
+    const printedPaths = readFinalPaths(record.finalPathFile)
     const printedPath = readFinalPath(record.finalPathFile)
     // 结束后临时目录不再需要：完成/失败/取消都清掉，避免留下几百 MB 的分片
     cleanupStreamFiles(record)
@@ -644,6 +696,14 @@ function launchStreamProcess(id: string, record: ActiveDownload): void {
       const failure = stderrTail.trim() || `yt-dlp exited with code ${code}`
       updateStreamTask(id, { status: 'error', speedBytes: 0, error: failure })
       record.onEvent({ type: 'failed', id, error: failure })
+      // 失败也要走规则：用户可能配置了"失败时发 Webhook/通知"这类动作
+      void applyCompletionRulesForTask({
+        status: 'error',
+        dir: record.request.outputDir,
+        files: [],
+        name: record.request.title || record.request.url,
+        errorMessage: failure
+      }).catch(error => logger.warn('流媒体失败规则执行失败', error))
       return
     }
     if (!filePath || !fs.existsSync(filePath)) {
@@ -652,10 +712,20 @@ function launchStreamProcess(id: string, record: ActiveDownload): void {
       return
     }
 
-    logger.info(`yt-dlp 下载完成: ${filePath}`)
-    updateStreamTask(id, { status: 'complete', percent: 100, speedBytes: 0, filePath })
-    record.onEvent({ type: 'completed', id, filePath })
+    // 多文件场景：以 --print-to-file 的全部有效行为准；单文件时就是 [filePath]
+    const filePaths = printedPaths.length > 0 ? printedPaths : [filePath]
+    logger.info(`yt-dlp 下载完成: ${filePaths.join(', ')}`)
+    updateStreamTask(id, { status: 'complete', percent: 100, speedBytes: 0, filePath, filePaths })
+    record.onEvent({ type: 'completed', id, filePath, filePaths })
     notifyCompleted(filePath)
+    // 完成规则（移动/重命名/打开/通知/Webhook/解压）此前只对 aria2 任务生效，
+    // 流媒体任务不在 aria2 队列里就永远不触发（D-10）。这里补上同一套规则。
+    void applyCompletionRulesForTask({
+      status: 'complete',
+      dir: path.dirname(filePath),
+      files: filePaths,
+      name: record.request.title || path.basename(filePath)
+    }).catch(error => logger.warn('流媒体完成规则执行失败', error))
   })
 }
 
@@ -850,6 +920,28 @@ function readLastLine(filePath: string): string {
 /** 读取 --print-to-file 写入的最终路径（取最后一行非空内容） */
 function readFinalPath(filePath: string): string {
   return readLastLine(filePath)
+}
+
+/**
+ * 读取 --print-to-file 写入的全部输出路径（播放列表/多字幕会写出多行）。
+ *
+ * 只保留磁盘上真实存在的文件：yt-dlp 在部分条目失败时仍会打印路径，把不存在的
+ * 路径交给渲染层会让"删除文件"对着一堆幽灵路径报错。
+ */
+export function readFinalPaths(filePath: string): string[] {
+  try {
+    const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const line of lines) {
+      if (seen.has(line)) continue
+      seen.add(line)
+      if (fs.existsSync(line)) result.push(line)
+    }
+    return result
+  } catch {
+    return []
+  }
 }
 
 /** 完成通知：流媒体下载不在 aria2 任务列表里，用户关闭弹窗后需要可见的反馈 */

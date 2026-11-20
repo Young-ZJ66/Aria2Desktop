@@ -4,12 +4,23 @@
  */
 
 import type { Aria2Task } from '@/types/aria2'
+import i18n from '@/i18n'
 import { getTaskName } from '@/utils/taskUtils'
 import { taskPersistenceService } from './taskPersistenceService'
 import { taskTimeService } from './taskTimeService'
 import { removeFromEngine, type TaskRemovalService } from './taskRemovalCore'
 
 export type { TaskRemovalService }
+
+/** 取当前语言的文案；服务层拿不到组件实例，只能走全局 i18n 实例（D-43） */
+function t(key: string, params?: Record<string, unknown>): string {
+  return params ? i18n.global.t(key, params) : i18n.global.t(key)
+}
+
+/** 把任意异常压成一句可读的细节文案 */
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
 
 /** 文件删除单项结果 */
 interface FileDeleteItemResult {
@@ -140,7 +151,7 @@ class CompletedTaskDeleteService {
       if (service) {
         const removal = await removeFromEngine(service, task.gid)
         if (!removal.ok) {
-          const errorMsg = `删除任务记录失败: ${removal.error instanceof Error ? removal.error.message : String(removal.error)}`
+          const errorMsg = t('delete.errors.removeRecordFailed', { detail: describeError(removal.error) })
           result.errors.push(errorMsg)
           console.error(errorMsg, removal.error)
           return result
@@ -163,14 +174,21 @@ class CompletedTaskDeleteService {
               const failedDeletes = deleteResult.results.filter((r: FileDeleteItemResult) => !r.success)
               if (failedDeletes.length > 0) {
                 failedDeletes.forEach((failed: FileDeleteItemResult) => {
-                  result.errors.push(`删除文件失败: ${failed.path} - ${failed.error}`)
+                  result.errors.push(
+                    t('delete.errors.deleteFileFailed', {
+                      path: failed.path,
+                      detail: failed.error ?? t('common.unknown')
+                    })
+                  )
                 })
               }
             } else {
-              result.errors.push(`文件删除操作失败: ${deleteResult.error}`)
+              result.errors.push(
+                t('delete.errors.deleteFilesFailed', { detail: deleteResult.error ?? t('common.unknown') })
+              )
             }
           } catch (error) {
-            const errorMsg = `删除文件时发生错误: ${error instanceof Error ? error.message : String(error)}`
+            const errorMsg = t('delete.errors.deleteFilesException', { detail: describeError(error) })
             result.errors.push(errorMsg)
             console.error(errorMsg, error)
           }
@@ -191,12 +209,12 @@ class CompletedTaskDeleteService {
 
         result.success = true
       } catch (error) {
-        const errorMsg = `删除任务记录失败: ${error instanceof Error ? error.message : String(error)}`
+        const errorMsg = t('delete.errors.removeRecordFailed', { detail: describeError(error) })
         result.errors.push(errorMsg)
         console.error(errorMsg, error)
       }
     } catch (error) {
-      const errorMsg = `删除任务时发生未知错误: ${error instanceof Error ? error.message : String(error)}`
+      const errorMsg = t('delete.errors.unknownError', { detail: describeError(error) })
       result.errors.push(errorMsg)
       console.error(errorMsg, error)
     }
@@ -236,7 +254,7 @@ class CompletedTaskDeleteService {
         }
       } catch (error) {
         batchResult.failedTasks++
-        const errorMsg = `处理任务 ${task.gid} 时发生错误: ${error instanceof Error ? error.message : String(error)}`
+        const errorMsg = t('delete.errors.processTaskFailed', { gid: task.gid, detail: describeError(error) })
         batchResult.errors.push(errorMsg)
         console.error(errorMsg, error)
       }

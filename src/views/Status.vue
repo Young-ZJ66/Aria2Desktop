@@ -32,6 +32,32 @@
       </div>
     </UiPanel>
 
+    <!-- 下载趋势：7/30 天下载量柱状图，数据来自本地按日历史（90 天） -->
+    <UiPanel :title="t('statusPage.downloadTrend')">
+      <template #actions>
+        <n-radio-group v-model:value="trendDays" size="small">
+          <n-radio-button :value="7">7</n-radio-button>
+          <n-radio-button :value="30">30</n-radio-button>
+        </n-radio-group>
+      </template>
+      <div class="trend-chart" role="img" :aria-label="t('statusPage.downloadTrend')">
+        <div
+          v-for="point in trendPoints"
+          :key="point.dateKey"
+          class="trend-bar-column"
+          :title="`${point.dateKey}: ${formatSize(point.bytes)}`"
+        >
+          <div class="trend-bar" :style="{ height: trendBarHeight(point.bytes) }" />
+        </div>
+      </div>
+      <p v-if="trendHasNoData" class="trend-empty">{{ t('statusPage.noTrendData') }}</p>
+      <div v-else class="trend-axis">
+        <span>{{ trendAxisLabels[0] }}</span>
+        <span>{{ trendAxisLabels[1] }}</span>
+        <span>{{ trendAxisLabels[2] }}</span>
+      </div>
+    </UiPanel>
+
     <!-- 流量统计：图 + 明细列表；破坏性的「重置统计」放在面板 header 右侧，不贴着数字 -->
     <UiPanel :title="t('statusPage.trafficStats')">
       <template #actions>
@@ -86,7 +112,7 @@ import { useI18n } from 'vue-i18n'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useStatsStore } from '@/stores/statsStore'
-import { useDownloadHistoryStore } from '@/stores/downloadHistoryStore'
+import { buildDailySeries, useDownloadHistoryStore } from '@/stores/downloadHistoryStore'
 import { formatSpeed, formatSize } from '@/utils/taskFormatters'
 import { getTaskStats } from '@/utils/taskUtils'
 import PageHeader from '@/components/layout/PageHeader.vue'
@@ -153,6 +179,27 @@ const summaryStats = computed(() => {
     { label: t('statusPage.seedingTasks'), value: String(seedingCount.value) }
   ]
 })
+
+// ── 下载趋势（7/30 天） ──
+const trendDays = ref(7)
+const trendPoints = computed(() => buildDailySeries(downloadHistoryStore.history.daily, trendDays.value))
+const trendHasNoData = computed(() => trendPoints.value.every(point => point.bytes === 0))
+const trendMaxBytes = computed(() => Math.max(1, ...trendPoints.value.map(point => point.bytes)))
+const trendAxisLabels = computed(() => {
+  const points = trendPoints.value
+  if (points.length === 0) return ['', '', '']
+  const label = (key: string) => key.slice(5).replace('-', '/')
+  return [
+    label(points[0]?.dateKey ?? ''),
+    label(points[Math.floor(points.length / 2)]?.dateKey ?? ''),
+    label(points[points.length - 1]?.dateKey ?? '')
+  ]
+})
+function trendBarHeight(bytes: number): string {
+  if (bytes <= 0) return '0%'
+  // 极小值也保留 4% 高度，让用户能看到「这一天有下载」而不是空柱
+  return `${Math.max(4, Math.round((bytes / trendMaxBytes.value) * 100))}%`
+}
 
 // 服务信息
 /** 服务器信息卡片项；tagType 限定为 n-tag 支持的取值（否则模板里 :type 会因 string 过宽报错） */
@@ -641,6 +688,50 @@ function updateTrafficChart() {
   .stat-cell:last-child {
     grid-column: 1 / -1;
   }
+}
+
+/* ── 下载趋势柱状图 ── */
+.trend-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 140px;
+  padding: var(--ds-space-12) var(--ds-space-4) 0;
+  border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.trend-bar-column {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.trend-bar {
+  width: 100%;
+  min-height: 0;
+  border-radius: var(--ds-radius-sm) var(--ds-radius-sm) 0 0;
+  background: linear-gradient(180deg, var(--ds-accent), var(--ds-accent-muted, var(--ds-accent)));
+  opacity: 0.85;
+}
+
+.trend-bar-column:hover .trend-bar {
+  opacity: 1;
+}
+
+.trend-empty {
+  margin: var(--ds-space-8) 0 0;
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-faint);
+}
+
+.trend-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--ds-space-6);
+  font-size: var(--ds-text-small-size);
+  color: var(--ds-text-muted);
 }
 
 /* ── 图表 ── */

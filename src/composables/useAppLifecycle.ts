@@ -7,10 +7,11 @@ import { useStatsStore } from '@/stores/statsStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUiStore } from '@/stores/uiStore'
-import { useNotificationStore } from '@/stores/notificationStore'
+import { resolveNotificationTitle, useNotificationStore } from '@/stores/notificationStore'
 import { classifyAria2Error } from '@/shared/aria2Error'
 import { evaluateDownloadCompletion, shouldCancelPendingShutdown } from '@/shared/downloadCompletion'
 import { useDownloadHistoryStore } from '@/stores/downloadHistoryStore'
+import { useStreamTaskStore } from '@/stores/streamTaskStore'
 import { useTrafficMonitor } from '@/composables/useTrafficMonitor'
 import { message } from '@/utils/feedback'
 import { initLocalService, stopStatusCheck } from '@/composables/useAria2LocalService'
@@ -36,6 +37,7 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   const uiStore = useUiStore()
   const notificationStore = useNotificationStore()
   const downloadHistoryStore = useDownloadHistoryStore()
+  const streamTaskStore = useStreamTaskStore()
   const trafficMonitor = useTrafficMonitor()
   const autoRefresh = useAutoRefresh()
   const clipboardMonitor = useClipboardMonitor()
@@ -86,10 +88,21 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
   watch(() => taskStore.activeTasks, updateTaskbarProgress)
 
   // 下载完成系统通知：通过主进程 Electron Notification API 发送（比 Web API 可靠）
+  //
+  // 标题回退顺序（D-25）：任务名 → URL / 文件名 basename → 「未知任务（gid 前 8 位）」。
+  // 以前最后一级直接落到裸 gid（16 位十六进制），用户看到「下载失败 / 3f9a1c…」
+  // 既认不出是哪个任务，也没法拿去搜索。解析逻辑见 stores/notificationStore.ts 的
+  // resolveNotificationTitle（放 store 里是为了能被 node 环境的单测直接覆盖）。
   function getNotificationTaskName(gid: string): string {
     const task = taskStore.allTasks.find(t => t.gid === gid)
-    return task?.bittorrent?.info?.name ||
-      task?.files?.[0]?.path?.split(/[\\/]/).pop() || gid
+    return resolveNotificationTitle(
+      {
+        name: task?.bittorrent?.info?.name,
+        files: task?.files,
+        gid
+      },
+      prefix => t('notification.unknownTask', { gid: prefix })
+    )
   }
 
   function showDownloadNotification(gid: string) {
@@ -306,14 +319,25 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
               uiStore.openSettings()
               break
             case 'pause-all':
+              // 流媒体任务不在 aria2 队列里，托盘「暂停全部」要同时覆盖两侧（D-10）
               void taskStore.pauseAllTasks()
+              void streamTaskStore.pauseAllTasks()
               break
             case 'resume-all':
               void taskStore.unpauseAllTasks()
+              void streamTaskStore.resumeAllTasks()
               break
             case 'speed-limit-changed':
               // 托盘侧改了限速：重载全局选项，AppFooter 的开关状态保持一致
               void statsStore.loadGlobalOptions()
+              break
+            case 'open-engine-settings':
+              // 引擎启动失败（端口被占等）时主进程把用户送到这里改 rpc-listen-port
+              uiStore.openSettings('engine')
+              break
+            case 'restart-engine':
+              // 托盘"重启引擎"：与设置页的按钮走同一条 IPC，成功后引擎事件会清掉异常态
+              void window.electronAPI?.aria2?.restart?.()
               break
           }
         })
@@ -488,6 +512,11 @@ export function useAppLifecycle(themeManager: ReturnType<typeof useThemeManager>
           if (connectionStore.isConnected) {
             startAutoUpdate(safeInterval)
           }
+        } else if (data.key === 'engine-restart-required') {
+          // 导入设置后主进程改了 aria2.conf 的端口/密钥等需要重启才生效的字段。
+          // 复用已有的"部分设置需重启应用后生效"文案（src/locales 不可改），并延长停留时间：
+          // 这条提示是"你的引擎参数已经变了"，用户必须看到，不能一闪而过。
+          message.warning(t('settings.backup.restartHint'), { duration: 8000 })
         }
       })
     }

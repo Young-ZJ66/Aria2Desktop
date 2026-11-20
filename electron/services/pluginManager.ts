@@ -28,6 +28,7 @@ import { getSettingsFresh } from '../utils/settingsAccessor'
 import { createLogger } from '../utils/logger'
 import type { PluginManifest, PluginInstance, PluginInfo, PluginContext, PluginPermission } from '../types/plugin'
 import type { StoreData, AppSettings } from '../types/store'
+import { DEFAULT_TRUSTED_PLUGIN_PUBLISHERS } from '../../src/shared/appSettings'
 
 /** utilityProcess 的最小结构（避免依赖 Electron 命名空间类型，便于单测替换） */
 interface PluginWorker {
@@ -72,6 +73,13 @@ const logger = createLogger('')
  * 构造提供给插件的设置快照。
  * 插件读取应用配置属常规需求（若只放行固定几个键会破坏既有插件），
  * 因此保留完整配置结构，但必须剔除密钥类字段——RPC 凭据不能进入插件上下文。
+ *
+ * 凭据清单（D-05）：
+ * - aria2.secret：aria2 RPC 密钥；
+ * - connectionProfiles[].config.secret：连接预设密钥；
+ * - webConsole.token / webConsole.tokens[].token：Web 控制台令牌。
+ *   这两项此前被漏掉——任何带 settings:read 权限的插件都能直接读走用户的
+ *   Web 控制台 admin token，从而在浏览器里拿到整机下载控制权。
  */
 function toPluginSafeSettings(settings: AppSettings): Record<string, unknown> {
   const safe: Record<string, unknown> = { ...settings }
@@ -88,7 +96,113 @@ function toPluginSafeSettings(settings: AppSettings): Record<string, unknown> {
       return { ...profile, config: configRest }
     })
   }
+  if (settings.webConsole) {
+    const { token: _consoleToken, tokens: _consoleTokens, ...consoleRest } = settings.webConsole
+    void _consoleToken
+    safe.webConsole = {
+      ...consoleRest,
+      tokens: Array.isArray(_consoleTokens)
+        ? _consoleTokens.map(item => {
+          const { token: _itemToken, ...itemRest } = item
+          void _itemToken
+          return itemRest
+        })
+        : []
+    }
+  }
   return safe
+}
+
+/**
+ * 插件可通过 settings.get 读取的键白名单（D-05）。
+ *
+ * 之前 settings.get 直接返回整份脱敏快照的任意键，等于"脱敏了密钥但没限制范围"：
+ * 插件能读连接预设的 host/port、活动预设 id 等与自身功能无关的隐私配置。
+ * 白名单只放行插件正常工作真正需要的分类，敏感键（connectionProfiles /
+ * activeProfileId / trustedPluginPublishers / webConsole 之外的安全项）一律拒绝。
+ */
+const PLUGIN_SETTINGS_KEY_ALLOWLIST: ReadonlySet<string> = new Set([
+  'language',
+  'theme',
+  'refreshInterval',
+  'download',
+  'category',
+  'queue',
+  'bt',
+  'taskTemplates',
+  'completionRules',
+  'pluginMarket',
+  // webConsole 只暴露 enabled/port/allowedIps（token 已被 toPluginSafeSettings 剔除）
+  'webConsole'
+])
+
+/**
+ * 读取单个设置项给插件用；不在白名单内的键返回 undefined（调用方按"无此设置"处理）。
+ * worker（utilityProcess）与 vm 两条路径都走这里，避免两条路径的脱敏口径分叉。
+ */
+function readPluginSetting(settings: AppSettings, key: string): unknown {
+  if (!PLUGIN_SETTINGS_KEY_ALLOWLIST.has(key)) {
+    logger.warn(`[PluginManager] settings.get 拒绝未授权键: ${key}`)
+    return undefined
+  }
+  return toPluginSafeSettings(settings)[key]
+}
+
+/**
+ * 注册表（plugin-registry.json）自身的签名校验（D-02）。
+ *
+ * 只把 URL 固定到 tag 防不住内容被篡改：仓库被接管、CDN 劫持、镜像同步错误
+ * 都会让客户端拿到一份"地址合法但内容被换过"的 registry，进而把攻击者的
+ * entryUrl 当成官方插件装进来。所以 registry 也带 Ed25519 签名，客户端用
+ * 内置公钥验签，验不过就拒绝整个列表（不是逐条跳过——列表本身不可信）。
+ *
+ * 规范必须与 scripts/plugin-registry/sign-registry.mjs 完全一致：
+ * 载荷 = registry 去掉 signature 字段后的规范化 JSON（键字典序、数组保序、
+ * 无多余空白、UTF-8），签名算法 Ed25519，signature 为 base64。
+ * 两处实现分叉会让所有签名同时失效，故两侧都有对应测试固定该规范。
+ */
+export function canonicalizeRegistry(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(item => canonicalizeRegistry(item)).join(',')}]`
+  const record = value as Record<string, unknown>
+  const keys = Object.keys(record).filter(key => record[key] !== undefined).sort()
+  const body = keys.map(key => `${JSON.stringify(key)}:${canonicalizeRegistry(record[key])}`).join(',')
+  return `{${body}}`
+}
+
+/** 取参与签名的字节：去掉 signature 字段后规范化 */
+export function registrySignaturePayload(registry: unknown): Buffer {
+  const rest: Record<string, unknown> = { ...((registry ?? {}) as Record<string, unknown>) }
+  delete rest.signature
+  return Buffer.from(canonicalizeRegistry(rest), 'utf8')
+}
+
+/**
+ * 用 Ed25519 公钥校验 registry 签名。
+ * 只接受 Ed25519：RSA/ECDSA 会让 verify 走不同分支，统一按"验证失败"处理，
+ * 杜绝"换个算法也能过"的降级路径。
+ */
+export function verifyRegistrySignature(registry: unknown, publicKeyPem: string): boolean {
+  const signature = (registry as { signature?: unknown } | null | undefined)?.signature
+  if (typeof signature !== 'string' || signature.length === 0) return false
+  try {
+    const key = crypto.createPublicKey(publicKeyPem)
+    if (key.asymmetricKeyType !== 'ed25519') return false
+    return crypto.verify(null, registrySignaturePayload(registry), key, Buffer.from(signature, 'base64'))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 校验 registry 是否由任一可信发布者签名。
+ * 与 installFromRegistry 一致：传入清单为空时回落到内置官方公钥，
+ * 因此"调用方忘记传"不会退化成"跳过验签"。
+ */
+export function verifyRegistryTrust(registry: unknown, trustedPublishers: readonly string[] = []): boolean {
+  const configured = trustedPublishers.map(key => String(key || '').trim()).filter(Boolean)
+  const publishers = configured.length > 0 ? configured : [...DEFAULT_TRUSTED_PLUGIN_PUBLISHERS]
+  return publishers.some(publicKey => verifyRegistrySignature(registry, publicKey))
 }
 
 /** 插件市场注册表条目（由 pluginMarketService 拉取并校验） */
@@ -122,6 +236,12 @@ interface ManagedPlugin {
   error?: string
   restarts: number
   stopping: boolean
+  /**
+   * worker 代次（D-04）。每次启动/停止 worker 都递增；消息、退出、超时回调
+   * 只在代次仍匹配时生效，避免"旧 worker 的 exit 事件清掉新 worker 引用"导致
+   * 插件变成僵尸（既无进程也不重启），或旧 worker 的消息污染新实例状态。
+   */
+  generation: number
 }
 
 export class PluginManager {
@@ -287,7 +407,8 @@ export class PluginManager {
       workerReady: false,
       status: enabled ? 'stopped' : 'disabled',
       restarts: 0,
-      stopping: false
+      stopping: false,
+      generation: 0
     })
 
     if (enabled) {
@@ -334,28 +455,53 @@ export class PluginManager {
     plugin.workerReady = false
     plugin.error = undefined
     plugin.status = 'running'
+    // 代次（D-04）：本次启动的所有回调只认这一代，旧 worker 的 message/exit
+    // 即便晚到也不能改动新 worker 的引用或状态。
+    const generation = ++plugin.generation
+    const isCurrent = (): boolean => plugin.generation === generation && plugin.worker === child
+    let child: PluginWorker
     try {
-      const child = utilityProcess.fork(workerPath, [], {
+      child = utilityProcess.fork(workerPath, [], {
         serviceName: `Aria2Desktop Plugin: ${plugin.manifest.name}`,
         env: { ...process.env }
       }) as unknown as PluginWorker
-      plugin.worker = child
-      child.on('message', (message) => this.handleWorkerMessage(pluginId, plugin, message))
-      child.on('exit', (code) => this.handleWorkerExit(pluginId, plugin, code))
+    } catch (error) {
+      this.markPluginError(plugin, `Failed to start plugin process: ${String(error)}`)
+      return
+    }
+    plugin.worker = child
+    try {
+      child.on('message', (message) => {
+        if (!isCurrent()) {
+          logger.warn(`[PluginManager] 忽略旧代次 worker 消息: ${pluginId} (gen ${generation})`)
+          return
+        }
+        this.handleWorkerMessage(pluginId, plugin, message)
+      })
+      child.on('exit', (code) => {
+        if (plugin.generation !== generation) {
+          // 旧进程退出：只记录，绝不清掉新 worker 的引用，也不触发重启
+          logger.warn(`[PluginManager] 旧代次 worker 已退出: ${pluginId} (gen ${generation}, code ${code})`)
+          return
+        }
+        this.handleWorkerExit(pluginId, plugin, code)
+      })
       child.on('spawn', () => {
+        if (!isCurrent()) return
         try {
           child.postMessage({ type: 'load', pluginId, manifest: plugin.manifest, code })
         } catch (error) {
           this.markPluginError(plugin, `Failed to send plugin code: ${String(error)}`)
         }
       })
-      // 加载超时保护：插件入口死循环时直接杀掉该进程，主进程不受影响
-      setTimeout(() => {
-        if (plugin.worker === child && !plugin.workerReady && plugin.status === 'running') {
-          this.markPluginError(plugin, 'Plugin load timed out after 10s')
-          this.stopWorker(plugin, true)
-        }
-      }, 10_000).unref?.()
+      // 加载超时保护（D-16）：插件入口死循环时先请 worker 自己终止（它会清理
+      // 已注册的定时器），再强制 kill；超时后该代次作废，不会被后续消息误判。
+      const timer = setTimeout(() => {
+        if (!isCurrent() || plugin.workerReady || plugin.status !== 'running') return
+        this.markPluginError(plugin, 'Plugin load timed out after 10s')
+        this.terminateWorker(plugin, generation)
+      }, 10_000)
+      timer.unref?.()
     } catch (error) {
       this.markPluginError(plugin, `Failed to start plugin process: ${String(error)}`)
     }
@@ -420,17 +566,38 @@ export class PluginManager {
           plugin.workerReady = true
           plugin.status = 'running'
           plugin.error = undefined
+          // 成功加载才重置重启计数：否则"偶发崩溃一次后永久只剩 2 次配额"，
+          // 长期运行的应用里插件会被慢慢耗尽重启机会
+          plugin.restarts = 0
           logger.info(`[PluginManager] Activated plugin in utilityProcess: ${pluginId}`)
         } else {
+          /**
+           * 加载失败（含 3s runInContext 超时，D-16）：这个 worker 已经没有可用
+           * 实例了，但它的 vm 上下文里可能还留着死循环/半初始化定时器。仅标记
+           * error 会把进程留在后台空转，所以这里直接终止它；stopWorker 递增
+           * generation，随后到达的 exit 属于旧代次，不会触发重启风暴。
+           */
           this.markPluginError(plugin, String(message.error || 'Plugin load failed'))
+          this.stopWorker(plugin, true)
         }
         break
       case 'api':
         void this.handleWorkerApi(pluginId, plugin, message as unknown as WorkerApiMessage)
         break
-      case 'notify':
+      case 'notify': {
+        /**
+         * 权限校验（D-05）：worker 侧 notify.send 不经过 createSandbox 的权限裁剪
+         * （那是 vm 路径），此前 utilityProcess 里的插件只要发一条 notify 消息
+         * 就能弹系统通知，无需声明 notify 权限——等于权限系统在生产路径上失效。
+         */
+        const permissions = new Set(plugin.manifest.permissions || [])
+        if (!permissions.has('notify')) {
+          logger.warn(`[Plugin:${pluginId}] 插件未声明 notify 权限，通知已丢弃`)
+          break
+        }
         this.showPluginNotification(plugin, String(message.title ?? ''), String(message.body ?? ''))
         break
+      }
       case 'log': {
         const level = message.level === 'error' ? 'error' : message.level === 'warn' ? 'warn' : 'info'
         const args = Array.isArray(message.args) ? message.args : []
@@ -480,9 +647,14 @@ export class PluginManager {
 
   /** 处理插件经消息端口发来的 API 调用（白名单 + 权限校验）。 */
   private async handleWorkerApi(pluginId: string, plugin: ManagedPlugin, message: WorkerApiMessage): Promise<void> {
+    // 绑定调用发生时的 worker：异步 RPC 返回时插件可能已被重启，
+    // 此时回复必须发给"发起请求的那一代"，否则新实例会收到不属于它的响应。
+    const worker = plugin.worker
+    const generation = plugin.generation
     const respond = (ok: boolean, value?: unknown, error?: string): void => {
+      if (!worker || plugin.generation !== generation) return
       try {
-        plugin.worker?.postMessage({ type: 'api-response', id: message.id, ok, value, error })
+        worker.postMessage({ type: 'api-response', id: message.id, ok, value, error })
       } catch {
         // 进程可能已退出，忽略
       }
@@ -500,7 +672,8 @@ export class PluginManager {
     try {
       if (message.method === 'settings.get') {
         const key = String(message.args?.[0] ?? '')
-        respond(true, toPluginSafeSettings(getSettingsFresh())[key])
+        // 白名单 + 脱敏（D-05）：未授权键返回 undefined，密钥字段永不出主进程
+        respond(true, readPluginSetting(getSettingsFresh(), key))
         return
       }
       let method = message.method
@@ -536,9 +709,16 @@ export class PluginManager {
     logger.error(`[PluginManager] Plugin "${plugin.manifest.id}": ${error}`)
   }
 
-  /** 停止插件进程；kill=false 仅断开引用（调用方负责 postMessage）。 */
+  /**
+   * 停止插件进程；kill=false 仅断开引用（调用方负责 postMessage）。
+   *
+   * 这里递增 generation（D-04）：一旦停用，旧 worker 后续的 message/exit
+   * 都属于过期代次，必须被忽略——否则"禁用后立刻启用"时，旧进程的 exit
+   * 事件会把刚建好的新 worker 引用清空，插件变成既无进程也不会重启的僵尸。
+   */
   private stopWorker(plugin: ManagedPlugin, kill: boolean): void {
     const worker = plugin.worker
+    plugin.generation += 1
     plugin.worker = undefined
     plugin.workerReady = false
     if (!worker) return
@@ -547,6 +727,25 @@ export class PluginManager {
       const timer = setTimeout(() => { try { worker.kill() } catch { /* ignore */ } }, 400)
       timer.unref?.()
     }
+  }
+
+  /**
+   * 终止指定代次的 worker（D-16 加载超时路径）。
+   *
+   * 先发 terminate 让 worker 自己清理已注册的定时器并退出，再兜底 kill：
+   * 插件入口死循环时只 kill 进程，宿主侧不会留下任何残留状态。
+   * 代次不匹配说明该 worker 早已被替换，直接忽略，避免误杀新进程。
+   */
+  private terminateWorker(plugin: ManagedPlugin, generation: number): void {
+    if (plugin.generation !== generation) return
+    const worker = plugin.worker
+    plugin.generation += 1
+    plugin.worker = undefined
+    plugin.workerReady = false
+    if (!worker) return
+    try { worker.postMessage({ type: 'terminate' }) } catch { /* ignore */ }
+    const timer = setTimeout(() => { try { worker.kill() } catch { /* ignore */ } }, 200)
+    timer.unref?.()
   }
 
   /** 创建沙箱上下文（按权限裁剪 API） */
@@ -586,7 +785,8 @@ export class PluginManager {
       settings: {
         // 每次调用都重新取脱敏快照：插件在激活时缓存 settings.get 的旧值，
         // 用户随后改设置却读不到（例如插件按刷新间隔工作，会一直用旧值）。
-        get: (key: string) => toPluginSafeSettings(getSettingsFresh())[key]
+        // 与 worker 路径共用 readPluginSetting：白名单 + 密钥剔除口径必须一致。
+        get: (key: string) => readPluginSetting(getSettingsFresh(), key)
       },
       notify: {
         send: (title: string, body: string) => {
@@ -753,8 +953,8 @@ export class PluginManager {
   async installFromRegistry(
     entry: RegistryPluginEntry,
     trustedPublishers: string[] = [],
-    options: { upgrade?: boolean } = {}
-  ): Promise<{ success: boolean; error?: string; plugin?: PluginInfo }> {
+    options: { upgrade?: boolean; developerMode?: boolean } = {}
+  ): Promise<{ success: boolean; error?: string; plugin?: PluginInfo; warning?: string }> {
     try {
       if (!entry || typeof entry !== 'object') return { success: false, error: 'INVALID_ENTRY' }
       const id = String(entry.id || '').trim()
@@ -788,36 +988,31 @@ export class PluginManager {
       const digest = crypto.createHash('sha256').update(buffer).digest('hex')
       if (digest !== expected) return { success: false, error: 'CHECKSUM_MISMATCH' }
 
-      const publishers = trustedPublishers.filter(Boolean)
-      if (publishers.length > 0) {
-        if (!entry.signature) return { success: false, error: 'SIGNATURE_REQUIRED' }
-        const verified = publishers.some(publicKey => this.verifyPluginSignature(buffer, entry.signature as string, publicKey))
-        if (!verified) return { success: false, error: 'SIGNATURE_INVALID' }
-      } else if (entry.signature && entry.publisher && /-----BEGIN (?:RSA )?PUBLIC KEY-----/.test(entry.publisher)) {
-        // 未配置可信发布者时，publisher 只有明确是 PEM 公钥才做机会性校验；
-        // 用户名/指纹之类的元数据不能当公钥用，否则合法插件会被误判为签名无效。
-        const verified = this.verifyPluginSignature(buffer, entry.signature, entry.publisher)
-        if (!verified) return { success: false, error: 'SIGNATURE_INVALID' }
+      /**
+       * 签名校验（D-02）：**默认强制**。
+       *
+       * 此前只有在调用方传入了可信发布者时才校验签名，而默认配置的清单是空数组，
+       * 于是"默认安装任何未签名插件"——市场里被投毒的条目可以直接执行。
+       * 现在：调用方传空清单时回落到内置官方公钥集合，未签名包一律拒绝；
+       * 唯一例外是用户显式开启的开发者模式（本地自建插件），且安装结果带警告。
+       */
+      const configured = trustedPublishers.map(key => String(key || '').trim()).filter(Boolean)
+      const publishers = configured.length > 0 ? configured : [...DEFAULT_TRUSTED_PLUGIN_PUBLISHERS]
+      const developerMode = options.developerMode ?? getSettingsFresh().pluginMarket?.developerMode === true
+      let warning: string | undefined
+      if (!entry.signature) {
+        if (!developerMode) return { success: false, error: 'SIGNATURE_REQUIRED' }
+        warning = 'UNSIGNED_DEVELOPER_MODE'
+        logger.warn(`[PluginManager] 开发者模式：允许安装未签名插件 ${id}`)
+      } else if (!publishers.some(publicKey => this.verifyPluginSignature(buffer, entry.signature as string, publicKey))) {
+        if (!developerMode) return { success: false, error: 'SIGNATURE_INVALID' }
+        warning = 'SIGNATURE_INVALID_DEVELOPER_MODE'
+        logger.warn(`[PluginManager] 开发者模式：允许安装签名无效的插件 ${id}`)
       }
 
       const mainName = path.basename(String(entry.main || 'index.js'))
       if (!/^[a-zA-Z0-9._-]+\.js$/.test(mainName)) return { success: false, error: 'INVALID_MAIN' }
-      // 升级：下载与校验都成功后才替换旧目录；先停 worker，再删除旧文件。
-      // 保留插件原有启用状态，避免更新后被静默禁用。
-      if (alreadyExists) {
-        const existing = this.plugins.get(id)
-        const wasEnabled = existing?.enabled === true
-        if (existing) this.disable(id)
-        this.plugins.delete(id)
-        fs.rmSync(targetPath, { recursive: true, force: true })
-        // 恢复原启用状态：原来启用的从 disabled 列表移除；原来停用的保持停用。
-        const disabledList = this.getDisabledList()
-        if (wasEnabled) disabledList.delete(id)
-        else disabledList.add(id)
-        this.saveDisabledList(disabledList)
-      }
-      const pluginPath = targetPath
-      fs.mkdirSync(pluginPath, { recursive: false })
+
       const manifest: PluginManifest = {
         id,
         name: String(entry.name || id),
@@ -827,20 +1022,88 @@ export class PluginManager {
         main: mainName,
         permissions: Array.isArray(entry.permissions) ? entry.permissions : []
       }
-      fs.writeFileSync(path.join(pluginPath, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8')
-      fs.writeFileSync(path.join(pluginPath, mainName), buffer)
-      fs.writeFileSync(path.join(pluginPath, '.market.json'), JSON.stringify({
-        publisher: entry.publisher ?? null,
-        signature: entry.signature ?? null,
-        sha256: expected,
-        installedAt: new Date().toISOString()
-      }, null, 2), 'utf-8')
+
+      /**
+       * 安装/升级的原子性（D-02 验收项：升级写入失败时旧插件仍可用）。
+       *
+       * 旧实现是"先 rmSync 旧目录，再 mkdir + 写文件"：一旦写盘中途失败
+       * （磁盘满、被杀毒软件锁文件、断电），用户既没有新版本也没有旧版本，
+       * 插件目录变成半个空壳。现在改为：
+       *   1. 全部内容先写到同级临时目录（同分区才能 rename）；
+       *   2. 校验通过后把旧目录 rename 成备份；
+       *   3. 临时目录 rename 成正式目录；
+       *   4. 成功才删备份；任何一步失败都把备份 rename 回去并清理临时目录。
+       * 在 rename 成功之前不触碰 plugins Map 与停用列表，所以失败时旧插件
+       * 依然在运行/可启用，用户看到的是一个明确的错误而不是插件消失。
+       */
+      const tempPath = `${targetPath}.tmp-${Date.now()}-${process.pid}`
+      const backupPath = `${targetPath}.bak-${Date.now()}-${process.pid}`
+      const existing = alreadyExists ? this.plugins.get(id) : undefined
+      const wasEnabled = existing?.enabled === true
+      try {
+        fs.mkdirSync(tempPath, { recursive: false })
+        fs.writeFileSync(path.join(tempPath, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8')
+        fs.writeFileSync(path.join(tempPath, mainName), buffer)
+        fs.writeFileSync(path.join(tempPath, '.market.json'), JSON.stringify({
+          publisher: entry.publisher ?? null,
+          signature: entry.signature ?? null,
+          sha256: expected,
+          installedAt: new Date().toISOString(),
+          developerMode: warning ? true : undefined
+        }, null, 2), 'utf-8')
+
+        if (alreadyExists) {
+          try {
+            fs.renameSync(targetPath, backupPath)
+          } catch (error) {
+            logger.error('[PluginManager] 升级失败：无法移走旧插件目录，已保留旧版本', error)
+            return { success: false, error: 'UPGRADE_FAILED' }
+          }
+          try {
+            fs.renameSync(tempPath, targetPath)
+          } catch (error) {
+            logger.error('[PluginManager] 升级失败：无法写入新插件目录，正在回滚', error)
+            try { fs.renameSync(backupPath, targetPath) } catch (rollbackError) {
+              logger.error('[PluginManager] 回滚失败，旧插件目录保留在备份路径:', rollbackError, backupPath)
+            }
+            return { success: false, error: 'UPGRADE_FAILED' }
+          }
+          fs.rmSync(backupPath, { recursive: true, force: true })
+        } else {
+          try {
+            fs.renameSync(tempPath, targetPath)
+          } catch (error) {
+            logger.error('[PluginManager] 安装失败：无法落盘插件目录', error)
+            return { success: false, error: 'INSTALL_FAILED' }
+          }
+        }
+      } finally {
+        // 无论成功失败都不留临时目录（rename 成功后它已不存在）
+        if (fs.existsSync(tempPath)) {
+          try { fs.rmSync(tempPath, { recursive: true, force: true }) } catch { /* ignore */ }
+        }
+      }
+
+      // 磁盘上的新版本已就位，此时才切换运行时状态。
+      if (existing) this.stopWorker(existing, true)
+      this.plugins.delete(id)
+      const disabledList = this.getDisabledList()
+      if (alreadyExists) {
+        // 升级保留原启用状态：原来启用的从停用列表移除，原来停用的保持停用
+        if (wasEnabled) disabledList.delete(id)
+        else disabledList.add(id)
+      } else {
+        // 新装默认**不自动启用**（D-02 验收项）：插件代码来自网络，
+        // 用户确认权限后再手动启用，避免"装完即运行"。
+        disabledList.add(id)
+      }
+      this.saveDisabledList(disabledList)
 
       // loadPlugin 会按 disabledPlugins 状态决定是否激活；不要再调用 enable()，
       // 否则启用中的插件会被 activatePlugin 两次（两个 worker/定时器）。
-      this.loadPlugin(id, this.getDisabledList())
+      this.loadPlugin(id, disabledList)
       const plugin = this.plugins.get(id)
-      return { success: true, plugin: plugin ? {
+      return { success: true, warning, plugin: plugin ? {
         manifest: plugin.manifest,
         enabled: plugin.enabled,
         path: plugin.path,
@@ -855,15 +1118,21 @@ export class PluginManager {
     }
   }
 
-  /** 验证插件入口签名：优先按 Ed25519（algorithm=null），再回退 RSA/ECDSA SHA-256 */
+  /**
+   * 验证插件入口签名（D-02）：**只接受 Ed25519**。
+   *
+   * 旧实现先试 Ed25519 再回退 `crypto.verify('sha256', ...)`（RSA/ECDSA），
+   * 等于给攻击者留了一条降级路径：发布者清单里混入一把 RSA 公钥，或者
+   * 换个算法重签，就能绕过"官方用 Ed25519 签名"这条约定。现在密钥类型
+   * 不匹配直接判失败，与 verifyRegistrySignature 的口径保持一致。
+   */
   private verifyPluginSignature(data: Buffer, signatureBase64: string, publicKey: string): boolean {
     try {
       const signature = Buffer.from(signatureBase64, 'base64')
       if (signature.length === 0) return false
-      if (crypto.verify(null, data, publicKey, signature)) return true
-    } catch { /* 尝试下一种算法 */ }
-    try {
-      return crypto.verify('sha256', data, publicKey, Buffer.from(signatureBase64, 'base64'))
+      const key = crypto.createPublicKey(publicKey)
+      if (key.asymmetricKeyType !== 'ed25519') return false
+      return crypto.verify(null, data, key, signature)
     } catch {
       return false
     }
