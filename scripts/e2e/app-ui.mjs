@@ -1638,6 +1638,168 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
   await sleep(500)
 
+  // —— 状态筛选（D-24）：失败任务必须能一键筛出来 ——
+  // 此前只能靠搜索框找失败任务；这一栏是 v1.5.0 新增的独立入口，必须单独锁定。
+  const statusFilterOpened = await evalIn(
+    session,
+    `(() => {
+      const select = document.querySelector('.toolbar-filters .filter-select--status')
+      if (!select) return 'no-select'
+      const trigger = select.querySelector('.n-base-selection') || select
+      trigger.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('工具栏提供状态筛选下拉', statusFilterOpened === 'clicked', String(statusFilterOpened))
+  await sleep(400)
+  const statusFilterPicked = await evalIn(
+    session,
+    `(() => {
+      const options = [...document.querySelectorAll('.n-base-select-option')].filter((el) => el.offsetParent !== null)
+      const error = options.find((el) => /^(错误|Error)$/i.test((el.innerText || '').trim()))
+      if (!error) return 'no-option'
+      error.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('状态筛选可选「错误」', statusFilterPicked === 'clicked', String(statusFilterPicked))
+  await sleep(900)
+  // 表格开了 virtual-scroll，tbody 里只有可见行，所以不看行数，直接看列表区文本：
+  // 选中「错误」后失败任务必须在，已完成的那条必须消失。
+  const errorOnlyList = await evalIn(
+    session,
+    `(() => {
+      const area = document.querySelector('.task-list-content')
+      const text = area ? (area.innerText || '') : ''
+      return {
+        hasFailed: text.includes('probe-fail.zip'),
+        hasCompleted: text.includes(${JSON.stringify(fileName)}),
+        text: text.slice(0, 120)
+      }
+    })()`
+  )
+  reporter.check(
+    '状态筛选后只剩失败任务',
+    !!errorOnlyList && errorOnlyList.hasFailed === true && errorOnlyList.hasCompleted === false,
+    JSON.stringify(errorOnlyList)
+  )
+  // 换个状态验证筛选真的在过滤：下载页没有已完成任务，选「已完成」必须把失败任务筛掉。
+  await evalIn(
+    session,
+    `(() => {
+      const select = document.querySelector('.toolbar-filters .filter-select--status')
+      const trigger = select && (select.querySelector('.n-base-selection') || select)
+      if (trigger) trigger.click()
+      return !!trigger
+    })()`
+  )
+  await sleep(400)
+  const completedFilterPicked = await evalIn(
+    session,
+    `(() => {
+      const options = [...document.querySelectorAll('.n-base-select-option')].filter((el) => el.offsetParent !== null)
+      const done = options.find((el) => /^(已完成|Completed)$/i.test((el.innerText || '').trim()))
+      if (!done) return 'no-option'
+      done.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('状态筛选可选「已完成」', completedFilterPicked === 'clicked', String(completedFilterPicked))
+  await sleep(900)
+  const completedOnlyList = await evalIn(
+    session,
+    `(() => {
+      const area = document.querySelector('.task-list-content')
+      const text = area ? (area.innerText || '') : ''
+      return { hasFailed: text.includes('probe-fail.zip'), text: text.slice(0, 80) }
+    })()`
+  )
+  reporter.check(
+    '切换状态筛选后失败任务被筛掉',
+    !!completedOnlyList && completedOnlyList.hasFailed === false,
+    JSON.stringify(completedOnlyList)
+  )
+  // 清除筛选：naive-ui 的清除图标只在 hover 时渲染（mergedClearable = clearable && !disabled && (hover || active)），
+  // 纯 JS 点不到，先用 CDP 把真实鼠标移进下拉区域，再点 .n-base-clear__clear。
+  const statusSelectRect = await evalIn(
+    session,
+    `(() => {
+      const sel = document.querySelector('.toolbar-filters .filter-select--status .n-base-selection')
+      if (!sel) return null
+      const rect = sel.getBoundingClientRect()
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+    })()`
+  )
+  if (statusSelectRect) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: statusSelectRect.x,
+      y: statusSelectRect.y,
+      button: 'none',
+      buttons: 0
+    })
+  }
+  await sleep(400)
+  const clearState = await evalIn(
+    session,
+    `(() => {
+      const clear = document.querySelector('.toolbar-filters .filter-select--status .n-base-clear__clear')
+      if (!clear) return { found: false }
+      clear.click()
+      return { found: true }
+    })()`
+  )
+  reporter.check('状态筛选下拉提供清除按钮', !!clearState && clearState.found === true, JSON.stringify(clearState))
+  // 清除后失败任务必须回到列表；列表重渲染有延迟，轮询而不是固定 sleep。
+  const filterClearedText = await waitFor(
+    async () => {
+      const text = await evalIn(session, 'document.body.innerText')
+      return typeof text === 'string' && text.includes('probe-fail.zip') ? text : null
+    },
+    { timeoutMs: 15000, intervalMs: 300, label: '清除状态筛选后失败任务回到列表' }
+  ).catch(async () => await evalIn(session, 'document.body.innerText'))
+  reporter.check(
+    '清除状态筛选后失败任务回到列表',
+    String(filterClearedText).includes('probe-fail.zip'),
+    String(filterClearedText).slice(0, 120)
+  )
+
+  // —— 重试全部失败（D-51）：按钮带失败计数，点击后给出汇总 ——
+  const retryAllState = await evalIn(
+    session,
+    `(() => {
+      const btn = document.querySelector('.retry-failed-btn')
+      if (!btn) return { found: false }
+      return { found: true, text: (btn.innerText || '').trim(), disabled: btn.classList.contains('n-button--disabled') }
+    })()`
+  )
+  reporter.check(
+    '失败任务存在时出现「重试全部失败」按钮',
+    !!retryAllState && retryAllState.found === true && /1/.test(String(retryAllState.text)),
+    JSON.stringify(retryAllState)
+  )
+  const retryAllClicked = await evalIn(
+    session,
+    `(() => {
+      const btn = document.querySelector('.retry-failed-btn')
+      if (!btn) return 'no-btn'
+      btn.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('「重试全部失败」可点击', retryAllClicked === 'clicked', String(retryAllClicked))
+  const retryAllMessage = await waitFor(
+    async () => {
+      const text = await evalIn(
+        session,
+        `(() => [...document.querySelectorAll('.n-message')].map((el) => (el.innerText || '').trim()).join(' | '))()`
+      )
+      return typeof text === 'string' && /已重试|Retried/i.test(text) ? text : null
+    },
+    { timeoutMs: 20000, intervalMs: 300, label: '重试全部失败的汇总提示' }
+  ).catch(async () => String(await evalIn(session, 'document.body.innerText')).slice(0, 120))
+  reporter.check('重试全部失败给出汇总提示', /已重试|Retried/i.test(String(retryAllMessage)), String(retryAllMessage).slice(0, 120))
+  await sleep(800)
 
   // —— 任务详情抽屉（切到"下载完成"列表）——
   const nav = await evalIn(
@@ -1775,6 +1937,60 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   ).catch(async () => await readDrawerText())
   reporter.check('任务详情抽屉可打开', typeof drawerText === 'string' && drawerText !== '(no drawer)', String(drawerText).slice(0, 80))
   reporter.check('详情包含刚下载的文件名', typeof drawerText === 'string' && drawerText.includes(fileName))
+
+  // —— 任务设置面板（D-23）：详情抽屉里直接改单任务限速 / 每服务器连接数 / 代理 ——
+  const settingsTabClicked = await evalIn(
+    session,
+    `(() => {
+      const tabs = [...document.querySelectorAll('.task-detail-content .n-tabs-tab')]
+      const tab = tabs.find((el) => /任务设置|Task settings/i.test(el.innerText || ''))
+      if (!tab) return 'no-tab'
+      tab.click()
+      return 'clicked'
+    })()`
+  )
+  reporter.check('任务详情提供任务设置页签', settingsTabClicked === 'clicked', String(settingsTabClicked))
+  // 切页签后面板要异步 getOption，固定 sleep 在慢机器上会读到空表单，改成轮询到面板出现
+  const settingsPanel = await waitFor(
+    async () => {
+      const state = await evalIn(
+        session,
+        `(() => {
+          const panel = document.querySelector('.task-settings')
+          if (!panel) return null
+          const labels = [...panel.querySelectorAll('.n-form-item-label')].map((el) => (el.innerText || '').trim())
+          const buttons = [...panel.querySelectorAll('.task-settings__actions .n-button')]
+          const saveBtn = buttons.find((el) => /保存|Save/i.test(el.innerText || ''))
+          return {
+            labels,
+            hint: [...panel.querySelectorAll('.task-settings__hint')].map((el) => (el.innerText || '').trim()).join(' | '),
+            hasAlert: !!panel.querySelector('.task-settings__alert'),
+            inputs: panel.querySelectorAll('.n-input-number, .n-input').length,
+            saveDisabled: saveBtn ? saveBtn.classList.contains('n-button--disabled') : null
+          }
+        })()`
+      )
+      return state && state.labels.length === 4 ? state : null
+    },
+    { timeoutMs: 15000, intervalMs: 300, label: '任务设置面板渲染出四个选项' }
+  ).catch(() => null)
+  reporter.check(
+    '任务设置面板展示四个可编辑项',
+    !!settingsPanel && settingsPanel.labels.length === 4 && settingsPanel.inputs >= 4,
+    JSON.stringify(settingsPanel && { labels: settingsPanel.labels, inputs: settingsPanel.inputs })
+  )
+  reporter.check(
+    '任务设置面板提示 0 表示不限速',
+    !!settingsPanel && /不限速|unlimited/i.test(settingsPanel.hint),
+    JSON.stringify(settingsPanel && settingsPanel.hint)
+  )
+  // 取不到 option 时要显示只读提示并置灰保存；取得到就必须可保存。两者不能同时成立
+  reporter.check(
+    '任务设置面板可用性与提示一致',
+    !!settingsPanel
+      && (settingsPanel.hasAlert === true ? settingsPanel.saveDisabled === true : settingsPanel.saveDisabled === false),
+    JSON.stringify(settingsPanel && { hasAlert: settingsPanel.hasAlert, saveDisabled: settingsPanel.saveDisabled })
+  )
   await capture(session, path.join(outDir, '06-task-detail.png'))
 
   // —— 删除确认：文件默认移入系统回收站 ——
