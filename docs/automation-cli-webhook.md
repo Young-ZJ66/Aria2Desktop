@@ -176,8 +176,12 @@ request.get_json）会把 body 解析成对象，再序列化回去时键顺序/
 | 方法 | 路径 | 所需 scope |
 |---|---|---|
 | GET | /api/status | tasks:read |
+| GET | /api/events | tasks:read |
+| GET | /api/queue | tasks:read |
 | GET | /api/audit | audit:read |
 | POST | /api/tasks | tasks:write |
+| POST | /api/tasks/pauseAll | tasks:control |
+| POST | /api/tasks/unpauseAll | tasks:control |
 | POST | /api/tasks/:gid/pause | tasks:control |
 | POST | /api/tasks/:gid/resume | tasks:control |
 | POST | /api/tasks/:gid/remove | tasks:control |
@@ -185,3 +189,7 @@ request.get_json）会把 body 解析成对象，再序列化回去时键顺序/
 
 `/`、`/index.html`、`/manifest.webmanifest`、`/sw.js`、`/openapi.json` 与四个图标为公开资源（不含任何任务数据），
 其余路径都需要令牌。
+
+`GET /api/queue` 是**只读**视图：返回队列设置（最大并发、失败重试开关与次数/间隔）与等待中的任务列表，
+没有对应的写接口——改并发数与重试策略要回桌面端设置页，避免 Web 端绕过桌面端的队列约束（与桌面端
+「最大并发只读」的取舍一致）。
