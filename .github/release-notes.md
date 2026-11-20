@@ -1,6 +1,12 @@
-# v1.5.0-beta.1 更新日志
+# v1.5.0-beta.2 更新日志
 
-> 这是 1.5.0 的预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第二个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+
+## 📌 beta.2 相对 beta.1 的变化
+
+- **主进程文案本地化**：引擎启动失败对话框与系统通知、更新校验失败、yt-dlp/ffmpeg 安装、RSS 订阅与监听目录校验、Web 控制台 TLS 错误、UPnP 映射失败、扩展配对、托盘菜单等 60+ 处此前硬编码中文的文案，现在按系统语言输出中英双语。英文/日文等界面不再在最关键的失败场景看到中文。
+- 引擎启动失败分类器同时识别中英文错误串，避免英文界面下失败原因退化成「未知」。
+- 新增主进程文案表的单元测试（中英齐全、占位符替换），单测总数 1203 → 1221。
 
 ## 🎯 主题：可信接管
 
@@ -29,6 +35,7 @@
 - 剪贴板监控改为默认关闭，需在「常规设置」显式开启。
 - 多 URL 新建下载按行创建独立任务（此前被当成 aria2 镜像合并）；镜像下载仅作为显式高级选项。
 - 种子 / Metalink 上传大小上限跟随引擎的 `rpc-max-request-size` 折算，不再写死 1MB。
+- 主进程文案本地化：引擎启动失败、更新校验、组件安装、订阅 / 监听目录校验、Web 控制台 TLS 与 UPnP 映射失败等错误和对话框，按系统语言输出中英双语（此前英文界面会看到中文报错）。
 - README 与安装说明改为跨平台表述，补充 macOS / Linux 的未签名安装提示与配置目录位置。
 
 ## 🔒 安全
@@ -60,19 +67,25 @@
 
 ## ✅ 验证
 
-- typecheck（主进程 + 测试代码 + 渲染层）通过；107 个测试文件 / 1203 项单测全部通过。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；109 个测试文件 / 1221 项单测全部通过。
 - 应用 E2E 144 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、Web 控制台）。
 - 扩展静态校验 21 项通过；21 种语言文案 key 保持完整。
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.1
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.2
 
 ---
 
-# v1.5.0-beta.1 Release Notes
+# v1.5.0-beta.2 Release Notes
 
-> This is the pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the second pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+
+## 📌 What changed since beta.1
+
+- **Main-process messages are localized**: engine startup failure dialogs and notifications, update verification failures, yt-dlp/ffmpeg installs, RSS subscription and watch-folder validation, web console TLS errors, UPnP mapping failures, extension pairing and the tray menu — 60+ strings that used to be Chinese-only now follow the system language.
+- The engine startup failure classifier now recognizes both Chinese and English messages, so English UIs no longer fall back to an "unknown" reason.
+- Added unit tests for the main-process copy tables (both languages present, placeholders substituted); total unit tests 1203 → 1221.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -100,6 +113,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 - Clipboard monitoring is off by default and must be enabled in General settings.
 - Multiple URLs create one task per line (they used to be merged as aria2 mirrors); mirroring is now an explicit advanced option.
 - The torrent / Metalink upload limit follows the engine's `rpc-max-request-size` instead of a hard-coded 1MB.
+- Main-process messages are localized: engine startup failures, update verification, component installs, subscription / watch-folder validation, web console TLS and UPnP mapping errors are shown in English on English systems (they used to be Chinese-only).
 - README and install docs are cross-platform, covering unsigned installs on macOS / Linux and their config directories.
 
 ## 🔒 Security
@@ -131,7 +145,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ## ✅ Verification
 
-- Typecheck (main process, tests, renderer) passes; 107 test files / 1203 unit tests pass.
+- Typecheck (main process, tests, renderer) passes; 109 test files / 1221 unit tests pass.
 - All 144 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, web console).
 - All 21 extension static checks pass; the 21 locales remain complete.
 

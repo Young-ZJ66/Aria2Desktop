@@ -10,6 +10,7 @@ import { callAria2Rpc } from '../utils/aria2Rpc'
 import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { activeStreamDownloadCount, activeStreamDownloadSpeedBytes } from '../services/streamDownloadService'
+import { mainLocaleFrom } from '../utils/mainLocale'
 
 // 本文件日志文案自带 [TrayController] 前缀（历史风格），故 scope 传空避免前缀重复
 const logger = createLogger('')
@@ -81,7 +82,7 @@ export class TrayController {
     if (!this.tray) return
 
     // 按系统语言切换托盘菜单文案（主进程无 i18n 实例，简单分流中英文）
-    const isZh = app.getLocale().startsWith('zh')
+    const isZh = mainLocaleFrom(() => app.getLocale()) === 'zh'
     const labels = {
       newTask: isZh ? '新建下载' : 'New Download',
       settings: isZh ? '设置' : 'Settings',
@@ -189,7 +190,7 @@ export class TrayController {
     if (!this.tray) return
     // 引擎异常态优先：此时再去拉 RPC 统计只会拿到 0，显示"0 B/s"会误导成"空闲"
     if (this.engineGaveUpAttempts !== null) {
-      const zh = app.getLocale().startsWith('zh')
+      const zh = mainLocaleFrom(() => app.getLocale()) === 'zh'
       this.tray.setToolTip(
         zh
           ? `Aria2 Desktop — 引擎已停止自动重启（连续失败 ${this.engineGaveUpAttempts} 次）`
@@ -214,7 +215,7 @@ export class TrayController {
       activeCount,
       streamCount: activeStreamDownloadCount(),
       streamSpeed: activeStreamDownloadSpeedBytes(),
-      zh: app.getLocale().startsWith('zh')
+      zh: mainLocaleFrom(() => app.getLocale()) === 'zh'
     }))
   }
 

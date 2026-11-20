@@ -9,6 +9,8 @@ import { DEV_ALLOWED_ORIGINS, normalizeFileUrl } from '../utils/ipcSecurityCore'
 import { resolveAppIconPath, resolveRendererIndexPath } from '../utils/resolvePaths'
 import { createLogger } from '../utils/logger'
 import { isPlausibleBounds, pickStoredBounds } from '../utils/windowBoundsCore'
+import { mainLocaleFrom } from '../utils/mainLocale'
+import { rendererCrashCopy } from '../utils/mainProcessCopy'
 import type { StoreData, WindowState } from '../types/store'
 
 // 本文件日志文案自带 [WindowController] 前缀（历史风格），故 scope 传空避免前缀重复
@@ -328,12 +330,13 @@ export class WindowController {
           if (this.mainWindow && !this.mainWindow.isDestroyed()) this.mainWindow.reload()
         }, 1000)
       } else {
+        const copy = rendererCrashCopy(mainLocaleFrom(() => app.getLocale()))
         void dialog.showMessageBox(this.mainWindow, {
           type: 'error',
-          title: '界面进程异常',
-          message: '界面进程连续崩溃，已停止自动恢复',
-          detail: '请尝试重新启动应用；如果问题持续出现，请导出诊断报告并反馈。',
-          buttons: ['重新启动', '关闭']
+          title: copy.title,
+          message: copy.message,
+          detail: copy.detail,
+          buttons: [copy.restart, copy.close]
         }).then((result) => {
           if (result.response === 0) {
             app.relaunch()

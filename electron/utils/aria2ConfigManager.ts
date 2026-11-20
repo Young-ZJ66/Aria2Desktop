@@ -5,6 +5,8 @@ import { app } from 'electron'
 // 必须用相对路径引入 src/shared 下的共享常量（tsc 会将该依赖一并编译输出到 dist）
 import { DEFAULT_BT_TRACKERS_CSV } from '../../src/shared/btTrackers'
 import { createLogger } from './logger'
+import { mainError } from './mainErrorCopy'
+import { runtimeMainLocale } from './mainLocaleRuntime'
 
 const logger = createLogger('Aria2ConfigManager')
 
@@ -313,11 +315,11 @@ bt-tracker=${DEFAULT_BT_TRACKERS_CSV}
     // 基线不可信时拒绝写盘（读失败后 rawLines 可能为空，写下去就是用"只剩新键"的内容
     // 覆盖用户的整份配置）。抛错而非静默跳过：调用方（flushSave 的调用点）需要知道没写成。
     if (this.baselineUnreadable) {
-      throw new Error('aria2 配置基线不可读，已拒绝写盘以避免覆盖用户配置')
+      throw new Error(mainError(runtimeMainLocale(), 'engine.configBaselineUnreadable'))
     }
     // 二次护栏：空基线 + 有内容 = 加载环节一定出过问题，宁可失败也不覆盖
     if (this.rawLines.length === 0 && this.configContent.size > 0) {
-      throw new Error('aria2 配置基线为空，已拒绝写盘以避免覆盖用户配置')
+      throw new Error(mainError(runtimeMainLocale(), 'engine.configBaselineEmpty'))
     }
 
     let lines: string[] = [...this.rawLines]

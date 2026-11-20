@@ -6,6 +6,9 @@ import { ResourceManager } from '../utils/resourceManager'
 import { Aria2ConfigManager } from '../utils/aria2ConfigManager'
 import { callAria2Rpc, Aria2RpcError } from '../utils/aria2Rpc'
 import { createLogger } from '../utils/logger'
+import { mainError } from '../utils/mainErrorCopy'
+import type { MainErrorKey } from '../utils/mainErrorCopy'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import { nextRestartDelayMs, shouldResetRetryCount } from '../utils/engineRestartCore'
 import {
   describeMissingExecutableBit,
@@ -14,6 +17,11 @@ import {
 } from '../utils/executablePermissionCore'
 
 const logger = createLogger('Aria2ProcessManager')
+
+/** 引擎错误统一走主进程文案表（message 会被上层分类器与对话框消费） */
+function engineError(key: MainErrorKey, params?: Record<string, string | number>): string {
+  return mainError(runtimeMainLocale(), key, params)
+}
 
 /**
  * RPC 关闭后等待 aria2 自行退出的宽限期。
@@ -185,7 +193,7 @@ export class Aria2ProcessManager {
     try {
       // 检查可执行文件是否存在
       if (!existsSync(this.config.executablePath)) {
-        throw new Error(`Aria2 可执行文件不存在: ${this.config.executablePath}`)
+        throw new Error(engineError('engine.executableMissing', { path: this.config.executablePath }))
       }
 
       // POSIX 上引擎必须带执行位，否则 spawn 抛 EACCES（macOS zip 被解压工具剥掉权限时就是这样）
@@ -217,10 +225,7 @@ export class Aria2ProcessManager {
       // 而 aria2 在配置错误时也可能长时间存活却永远不提供 RPC 服务。
       const rpcReady = await this.waitForRpcReady()
       if (!rpcReady) {
-        throw new Error(
-          `Aria2 RPC 服务未就绪（端口 ${this.config.port}）。` +
-          '请检查该端口是否被其它程序占用，或 RPC 相关配置是否正确。'
-        )
+        throw new Error(engineError('engine.rpcNotReady', { port: this.config.port }))
       }
 
       logger.info('Aria2 进程启动成功, PID:', this.process?.pid)
@@ -313,7 +318,7 @@ export class Aria2ProcessManager {
     while (Date.now() - startAt < timeoutMs) {
       // 进程已退出则直接失败
       if (!this.process || this.process.exitCode !== null || this.process.signalCode !== null) {
-        throw new Error(`Aria2 进程异常退出，代码: ${this.process?.exitCode}`)
+        throw new Error(engineError('engine.processExited', { code: this.process?.exitCode ?? 'unknown' }))
       }
       // 先做轻量 TCP 探测，避免每次都用 HTTP 超时等待；端口通了再验证协议层。
       if (await this.probePort(port)) {
@@ -335,7 +340,7 @@ export class Aria2ProcessManager {
       }
       return false
     }
-    throw new Error('Aria2 启动超时')
+    throw new Error(engineError('engine.startTimeout'))
   }
 
   /** 尝试建立 TCP 连接探测端口，300ms 内未连上视为未就绪 */
@@ -814,7 +819,7 @@ export class Aria2ProcessManager {
 
       if (attempts >= maxAttempts) {
         logger.error('配置文件同步验证失败：连续多次无法读取 aria2.conf')
-        throw new Error('配置文件同步验证失败')
+        throw new Error(engineError('engine.configSyncVerifyFailed'))
       }
 
       await new Promise(resolve => setTimeout(resolve, 200))
@@ -878,7 +883,7 @@ export class Aria2ProcessManager {
       // 先停止进程（stop 内部会先走 RPC 优雅关闭，保存会话后再退出）
       const stopSuccess = await this.stop()
       if (!stopSuccess) {
-        throw new Error('停止进程失败')
+        throw new Error(engineError('engine.stopFailed'))
       }
 
       // 等待进程完全清理
@@ -892,7 +897,7 @@ export class Aria2ProcessManager {
       // 启动进程
       const startSuccess = await this.start()
       if (!startSuccess) {
-        throw new Error('启动进程失败')
+        throw new Error(engineError('engine.startProcessFailed'))
       }
 
       logger.info('Aria2 进程重启成功')
@@ -979,7 +984,7 @@ export class Aria2ProcessManager {
     if (Object.keys(safeOptions).length === 0 && keysToClear.length === 0) return
     // 重新加载配置文件，确保基于最新文件内容写入
     if (!this.configManager.reload()) {
-      throw new Error('aria2 配置读取失败，已拒绝写入以避免覆盖用户配置')
+      throw new Error(engineError('engine.configReadFailed'))
     }
     if (Object.keys(safeOptions).length > 0) {
       this.configManager.setMultipleConfigs(safeOptions)

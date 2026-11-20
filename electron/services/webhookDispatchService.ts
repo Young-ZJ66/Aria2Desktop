@@ -16,6 +16,8 @@
  */
 import { createHmac, randomUUID } from 'crypto'
 import { BrowserWindow } from 'electron'
+import { mainError } from '../utils/mainErrorCopy'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import Store from 'electron-store'
 import { registerSecureHandler } from '../utils/ipcSecurity'
 import { getSettingsFresh } from '../utils/settingsAccessor'
@@ -223,7 +225,7 @@ export class WebhookDispatchService {
   retryEntry(id: string): WebhookQueueRetryResult {
     const list = this.readQueue()
     const entry = list.find(item => item.id === id)
-    if (!entry) return { success: false, error: '队列条目不存在' }
+    if (!entry) return { success: false, error: mainError(runtimeMainLocale(), 'webhook.entryMissing') }
     entry.status = 'pending'
     entry.attempts = 0
     entry.nextAttemptAt = Date.now()

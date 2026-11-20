@@ -18,10 +18,18 @@ import { findSha256ForFile } from '../utils/sha256Sums'
 import { computeFileSha256 } from '../utils/fileHash'
 import { downloadToFile, fetchText, type DownloadProgress } from '../utils/downloader'
 import { isNewerVersion } from '../utils/componentUpdate'
+import { mainError } from '../utils/mainErrorCopy'
+import type { MainErrorKey } from '../utils/mainErrorCopy'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import { createLogger } from '../utils/logger'
 import { isSafeHttpUrl } from '../utils/ipcInputValidation'
 
 const logger = createLogger('YtdlpService')
+
+/** 错误文案跟随应用语言：这些串会直接显示在流媒体页/组件设置里 */
+function ytdlpError(key: MainErrorKey, params?: Record<string, string | number>): string {
+  return mainError(runtimeMainLocale(), key, params)
+}
 
 /** yt-dlp 官方 Release 的固定下载前缀（`latest` 会 302 到当前最新 tag） */
 const RELEASE_BASE = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download'
@@ -177,7 +185,7 @@ export async function checkYtdlpUpdate(): Promise<YtdlpUpdateResult> {
       success: false,
       updateAvailable: false,
       checkable: status.installable,
-      error: status.error || 'yt-dlp 未安装'
+      error: status.error || ytdlpError('ytdlp.notInstalled')
     }
   }
   const current = String(status.version || '').trim()
@@ -191,7 +199,7 @@ export async function checkYtdlpUpdate(): Promise<YtdlpUpdateResult> {
         updateAvailable: false,
         checkable: true,
         currentVersion: current,
-        error: '无法解析最新版本号'
+        error: ytdlpError('ytdlp.versionUnresolved')
       }
     }
     return {
@@ -231,7 +239,7 @@ async function performInstall(
 ): Promise<YtdlpInstallResult> {
   const asset = resolveYtdlpAsset(process.platform, process.arch)
   if (!asset) {
-    return { success: false, error: '当前平台暂不支持自动下载 yt-dlp，请手动安装并加入系统 PATH' }
+    return { success: false, error: ytdlpError('ytdlp.platformUnsupported') }
   }
 
   const targetPath = path.join(downloadDir(), asset.executable)
@@ -248,7 +256,7 @@ async function performInstall(
     const sums = await fetchText(`${RELEASE_BASE}/SHA2-256SUMS`)
     const expected = findSha256ForFile(sums, asset.fileName)
     if (!expected) {
-      return { success: false, error: '官方校验文件中缺少该平台的 SHA-256，已停止安装' }
+      return { success: false, error: ytdlpError('ytdlp.checksumMissing') }
     }
 
     await downloadToFile(`${RELEASE_BASE}/${asset.fileName}`, tempPath, onProgress)
@@ -259,7 +267,7 @@ async function performInstall(
       logger.warn(`yt-dlp 校验失败：期望 ${expected.slice(0, 12)}…，实际 ${actual.slice(0, 12)}…`)
       return {
         success: false,
-        error: `SHA-256 校验失败（期望 ${expected.slice(0, 12)}…，实际 ${actual.slice(0, 12)}…）`
+        error: ytdlpError('ytdlp.checksumMismatch', { expected: expected.slice(0, 12), actual: actual.slice(0, 12) })
       }
     }
 
@@ -464,7 +472,7 @@ export async function getPlaylistInfo(url: string): Promise<{ success: boolean; 
     const output = await execYtdlp(args, undefined, 60000)
     const info = mapPlaylistEntries(JSON.parse(output), url)
     if (!info) {
-      return { success: false, error: '未解析到播放列表条目（该链接可能不是播放列表）' }
+      return { success: false, error: ytdlpError('ytdlp.playlistEmpty') }
     }
     return { success: true, info }
   } catch (error) {
@@ -500,7 +508,7 @@ function execYtdlp(args: string[], command = resolveExecutable().command, timeou
     // 默认 30s；播放列表解析涉及站点翻页，由调用方放宽（见 getPlaylistInfo）
     const watchdog = setTimeout(() => {
       proc.kill('SIGKILL')
-      reject(new Error('yt-dlp 执行超时'))
+      reject(new Error(ytdlpError('ytdlp.timeout')))
     }, timeoutMs)
     const clearWatchdog = () => clearTimeout(watchdog)
 
@@ -513,7 +521,7 @@ function execYtdlp(args: string[], command = resolveExecutable().command, timeou
     proc.on('error', (err) => {
       clearWatchdog()
       if (err.message.includes('ENOENT')) {
-        reject(new Error('未检测到 yt-dlp。可在流媒体页一键下载，或自行安装并加入系统 PATH。'))
+        reject(new Error(ytdlpError('ytdlp.notDetected')))
       } else {
         reject(err)
       }

@@ -1,4 +1,4 @@
-import { dialog, Notification, shell } from 'electron'
+import { app, dialog, Notification, shell } from 'electron'
 import Store from 'electron-store'
 import { WindowController } from './WindowController'
 import { TrayController } from './TrayController'
@@ -8,8 +8,11 @@ import { ConfigWatcher } from '../utils/ConfigWatcher'
 import { getSettings } from '../utils/settingsAccessor'
 import { createLogger, getLogFilePaths } from '../utils/logger'
 // 启动失败分类是纯函数（不依赖 electron），便于单测；见 utils/engineStartupFailureCore
-import { ENGINE_STARTUP_ACTION_LABELS, buildEngineStartupFailureInfo } from '../utils/engineStartupFailureCore'
+import { buildEngineStartupFailureInfo, engineStartupActionLabels } from '../utils/engineStartupFailureCore'
 import type { EngineStartupAction, EngineStartupFailureInfo } from '../utils/engineStartupFailureCore'
+import { mainLocaleFrom } from '../utils/mainLocale'
+import type { MainLocale } from '../utils/mainLocale'
+import { mainError } from '../utils/mainErrorCopy'
 import type { StoreData } from '../types/store'
 
 // 本文件日志文案自带 [AppLifecycle] 前缀（历史风格），故 scope 传空避免前缀重复
@@ -152,10 +155,10 @@ export class AppLifecycle {
 
         // 无头模式没有用户可点对话框：直接失败退出，避免后台进程带病运行
         if (this.headless) {
-          throw new Error(`Aria2 下载引擎启动失败: ${errorMessage}`)
+          throw new Error(mainError(this.mainLocale(), 'engine.headlessStartFailed', { detail: errorMessage }))
         }
 
-        const info = buildEngineStartupFailureInfo(error, this.readConfiguredPort())
+        const info = buildEngineStartupFailureInfo(error, this.readConfiguredPort(), this.mainLocale())
         let action = await this.promptEngineStartupAction(info, errorMessage)
 
         // 「查看日志」不结束对话：打开日志目录后重新弹一次，让用户看完再决定
@@ -184,6 +187,16 @@ export class AppLifecycle {
     }
   }
 
+  /**
+   * 主进程文案语言。
+   *
+   * 主进程没有 i18n 实例，托盘菜单用同样的 `app.getLocale()` 二分中英文；
+   * 这里复用同一口径，避免"托盘英文、失败对话框中文"的割裂。
+   */
+  private mainLocale(): MainLocale {
+    return mainLocaleFrom(() => app.getLocale())
+  }
+
   /** 读取设置里的 RPC 端口（仅用于失败提示文案；设置不可读时返回 null） */
   private readConfiguredPort(): number | null {
     try {
@@ -199,17 +212,22 @@ export class AppLifecycle {
     info: EngineStartupFailureInfo,
     errorMessage: string
   ): Promise<EngineStartupAction> {
-    const buttons = info.actions.map((action) => ENGINE_STARTUP_ACTION_LABELS[action])
+    const locale = this.mainLocale()
+    const labels = engineStartupActionLabels(locale)
+    const buttons = info.actions.map((action) => labels[action])
     // 默认项优先「重试启动」；cancelId 指向「退出应用」（Esc 关闭 = 退出，与旧行为一致）
     const preferred = info.actions.includes('retry') ? 'retry' : info.actions[0]
     const defaultId = Math.max(info.actions.indexOf(preferred), 0)
     const cancelId = Math.max(info.actions.indexOf('quit'), 0)
+    const zh = locale === 'zh'
 
     const result = await dialog.showMessageBox({
       type: 'error',
-      title: 'Aria2 启动失败',
-      message: 'Aria2 下载引擎启动失败',
-      detail: `${info.summary}\n\n建议下一步：${info.hint}\n\n错误详情: ${errorMessage}`,
+      title: zh ? 'Aria2 启动失败' : 'Aria2 failed to start',
+      message: zh ? 'Aria2 下载引擎启动失败' : 'The Aria2 download engine failed to start',
+      detail: zh
+        ? `${info.summary}\n\n建议下一步：${info.hint}\n\n错误详情: ${errorMessage}`
+        : `${info.summary}\n\nSuggested next step: ${info.hint}\n\nError details: ${errorMessage}`,
       buttons,
       defaultId,
       cancelId,
@@ -266,11 +284,14 @@ export class AppLifecycle {
    * @param attempts 连续失败次数（来自管理器）
    */
   public notifyEngineGaveUp(attempts: number): void {
-    const message = `aria2 引擎连续 ${attempts} 次重启失败，已停止自动重启。可在「设置 → 引擎设置」里手动重启，或打开应用日志查看原因。`
+    const zh = this.mainLocale() === 'zh'
+    const message = zh
+      ? `aria2 引擎连续 ${attempts} 次重启失败，已停止自动重启。可在「设置 → 引擎设置」里手动重启，或打开应用日志查看原因。`
+      : `The aria2 engine failed to restart ${attempts} times in a row and has stopped auto-restarting. Restart it manually under Settings → Engine, or open the app logs for details.`
     try {
       if (Notification.isSupported()) {
         new Notification({
-          title: 'Aria2 引擎已停止自动重启',
+          title: zh ? 'Aria2 引擎已停止自动重启' : 'Aria2 engine stopped auto-restarting',
           body: message.slice(0, 500),
           urgency: 'critical'
         }).show()

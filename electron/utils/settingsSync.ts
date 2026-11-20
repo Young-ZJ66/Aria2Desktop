@@ -12,6 +12,9 @@
 
 import type { AppSettings } from '../../src/shared/appSettings'
 import type { SettingsExport, SettingsImportReport } from '../../src/shared/settingsSync'
+import { mainError } from './mainErrorCopy'
+import type { MainErrorKey } from './mainErrorCopy'
+import { runtimeMainLocale } from './mainLocaleRuntime'
 
 type JsonRecord = Record<string, unknown>
 
@@ -261,21 +264,22 @@ export type SettingsImportResult =
  * 就整键被拒）；这里只保证"写入的类型不会让启动流程崩"，细粒度归一化交给渲染层的
  * mergeWithDefaults 与各服务的读取端兜底。
  *
- * 返回 null 表示通过，否则为中文原因。
+ * 返回 null 表示通过，否则为拒绝原因（跟随应用语言）。
  */
 function validateSettingValue(key: string, value: unknown): string | null {
+  const reject = (copyKey: MainErrorKey): string => mainError(runtimeMainLocale(), copyKey)
   switch (key) {
     case 'language':
-      return typeof value === 'string' ? null : 'language 必须是字符串'
+      return typeof value === 'string' ? null : reject('import.validate.language')
     case 'theme':
-      if (typeof value !== 'string') return 'theme 必须是字符串'
-      return THEMES.has(value) ? null : 'theme 必须是 light / dark / auto 之一'
+      if (typeof value !== 'string') return reject('import.validate.theme')
+      return THEMES.has(value) ? null : reject('import.validate.themeValue')
     case 'refreshInterval':
-      return typeof value === 'number' && Number.isFinite(value) ? null : 'refreshInterval 必须是数字'
+      return typeof value === 'number' && Number.isFinite(value) ? null : reject('import.validate.refreshInterval')
     case 'webConsole':
-      return isRecord(value) ? null : 'webConsole 必须是对象'
+      return isRecord(value) ? null : reject('import.validate.webConsole')
     case 'connectionProfiles':
-      return Array.isArray(value) ? null : 'connectionProfiles 必须是数组'
+      return Array.isArray(value) ? null : reject('import.validate.connectionProfiles')
     default:
       return null
   }
@@ -288,14 +292,15 @@ function validateSettingValue(key: string, value: unknown): string | null {
  * 无法通过导入表达，而整键替换与 settings 的写入语义（渲染层整体提交）一致。
  */
 export function applySettingsImport(current: AppSettings, data: unknown): SettingsImportResult {
+  const locale = runtimeMainLocale()
   if (!isRecord(data)) {
-    return { ok: false, error: '导入数据必须是对象' }
+    return { ok: false, error: mainError(locale, 'import.notObject') }
   }
   if (data.app !== SETTINGS_EXPORT_APP_ID) {
-    return { ok: false, error: '不是 Aria2Desktop 的设置导出文件（app 字段不匹配）' }
+    return { ok: false, error: mainError(locale, 'import.appMismatch') }
   }
   if (!isRecord(data.settings)) {
-    return { ok: false, error: '导出文件缺少 settings 对象' }
+    return { ok: false, error: mainError(locale, 'import.missingSettings') }
   }
 
   const redacted = data.redacted === true

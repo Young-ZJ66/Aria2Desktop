@@ -61,6 +61,23 @@ describe('classifyEngineStartupError', () => {
     expect(classifyEngineStartupError(new Error('aria2 配置读取失败，已拒绝写入'))).toBe('config-error')
   })
 
+  it('英文界面的错误文案同样能分类（文案表产出英文串）', () => {
+    expect(
+      classifyEngineStartupError(new Error('RPC port 6800 is already used by another aria2 instance that does not accept this app secret.'))
+    ).toBe('port-occupied-other-aria2')
+    expect(classifyEngineStartupError(new Error('The service listening on RPC port 6800 is not aria2 (its response is not JSON-RPC).'))).toBe(
+      'port-non-aria2'
+    )
+    expect(classifyEngineStartupError(new Error('The leftover aria2 instance on RPC port 6800 did not exit'))).toBe('leftover-engine')
+    expect(
+      classifyEngineStartupError(
+        new Error('The aria2 RPC service is not ready (port 6800). Check whether another program is using that port')
+      )
+    ).toBe('port-in-use-unknown')
+    expect(classifyEngineStartupError(new Error('The aria2 executable does not exist: /opt/aria2c'))).toBe('missing-executable')
+    expect(classifyEngineStartupError(new Error('Configuration file sync verification failed'))).toBe('config-error')
+  })
+
   it('无法归类的错误落到 unknown', () => {
     expect(classifyEngineStartupError(new Error('Aria2 启动超时'))).toBe('unknown')
     expect(classifyEngineStartupError(undefined)).toBe('unknown')

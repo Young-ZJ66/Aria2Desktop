@@ -8,12 +8,20 @@ import { callAria2Rpc } from '../utils/aria2Rpc'
 import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { createLogger } from '../utils/logger'
 import { computeFileSha256 } from '../utils/fileHash'
+import { mainError } from '../utils/mainErrorCopy'
+import type { MainErrorKey } from '../utils/mainErrorCopy'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 // 注意：主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import type { AutoImportLogEntry, WatchFolderConfig } from '../../src/shared/autoImport'
 import type { StoreData } from '../types/store'
 
 // 本文件日志文案自带 [WatchFolder] 前缀（历史风格），故 scope 传空避免前缀重复
 const logger = createLogger('')
+
+/** 错误文案跟随应用语言：导入日志与设置页会直接展示这些串 */
+function watchError(key: MainErrorKey, params?: Record<string, string | number>): string {
+  return mainError(runtimeMainLocale(), key, params)
+}
 
 /** 扫描步长：固定 15 秒（文件夹监听要的是"放进去很快被吃掉"的体验） */
 const SCAN_INTERVAL_MS = 15_000
@@ -140,7 +148,7 @@ export class WatchFolderService {
    */
   private async performScan(id: string): Promise<WatchScanResult> {
     const folder = this.findFolder(id)
-    if (!folder) return { success: false, imported: 0, error: '监听文件夹不存在' }
+    if (!folder) return { success: false, imported: 0, error: watchError('watch.notFound') }
 
     let names: string[]
     try {
@@ -188,7 +196,7 @@ export class WatchFolderService {
         continue
       }
       if (seenHashes.has(hash)) {
-        logEntries.push(this.buildLogEntry(folder, name, 'skipped', '内容已导入过，跳过'))
+        logEntries.push(this.buildLogEntry(folder, name, 'skipped', watchError('watch.alreadyImported')))
         continue
       }
 
@@ -288,7 +296,7 @@ export class WatchFolderService {
       // 清理失败不影响"已添加"的事实（哈希已记录，不会重复导入），但要留痕给用户排查
       const message = error instanceof Error ? error.message : String(error)
       const fileName = path.basename(filePath)
-      logEntries.push(this.buildLogEntry(folder, fileName, 'error', '已添加到 aria2，但清理/归档源文件失败: ' + message))
+      logEntries.push(this.buildLogEntry(folder, fileName, 'error', watchError('watch.cleanupFailed', { detail: message })))
       logger.warn('[WatchFolder] 清理源文件失败:', filePath, message)
     }
   }
@@ -347,19 +355,19 @@ export class WatchFolderService {
    * extensions 归一为小写带点（'TORRENT'/'torrent' → '.torrent'）。
    */
   private validateFolder(folder: WatchFolderConfig): { ok: true; folder: WatchFolderConfig } | { ok: false; error: string } {
-    if (!folder || typeof folder !== 'object') return { ok: false, error: '配置数据无效' }
+    if (!folder || typeof folder !== 'object') return { ok: false, error: watchError('watch.invalid') }
     const watchPath = typeof folder.path === 'string' ? folder.path.trim() : ''
-    if (watchPath === '') return { ok: false, error: '监听路径不能为空' }
-    if (!path.isAbsolute(watchPath)) return { ok: false, error: '监听路径必须是绝对路径' }
+    if (watchPath === '') return { ok: false, error: watchError('watch.pathEmpty') }
+    if (!path.isAbsolute(watchPath)) return { ok: false, error: watchError('watch.pathAbsolute') }
     try {
       const stat = fs.statSync(watchPath)
-      if (!stat.isDirectory()) return { ok: false, error: '监听路径不是文件夹' }
+      if (!stat.isDirectory()) return { ok: false, error: watchError('watch.pathNotDir') }
     } catch {
-      return { ok: false, error: '监听路径不存在或不可访问' }
+      return { ok: false, error: watchError('watch.pathInaccessible') }
     }
     const dir = typeof folder.dir === 'string' ? folder.dir.trim() : ''
     // dir 与 RSS 订阅同口径：相对目录会被 aria2 按它自己的工作目录解释，必然落错位置
-    if (dir !== '' && !path.isAbsolute(dir)) return { ok: false, error: '下载目录必须是绝对路径' }
+    if (dir !== '' && !path.isAbsolute(dir)) return { ok: false, error: watchError('watch.dirAbsolute') }
 
     const extensions = folder.extensions === undefined
       ? undefined

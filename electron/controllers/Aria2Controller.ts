@@ -14,6 +14,9 @@ import { isLocalEngineAddress } from '../../src/shared/localEngine'
 // 仅类型引用：IPC 入参的形状以共享类型为准，避免主/渲染两侧各写一份而漂移
 import type { Aria2UpdateConfig } from '../../src/shared/electronBridge'
 import { createLogger } from '../utils/logger'
+import { mainError } from '../utils/mainErrorCopy'
+import type { MainErrorKey } from '../utils/mainErrorCopy'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import { DEFAULT_ENGINE_SHUTDOWN_MAX_WAIT_MS, EngineShutdownService, waitForPortRelease } from '../services/engineShutdownService'
 import type { EngineShutdownResult } from '../services/engineShutdownService'
 import type { AppSettings } from '../types/store'
@@ -21,6 +24,11 @@ import type { AppSettings } from '../types/store'
 import { extractImportedEngineSettings } from '../utils/settingsSync'
 
 const logger = createLogger('Aria2Controller')
+
+/** 引擎相关错误统一走主进程文案表：这些 message 会进对话框，英文界面不能抛中文 */
+function engineError(key: MainErrorKey, params?: Record<string, string | number>): string {
+  return mainError(runtimeMainLocale(), key, params)
+}
 
 /** 端口号合法范围（1024 以下为系统保留端口，65535 为上限） */
 const MIN_PORT = 1024
@@ -244,8 +252,8 @@ export class Aria2Controller {
           // 附带 aria2 stderr，让错误弹窗能展示 aria2 自身的报错（端口占用/坏配置/杀软拦截等）
           const stderr = this.aria2Manager.getLastStderr()
           throw new Error(stderr
-            ? `Aria2 进程启动失败，请检查可执行文件与配置。\n\nAria2 输出:\n${stderr}`
-            : 'Aria2 进程启动失败，请检查可执行文件与配置')
+            ? engineError('engine.startFailedWithOutput', { detail: stderr })
+            : engineError('engine.startFailed'))
         }
       }
     } catch (error) {
@@ -515,21 +523,15 @@ export class Aria2Controller {
           released = await waitForPortRelease(port, 2000)
         }
         if (!released) {
-          throw new Error(`RPC 端口 ${port} 上的遗留 aria2 实例未能退出，请手动结束残留的 aria2c 进程后重试`)
+          throw new Error(engineError('engine.leftoverNotExited', { port }))
         }
         logger.info(`[Aria2Controller] 已结束遗留 aria2 实例并释放 RPC 端口 ${port}`)
         break
       }
       case 'aria2-with-other-secret':
-        throw new Error(
-          `RPC 端口 ${port} 已被另一个 aria2 实例占用（不认可本机密钥）。` +
-            '为避免误杀其它下载器，本应用不会自动结束它；请关闭该实例或更换 rpc-listen-port 后重试。'
-        )
+        throw new Error(engineError('engine.portOccupiedOtherAria2', { port }))
       case 'non-aria2-service':
-        throw new Error(
-          `RPC 端口 ${port} 上监听的服务不是 aria2（响应不是 JSON-RPC）。` +
-            '请在「引擎设置」里换一个 rpc-listen-port。'
-        )
+        throw new Error(engineError('engine.portNonAria2', { port }))
       case 'unknown':
         // 有服务在监听但没正常应答（超时等）：不下结论，但留痕——否则现场只剩一片安静
         logger.warn(`启动前探测 RPC 端口 ${port} 未得到确定结果（端口上可能有服务但未正常应答）：`, probeError)
@@ -593,7 +595,7 @@ export class Aria2Controller {
     if (!this.aria2Manager) {
       await this.initialize()
       if (!this.aria2Manager) {
-        const error = 'Aria2 manager 未初始化'
+        const error = engineError('engine.managerUninitialized')
         logger.error('[Aria2Controller] 重启引擎失败：' + error)
         return { success: false, error }
       }
@@ -616,7 +618,7 @@ export class Aria2Controller {
       return { success: false, error: message }
     }
     if (!started) {
-      const error = this.aria2Manager.getLastStderr() || 'Aria2 进程启动失败'
+      const error = this.aria2Manager.getLastStderr() || engineError('engine.startFailed')
       logger.error('[Aria2Controller] 安装程序启动失败后重启引擎失败:', error)
       return { success: false, error }
     }
@@ -637,7 +639,7 @@ export class Aria2Controller {
           .catch((error) => logger.warn('[Aria2Controller] 远程 Tracker 下发失败:', error))
         return { success: true }
       }
-      if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
+      if (!this.aria2Manager) return { success: false, error: engineError('engine.managerUninitialized') }
       this.aria2Manager.saveGlobalOptionsToConfig({ 'bt-tracker': csv })
       // 尽力立即生效：bt-tracker 为运行时可变全局选项，失败时配置已持久化、重启后仍有效
       const { port, secret } = this.getRpcSettings()
@@ -704,7 +706,7 @@ export class Aria2Controller {
     // failureValue 逐一对应迁移前的失败形态（渲染层依赖这些语义）
     registerSecureHandler('aria2-start', async () => {
       if (!this.aria2Manager) await this.initialize()
-      if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
+      if (!this.aria2Manager) return { success: false, error: engineError('engine.managerUninitialized') }
       try {
         await this.prepareForManagedStart()
       } catch (error) {
@@ -715,19 +717,19 @@ export class Aria2Controller {
       this.aria2Manager.resetRestartCounter()
       const ok = await this.aria2Manager.start()
       // 失败时附带 aria2 stderr，便于设置页展示具体原因
-      return { success: ok, error: ok ? undefined : (this.aria2Manager.getLastStderr() || 'Aria2 进程启动失败') }
+      return { success: ok, error: ok ? undefined : (this.aria2Manager.getLastStderr() || engineError('engine.startFailed')) }
     }, { getMainWindow: this.windowRef })
 
     registerSecureHandler('aria2-stop', async () => {
       if (!this.aria2Manager) return { success: true }
       // 如实回报：未能确认退出时不能让用户以为已经停了（进程可能还占着 RPC 端口）
       const stopped = await this.stop()
-      return { success: stopped, error: stopped ? undefined : '未能确认 aria2 进程退出，请查看日志' }
+      return { success: stopped, error: stopped ? undefined : engineError('engine.portNotReleased') }
     }, { getMainWindow: this.windowRef })
 
     registerSecureHandler('aria2-restart', async () => {
       if (!this.aria2Manager) await this.initialize()
-      if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
+      if (!this.aria2Manager) return { success: false, error: engineError('engine.managerUninitialized') }
       return { success: await this.aria2Manager.restart() }
     }, { getMainWindow: this.windowRef })
 
@@ -743,7 +745,7 @@ export class Aria2Controller {
     })
 
     registerSecureHandler('aria2-save-global-options', (event, options: Record<string, string | number | null>) => {
-      if (!this.aria2Manager) return { success: false, error: 'Aria2 manager not initialized' }
+      if (!this.aria2Manager) return { success: false, error: engineError('engine.managerUninitialized') }
       const rawOptions = options && typeof options === 'object' ? options : {}
       const has = (key: string) => Object.prototype.hasOwnProperty.call(rawOptions, key)
       const toBoolean = (value: unknown): boolean => String(value).toLowerCase() === 'true' || value === 1
@@ -820,7 +822,7 @@ export class Aria2Controller {
     registerSecureHandler('aria2-update-config', async (event, config: Aria2UpdateConfig) => {
       if (!this.aria2Manager) await this.initialize()
       if (!this.aria2Manager) {
-        return { success: false, code: 'not_initialized', error: 'Aria2 manager not initialized' }
+        return { success: false, code: 'not_initialized', error: engineError('engine.managerUninitialized') }
       }
 
       // 入参规范化与校验，防止异常类型写入 store / 配置文件。
@@ -871,7 +873,7 @@ export class Aria2Controller {
         // 配置文件写入失败时如实反馈，避免用户误以为保存成功
         const error = e instanceof Error ? e.message : String(e)
         logger.error('写入 aria2 配置失败:', error)
-        return { success: false, code: 'config_write_failed', error: `配置文件写入失败: ${error}` }
+        return { success: false, code: 'config_write_failed', error: engineError('engine.configWriteFailed', { detail: error }) }
       }
 
       // 更新存储（显式标注 AppSettings 类型，避免对象字面量中的字面量类型被拓宽）

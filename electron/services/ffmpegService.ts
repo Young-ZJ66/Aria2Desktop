@@ -18,9 +18,17 @@ import { downloadToFile, fetchText, type DownloadProgress } from '../utils/downl
 import { ffmpegBuildDate, formatDateStamp, isoToDateStamp } from '../utils/componentUpdate'
 import { computeFileSha256 } from '../utils/fileHash'
 import { extractArchiveTo } from './archiveService'
+import { mainError } from '../utils/mainErrorCopy'
+import type { MainErrorKey } from '../utils/mainErrorCopy'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import { createLogger } from '../utils/logger'
 
 const logger = createLogger('FfmpegService')
+
+/** 错误文案跟随应用语言：这些串会直接显示在组件设置里 */
+function ffmpegError(key: MainErrorKey, params?: Record<string, string | number>): string {
+  return mainError(runtimeMainLocale(), key, params)
+}
 
 /** FFmpeg-Builds 官方 Release（`latest` 指向当前滚动构建） */
 const RELEASE_BASE = 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest'
@@ -123,7 +131,7 @@ export async function checkFfmpegUpdate(): Promise<FfmpegUpdateResult> {
       success: false,
       updateAvailable: false,
       checkable: false,
-      error: status.error || 'ffmpeg 未安装'
+      error: status.error || ffmpegError('ffmpeg.notInstalled')
     }
   }
   const current = String(status.version || '').trim()
@@ -134,7 +142,7 @@ export async function checkFfmpegUpdate(): Promise<FfmpegUpdateResult> {
       updateAvailable: false,
       checkable: false,
       currentVersion: current,
-      error: '当前版本不含构建日期，无法自动比较（请自行更新）'
+      error: ffmpegError('ffmpeg.noBuildDate')
     }
   }
   const asset = resolveFfmpegAsset(process.platform, process.arch)
@@ -144,7 +152,7 @@ export async function checkFfmpegUpdate(): Promise<FfmpegUpdateResult> {
       updateAvailable: false,
       checkable: false,
       currentVersion: current,
-      error: '当前平台不支持自动更新 ffmpeg'
+      error: ffmpegError('ffmpeg.updateUnsupported')
     }
   }
   try {
@@ -158,7 +166,7 @@ export async function checkFfmpegUpdate(): Promise<FfmpegUpdateResult> {
         updateAvailable: false,
         checkable: true,
         currentVersion: current,
-        error: '未能获取最新构建信息'
+        error: ffmpegError('ffmpeg.latestUnavailable')
       }
     }
     return {
@@ -195,7 +203,7 @@ async function performInstall(
   if (!asset) {
     return {
       success: false,
-      error: '当前平台暂不支持自动下载 ffmpeg，请手动安装并加入系统 PATH（macOS 可执行 brew install ffmpeg）'
+      error: ffmpegError('ffmpeg.platformUnsupported')
     }
   }
 
@@ -210,7 +218,7 @@ async function performInstall(
     const sums = await fetchText(`${RELEASE_BASE}/checksums.sha256`)
     const expected = findSha256ForFile(sums, asset.fileName)
     if (!expected) {
-      return { success: false, error: '官方校验文件中缺少该平台的 SHA-256，已停止安装' }
+      return { success: false, error: ffmpegError('ffmpeg.checksumMissing') }
     }
 
     await downloadToFile(`${RELEASE_BASE}/${asset.fileName}`, archivePath, onProgress)
@@ -220,7 +228,7 @@ async function performInstall(
       logger.warn(`ffmpeg 校验失败：期望 ${expected.slice(0, 12)}…，实际 ${actual.slice(0, 12)}…`)
       return {
         success: false,
-        error: `SHA-256 校验失败（期望 ${expected.slice(0, 12)}…，实际 ${actual.slice(0, 12)}…）`
+        error: ffmpegError('ffmpeg.checksumMismatch', { expected: expected.slice(0, 12), actual: actual.slice(0, 12) })
       }
     }
 
@@ -229,7 +237,7 @@ async function performInstall(
     // 归档内是 `<build>/bin/ffmpeg(.exe)`（共享库构建还带 DLL），整个 bin 目录一起搬
     const ffmpegPath = findFfmpegBinary(extractDir)
     if (!ffmpegPath) {
-      return { success: false, error: '解压后未找到 ffmpeg 可执行文件，归档结构可能已变化' }
+      return { success: false, error: ffmpegError('ffmpeg.binaryMissing') }
     }
     const binDir = path.dirname(ffmpegPath)
     const staging = path.join(tempRoot, 'bin')
@@ -287,7 +295,7 @@ function runFfmpegVersion(command: string): Promise<string> {
     const proc = spawn(command, ['-version'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
     const timer = setTimeout(() => {
       proc.kill('SIGKILL')
-      reject(new Error('ffmpeg 执行超时'))
+      reject(new Error(ffmpegError('ffmpeg.timeout')))
     }, 10000)
     let stdout = ''
     let stderr = ''
@@ -296,7 +304,7 @@ function runFfmpegVersion(command: string): Promise<string> {
     proc.on('error', (error) => {
       clearTimeout(timer)
       if (error.message.includes('ENOENT')) {
-        reject(new Error('未检测到 ffmpeg。可在此处一键下载，或自行安装并加入系统 PATH。'))
+        reject(new Error(ffmpegError('ffmpeg.notDetected')))
       } else {
         reject(error)
       }
@@ -326,9 +334,9 @@ function runFfmpegVersion(command: string): Promise<string> {
 async function extractFfmpegArchive(archivePath: string, destDir: string): Promise<void> {
   const result = await extractArchiveTo(archivePath, destDir)
   if (result.success) return
-  if (result.reason === 'tar_not_available') throw new Error('系统未提供 tar，无法解压 ffmpeg 归档')
-  if (result.reason === 'extract_timeout') throw new Error('ffmpeg 解压超时')
-  throw new Error(`解压 ffmpeg 归档失败：${result.reason ?? '未知原因'}`)
+  if (result.reason === 'tar_not_available') throw new Error(ffmpegError('ffmpeg.tarUnavailable'))
+  if (result.reason === 'extract_timeout') throw new Error(ffmpegError('ffmpeg.extractTimeout'))
+  throw new Error(ffmpegError('ffmpeg.extractFailed', { detail: result.reason || ffmpegError('ffmpeg.unknownReason') }))
 }
 
 /** 深度优先查找 ffmpeg 可执行文件（归档内的目录层级来自官方构建，保持宽松） */

@@ -28,6 +28,8 @@ import { WEB_CONSOLE_CSP, WEB_CONSOLE_HTML } from '../webConsolePage'
 import { ICON_192_PNG_B64, ICON_512_PNG_B64, MASKABLE_192_PNG_B64, MASKABLE_512_PNG_B64, WEB_CONSOLE_MANIFEST, WEB_CONSOLE_SW } from '../webConsoleAssets'
 import { buildOpenApiDocument } from '../webConsoleOpenApi'
 import { isPublicPath, resolveAuthFromSettings, routeScope, scopeAllows } from '../utils/webConsoleAuth'
+import { mainLocaleFrom } from '../utils/mainLocale'
+import { webConsoleTlsError } from '../utils/mainProcessCopy'
 import type { WebConsoleSettings } from '../../src/shared/appSettings'
 import logger from 'electron-log'
 
@@ -179,7 +181,7 @@ export class WebConsoleServer {
     }
     if (!loopbackOnly && !tls.options) {
       this.lastError =
-        '局域网访问需要 HTTPS：请在「远程访问」中配置证书与私钥，或改为只监听 127.0.0.1 并由反向代理终止 TLS'
+        webConsoleTlsError(mainLocaleFrom(() => app.getLocale()), 'lan-requires-tls')
       this.bindHost = '127.0.0.1'
       return { running: false, port: 0, token: '', error: this.lastError }
     }
@@ -256,15 +258,17 @@ export class WebConsoleServer {
    * 避免"以为开了 HTTPS 实际还在明文"的静默降级。
    */
   private loadTlsCredentials(config: WebConsoleSettings): { options?: https.ServerOptions; error?: string } {
+    // 错误文案会原样显示在设置页，按主进程语言生成
+    const locale = mainLocaleFrom(() => app.getLocale())
     const certPath = String(config.tlsCertPath || '').trim()
     const keyPath = String(config.tlsKeyPath || '').trim()
     if (!certPath && !keyPath) return {}
     if (!certPath || !keyPath) {
-      return { error: 'HTTPS 需要同时配置证书与私钥文件路径' }
+      return { error: webConsoleTlsError(locale, 'pair-required') }
     }
     // 只接受绝对路径：相对路径的解析基准随 cwd 变化，容易被诱导读取任意文件
     if (!path.isAbsolute(certPath) || !path.isAbsolute(keyPath)) {
-      return { error: 'HTTPS 证书与私钥需要填写绝对路径' }
+      return { error: webConsoleTlsError(locale, 'absolute-path') }
     }
     try {
       const cert = fs.readFileSync(certPath)
@@ -274,7 +278,7 @@ export class WebConsoleServer {
       return { options: { cert, key } }
     } catch (error) {
       logger.error('[WebConsole] Failed to load TLS credentials:', error)
-      return { error: `HTTPS 证书加载失败：${error instanceof Error ? error.message : String(error)}` }
+      return { error: webConsoleTlsError(locale, 'load-failed', error instanceof Error ? error.message : String(error)) }
     }
   }
 

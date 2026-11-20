@@ -17,6 +17,14 @@ import { getYtdlpExecutablePath } from './ytdlpService'
 import { checkFfmpegAvailable, getFfmpegLocation } from './ffmpegService'
 import { createLogger } from '../utils/logger'
 import { isSafeHttpUrl } from '../utils/ipcInputValidation'
+import { mainLocaleFrom } from '../utils/mainLocale'
+import { downloadNotificationTitle, streamDownloadError } from '../utils/mainProcessCopy'
+import type { MainLocale } from '../utils/mainLocale'
+
+/** 流媒体下载的失败文案语言（与主进程其它对话框口径一致） */
+function streamLocale(): MainLocale {
+  return mainLocaleFrom(() => app.getLocale())
+}
 import { applyCompletionRulesForTask } from './completionRuleService'
 
 const logger = createLogger('StreamDownload')
@@ -471,7 +479,7 @@ export async function startStreamDownload(
     return {
       success: false,
       code: 'too_many_downloads',
-      error: `同时进行的流媒体下载已达上限（${MAX_CONCURRENT_STREAM_DOWNLOADS} 条），请等待当前任务结束`
+      error: streamDownloadError(streamLocale(), 'too-many', '', MAX_CONCURRENT_STREAM_DOWNLOADS)
     }
   }
 
@@ -485,7 +493,7 @@ export async function startStreamDownload(
       return {
         success: false,
         code: 'ffmpeg_missing',
-        error: '该下载需要 ffmpeg（合并音轨/转 MP3/字幕转换），请先下载或安装后在设置中配置'
+        error: streamDownloadError(streamLocale(), 'ffmpeg-missing')
       }
     }
   }
@@ -496,7 +504,7 @@ export async function startStreamDownload(
     return {
       success: false,
       code: 'invalid_request',
-      error: `无法创建保存目录：${error instanceof Error ? error.message : String(error)}`
+      error: streamDownloadError(streamLocale(), 'create-output-dir', error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -512,7 +520,7 @@ export async function startStreamDownload(
     return {
       success: false,
       code: 'invalid_request',
-      error: `无法创建临时目录：${error instanceof Error ? error.message : String(error)}`
+      error: streamDownloadError(streamLocale(), 'create-temp-dir', error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -707,8 +715,9 @@ function launchStreamProcess(id: string, record: ActiveDownload): void {
       return
     }
     if (!filePath || !fs.existsSync(filePath)) {
-      updateStreamTask(id, { status: 'error', speedBytes: 0, error: '下载完成但未找到输出文件' })
-      record.onEvent({ type: 'failed', id, error: '下载完成但未找到输出文件' })
+      const noOutput = streamDownloadError(streamLocale(), 'no-output-file')
+      updateStreamTask(id, { status: 'error', speedBytes: 0, error: noOutput })
+      record.onEvent({ type: 'failed', id, error: noOutput })
       return
     }
 
@@ -949,7 +958,7 @@ function notifyCompleted(filePath: string): void {
   try {
     if (!Notification.isSupported()) return
     new Notification({
-      title: '下载完成',
+      title: downloadNotificationTitle(mainLocaleFrom(() => app.getLocale()), true),
       body: path.basename(filePath)
     }).show()
   } catch {

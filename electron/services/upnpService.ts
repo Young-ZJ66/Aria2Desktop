@@ -13,7 +13,10 @@
 
 import dgram from 'dgram'
 import http from 'http'
+import { app } from 'electron'
 import { createLogger } from '../utils/logger'
+import { mainLocaleFrom } from '../utils/mainLocale'
+import { upnpFailureMessage } from '../utils/mainProcessCopy'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { activeRpcOptions, getActiveRpcConfig } from '../utils/activeRpcConfig'
 import {
@@ -149,31 +152,33 @@ export class UpnpService {
   }
 
   private async mapAll(): Promise<{ ok: boolean; externalIp?: string; ports?: number[]; message?: string }> {
+    // 失败原因文案按主进程语言生成（这些字符串会直接显示在 BT 设置页/诊断页）
+    const locale = mainLocaleFrom(() => app.getLocale())
     // 1) SSDP 发现网关
     const location = await discoverGateway().catch(() => null)
     if (!location || !isValidDeviceLocation(location)) {
-      return { ok: false, message: '未发现支持 UPnP 的路由器' }
+      return { ok: false, message: upnpFailureMessage(locale, 'no-gateway') }
     }
     // 2) 设备描述 → 控制 URL
     const deviceXml = await httpGet(location).catch(() => null)
     if (!deviceXml) {
-      return { ok: false, message: '路由器设备描述不可读' }
+      return { ok: false, message: upnpFailureMessage(locale, 'device-description-unreadable') }
     }
     const controlPaths = extractControlUrls(deviceXml)
     const controlUrl = controlPaths.map(p => joinControlUrl(location, p)).find(Boolean)
     if (!controlUrl) {
-      return { ok: false, message: '路由器不支持 WANIPConnection 映射服务' }
+      return { ok: false, message: upnpFailureMessage(locale, 'wanipconnection-unsupported') }
     }
     // 3) 本机局域网 IP（映射目标）
     const internalIp = await getLocalLanIp()
     if (!internalIp) {
-      return { ok: false, message: '未获取到局域网地址' }
+      return { ok: false, message: upnpFailureMessage(locale, 'no-lan-address') }
     }
     // 4) 端口清单：读引擎全局选项的 bt-listen-port / dht-port。
     // 远程连接时不做 UPnP：映射本机路由器对远端引擎毫无意义，还会误报成功。
     const settings = getSettingsFresh()
     if (!getActiveRpcConfig(settings).isLocal) {
-      return { ok: false, message: '当前连接为远程引擎，UPnP 仅对本机引擎生效' }
+      return { ok: false, message: upnpFailureMessage(locale, 'remote-engine') }
     }
     const rpc = activeRpcOptions(settings)
     const { callAria2Rpc } = await import('../utils/aria2Rpc')
@@ -210,7 +215,7 @@ export class UpnpService {
       }
     }
     if (mapped.length === 0) {
-      return { ok: false, message: '端口映射被路由器拒绝' }
+      return { ok: false, message: upnpFailureMessage(locale, 'rejected') }
     }
     // 删除本次不再需要的旧映射（端口修改 / 网关切换 / 续租缩表）。
     // 旧实现直接 this.activeMappings = built，旧条目只能等 30 分钟租期自然过期。

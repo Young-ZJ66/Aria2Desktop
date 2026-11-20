@@ -3,6 +3,10 @@ import * as http from 'http'
 import * as path from 'path'
 import { app, dialog } from 'electron'
 import { createLogger } from '../utils/logger'
+import { mainLocaleFrom } from '../utils/mainLocale'
+import { mainError } from '../utils/mainErrorCopy'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
+import { defaultExtensionName, extensionPairingCopy } from '../utils/mainProcessCopy'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { callAria2Rpc } from '../utils/aria2Rpc'
@@ -1187,7 +1191,7 @@ export class ExtensionApiServer {
       this.send(res, 409, {
         ok: false,
         code: 'secret_required',
-        error: '请先在「设置 → RPC 与安全」设置 RPC 密钥，再配对扩展'
+        error: mainError(runtimeMainLocale(), 'extension.secretRequired')
       })
       return
     }
@@ -1208,7 +1212,7 @@ export class ExtensionApiServer {
     // 头值类型是 string | string[] | undefined（重复头会变数组），版本号只认单值
     const versionHeader = req.headers['x-extension-version']
     const info: ExtensionPairingInfo = {
-      name: requestedName || 'Aria2 下载扩展',
+      name: requestedName || defaultExtensionName(mainLocaleFrom(() => app.getLocale())),
       extensionId: extensionIdFromOrigin(origin),
       origin,
       version: normalizeExtensionVersionHeader(typeof versionHeader === 'string' ? versionHeader : undefined)
@@ -1274,22 +1278,23 @@ export class ExtensionApiServer {
    * 展示净化后的扩展名称/ID/来源，让用户能判断"是不是我刚装的那个扩展"。
    */
   private async showPairingDialog(info: ExtensionPairingInfo): Promise<boolean> {
+    const copy = extensionPairingCopy(mainLocaleFrom(() => app.getLocale()))
     const detail = [
-      `扩展名称：${info.name}`,
-      `扩展 ID：${info.extensionId || '未知'}`,
-      `来源：${info.origin}`,
-      info.version ? `版本：${info.version}` : '',
+      `${copy.labelName}：${info.name}`,
+      `${copy.labelExtensionId}：${info.extensionId || copy.unknown}`,
+      `${copy.labelOrigin}：${info.origin}`,
+      info.version ? `${copy.labelVersion}：${info.version}` : '',
       '',
-      '允许后该扩展可以：添加下载任务、查看与控制任务列表、发起流媒体下载。',
-      '它**不会**拿到你的 RPC 密钥，你可以随时在扩展设置页撤销授权。'
+      copy.canDo,
+      copy.cannotDo
     ].filter((line) => line !== '').join('\n')
     const result = await dialog.showMessageBox({
       type: 'question',
-      buttons: ['允许', '拒绝'],
+      buttons: [copy.allow, copy.deny],
       defaultId: 0,
       cancelId: 1,
-      title: '浏览器扩展请求配对',
-      message: '是否允许该浏览器扩展连接 Aria2 Desktop？',
+      title: copy.title,
+      message: copy.message,
       detail
     })
     return result.response === 0

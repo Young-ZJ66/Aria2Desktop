@@ -6,10 +6,18 @@ import { registerSecureHandler } from '../utils/ipcSecurity'
 // 注意：主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import { parseTrackerText } from '../../src/shared/btTrackers'
 import { createLogger } from '../utils/logger'
+import { mainError } from '../utils/mainErrorCopy'
+import type { MainErrorKey } from '../utils/mainErrorCopy'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import type { StoreData, TrackerSubscriptionState } from '../types/store'
 
 // 本文件日志文案自带 [TrackerSubscription] 前缀（历史风格），故 scope 传空避免前缀重复
 const logger = createLogger('')
+
+/** 错误文案跟随应用语言：BT 设置页会原样展示这些串 */
+function trackerError(key: MainErrorKey, params?: Record<string, string | number>): string {
+  return mainError(runtimeMainLocale(), key, params)
+}
 
 /** 最小同步间隔（小时） */
 const MIN_INTERVAL_HOURS = 12
@@ -170,7 +178,7 @@ export class TrackerSubscriptionService {
       .filter(source => /^https:\/\//i.test(source))
 
     if (validSources.length === 0) {
-      const result: TrackerUpdateResult = { success: false, error: '没有可用的订阅源（仅支持 https:// 地址）' }
+      const result: TrackerUpdateResult = { success: false, error: trackerError('tracker.noSource') }
       // 与其它失败分支保持一致：推送给渲染层，避免设置页只看到"保存成功"却不知为何未更新
       this.notifyRenderer(result)
       return result
@@ -195,7 +203,7 @@ export class TrackerSubscriptionService {
       }
 
       if (allTrackers.size === 0) {
-        const result: TrackerUpdateResult = { success: false, error: lastError || '所有订阅源均不可用' }
+        const result: TrackerUpdateResult = { success: false, error: lastError || trackerError('tracker.allFailed') }
         this.notifyRenderer(result)
         return result
       }
@@ -203,7 +211,7 @@ export class TrackerSubscriptionService {
       const csv = Array.from(allTrackers).join(',')
       const apply = this.aria2Controller.applyTrackerList(csv)
       if (!apply.success) {
-        const result: TrackerUpdateResult = { success: false, error: apply.error || '写入 aria2 配置失败' }
+        const result: TrackerUpdateResult = { success: false, error: apply.error || trackerError('tracker.writeFailed') }
         this.notifyRenderer(result)
         return result
       }
@@ -247,7 +255,7 @@ export class TrackerSubscriptionService {
       }
       // 防御性校验：仅支持 https（重定向目标也强制要求 TLS，防止降级攻击）
       if (!/^https:\/\//i.test(url)) {
-        fail(new Error(`仅支持 https:// 订阅源: ${url}`))
+        fail(new Error(trackerError('tracker.unsupportedUrl', { url })))
         return
       }
       const req = https.request(this.buildRequestOptions(url), (res) => {

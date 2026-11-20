@@ -1,6 +1,8 @@
 import { spawnSync } from 'child_process'
 import * as net from 'net'
 import { createLogger, type ScopedLogger } from '../utils/logger'
+import { mainError } from '../utils/mainErrorCopy'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 
 const logger = createLogger('EngineShutdownService')
 
@@ -251,7 +253,7 @@ export async function performRestartAndInstall(deps: RestartAndInstallDeps): Pro
     return { success: true, engineShutdown }
   }
 
-  const errorMessage = installResult.error || '无法启动安装程序'
+  const errorMessage = installResult.error || mainError(runtimeMainLocale(), 'update.installerLaunchFailed')
   log.error('[UpdateInstall] 启动安装程序失败，正在重启 aria2 引擎:', errorMessage)
 
   let engineRestart: { success: boolean; error?: string } | undefined

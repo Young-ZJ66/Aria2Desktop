@@ -13,6 +13,8 @@ import { isStaleUpdateFile } from '../utils/updateFiles'
 import { downloadDelta, saveDeltaCache, discardDeltaCache } from '../services/deltaUpdater'
 import { createLogger } from '../utils/logger'
 import { isPackagedApp } from '../utils/appEnv'
+import { mainError } from '../utils/mainErrorCopy'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 
 // 本文件日志文案自带 [UpdateController] 前缀（历史风格），故 scope 传空避免前缀重复
 const logger = createLogger('')
@@ -667,14 +669,19 @@ export class UpdateController {
     const expected = sha256Text.trim().split(/\s+/)[0].toLowerCase()
     // 格式异常（非 64 位 hex）时拒绝校验，防止攻击者构造格式异常的 sha256 文件绕过完整性校验
     if (!/^[0-9a-f]{64}$/.test(expected)) {
-      throw new Error('SHA-256 校验文件格式异常，已拒绝自动安装，请从 GitHub Release 手动下载')
+      throw new Error(mainError(runtimeMainLocale(), 'update.checksumFormat'))
     }
     const actual = await this.computeSha256(installerPath)
     if (actual !== expected) {
       // 校验失败时顺手清掉差量缓存：本地底版损坏/被篡改是常见成因，
       // 不清的话下次差量会再次拼出同一个坏包（自愈优先于保留缓存）
       await discardDeltaCache()
-      throw new Error(`SHA-256 校验失败：期望 ${expected.slice(0, 12)}…，实际 ${actual.slice(0, 12)}…`)
+      throw new Error(
+        mainError(runtimeMainLocale(), 'update.checksumMismatch', {
+          expected: expected.slice(0, 12),
+          actual: actual.slice(0, 12)
+        })
+      )
     }
     logger.info('[UpdateController] Installer checksum verified')
     return {}

@@ -10,12 +10,20 @@ import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { createLogger } from '../utils/logger'
 import { parseFeed } from '../utils/feedParser'
 import type { FeedItem } from '../utils/feedParser'
+import { mainError } from '../utils/mainErrorCopy'
+import type { MainErrorKey } from '../utils/mainErrorCopy'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 // 注意：主进程产物是 CJS，运行时无法解析 @/ 别名，必须用相对路径引入 src/shared
 import type { AutoImportLogEntry, RssFeedItemPreview, RssSubscription } from '../../src/shared/autoImport'
 import type { StoreData } from '../types/store'
 
 // 本文件日志文案自带 [RssSubscription] 前缀（历史风格），故 scope 传空避免前缀重复
 const logger = createLogger('')
+
+/** 错误文案跟随应用语言：这些串会进导入日志与设置页，英文用户不该看到中文 */
+function rssError(key: MainErrorKey, params?: Record<string, string | number>): string {
+  return mainError(runtimeMainLocale(), key, params)
+}
 
 /** ticker 步长：固定 60 秒，订阅各自按 intervalMinutes 判断是否到期 */
 const TICKER_INTERVAL_MS = 60_000
@@ -170,7 +178,7 @@ export class RssSubscriptionService {
    */
   private async performFetch(id: string): Promise<RssFetchNowResult> {
     const sub = this.findSubscription(id)
-    if (!sub) return { success: false, added: 0, error: '订阅不存在' }
+    if (!sub) return { success: false, added: 0, error: rssError('rss.notFound') }
 
     let xmlText: string
     try {
@@ -200,7 +208,7 @@ export class RssSubscriptionService {
     for (const item of matched) {
       const key = this.itemKey(item)
       if (!key || seen.has(key)) {
-        logEntries.push(this.buildLogEntry(sub, item, 'skipped', '重复条目，已跳过'))
+        logEntries.push(this.buildLogEntry(sub, item, 'skipped', rssError('rss.duplicateSkipped')))
         continue
       }
       candidates.push(item)
@@ -287,7 +295,7 @@ export class RssSubscriptionService {
     if (plainUrl !== undefined && /^https?:\/\//i.test(plainUrl)) {
       return this.rpc('aria2.addUri', [[plainUrl], options])
     }
-    throw new Error('条目没有可下载的 magnet/http(s) 链接')
+    throw new Error(rssError('rss.noLink'))
   }
 
   /** .torrent 后缀判定（大小写不敏感，含查询串前的路径） */
@@ -319,7 +327,7 @@ export class RssSubscriptionService {
         reject(err instanceof Error ? err : new Error(String(err)))
       }
       if (!/^https?:\/\//i.test(url)) {
-        fail(new Error(`仅支持 http(s) 地址: ${url}`))
+        fail(new Error(rssError('rss.unsupportedUrl', { url })))
         return
       }
       const parsed = new URL(url)
@@ -343,7 +351,7 @@ export class RssSubscriptionService {
             const nextUrl = new URL(res.headers.location, url).toString()
             // 重定向目标同样必须落在 http(s) 上，防协议降级到 file:// 等异常源
             if (!/^https?:\/\//i.test(nextUrl)) {
-              fail(new Error('重定向目标不是 http(s) 地址'))
+              fail(new Error(rssError('rss.redirectNotHttp')))
               return
             }
             this.fetchBinary(nextUrl, redirectCount + 1).then(resolve).catch(fail)
@@ -402,7 +410,7 @@ export class RssSubscriptionService {
       kind: 'rss',
       sourceId: sub.id,
       sourceName: sub.name,
-      title: item.title || item.link || item.enclosureUrl || '（无标题）',
+      title: item.title || item.link || item.enclosureUrl || rssError('rss.untitled'),
       ...(gid !== undefined ? { gid } : {}),
       status,
       ...(message !== undefined ? { message } : {}),
@@ -429,23 +437,23 @@ export class RssSubscriptionService {
    * 返回 error 字符串表示拒绝保存；intervalMinutes/maxPerFetch 一律钳到合法区间。
    */
   private validateSubscription(sub: RssSubscription): { ok: true; subscription: RssSubscription } | { ok: false; error: string } {
-    if (!sub || typeof sub !== 'object') return { ok: false, error: '订阅数据无效' }
+    if (!sub || typeof sub !== 'object') return { ok: false, error: rssError('rss.invalid') }
     const name = typeof sub.name === 'string' ? sub.name.trim() : ''
-    if (name === '') return { ok: false, error: '订阅名称不能为空' }
-    if (name.length > 100) return { ok: false, error: '订阅名称不能超过 100 字符' }
+    if (name === '') return { ok: false, error: rssError('rss.nameEmpty') }
+    if (name.length > 100) return { ok: false, error: rssError('rss.nameTooLong') }
     const url = typeof sub.url === 'string' ? sub.url.trim() : ''
-    if (!/^https?:\/\//i.test(url)) return { ok: false, error: '订阅地址必须以 http:// 或 https:// 开头' }
+    if (!/^https?:\/\//i.test(url)) return { ok: false, error: rssError('rss.urlScheme') }
     for (const pattern of [sub.includePattern, sub.excludePattern]) {
       if (pattern === undefined || pattern === null || pattern === '') continue
-      if (typeof pattern !== 'string') return { ok: false, error: '过滤模式必须是字符串' }
+      if (typeof pattern !== 'string') return { ok: false, error: rssError('rss.filterType') }
       try {
         new RegExp(pattern)
       } catch {
-        return { ok: false, error: `过滤正则无效: ${pattern}` }
+        return { ok: false, error: rssError('rss.filterRegex', { pattern }) }
       }
     }
     const dir = typeof sub.dir === 'string' ? sub.dir.trim() : ''
-    if (dir !== '' && !path.isAbsolute(dir)) return { ok: false, error: '下载目录必须是绝对路径' }
+    if (dir !== '' && !path.isAbsolute(dir)) return { ok: false, error: rssError('rss.dirAbsolute') }
 
     const intervalMinutes = sub.intervalMinutes === undefined
       ? undefined
