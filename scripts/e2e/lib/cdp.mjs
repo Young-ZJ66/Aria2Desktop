@@ -166,6 +166,27 @@ export function killTree(pid) {
   }
 }
 
+/**
+ * 删除临时目录：Windows 上被 kill 掉的 Chrome 句柄释放有延迟，一次性 rmSync 会抛
+ * EBUSY（force 只忽略 ENOENT），曾让整轮 e2e 在最后清理阶段判失败——所有断言其实都 PASS。
+ * 这里重试几次，最终仍失败只 warn 不抛：临时目录残留不该改写测试结论。
+ */
+export async function removeDirWithRetry(dir, { attempts = 5, delayMs = 300 } = {}) {
+  for (let i = 1; i <= attempts; i += 1) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+      return true
+    } catch (error) {
+      if (i === attempts) {
+        console.warn(`WARN 临时目录清理失败（已重试 ${attempts} 次）：${dir} :: ${error?.code ?? error}`)
+        return false
+      }
+      await sleep(delayMs)
+    }
+  }
+  return false
+}
+
 /** 断言收集器：统一输出 PASS/FAIL 与最终汇总 */
 export function createReporter() {
   const results = []

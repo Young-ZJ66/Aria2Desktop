@@ -15,7 +15,7 @@ import os from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
 import { spawn } from 'node:child_process'
-import { capture, connect, evalIn, httpJson, killTree, sleep, waitFor } from './lib/cdp.mjs'
+import { capture, connect, evalIn, httpJson, killTree, removeDirWithRetry, sleep, waitFor } from './lib/cdp.mjs'
 import { findExtensionServiceWorker, resolveChromePath } from './extension.mjs'
 
 const PAIR_DELAY_MS = 35000
@@ -136,8 +136,8 @@ export async function runPairingCheck({ extensionDir, outDir, reporter }) {
     killTree(chrome.pid)
     server.close()
     await sleep(300)
-    fs.rmSync(profile, { recursive: true, force: true })
-    fs.rmSync(extDir, { recursive: true, force: true })
+    await removeDirWithRetry(profile)
+    await removeDirWithRetry(extDir)
   }
 
   return { skipped: false }

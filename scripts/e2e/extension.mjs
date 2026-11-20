@@ -14,7 +14,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { capture, collectErrors, connect, evalIn, httpJson, killTree, sleep, waitFor } from './lib/cdp.mjs'
+import { capture, collectErrors, connect, evalIn, httpJson, killTree, removeDirWithRetry, sleep, waitFor } from './lib/cdp.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -269,6 +269,6 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
   } finally {
     killTree(child.pid)
     await sleep(300)
-    fs.rmSync(profile, { recursive: true, force: true })
+    await removeDirWithRetry(profile)
   }
 }
