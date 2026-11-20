@@ -160,7 +160,12 @@ function loadPlugin(message: LoadMessage): void {
     send({ type: 'loaded', ok: true })
     const activate = instance.onActivate
     if (typeof activate === 'function') {
-      Promise.resolve(activate()).catch(error => send({ type: 'activate-error', error: serializeError(error) }))
+      // 必须先把同步调用包进 Promise 再 catch：
+      // 直接 Promise.resolve(activate()) 时 activate() 是同步求值的，抛错会冒到外层 catch，
+      // 结果既发了 loaded ok:true 又发了 loaded ok:false（插件被同时判成加载成功与失败）。
+      Promise.resolve()
+        .then(() => activate())
+        .catch(error => send({ type: 'activate-error', error: serializeError(error) }))
     }
   } catch (error) {
     instance = {}
