@@ -108,13 +108,27 @@ export class UpnpService {
       this.renewTimer = null
     }
     // 尽力删除映射（退出时不阻塞、失败不重试）
+    this.deleteActiveMappings()
+    this.status = { state: 'idle' }
+  }
+
+  /** 当前已建映射涉及的端口（TCP/UDP 同端口去重，保持首次出现顺序） */
+  private mappedPorts(): number[] {
+    const ports: number[] = []
+    for (const m of this.activeMappings) {
+      if (!ports.includes(m.externalPort)) ports.push(m.externalPort)
+    }
+    return ports
+  }
+
+  /** 尽力删除当前记录的全部映射并清空列表（失败不重试，退出时不阻塞） */
+  private deleteActiveMappings(): void {
     for (const m of this.activeMappings) {
       httpSoap(m.controlUrl, buildDeletePortMappingBody(m.externalPort, m.protocol), addPortMappingSoapAction()).catch(
         () => {}
       )
     }
     this.activeMappings = []
-    this.status = { state: 'idle' }
   }
 
   /** 设置页"立即映射"按钮：重新执行映射并返回最新状态 */
@@ -125,8 +139,13 @@ export class UpnpService {
     try {
       this.status = { state: 'mapping' }
       const result = await this.mapAll()
-      // 期间被 stop() 过（关开关/退出）：丢弃结果，别把定时器装回去
-      if (generation !== this.generation) return this.getStatus()
+      // 期间被 stop() 过（关开关/退出）：丢弃结果，别把定时器装回去。
+      // mapAll 已经把新映射写进 activeMappings，这里必须连路由器上的条目一起撤掉，
+      // 否则关开关之后映射还挂在路由器上，只能等 30 分钟租期自然过期。
+      if (generation !== this.generation) {
+        this.deleteActiveMappings()
+        return this.getStatus()
+      }
       if (result.ok) {
         this.status = { state: 'ok', externalIp: result.externalIp, ports: result.ports }
         this.lastMappingAt = Date.now()
@@ -137,13 +156,18 @@ export class UpnpService {
         }, RENEW_INTERVAL_MS)
       } else if (this.activeMappings.length > 0) {
         // 续租失败（网关重启/换网最常见）：旧映射还在租期内，别把状态改成"不支持"，
-        // 定时器保留，10 分钟后再试一次
-        this.status = { state: 'error', message: result.message, ports: this.status.ports }
+        // 定时器保留，10 分钟后再试一次。
+        // 端口清单要从 activeMappings 取：上面已经把 status 置成 { state: 'mapping' }，
+        // 读 this.status.ports 只会拿到 undefined，设置页的"已映射端口"会凭空消失。
+        this.status = { state: 'error', message: result.message, ports: this.mappedPorts() }
       } else {
         this.status = { state: 'unsupported', message: result.message }
       }
     } catch (error) {
-      if (generation !== this.generation) return this.getStatus()
+      if (generation !== this.generation) {
+        this.deleteActiveMappings()
+        return this.getStatus()
+      }
       this.status = { state: 'error', message: String(error).slice(0, 200) }
     } finally {
       this.inFlight = false
