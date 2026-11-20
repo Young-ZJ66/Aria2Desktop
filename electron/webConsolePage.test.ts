@@ -88,6 +88,16 @@ describe('Web 控制台页面与 CSP', () => {
     }
   })
 
+  it('SSE 实时帧也会刷新队列面板，等待中的任务不会停在首屏快照', () => {
+    // refresh() 里的 refreshQueue(true) 只覆盖首屏与手动刷新；
+    // 若 SSE 的 status 分支不调 refreshQueue()，队列面板会一直显示旧快照，
+    // 直到用户手动点刷新——这在新任务入队时表现为「队列里看不到刚排上的任务」。
+    const branch = WEB_CONSOLE_HTML.match(/name==='status'&&data\)\{([\s\S]*?)\}\}\nfunction runAction/)
+    expect(branch).not.toBeNull()
+    expect(branch![1]).toContain('refreshQueue()')
+    expect(branch![1]).not.toContain('refreshQueue(true)')
+  })
+
   it('html lang 跟随实际界面语言，英文界面不再声明 zh-CN', () => {
     expect(WEB_CONSOLE_HTML).toContain('document.documentElement.lang')
   })

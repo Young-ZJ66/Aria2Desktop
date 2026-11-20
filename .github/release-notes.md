@@ -1,15 +1,15 @@
-# v1.5.0-beta.6 更新日志
+# v1.5.0-beta.7 更新日志
 
-> 这是 1.5.0 的第六个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第七个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.6 相对 beta.5 的变化
+## 📌 beta.7 相对 beta.6 的变化
 
-beta.5 之后补上了 D-30 的最后一项：Web 控制台的队列只读视图；其余改动都是文档跟进。beta.5 里已经验过的行为保持不变。
+beta.6 加了 Web 控制台的只读队列视图，但那份面板只在首屏和手动刷新时更新。beta.7 把它的实时性补齐，其余行为保持不变。
 
-- **Web 控制台新增只读队列视图**：任务区上方展示队列设置（最大并发、失败重试开关与次数/间隔）与等待中的任务及其位置，手机窄屏按列折行显示。配套新增 `GET /api/queue`（`tasks:read` 权限）与 OpenAPI 文档，桌面端与 Web 端共用同一份队列约束。
-- **队列视图刻意不提供写接口**：最大并发数在桌面端同样是只读（要改去设置页），Web 端保持一致，避免浏览器端绕过桌面端的队列限制；`POST /api/queue` 返回 404。
-- **文档跟进**：端点一览补齐 `/api/events`、`/api/queue` 与 `pauseAll`/`unpauseAll`；无头模式说明与实现对齐（`--headless` 不创建窗口，Linux 无 `$DISPLAY` 也能直接跑）；README 的预发布说明不再写死具体版本号。
-- **端到端断言随之扩充**：E2E 从 191 项增至 193 项，新增「队列视图可读」与「队列不接受写」两条 HTTP 级断言。
+- **队列面板跟随实时推送更新**：等待中的任务增减、顺序变化、开始下载都会即时反映到队列面板，不用再手动点刷新。此前面板停在首屏快照，新排进队列的任务在页面上看不见。
+- **只在队列真的变了才重新拉取**：面板按等待队列的 gid 序列判断是否需要重新请求，成员与顺序都没变就直接复用上一份数据，避免每秒对 `/api/queue` 空轮询。
+- **队列面板仍然只读**：beta.6 定的规矩不变——面板里没有任何改并发或重试的入口，`POST /api/queue` 依旧返回 404。
+- **新增闸门用例**：把「SSE 状态帧必须刷新队列面板」写成单测，防止以后改页面脚本时又把这条同步悄悄丢掉。
 
 ## 🎯 主题：可信接管
 
@@ -72,7 +72,7 @@ beta.5 之后补上了 D-30 的最后一项：Web 控制台的队列只读视图
 
 ## ✅ 验证
 
-- typecheck（主进程 + 测试代码 + 渲染层）通过；186 个测试文件 / 2407 项单测通过（引擎重启压力测试默认跳过）。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；186 个测试文件 / 2408 项单测通过（引擎重启压力测试默认跳过）。
 - Web 控制台页面内联脚本/样式的 CSP 哈希由单测逐字节校验，改了内联脚本却忘同步哈希会直接失败（否则浏览器会静默拒绝执行脚本，页面白屏）。
 - `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
 - 应用 E2E 193 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局）；其中 18 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、队列视图只读、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
@@ -81,22 +81,22 @@ beta.5 之后补上了 D-30 的最后一项：Web 控制台的队列只读视图
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.6
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.7
 
 ---
 
-# v1.5.0-beta.6 Release Notes
+# v1.5.0-beta.7 Release Notes
 
-> This is the sixth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the seventh pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.5
+## 📌 What changed since beta.6
 
-beta.6 closes the last item of D-30: a read-only queue view in the web console. The remaining changes are documentation follow-ups. Everything you verified in beta.5 behaves the same.
+beta.6 added the read-only queue view in the web console, but that panel only refreshed on first load and on a manual refresh. beta.7 makes it live; nothing else changed.
 
-- **A read-only queue view in the web console**: above the task list it shows the queue settings (max concurrency, retry on/off plus attempts and delay) and the waiting tasks with their positions; on narrow phone screens the columns fold into labelled rows. Backed by a new `GET /api/queue` (`tasks:read`) and documented in the OpenAPI spec, so the desktop and web sides share one set of queue constraints.
-- **The queue view deliberately has no write endpoint**: max concurrency is read-only on the desktop too (change it in settings), and the web side matches, so a browser cannot bypass the desktop's queue limits; `POST /api/queue` returns 404.
-- **Documentation follow-ups**: the endpoint table now lists `/api/events`, `/api/queue` and `pauseAll`/`unpauseAll`; the headless guide matches the implementation (`--headless` creates no window, so it runs on Linux without `$DISPLAY`); the README's pre-release note no longer pins a specific version.
-- **End-to-end coverage grew with it**: E2E goes from 191 to 193 checks, adding "the queue view is readable" and "the queue view rejects writes".
+- **The queue panel follows the real-time stream**: waiting tasks appearing, leaving, reordering or starting a download now show up in the queue panel immediately, with no manual refresh. Before, the panel stayed on its first-load snapshot and a task that had just been queued was invisible.
+- **It refetches only when the queue actually changes**: the panel compares the gid sequence of the waiting list and reuses the previous payload when the membership and order are unchanged, so it does not poll `/api/queue` every second for nothing.
+- **The panel is still read-only**: the rule beta.6 set stands — nothing in it can change concurrency or retry, and `POST /api/queue` still returns 404.
+- **A new gate**: a unit test now asserts that the SSE status frame refreshes the queue panel, so a future edit to the page script cannot silently drop that sync again.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -157,7 +157,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ## ✅ Verification
 
-- Typecheck (main process, tests, renderer) passes; 186 test files / 2407 unit tests pass (the engine-restart stress test is skipped by default).
+- Typecheck (main process, tests, renderer) passes; 186 test files / 2408 unit tests pass (the engine-restart stress test is skipped by default).
 - `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
 - All 193 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring), of which 18 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, the read-only queue view, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.
@@ -165,4 +165,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.6
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.7
