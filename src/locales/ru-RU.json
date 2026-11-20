@@ -136,9 +136,9 @@
     "batchOpen": "Открыть файлы",
     "batchOpenSuccess": "Открыто файлов: {count}",
     "batchOpenFailed": "Не удалось открыть ни одного файла",
-    "filterByStatus": "Filter by status",
-    "retryAllFailedSummary": "Retry all failed ({count})",
-    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "filterByStatus": "Фильтр по статусу",
+    "retryAllFailedSummary": "Повторить все неудачные ({count})",
+    "retryAllFailedResult": "Повторено задач: {success}, с ошибкой: {failed}",
     "batchResultTitle": "Результат групповой операции",
     "batchResultSuccess": "Успешно: {count}",
     "batchResultFailed": "Ошибок: {count}",
@@ -207,14 +207,14 @@
     "healthSeeding": "Раздача с этого устройства",
     "magnetUri": "Magnet URI",
     "copyMagnet": "Копировать Magnet URI",
-    "taskSettings": "Task settings",
-    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
-    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
-    "taskSettingsSaved": "Task settings updated",
-    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
-    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
-    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
-    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
+    "taskSettings": "Параметры задачи",
+    "taskSettingsHint": "Изменения применяются сразу и используются при повторной попытке задачи.",
+    "taskSettingsUnlimitedHint": "0 — без ограничений.",
+    "taskSettingsSaved": "Параметры задачи обновлены",
+    "taskSettingsSaveFailed": "Не удалось сохранить параметры задачи: {error}",
+    "taskSettingsLoadFailed": "Не удалось загрузить параметры задачи: {error}",
+    "taskSettingsUnavailable": "В этом состоянии параметры изменить нельзя. Сначала повторите задачу.",
+    "taskSettingsPartialFailed": "Некоторые параметры не применены: {options}"
   },
   "taskPeer": {
     "ip": "IP-адрес",
@@ -432,7 +432,7 @@
     "engineCrashed": "Движок aria2 неожиданно завершился. Автоматический перезапуск (попытка {count}).",
     "engineGaveUp": "Движок aria2 не смог перезапуститься {count} раз, поэтому автоматические перезапуски остановлены. Перезапустите его вручную в разделе «Настройки → Локальный движок» или откройте журнал приложения для подробностей.",
     "shutdownCancelled": "Обнаружена новая загрузка — запланированное завершение работы отменено.",
-    "unknownTask": "Unknown task ({gid})"
+    "unknownTask": "Неизвестная задача ({gid})"
   },
   "notificationCenter": {
     "title": "Уведомления",
@@ -1816,9 +1816,9 @@
     "operationFailed": "Не удалось выполнить операцию: {error}"
   },
   "onboarding": {
-    "title": "Welcome to Aria2Desktop",
-    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
-    "stepOf": "Step {current} of {total}",
+    "title": "Добро пожаловать в Aria2Desktop",
+    "subtitle": "Четыре быстрых шага для настройки. Любой можно пропустить — всё можно изменить позже в настройках.",
+    "stepOf": "Шаг {current} из {total}",
     "skip": "Skip tour",
     "later": "Maybe later",
     "next": "Next",
@@ -1826,17 +1826,17 @@
     "finish": "Get started",
     "statusReady": "Ready",
     "statusPending": "Not set up",
-    "stepDownloadTitle": "Choose a download folder",
-    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
-    "stepDownloadAction": "Open download settings",
-    "stepExtensionTitle": "Pair the browser extension",
-    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
-    "stepExtensionAction": "Open extension settings",
-    "stepYtdlpTitle": "Enable stream downloads",
-    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
-    "stepYtdlpAction": "Open component settings",
-    "stepRemoteTitle": "Remote control & completion rules",
-    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
-    "stepRemoteAction": "Open remote access settings"
+    "stepDownloadTitle": "Выберите папку для загрузок",
+    "stepDownloadDesc": "Загрузки по умолчанию сохраняются здесь. Изменить это можно в любое время в разделе «Настройки → Загрузки».",
+    "stepDownloadAction": "Открыть настройки загрузок",
+    "stepExtensionTitle": "Подключите расширение браузера",
+    "stepExtensionDesc": "После установки расширения один раз нажмите его значок в браузере для сопряжения. Тогда загрузки из интернета будут передаваться в приложение.",
+    "stepExtensionAction": "Открыть настройки расширения",
+    "stepYtdlpTitle": "Включите загрузку потокового видео",
+    "stepYtdlpDesc": "Если yt-dlp доступен, можно вставить ссылку на страницу с видео или аудио и скачать её напрямую.",
+    "stepYtdlpAction": "Открыть настройки инструментов",
+    "stepRemoteTitle": "Удалённое управление и правила завершения",
+    "stepRemoteDesc": "Управляйте загрузками из браузера через веб-консоль и настройте действия, выполняемые после завершения загрузок.",
+    "stepRemoteAction": "Открыть настройки удалённого доступа"
   }
 }

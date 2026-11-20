@@ -136,9 +136,9 @@
     "batchOpen": "Mở tệp",
     "batchOpenSuccess": "Đã mở {count} tệp",
     "batchOpenFailed": "Không thể mở tệp nào",
-    "filterByStatus": "Filter by status",
-    "retryAllFailedSummary": "Retry all failed ({count})",
-    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "filterByStatus": "Lọc theo trạng thái",
+    "retryAllFailedSummary": "Thử lại tất cả tác vụ thất bại ({count})",
+    "retryAllFailedResult": "Đã thử lại {success} tác vụ, {failed} thất bại",
     "batchResultTitle": "Kết quả thao tác hàng loạt",
     "batchResultSuccess": "{count} thành công",
     "batchResultFailed": "{count} thất bại",
@@ -207,14 +207,14 @@
     "healthSeeding": "Đang seed từ thiết bị này",
     "magnetUri": "URI magnet",
     "copyMagnet": "Sao chép URI magnet",
-    "taskSettings": "Task settings",
-    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
-    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
-    "taskSettingsSaved": "Task settings updated",
-    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
-    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
-    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
-    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
+    "taskSettings": "Cài đặt tác vụ",
+    "taskSettingsHint": "Thay đổi có hiệu lực ngay và được dùng lại khi thử lại tác vụ này.",
+    "taskSettingsUnlimitedHint": "Đặt 0 nghĩa là không giới hạn.",
+    "taskSettingsSaved": "Đã cập nhật cài đặt tác vụ",
+    "taskSettingsSaveFailed": "Lưu cài đặt tác vụ thất bại: {error}",
+    "taskSettingsLoadFailed": "Tải cài đặt tác vụ thất bại: {error}",
+    "taskSettingsUnavailable": "Không thể thay đổi cài đặt ở trạng thái này. Hãy thử lại tác vụ trước.",
+    "taskSettingsPartialFailed": "Một số cài đặt chưa được áp dụng: {options}"
   },
   "taskPeer": {
     "ip": "Địa chỉ IP",
@@ -432,7 +432,7 @@
     "engineCrashed": "Engine aria2 đã thoát bất ngờ. Đang tự động khởi động lại (lần thử {count}).",
     "engineGaveUp": "Engine aria2 đã không thể khởi động lại sau {count} lần nên đã ngừng tự động khởi động lại. Hãy khởi động lại thủ công trong Cài đặt → Engine cục bộ, hoặc mở nhật ký ứng dụng để xem chi tiết.",
     "shutdownCancelled": "Phát hiện tải xuống mới — đã hủy việc tắt máy theo lịch.",
-    "unknownTask": "Unknown task ({gid})"
+    "unknownTask": "Tác vụ không xác định ({gid})"
   },
   "notificationCenter": {
     "title": "Thông báo",
@@ -1816,9 +1816,9 @@
     "operationFailed": "Thao tác thất bại: {error}"
   },
   "onboarding": {
-    "title": "Welcome to Aria2Desktop",
-    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
-    "stepOf": "Step {current} of {total}",
+    "title": "Chào mừng đến với Aria2Desktop",
+    "subtitle": "Bốn bước nhanh để thiết lập. Có thể bỏ qua bất kỳ bước nào — mọi thứ đều có thể thay đổi sau trong Cài đặt.",
+    "stepOf": "Bước {current} / {total}",
     "skip": "Skip tour",
     "later": "Maybe later",
     "next": "Next",
@@ -1826,17 +1826,17 @@
     "finish": "Get started",
     "statusReady": "Ready",
     "statusPending": "Not set up",
-    "stepDownloadTitle": "Choose a download folder",
-    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
-    "stepDownloadAction": "Open download settings",
-    "stepExtensionTitle": "Pair the browser extension",
-    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
-    "stepExtensionAction": "Open extension settings",
-    "stepYtdlpTitle": "Enable stream downloads",
-    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
-    "stepYtdlpAction": "Open component settings",
-    "stepRemoteTitle": "Remote control & completion rules",
-    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
-    "stepRemoteAction": "Open remote access settings"
+    "stepDownloadTitle": "Chọn thư mục tải xuống",
+    "stepDownloadDesc": "Tải xuống được lưu mặc định tại đây. Bạn có thể thay đổi bất cứ lúc nào trong Cài đặt → Tải xuống.",
+    "stepDownloadAction": "Mở cài đặt tải xuống",
+    "stepExtensionTitle": "Ghép nối tiện ích trình duyệt",
+    "stepExtensionDesc": "Sau khi cài tiện ích, hãy nhấp một lần vào biểu tượng của nó trong trình duyệt để ghép nối. Tải xuống từ web sau đó sẽ được chuyển cho ứng dụng desktop.",
+    "stepExtensionAction": "Mở cài đặt tiện ích",
+    "stepYtdlpTitle": "Bật tải xuống streaming",
+    "stepYtdlpDesc": "Khi có yt-dlp, bạn có thể dán URL trang video hoặc âm thanh và tải xuống trực tiếp.",
+    "stepYtdlpAction": "Mở cài đặt công cụ",
+    "stepRemoteTitle": "Điều khiển từ xa & quy tắc hoàn tất",
+    "stepRemoteDesc": "Quản lý tải xuống từ trình duyệt bằng bảng điều khiển web và thiết lập hành động khi tải xuống hoàn tất.",
+    "stepRemoteAction": "Mở cài đặt truy cập từ xa"
   }
 }

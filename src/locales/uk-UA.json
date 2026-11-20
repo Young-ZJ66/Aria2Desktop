@@ -136,9 +136,9 @@
     "batchOpen": "Відкрити файли",
     "batchOpenSuccess": "Відкрито файлів: {count}",
     "batchOpenFailed": "Не вдалося відкрити жодного файлу",
-    "filterByStatus": "Filter by status",
-    "retryAllFailedSummary": "Retry all failed ({count})",
-    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "filterByStatus": "Фільтр за статусом",
+    "retryAllFailedSummary": "Повторити всі невдалі ({count})",
+    "retryAllFailedResult": "Повторено завдань: {success}, з помилкою: {failed}",
     "batchResultTitle": "Результат групової дії",
     "batchResultSuccess": "Успішно: {count}",
     "batchResultFailed": "Помилок: {count}",
@@ -207,14 +207,14 @@
     "healthSeeding": "Роздача з цього пристрою",
     "magnetUri": "Magnet URI",
     "copyMagnet": "Копіювати magnet URI",
-    "taskSettings": "Task settings",
-    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
-    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
-    "taskSettingsSaved": "Task settings updated",
-    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
-    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
-    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
-    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
+    "taskSettings": "Параметри завдання",
+    "taskSettingsHint": "Зміни застосовуються одразу й використовуються під час повторної спроби завдання.",
+    "taskSettingsUnlimitedHint": "0 — без обмежень.",
+    "taskSettingsSaved": "Параметри завдання оновлено",
+    "taskSettingsSaveFailed": "Не вдалося зберегти параметри завдання: {error}",
+    "taskSettingsLoadFailed": "Не вдалося завантажити параметри завдання: {error}",
+    "taskSettingsUnavailable": "У цьому стані параметри змінити не можна. Спочатку повторіть завдання.",
+    "taskSettingsPartialFailed": "Деякі параметри не застосовано: {options}"
   },
   "taskPeer": {
     "ip": "IP-адреса",
@@ -432,7 +432,7 @@
     "engineCrashed": "Рушій aria2 несподівано завершив роботу. Автоматичний перезапуск (спроба {count}).",
     "engineGaveUp": "Рушій aria2 не зміг перезапуститися {count} разів, тому автоматичні перезапуски зупинено. Перезапустіть його вручну в Налаштування → Локальний рушій або відкрийте журнал програми для деталей.",
     "shutdownCancelled": "Виявлено нове завантаження — заплановане вимкнення скасовано.",
-    "unknownTask": "Unknown task ({gid})"
+    "unknownTask": "Невідоме завдання ({gid})"
   },
   "notificationCenter": {
     "title": "Сповіщення",
@@ -1816,9 +1816,9 @@
     "operationFailed": "Не вдалося виконати операцію: {error}"
   },
   "onboarding": {
-    "title": "Welcome to Aria2Desktop",
-    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
-    "stepOf": "Step {current} of {total}",
+    "title": "Ласкаво просимо до Aria2Desktop",
+    "subtitle": "Чотири швидкі кроки для налаштування. Будь-який можна пропустити — усе можна змінити пізніше в налаштуваннях.",
+    "stepOf": "Крок {current} з {total}",
     "skip": "Skip tour",
     "later": "Maybe later",
     "next": "Next",
@@ -1826,17 +1826,17 @@
     "finish": "Get started",
     "statusReady": "Ready",
     "statusPending": "Not set up",
-    "stepDownloadTitle": "Choose a download folder",
-    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
-    "stepDownloadAction": "Open download settings",
-    "stepExtensionTitle": "Pair the browser extension",
-    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
-    "stepExtensionAction": "Open extension settings",
-    "stepYtdlpTitle": "Enable stream downloads",
-    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
-    "stepYtdlpAction": "Open component settings",
-    "stepRemoteTitle": "Remote control & completion rules",
-    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
-    "stepRemoteAction": "Open remote access settings"
+    "stepDownloadTitle": "Виберіть папку для завантажень",
+    "stepDownloadDesc": "Завантаження за замовчуванням зберігаються тут. Змінити це можна будь-коли в розділі «Налаштування → Завантаження».",
+    "stepDownloadAction": "Відкрити налаштування завантажень",
+    "stepExtensionTitle": "Підключіть розширення браузера",
+    "stepExtensionDesc": "Після встановлення розширення один раз натисніть його значок у браузері для сполучення. Тоді завантаження з інтернету передаватимуться в застосунок.",
+    "stepExtensionAction": "Відкрити налаштування розширення",
+    "stepYtdlpTitle": "Увімкніть завантаження потокового відео",
+    "stepYtdlpDesc": "Якщо yt-dlp доступний, можна вставити посилання на сторінку з відео чи аудіо та завантажити її напряму.",
+    "stepYtdlpAction": "Відкрити налаштування інструментів",
+    "stepRemoteTitle": "Віддалене керування та правила завершення",
+    "stepRemoteDesc": "Керуйте завантаженнями з браузера через вебконсоль і налаштуйте дії, що виконуються після завершення завантажень.",
+    "stepRemoteAction": "Відкрити налаштування віддаленого доступу"
   }
 }

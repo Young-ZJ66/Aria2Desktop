@@ -136,9 +136,9 @@
     "batchOpen": "फ़ाइलें खोलें",
     "batchOpenSuccess": "{count} फ़ाइलें खोली गईं",
     "batchOpenFailed": "कोई फ़ाइल नहीं खोली जा सकी",
-    "filterByStatus": "Filter by status",
-    "retryAllFailedSummary": "Retry all failed ({count})",
-    "retryAllFailedResult": "Retried {success} task(s), {failed} failed",
+    "filterByStatus": "स्थिति के अनुसार फ़िल्टर करें",
+    "retryAllFailedSummary": "सभी विफल पुनः प्रयास करें ({count})",
+    "retryAllFailedResult": "{success} कार्य पुनः प्रयास किए, {failed} विफल",
     "batchResultTitle": "बैच ऑपरेशन परिणाम",
     "batchResultSuccess": "{count} सफल",
     "batchResultFailed": "{count} विफल",
@@ -207,14 +207,14 @@
     "healthSeeding": "इस डिवाइस से सीडिंग हो रही है",
     "magnetUri": "Magnet URI",
     "copyMagnet": "Magnet URI कॉपी करें",
-    "taskSettings": "Task settings",
-    "taskSettingsHint": "Changes apply immediately and are reused when this task is retried.",
-    "taskSettingsUnlimitedHint": "Set 0 for unlimited.",
-    "taskSettingsSaved": "Task settings updated",
-    "taskSettingsSaveFailed": "Failed to save task settings: {error}",
-    "taskSettingsLoadFailed": "Failed to load task settings: {error}",
-    "taskSettingsUnavailable": "Settings can't be changed in this state. Retry the task first.",
-    "taskSettingsPartialFailed": "Some settings were not applied: {options}"
+    "taskSettings": "कार्य सेटिंग्स",
+    "taskSettingsHint": "बदलाव तुरंत लागू होते हैं और इस कार्य के पुनः प्रयास पर फिर उपयोग होते हैं।",
+    "taskSettingsUnlimitedHint": "असीमित के लिए 0 सेट करें।",
+    "taskSettingsSaved": "कार्य सेटिंग्स अपडेट हुईं",
+    "taskSettingsSaveFailed": "कार्य सेटिंग्स सहेजने में विफल: {error}",
+    "taskSettingsLoadFailed": "कार्य सेटिंग्स लोड करने में विफल: {error}",
+    "taskSettingsUnavailable": "इस स्थिति में सेटिंग्स बदली नहीं जा सकतीं। पहले कार्य पुनः प्रयास करें।",
+    "taskSettingsPartialFailed": "कुछ सेटिंग्स लागू नहीं हुईं: {options}"
   },
   "taskPeer": {
     "ip": "IP पता",
@@ -432,7 +432,7 @@
     "engineCrashed": "aria2 इंजन अप्रत्याशित रूप से बंद हो गया। स्वचालित रूप से पुनः आरंभ किया जा रहा है (प्रयास {count})।",
     "engineGaveUp": "aria2 इंजन {count} बार पुनः आरंभ करने में विफल रहा, इसलिए स्वचालित पुनः आरंभ रुक गया है। सेटिंग्स → लोकल इंजन में इसे मैन्युअल रूप से पुनः आरंभ करें, या विवरण के लिए ऐप लॉग खोलें।",
     "shutdownCancelled": "नया डाउनलोड मिला — निर्धारित शटडाउन रद्द कर दिया गया।",
-    "unknownTask": "Unknown task ({gid})"
+    "unknownTask": "अज्ञात कार्य ({gid})"
   },
   "notificationCenter": {
     "title": "सूचनाएँ",
@@ -1816,9 +1816,9 @@
     "operationFailed": "क्रिया विफल: {error}"
   },
   "onboarding": {
-    "title": "Welcome to Aria2Desktop",
-    "subtitle": "Four quick steps to set things up. Skip any of them — everything can be changed later in Settings.",
-    "stepOf": "Step {current} of {total}",
+    "title": "Aria2Desktop में आपका स्वागत है",
+    "subtitle": "सेटअप के लिए चार त्वरित चरण। कोई भी छोड़ सकते हैं — सब कुछ बाद में सेटिंग्स में बदला जा सकता है।",
+    "stepOf": "चरण {current} / {total}",
     "skip": "Skip tour",
     "later": "Maybe later",
     "next": "Next",
@@ -1826,17 +1826,17 @@
     "finish": "Get started",
     "statusReady": "Ready",
     "statusPending": "Not set up",
-    "stepDownloadTitle": "Choose a download folder",
-    "stepDownloadDesc": "Downloads are saved here by default. You can change it anytime in Settings → Downloads.",
-    "stepDownloadAction": "Open download settings",
-    "stepExtensionTitle": "Pair the browser extension",
-    "stepExtensionDesc": "After installing the extension, click its icon once in the browser to pair it. Web downloads will then be handed to the desktop app.",
-    "stepExtensionAction": "Open extension settings",
-    "stepYtdlpTitle": "Enable stream downloads",
-    "stepYtdlpDesc": "With yt-dlp available you can paste a video or audio page URL and download it directly.",
-    "stepYtdlpAction": "Open component settings",
-    "stepRemoteTitle": "Remote control & completion rules",
-    "stepRemoteDesc": "Manage downloads from a browser with the web console, and set up actions to run when downloads finish.",
-    "stepRemoteAction": "Open remote access settings"
+    "stepDownloadTitle": "डाउनलोड फ़ोल्डर चुनें",
+    "stepDownloadDesc": "डाउनलोड डिफ़ॉल्ट रूप से यहाँ सहेजे जाते हैं। इसे कभी भी सेटिंग्स → डाउनलोड में बदल सकते हैं।",
+    "stepDownloadAction": "डाउनलोड सेटिंग्स खोलें",
+    "stepExtensionTitle": "ब्राउज़र एक्सटेंशन जोड़ें",
+    "stepExtensionDesc": "एक्सटेंशन इंस्टॉल करने के बाद ब्राउज़र में उसके आइकन पर एक बार क्लिक करके जोड़ें। इसके बाद वेब डाउनलोड डेस्कटॉप ऐप को भेजे जाएँगे।",
+    "stepExtensionAction": "एक्सटेंशन सेटिंग्स खोलें",
+    "stepYtdlpTitle": "स्ट्रीम डाउनलोड सक्षम करें",
+    "stepYtdlpDesc": "yt-dlp उपलब्ध होने पर आप वीडियो या ऑडियो पेज का URL पेस्ट करके सीधे डाउनलोड कर सकते हैं।",
+    "stepYtdlpAction": "टूल सेटिंग्स खोलें",
+    "stepRemoteTitle": "रिमोट नियंत्रण और पूर्णता नियम",
+    "stepRemoteDesc": "वेब कंसोल से ब्राउज़र में डाउनलोड प्रबंधित करें, और डाउनलोड पूरा होने पर चलने वाली क्रियाएँ सेट करें।",
+    "stepRemoteAction": "रिमोट एक्सेस सेटिंग्स खोलें"
   }
 }
