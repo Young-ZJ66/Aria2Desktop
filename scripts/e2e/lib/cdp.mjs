@@ -11,6 +11,10 @@ import { spawnSync } from 'node:child_process'
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+// 单条 CDP 命令的兜底超时。没有它时，一旦渲染层忙或 CDP 不回包，
+// send() 返回的 Promise 会永远 pending，整轮 e2e 静默挂死到 CI 作业超时（曾发生一次 40 分钟）。
+export const CDP_COMMAND_TIMEOUT_MS = 20000
+
 /** 发送 HTTP 请求并解析 JSON（CDP 的 /json/list 等端点） */
 export function httpJson(url, method = 'GET') {
   return new Promise((resolve, reject) => {
@@ -57,11 +61,22 @@ export function connect(wsUrl) {
     ws.onopen = () =>
       resolve({
         events,
-        send(method, params = {}) {
-          return new Promise((res) => {
+        send(method, params = {}, timeoutMs = CDP_COMMAND_TIMEOUT_MS) {
+          return new Promise((resolve, reject) => {
             const id = ++nextId
-            pending.set(id, res)
-            ws.send(JSON.stringify({ id, method, params }))
+            const timer = setTimeout(() => {
+              pending.delete(id)
+              reject(new Error(`CDP 命令超时（${timeoutMs}ms）：${method}`))
+            }, timeoutMs)
+            pending.set(id, { resolve, reject, timer })
+            try {
+              ws.send(JSON.stringify({ id, method, params }))
+            } catch (error) {
+              // 套接字已关闭时 ws.send 会同步抛错；不在这里收尾就又是一个永远 pending 的 Promise
+              pending.delete(id)
+              clearTimeout(timer)
+              reject(new Error(`CDP 命令发送失败：${method}（${error instanceof Error ? error.message : error}）`))
+            }
           })
         },
         close() {
@@ -69,11 +84,21 @@ export function connect(wsUrl) {
         }
       })
     ws.onerror = () => reject(new Error(`CDP 连接失败：${wsUrl}`))
+    // 连接断开时把还在等的命令全部拒掉，否则它们会一直 pending
+    ws.onclose = () => {
+      for (const [id, entry] of pending) {
+        pending.delete(id)
+        clearTimeout(entry.timer)
+        entry.reject(new Error(`CDP 连接已关闭：${wsUrl}`))
+      }
+    }
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data)
-      if (message.id && pending.has(message.id)) {
-        pending.get(message.id)(message)
+      const entry = message.id ? pending.get(message.id) : undefined
+      if (entry) {
         pending.delete(message.id)
+        clearTimeout(entry.timer)
+        entry.resolve(message)
       } else if (message.method) {
         events.push(message)
       }
@@ -94,11 +119,22 @@ export async function evalIn(session, expression) {
   return result.result?.result?.value
 }
 
-/** 截图保存到磁盘 */
+/**
+ * 截图保存到磁盘；失败只告警不抛。
+ * 截图是辅助产物（CI 上传用于人工排查），不该因为一次截图超时让整轮 e2e 挂死，
+ * 所以这里 best-effort：成功返回路径，失败返回 null。
+ */
 export async function capture(session, filePath) {
-  const result = await session.send('Page.captureScreenshot', { format: 'png' })
-  fs.writeFileSync(filePath, Buffer.from(result.result.data, 'base64'))
-  return filePath
+  try {
+    const result = await session.send('Page.captureScreenshot', { format: 'png' }, 15000)
+    const data = result?.result?.data
+    if (!data) throw new Error('返回内容缺少 data 字段')
+    fs.writeFileSync(filePath, Buffer.from(data, 'base64'))
+    return filePath
+  } catch (error) {
+    console.log(`WARN 截图跳过：${filePath}（${error instanceof Error ? error.message : error}）`)
+    return null
+  }
 }
 
 /** 收集渲染层未捕获异常与 error 级日志文本（用于断言"无运行时错误"） */
