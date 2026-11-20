@@ -1,18 +1,15 @@
-# v1.5.0-beta.5 更新日志
+# v1.5.0-beta.6 更新日志
 
-> 这是 1.5.0 的第五个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第六个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.5 相对 beta.4 的变化
+## 📌 beta.6 相对 beta.5 的变化
 
-本版**没有任何新功能**，只修了 beta.4 之后发现的 6 个行为问题，并把主进程与渲染层补到每个模块都有单测。beta.4 里已经验过的功能在这一版里保持不变。
+beta.5 之后补上了 D-30 的最后一项：Web 控制台的队列只读视图；其余改动都是文档跟进。beta.5 里已经验过的行为保持不变。
 
-- **显式清空 RPC 密钥后不再每次启动自动生成**：此前用户在设置里主动清空密钥会被"自动生成"覆盖，每次启动都写回一个新的随机密钥，导致按无密钥配置的外部客户端下次启动后静默失效。现在只有从未设置过密钥时才会自动生成。
-- **UPnP 关闭或退出时撤掉路由器上已建的映射**：此前关开关时只是停止续租，已经建好的端口映射会一直留到 30 分钟租期结束（这段时间端口对外开放）。另外续租失败后设置页不再丢失"已映射端口"清单。
-- **插件激活同步抛错不再既报成功又报失败**：插件 `onActivate` 同步抛异常时，宿主会先发 `loaded ok:true` 再发 `loaded ok:false`，主进程按先到的成功记账、激活失败被吞掉。现在统一走 `activate-error`。
-- **Web 控制台页面的 `lang` 跟随实际界面语言**：此前固定写成 `zh-CN`，英文界面下读屏与浏览器翻译都会判断错语言。
-- **更新安装包命名抽成纯函数并与 `package.json` 的 artifactName 双向校验**：避免改了一处忘记另一处，导致自动更新下载到不存在的文件名。
-- **扩展配对凭据存储抽成独立模块**：配对记录读写与去重逻辑从本地接口服务里拆出来，并补上"文件损坏按未配对处理""最多保留 20 条"等边界。
-- **测试覆盖补齐**：主进程 `main.ts`、IPC 控制器、窗口控制器、更新控制器、aria2 进程管理器、扩展本地接口、preload 接口面，渲染层应用生命周期、设置表单、aria2 客户端等全部有单测；单测从 1050 项增至 2400 项。
+- **Web 控制台新增只读队列视图**：任务区上方展示队列设置（最大并发、失败重试开关与次数/间隔）与等待中的任务及其位置，手机窄屏按列折行显示。配套新增 `GET /api/queue`（`tasks:read` 权限）与 OpenAPI 文档，桌面端与 Web 端共用同一份队列约束。
+- **队列视图刻意不提供写接口**：最大并发数在桌面端同样是只读（要改去设置页），Web 端保持一致，避免浏览器端绕过桌面端的队列限制；`POST /api/queue` 返回 404。
+- **文档跟进**：端点一览补齐 `/api/events`、`/api/queue` 与 `pauseAll`/`unpauseAll`；无头模式说明与实现对齐（`--headless` 不创建窗口，Linux 无 `$DISPLAY` 也能直接跑）；README 的预发布说明不再写死具体版本号。
+- **端到端断言随之扩充**：E2E 从 191 项增至 193 项，新增「队列视图可读」与「队列不接受写」两条 HTTP 级断言。
 
 ## 🎯 主题：可信接管
 
@@ -78,31 +75,28 @@
 - typecheck（主进程 + 测试代码 + 渲染层）通过；186 个测试文件 / 2407 项单测通过（引擎重启压力测试默认跳过）。
 - Web 控制台页面内联脚本/样式的 CSP 哈希由单测逐字节校验，改了内联脚本却忘同步哈希会直接失败（否则浏览器会静默拒绝执行脚本，页面白屏）。
 - `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
-- 应用 E2E 191 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局）；其中 16 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
+- 应用 E2E 193 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局）；其中 18 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、队列视图只读、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
 - 扩展静态校验 21 项通过；扩展多浏览器 smoke 50 项通过（Chrome for Testing / Chromium / Edge，Firefox 走 MV3 变体静态校验）；21 种语言文案 key 与占位符保持一致，1.5.0 新增文案已全部翻译。
 - 引擎更新重启压力测试 50 轮通过（无残留端口、无孤儿进程）。
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.5
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.6
 
 ---
 
-# v1.5.0-beta.5 Release Notes
+# v1.5.0-beta.6 Release Notes
 
-> This is the fifth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the sixth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.4
+## 📌 What changed since beta.5
 
-This release adds **no new features**. It fixes six behaviour problems found after beta.4 and brings unit-test coverage to every main-process and renderer module. Everything you verified in beta.4 behaves the same.
+beta.6 closes the last item of D-30: a read-only queue view in the web console. The remaining changes are documentation follow-ups. Everything you verified in beta.5 behaves the same.
 
-- **Clearing the RPC secret explicitly no longer gets overwritten on every launch**: previously an empty secret triggered auto-generation, so a fresh random secret was written back on each start and external clients configured for no secret silently broke on the next launch. Auto-generation now only happens when no secret was ever set.
-- **Turning UPnP off or quitting now removes the mappings already created on the router**: previously only the renewal stopped, so the port mappings lingered until the 30-minute lease expired with the ports reachable the whole time. A failed renewal also no longer drops the mapped-ports list from the settings page.
-- **A plugin whose `onActivate` throws synchronously is no longer reported as both loaded and failed**: the host used to send `loaded ok:true` and then `loaded ok:false`, so the main process recorded a success while the activation failure was swallowed. It now reports a single `activate-error`.
-- **The web console page's `lang` follows the actual interface language**: it was hard-coded to `zh-CN`, which made screen readers and browser translation pick the wrong language.
-- **Installer file naming is a pure function cross-checked against `package.json`'s artifactName**: editing one and forgetting the other used to make auto-update download a file that does not exist.
-- **Extension pairing credential storage is now its own module**: reading, writing and de-duplicating pairing records moved out of the local API server, with edge cases covered (a corrupted file is treated as unpaired; at most 20 records are kept).
-- **Test coverage**: `main.ts`, the IPC / window / update controllers, the aria2 process manager, the extension local API and the preload surface on the main side, plus the renderer app lifecycle, settings form and aria2 client, are all covered now; unit tests grew from 1050 to 2400.
+- **A read-only queue view in the web console**: above the task list it shows the queue settings (max concurrency, retry on/off plus attempts and delay) and the waiting tasks with their positions; on narrow phone screens the columns fold into labelled rows. Backed by a new `GET /api/queue` (`tasks:read`) and documented in the OpenAPI spec, so the desktop and web sides share one set of queue constraints.
+- **The queue view deliberately has no write endpoint**: max concurrency is read-only on the desktop too (change it in settings), and the web side matches, so a browser cannot bypass the desktop's queue limits; `POST /api/queue` returns 404.
+- **Documentation follow-ups**: the endpoint table now lists `/api/events`, `/api/queue` and `pauseAll`/`unpauseAll`; the headless guide matches the implementation (`--headless` creates no window, so it runs on Linux without `$DISPLAY`); the README's pre-release note no longer pins a specific version.
+- **End-to-end coverage grew with it**: E2E goes from 191 to 193 checks, adding "the queue view is readable" and "the queue view rejects writes".
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -165,10 +159,10 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 - Typecheck (main process, tests, renderer) passes; 186 test files / 2407 unit tests pass (the engine-restart stress test is skipped by default).
 - `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
-- All 191 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring), of which 16 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
+- All 193 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring), of which 18 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, the read-only queue view, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.
 - The 50-round engine restart stress test passes with no leftover ports or orphan processes.
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.5
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.6
