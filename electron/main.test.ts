@@ -517,12 +517,15 @@ describe('单实例与启动', () => {
 })
 
 describe('旧版数据迁移', () => {
-  const legacyConfig = 'E:/Project/Aria2Desktop/data/config/aria2-desktop-settings.json'
-  const legacyConf = 'E:/Project/Aria2Desktop/data/aria2/aria2.conf'
-  const legacySession = 'E:/Project/Aria2Desktop/data/aria2/aria2.session'
+  // 开发态的旧版目录是 path.join(process.cwd(), 'data')，不能写死本机的 E:/Project/...，
+  // 否则在 CI（D:/a/...）上三个用例会全部落空。
+  const legacyRoot = fsKey(process.cwd()) + '/data'
+  const legacyConfig = legacyRoot + '/config/aria2-desktop-settings.json'
+  const legacyConf = legacyRoot + '/aria2/aria2.conf'
+  const legacySession = legacyRoot + '/aria2/aria2.session'
 
   it('把旧版设置、aria2 配置与会话复制到 userData 并写标记', async () => {
-    h.state.exists.add('E:/Project/Aria2Desktop/data')
+    h.state.exists.add(legacyRoot)
     h.state.exists.add(legacyConfig)
     h.state.exists.add(legacyConf)
     h.state.exists.add(legacySession)
@@ -534,7 +537,7 @@ describe('旧版数据迁移', () => {
   })
 
   it('已经迁移过（标记存在）时不再复制', async () => {
-    h.state.exists.add('E:/Project/Aria2Desktop/data')
+    h.state.exists.add(legacyRoot)
     h.state.exists.add(legacyConfig)
     h.state.exists.add('E:/user-data/.legacy-data-migrated')
     await loadMain()
@@ -542,7 +545,7 @@ describe('旧版数据迁移', () => {
   })
 
   it('目标文件已存在时不覆盖用户现有数据', async () => {
-    h.state.exists.add('E:/Project/Aria2Desktop/data')
+    h.state.exists.add(legacyRoot)
     h.state.exists.add(legacyConf)
     h.state.exists.add('E:/user-data/aria2/aria2.conf')
     await loadMain()
@@ -551,7 +554,7 @@ describe('旧版数据迁移', () => {
   })
 
   it('有单项复制失败时不写标记，留待下次启动重试', async () => {
-    h.state.exists.add('E:/Project/Aria2Desktop/data')
+    h.state.exists.add(legacyRoot)
     h.state.exists.add(legacyConf)
     h.state.exists.add(legacySession)
     h.state.copyFailures.add(legacyConf)
