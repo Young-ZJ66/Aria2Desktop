@@ -172,26 +172,96 @@ async function clickSettingsTabPath(session, patterns) {
  * 先发 Esc，若出现确认框就点「放弃修改」（E2E 不关心这些设置的持久化）。
  */
 async function closeSettingsDialog(session) {
-  await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
-  await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
-  await sleep(700)
-  // 未保存确认框：naive-ui 的 dialog 与 modal 都渲染成 .n-modal，用「放弃修改」按钮定位
-  const discarded = await evalIn(
+  // 最多按两轮 Esc：如果此刻还有下拉菜单 / 浮层开着，第一次 Esc 只关浮层，设置弹窗要再按一次。
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+    await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+    await sleep(700)
+    // 未保存确认框：naive-ui 的 dialog 与 modal 都渲染成 .n-modal，用「放弃修改」按钮定位
+    const discarded = await evalIn(
+      session,
+      `(() => {
+        const dialogs = [...document.querySelectorAll('.n-modal')].filter((el) => el.offsetParent !== null)
+        for (const dialog of dialogs) {
+          const btn = [...dialog.querySelectorAll('.n-button')].find((b) => /放弃修改|Discard/i.test(b.innerText || ''))
+          if (btn) { btn.click(); return 'discarded' }
+        }
+        return 'no-dialog'
+      })()`
+    )
+    if (discarded === 'discarded') await sleep(700)
+    const closed = await waitFor(
+      async () => (await evalIn(session, `!document.querySelector('.settings-dialog-body')`)) === true,
+      { timeoutMs: 5000, intervalMs: 200, label: '设置弹窗关闭' }
+    ).then(() => true).catch(() => false)
+    if (closed) return 'closed'
+  }
+  return 'still-open'
+}
+
+/**
+ * 打开设置页「常规设置」里的语言下拉（.general-form 的第一个 n-select）。
+ *
+ * 不按文案定位：切到阿拉伯语后标签本身就变成阿拉伯文，按文案找会失效。
+ */
+async function openLanguageSelect(session) {
+  return evalIn(
     session,
     `(() => {
-      const dialogs = [...document.querySelectorAll('.n-modal')].filter((el) => el.offsetParent !== null)
-      for (const dialog of dialogs) {
-        const btn = [...dialog.querySelectorAll('.n-button')].find((b) => /放弃修改|Discard/i.test(b.innerText || ''))
-        if (btn) { btn.click(); return 'discarded' }
-      }
-      return 'no-dialog'
+      const select = document.querySelectorAll('.settings-dialog-body .general-form .n-select')[0]
+      if (!select) return 'no-select'
+      const trigger = select.querySelector('.n-base-selection') || select
+      trigger.click()
+      return 'clicked'
     })()`
   )
-  if (discarded === 'discarded') await sleep(700)
-  return waitFor(
-    async () => (await evalIn(session, `!document.querySelector('.settings-dialog-body')`)) === true,
-    { timeoutMs: 5000, intervalMs: 200, label: '设置弹窗关闭' }
-  ).then(() => 'closed').catch(() => 'still-open')
+}
+
+/** 把 `1px` / `0.8px` 这类计算值转成数字，取不到返回 -1。 */
+function borderPx(value) {
+  const parsed = Number.parseFloat(String(value || '').replace('px', ''))
+  return Number.isFinite(parsed) ? parsed : -1
+}
+
+/**
+ * 在语言下拉里选中某个语言。
+ *
+ * 下拉开了虚拟滚动（naive-ui 默认 virtualScroll），21 个语言里靠后的项（阿拉伯语排第 12）
+ * 一开始根本不在 DOM 里，所以这里一边滚一边找，找到再点。
+ * 第一次尝试先把列表滚回顶部：再次打开下拉时它停在已选项附近，只往下滚永远找不到第 1 项。
+ */
+async function pickLanguageOption(session, pattern) {
+  for (let attempt = 0; attempt < 45; attempt++) {
+    const resetScroll = attempt === 0
+    const result = await evalIn(
+      session,
+      `(() => {
+        const options = [...document.querySelectorAll('.n-base-select-option')].filter((el) => el.offsetParent !== null)
+        const target = options.find((el) => new RegExp(${JSON.stringify(pattern)}, 'i').test((el.innerText || '').trim()))
+        if (target) { target.click(); return 'clicked' }
+        const menu = document.querySelector('.n-base-select-menu')
+        if (!menu) return 'no-list'
+        // naive-ui 的虚拟列表外面还包了一层 NScrollbar，滚动容器在不同版本里可能是
+        // .v-vl、.n-scrollbar-container 或 .n-scrollbar-content，这里统一按「能滚的那个」找。
+        const candidates = [
+          menu.querySelector('.v-vl'),
+          menu.querySelector('.n-scrollbar-container'),
+          menu.querySelector('.n-scrollbar-content'),
+          ...menu.querySelectorAll('div')
+        ].filter(Boolean)
+        const list = candidates.find((el) => el.scrollHeight > el.clientHeight + 4)
+        if (!list) return 'no-scroller'
+        if (${resetScroll} && list.scrollTop > 1) { list.scrollTop = 0; return 'scrolling' }
+        if (list.scrollTop + list.clientHeight >= list.scrollHeight - 1) return 'no-option'
+        list.scrollTop = list.scrollTop + 120
+        return 'scrolling'
+      })()`
+    )
+    if (result === 'clicked') return 'clicked'
+    if (result === 'no-option' || result === 'no-list' || result === 'no-scroller') return result
+    await sleep(120)
+  }
+  return 'timeout'
 }
 
 export async function runAppUi({ session, reporter, outDir, expectedVersion, pluginName, stamp, downloadUrl, downloadBytes, tempDownloadDir }) {
@@ -2175,4 +2245,83 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
   reporter.check('切到 30 天后柱状图变 30 根', trendThirty === 30, String(trendThirty))
   await capture(session, path.join(outDir, '08-status-summary.png'))
+
+  // —— 阿拉伯语镜像布局（D-52）——
+  // 放在整轮最后：切到阿拉伯语后界面上所有文案都变了，前面按中英文匹配的断言会全部失效。
+  await openSettingsDialog(session)
+  await sleep(900)
+  const rtlGeneralTab = await clickSettingsTab(session, '常规设置|General')
+  reporter.check('镜像布局检查前可进入常规设置', rtlGeneralTab === 'clicked', String(rtlGeneralTab))
+  await sleep(700)
+  const languageOpened = await openLanguageSelect(session)
+  reporter.check('常规设置提供语言下拉', languageOpened === 'clicked', String(languageOpened))
+  await sleep(500)
+  const arabicPicked = await pickLanguageOption(session, '^العربية$')
+  reporter.check('语言下拉可选阿拉伯语', arabicPicked === 'clicked', String(arabicPicked))
+  await sleep(1200)
+  const rtlState = await evalIn(
+    session,
+    `(() => {
+      const root = document.documentElement
+      const sidebar = document.querySelector('.sidebar')
+      const style = sidebar ? getComputedStyle(sidebar) : null
+      return {
+        dir: root.dir,
+        dataDir: root.dataset.dir || '',
+        lang: root.lang,
+        bodyAlign: getComputedStyle(document.body).textAlign,
+        borderLeft: style ? style.borderLeftWidth : '',
+        borderRight: style ? style.borderRightWidth : '',
+        stored: (() => { try { return localStorage.getItem('app-locale') || '' } catch { return '' } })()
+      }
+    })()`
+  )
+  reporter.check(
+    '切换阿拉伯语后文档方向变为 RTL',
+    !!rtlState && rtlState.dir === 'rtl' && rtlState.dataDir === 'rtl',
+    JSON.stringify(rtlState)
+  )
+  reporter.check('切换阿拉伯语后 html lang 同步', !!rtlState && rtlState.lang === 'ar-SA', String(rtlState && rtlState.lang))
+  reporter.check(
+    'RTL 下侧边栏描边镜像到左侧',
+    // 计算值受设备像素比影响，可能是 0.8px 而不是 1px，所以按数值判断而不是字符串比对。
+    !!rtlState && borderPx(rtlState.borderLeft) > 0.5 && borderPx(rtlState.borderRight) === 0,
+    JSON.stringify({ left: rtlState && rtlState.borderLeft, right: rtlState && rtlState.borderRight })
+  )
+  reporter.check('RTL 下正文右对齐', !!rtlState && rtlState.bodyAlign === 'right', String(rtlState && rtlState.bodyAlign))
+  reporter.check('语言选择已持久化', !!rtlState && rtlState.stored === 'ar-SA', String(rtlState && rtlState.stored))
+  await capture(session, path.join(outDir, '09-rtl.png'))
+
+  // 切回简体中文：收尾与人工排查截图都要中文界面，别把 RTL 留给后面的手工验证
+  const backOpened = await openLanguageSelect(session)
+  await sleep(400)
+  const chinesePicked = backOpened === 'clicked' ? await pickLanguageOption(session, '^简体中文$') : backOpened
+  reporter.check('可从阿拉伯语切回简体中文', chinesePicked === 'clicked', String(chinesePicked))
+  await sleep(1200)
+  const ltrState = await evalIn(
+    session,
+    `(() => {
+      const root = document.documentElement
+      const sidebar = document.querySelector('.sidebar')
+      const style = sidebar ? getComputedStyle(sidebar) : null
+      return {
+        dir: root.dir,
+        lang: root.lang,
+        borderLeft: style ? style.borderLeftWidth : '',
+        borderRight: style ? style.borderRightWidth : ''
+      }
+    })()`
+  )
+  reporter.check(
+    '切回中文后方向恢复 LTR',
+    !!ltrState && ltrState.dir === 'ltr' && ltrState.lang === 'zh-CN',
+    JSON.stringify(ltrState)
+  )
+  reporter.check(
+    'LTR 下侧边栏描边回到右侧',
+    !!ltrState && borderPx(ltrState.borderRight) > 0.5 && borderPx(ltrState.borderLeft) === 0,
+    JSON.stringify({ left: ltrState && ltrState.borderLeft, right: ltrState && ltrState.borderRight })
+  )
+  const settingsClosedAfterRtl = await closeSettingsDialog(session)
+  reporter.check('镜像布局检查后设置弹窗可关闭', settingsClosedAfterRtl === 'closed', String(settingsClosedAfterRtl))
 }
