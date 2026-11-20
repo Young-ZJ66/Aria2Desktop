@@ -68,6 +68,12 @@ jobs:
       - name: 插件注册表校验
         run: node scripts/run-with-log.mjs 插件注册表校验 npm run verify:registry
 
+      # 生产依赖（随安装包发布的 dependencies）不得带已知漏洞。
+      # 只在这里拦，不在 release.yml 拦：新披露的漏洞不一定有可用修复，
+      # 把它做成发版硬闸门会让「上游没修」直接卡死发布；发版前由清单人工确认。
+      - name: 生产依赖漏洞检查
+        run: node scripts/run-with-log.mjs 生产依赖漏洞检查 npm run verify:audit
+
       # 用真实 aria2 引擎跑扩展接口的全部用例（同时覆盖主进程编译产物）
       - name: 扩展接口端到端验证
         run: |

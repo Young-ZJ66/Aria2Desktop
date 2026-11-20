@@ -1,16 +1,15 @@
-# v1.5.0-beta.3 更新日志
+# v1.5.0-beta.4 更新日志
 
-> 这是 1.5.0 的第三个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第四个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.3 相对 beta.2 的变化
+## 📌 beta.4 相对 beta.3 的变化
 
-本版**没有任何功能或行为改动**，只有译文、测试、发布闸门与文档——beta.2 已验证过的行为在这一版里保持不变。
+本版**没有任何功能或行为改动**，只有依赖安全升级——beta.3 已验证过的功能在这一版里保持不变，请重点回归"更新、下载、插件、Web 控制台"这些与依赖相关的路径。
 
-- **13 种语言补齐 1.5.0 译文**：阿拉伯语、捷克语、印地语、印尼语、意大利语、荷兰语、波兰语、葡萄牙语（巴西）、俄语、泰语、土耳其语、乌克兰语、越南语此前把首次向导、任务设置、批量重试、通知等 34 条新增文案原样显示为英文，现已全部翻译；21 种语言的 key 与占位符保持一致。
-- **插件注册表发布前校验**：新增 `npm run verify:registry`，按客户端同一口径检查注册表结构、签名（空清单免签）与固定 tag 是否与版本对齐，已接入 CI 与发布流水线，避免签错/忘签导致市场整份列表被拒。
-- **新增测试**：v1.4.0 升级兼容用例（缺失配置块回落默认值、已有凭据不被覆盖）、插件注册表校验用例、引擎重启 50 轮压力用例（默认跳过，`STRESS_ENGINE_RESTART=1` 开启）。单测总数 1203 → 1236。
-- **扩展多浏览器 smoke**：`npm run test:e2e:extension` 自动发现本机 Chromium 系浏览器逐个跑同一套断言（Chrome for Testing / Chromium / Edge 共 50 项通过）。
-- **文档与截图**：README 补齐 1.5.0 功能条目与「如何回退到旧版本」；设置页截图换成带分组导航的新版，新增首次向导截图。
+- **依赖安全升级**：修掉 `npm audit` 报出的 34 个漏洞（18 moderate / 15 high / 1 critical），其中包含 axios 的拒绝服务、Vue 与 vue-i18n 相关告警、vite 开发服务器与 shell-quote 的命令注入链。运行时 Electron 43.4.0 → 43.8.12，Vue 3.5.46、axios 1.21.1、vite 8.3.8、vitest 5.1.1。`npm audit --omit=dev`（真正随应用发布的生产依赖）现在为 0。
+- **仍有 6 个 moderate**：全部来自 electron-builder 26.18.1 的打包工具链（@electron/universal、app-builder-lib、dmg-builder、minimatch），只在构建期运行、不随安装包发布，等上游修版后消除。
+- **两个发版闸门**（beta.3 引入，本版继续生效）：`npm run verify:versions` 一次校验五处版本号是否自洽，`npm run verify:registry` 按客户端同一口径校验插件注册表结构与签名。两者都在 CI 与发布流水线里跑。
+- **新增生产依赖漏洞闸门**：`npm run verify:audit` 直接跑 `npm audit --omit=dev`，生产依赖只要出现已知漏洞就让 CI 变红。它只拦 CI、不做发版硬闸门——新披露的漏洞不一定有可用修复，硬卡会挡住发布。
 
 ## 🎯 主题：可信接管
 
@@ -71,30 +70,30 @@
 
 ## ✅ 验证
 
-- typecheck（主进程 + 测试代码 + 渲染层）通过；111 个测试文件 / 1237 项单测通过（引擎重启压力测试默认跳过）。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；113 个测试文件 / 1271 项单测通过（引擎重启压力测试默认跳过）。
+- `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
 - 应用 E2E 144 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、Web 控制台）。
 - 扩展静态校验 21 项通过；扩展多浏览器 smoke 50 项通过（Chrome for Testing / Chromium / Edge，Firefox 走 MV3 变体静态校验）；21 种语言文案 key 与占位符保持一致，1.5.0 新增文案已全部翻译。
 - 引擎更新重启压力测试 50 轮通过（无残留端口、无孤儿进程）。
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.3
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.4
 
 ---
 
-# v1.5.0-beta.3 Release Notes
+# v1.5.0-beta.4 Release Notes
 
-> This is the third pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the fourth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.2
+## 📌 What changed since beta.3
 
-This release contains **no feature or behaviour changes** — only translations, tests, a release gate and docs. Everything you verified in beta.2 behaves identically here.
+This release contains **no feature or behaviour changes** — only a dependency security upgrade. Everything you verified in beta.3 behaves identically; please focus regression testing on updates, downloads, plugins and the web console, which are the paths that touch these dependencies.
 
-- **13 more locales now cover 1.5.0**: Arabic, Czech, Hindi, Indonesian, Italian, Dutch, Polish, Brazilian Portuguese, Russian, Thai, Turkish, Ukrainian and Vietnamese previously fell back to English for 34 new strings (first-run wizard, task settings, batch retry, notifications); all are translated now, and all 21 locales keep matching keys and placeholders.
-- **Plugin registry gate**: a new `npm run verify:registry` checks the registry structure, signature (an empty list needs none) and whether the pinned tag matches the package version, using the same rules as the client. It runs in CI and the release pipeline, so a bad or missing signature can no longer silently empty the marketplace.
-- **New tests**: v1.4.0 upgrade-compatibility cases (missing blocks fall back to defaults, existing credentials are preserved), plugin-registry verification cases, and a 50-round engine restart stress test (skipped by default; enable with `STRESS_ENGINE_RESTART=1`). Total unit tests 1203 → 1236.
-- **Multi-browser extension smoke**: `npm run test:e2e:extension` discovers local Chromium-family browsers and runs the same assertions in each (Chrome for Testing / Chromium / Edge, 50 checks passing).
-- **Docs and screenshots**: the README now lists every 1.5.0 feature and explains how to roll back to an older version; the settings screenshot shows the grouped navigation, and there is a new first-run wizard screenshot.
+- **Dependency security upgrade**: fixes the 34 advisories reported by `npm audit` (18 moderate / 15 high / 1 critical), including an axios denial-of-service, advisories around Vue and vue-i18n, and a command-injection chain through the vite dev server and shell-quote. Electron runtime 43.4.0 → 43.8.12, Vue 3.5.46, axios 1.21.1, vite 8.3.8, vitest 5.1.1. `npm audit --omit=dev` (the production dependencies actually shipped) now reports zero.
+- **Six moderate advisories remain**: all from the electron-builder 26.18.1 packaging toolchain (@electron/universal, app-builder-lib, dmg-builder, minimatch). They run at build time only and are not shipped in the installer; they will clear once upstream ships a fix.
+- **Two release gates** (added in beta.3, still active): `npm run verify:versions` checks that the five version literals agree, and `npm run verify:registry` checks the plugin registry structure and signature with the same rules as the client. Both run in CI and the release pipeline.
+- **New production-dependency audit gate**: `npm run verify:audit` runs `npm audit --omit=dev`, so any known advisory in a shipped dependency turns CI red. It is a CI gate only, not a release blocker — a freshly disclosed advisory may have no available fix, and blocking on it would stall releases.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -154,11 +153,12 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ## ✅ Verification
 
-- Typecheck (main process, tests, renderer) passes; 111 test files / 1237 unit tests pass (the engine-restart stress test is skipped by default).
+- Typecheck (main process, tests, renderer) passes; 113 test files / 1271 unit tests pass (the engine-restart stress test is skipped by default).
+- `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
 - All 144 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, web console).
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.
 - The 50-round engine restart stress test passes with no leftover ports or orphan processes.
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.3
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.4

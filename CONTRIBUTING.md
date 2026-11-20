@@ -174,6 +174,10 @@ module.exports = {
 - 漏改这些不会被 `git status` 发现：`git add -A` 后版本文件在索引里可能仍是旧内容，
   提交前用 `git show :package.json | sed -n '3p'` 核对，必要时 `git add --renormalize <files>`。
 - 更新日志面向普通用户写：说清“以前怎样、现在怎样”，不要写内部实现细节。
+- 依赖安全：`npm run verify:audit` 要求 `dependencies`（随安装包发布的那部分）零已知漏洞。
+  构建期依赖的漏洞不阻塞发版，但升级后用 `npm audit` 全量看一遍再决定是否放行。
+  升级 Electron 后如果 `node_modules/electron/dist` 里没有二进制（`Electron failed to install correctly`），
+  用 `ELECTRON_MIRROR=https://registry.npmmirror.com/-/binary/electron/ npm ci` 重装，或手动解压对应 zip 并写 `path.txt`。
 
 ### Beta / 预发布
 

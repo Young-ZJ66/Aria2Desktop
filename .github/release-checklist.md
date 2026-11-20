@@ -20,6 +20,7 @@ npm run build                # 含 verify-resources
 npm run check:extension
 npm run verify:versions      # 五处版本号（package/lock/appSettings/扩展 manifest/更新日志首行）是否自洽
 npm run verify:registry      # 注册表签名口径 + 固定 tag 与版本对齐（非空清单必须验签通过）
+npm run verify:audit         # 生产依赖（随安装包发布的那部分）不得有已知漏洞
 npm run verify:extension-api
 npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解压
 ```
@@ -28,6 +29,8 @@ npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解�
 - [ ] 推 tag 之前，`ci.yml` 在 `main` 上必须是绿的——它跑的就是上面这套检查，
       外加应用 E2E、打包产物冒烟与「全新安装」冒烟（空白数据目录也能自己长配置起来）
 
+- [ ] `npm run verify:audit` 为 0：`dependencies` 里的生产依赖（electron-log / electron-store）不得带已知漏洞。
+      构建期依赖的漏洞看 `npm audit` 全量结果，评估是否随安装包发布后再决定是否放行
 - [ ] 插件市场注册表：非空清单必须在发版前用私钥签名，且 `npm run verify:registry -- --online`
       能通过（它会拉取 tag 下已发布的那份，确认签名载荷与仓库文件一致）；空清单可免签
 - [ ] 扩展 E2E 需要 Chrome for Testing：`E2E_CHROME_PATH=<chrome路径> npm run test:e2e`

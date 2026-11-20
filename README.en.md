@@ -189,6 +189,8 @@ npm run test:e2e          # end-to-end (launches the real app and exercises down
 npm run test:e2e:extension  # extension smoke across local Chrome for Testing / Chromium / Edge
 npm run bump:version -- 1.5.0  # pre-release: write all five version literals at once (--dry-run to preview)
 npm run verify:versions   # pre-release: the five version literals (package/lock/registry tag/extension/notes) agree
+npm run verify:registry   # pre-release: plugin registry signature rules (empty list needs none; -- --online compares published copy)
+npm run verify:audit      # pre-release: production dependencies must have no known vulnerabilities
 npm run dist:win64        # package Windows x64 installer + portable zip
 npm run dist:mac          # package macOS (x64 + arm64)
 npm run dist:linux:arm64  # package Linux arm64
