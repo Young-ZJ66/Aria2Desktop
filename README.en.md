@@ -187,6 +187,7 @@ npm run test:run          # unit tests
 npm run typecheck         # type checking (main process + test code + renderer)
 npm run test:e2e          # end-to-end (launches the real app and exercises download/extract/settings)
 npm run test:e2e:extension  # extension smoke across local Chrome for Testing / Chromium / Edge
+npm run bump:version -- 1.5.0  # pre-release: write all five version literals at once (--dry-run to preview)
 npm run verify:versions   # pre-release: the five version literals (package/lock/registry tag/extension/notes) agree
 npm run dist:win64        # package Windows x64 installer + portable zip
 npm run dist:mac          # package macOS (x64 + arm64)

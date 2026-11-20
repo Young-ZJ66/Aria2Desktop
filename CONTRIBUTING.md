@@ -166,8 +166,9 @@ module.exports = {
   标题英文、正文中文说明“为什么改”。
 - 推送以 `v` 开头的 tag（如 `v1.2.5`）会触发 `release.yml`：质量闸门 → 端到端 → 三平台并行构建
   → 创建 Release 并上传资产（含 `.sha256` 与差量块表）。
-- 版本号散在五处，发版前必须全部一致；`npm run verify:versions` 会一次校验完（CI 与 `release.yml`
-  都会跑它）：`package.json`、`package-lock.json`（顶层与 `packages[""]` 两处）、
+- 版本号散在五处，发版前必须全部一致。别手工改：`npm run bump:version -- 1.5.0-beta.4`
+  一次写全五处（`--dry-run` 先看要改什么），改完用 `npm run verify:versions` 复核（CI 与 `release.yml`
+  都会跑它）。五处分别是：`package.json`、`package-lock.json`（顶层与 `packages[""]` 两处）、
   `src/shared/appSettings.ts` 的 `PLUGIN_REGISTRY_PINNED_TAG`（插件市场拉哪个 tag 的注册表）、
   `extension/manifest.json`、`.github/release-notes.md` 首行（`# vX.Y.Z 更新日志`）。Beta / RC 的例外见下一节。
 - 漏改这些不会被 `git status` 发现：`git add -A` 后版本文件在索引里可能仍是旧内容，

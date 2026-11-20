@@ -4,7 +4,8 @@
 
 ## 1. 版本与物料
 
-- [ ] `package.json` 的 `version` 与本次 tag 一致（CI 会校验更新日志首行版本号）
+- [ ] 用 `npm run bump:version -- <版本号>` 一次写全五处版本号，再用 `npm run verify:versions` 复核
+      （`package.json` 的 `version` 必须与本次 tag 完全一致，CI 还会校验更新日志首行版本号）
 - [ ] `.github/release-notes.md` 首行为 `# vX.Y.Z 更新日志`，内容与实际改动一致
 - [ ] 扩展若有改动：`extension/manifest.json` 版本已递增，商店文案/截图已更新
 - [ ] README 中与版本相关的描述（安装包命名、支持平台）没有过期
