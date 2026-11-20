@@ -6,7 +6,7 @@
 
 - **主进程文案本地化**：引擎启动失败对话框与系统通知、更新校验失败、yt-dlp/ffmpeg 安装、RSS 订阅与监听目录校验、Web 控制台 TLS 错误、UPnP 映射失败、扩展配对、托盘菜单等 60+ 处此前硬编码中文的文案，现在按系统语言输出中英双语。英文/日文等界面不再在最关键的失败场景看到中文。
 - 引擎启动失败分类器同时识别中英文错误串，避免英文界面下失败原因退化成「未知」。
-- 新增主进程文案表的单元测试（中英齐全、占位符替换），单测总数 1203 → 1221。
+- 新增主进程文案表的单元测试（中英齐全、占位符替换）与 v1.4.0 升级兼容用例（缺失配置块回落默认值、已有凭据不被覆盖），单测总数 1203 → 1225。
 
 ## 🎯 主题：可信接管
 
@@ -67,7 +67,7 @@
 
 ## ✅ 验证
 
-- typecheck（主进程 + 测试代码 + 渲染层）通过；109 个测试文件 / 1221 项单测全部通过。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；109 个测试文件 / 1225 项单测全部通过。
 - 应用 E2E 144 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、Web 控制台）。
 - 扩展静态校验 21 项通过；21 种语言文案 key 保持完整。
 
@@ -145,7 +145,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ## ✅ Verification
 
-- Typecheck (main process, tests, renderer) passes; 109 test files / 1221 unit tests pass.
+- Typecheck (main process, tests, renderer) passes; 109 test files / 1225 unit tests pass.
 - All 144 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, web console).
 - All 21 extension static checks pass; the 21 locales remain complete.
 

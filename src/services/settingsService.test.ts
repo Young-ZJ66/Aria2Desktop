@@ -66,6 +66,72 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+/**
+ * v1.4.0 → v1.5.0 升级不丢配置（发布清单第 5 项）。
+ *
+ * v1.4.0 的磁盘配置里没有 queue / taskTemplates / completionRules / webConsole /
+ * pluginMarket 这几块（其中前四块在 v1.4.0 甚至会被设置保存静默抹掉，见 D-53）。
+ * 升级后必须做到两件事：
+ *  1. 缺的块回落到默认值，不能是 undefined（否则读 `settings.queue.maxConcurrent` 直接抛错）；
+ *  2. 用户已有的字段一个都不能被默认值覆盖（尤其是密钥与令牌这类凭据）。
+ */
+describe('v1.4.0 升级兼容', () => {
+  /** v1.4.0 磁盘上的真实形状：只有当时存在的键，且没有 queue/taskTemplates/completionRules */
+  const legacySettings = {
+    language: 'zh-CN',
+    theme: 'dark',
+    autoConnect: false,
+    aria2: { port: 6800, secret: 'legacy-secret', engineMode: 'local' },
+    download: { defaultDir: 'D:/Downloads', maxConcurrentDownloads: 8 },
+    connectionProfiles: [{ id: 'legacy', name: '本机', config: { host: '127.0.0.1', port: 6800, secret: 'legacy-secret' } }],
+    activeProfileId: 'legacy'
+  }
+
+  it('v1.4.0 配置升级后缺失的配置块回落到默认值', async () => {
+    const { service, defaults } = await loadService({ stored: legacySettings })
+    const settings = service.getSettings()
+
+    // 缺失块必须是对象/数组而不是 undefined，否则界面读取即抛错
+    expect(settings.queue).toEqual(defaults.queue)
+    expect(settings.taskTemplates).toEqual([])
+    expect(settings.completionRules).toEqual([])
+    expect(settings.webConsole).toEqual(defaults.webConsole)
+    expect(settings.pluginMarket).toEqual(defaults.pluginMarket)
+    expect(settings.trustedPluginPublishers).toEqual(defaults.trustedPluginPublishers)
+  })
+
+  it('v1.4.0 配置里已有的凭据与自定义项不被默认值覆盖', async () => {
+    const { service } = await loadService({ stored: legacySettings })
+    const settings = service.getSettings()
+
+    expect(settings.aria2?.secret).toBe('legacy-secret')
+    expect(settings.download?.defaultDir).toBe('D:/Downloads')
+    expect(settings.download?.maxConcurrentDownloads).toBe(8)
+    expect(settings.connectionProfiles?.[0]?.config?.secret).toBe('legacy-secret')
+    expect(settings.activeProfileId).toBe('legacy')
+    expect(settings.language).toBe('zh-CN')
+    expect(settings.theme).toBe('dark')
+  })
+
+  it('v1.4.0 配置缺少 clipboardMonitorEnabled 时按关闭处理（D-36 默认值收紧）', async () => {
+    const { service } = await loadService({ stored: legacySettings })
+    expect(service.getSettings().clipboardMonitorEnabled).toBe(false)
+  })
+
+  it('v1.4.0 配置里 webConsole 只有部分字段时补全其余默认值', async () => {
+    const { service, defaults } = await loadService({
+      stored: { ...legacySettings, webConsole: { enabled: true, port: 6802 } }
+    })
+    const webConsole = service.getSettings().webConsole
+
+    expect(webConsole?.enabled).toBe(true)
+    expect(webConsole?.port).toBe(6802)
+    // 用户没配过的字段（令牌、TLS 路径）回落到默认值，不能被抹成 undefined
+    expect(webConsole?.token).toBe(defaults.webConsole?.token)
+    expect(webConsole?.allowedIps).toEqual(defaults.webConsole?.allowedIps)
+  })
+})
+
 describe('加载与合并', () => {
   it('只存了部分字段时，其余字段回落到默认值', async () => {
     const { service, defaults } = await loadService({
