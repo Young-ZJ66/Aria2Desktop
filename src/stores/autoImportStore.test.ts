@@ -78,7 +78,7 @@ describe('loadAll / pollRefresh', () => {
 describe('订阅写操作', () => {
   it('保存成功返回结果并刷新列表', async () => {
     const store = useAutoImportStore()
-    const result = await store.saveSubscription({ id: 'r2', name: '新订阅' })
+    const result = await store.saveSubscription({ id: 'r2', name: '新订阅', url: 'https://example.com/feed.xml', enabled: true })
     expect(result).toEqual({ success: true, subscription: { id: 'r2' } })
     expect(api.rssSubsList).toHaveBeenCalledTimes(1)
   })
@@ -86,7 +86,7 @@ describe('订阅写操作', () => {
   it('保存失败把主进程的 error 记进 lastError 且不刷新列表', async () => {
     api.rssSubsSave.mockResolvedValue({ success: false, error: '订阅地址无效' })
     const store = useAutoImportStore()
-    const result = await store.saveSubscription({ id: 'r2', name: 'x' })
+    const result = await store.saveSubscription({ id: 'r2', name: 'x', url: 'https://example.com/feed.xml', enabled: true })
     expect(result.success).toBe(false)
     expect(store.lastError).toBe('订阅地址无效')
     expect(api.rssSubsList).not.toHaveBeenCalled()
@@ -95,7 +95,7 @@ describe('订阅写操作', () => {
   it('保存抛错归一成 { success:false, error }', async () => {
     api.rssSubsSave.mockRejectedValue(new Error('boom'))
     const store = useAutoImportStore()
-    await expect(store.saveSubscription({ id: 'r2' })).resolves.toEqual({ success: false, error: 'boom' })
+    await expect(store.saveSubscription({ id: 'r2', name: 'x', url: 'https://example.com/feed.xml', enabled: true })).resolves.toEqual({ success: false, error: 'boom' })
   })
 
   it('删除成功后刷新列表', async () => {
@@ -123,7 +123,7 @@ describe('订阅写操作', () => {
 describe('监听文件夹写操作', () => {
   it('保存成功刷新文件夹列表', async () => {
     const store = useAutoImportStore()
-    const result = await store.saveFolder({ id: 'w2', path: '/x' })
+    const result = await store.saveFolder({ id: 'w2', path: '/x', enabled: true })
     expect(result.success).toBe(true)
     expect(api.watchFoldersList).toHaveBeenCalledTimes(1)
   })
