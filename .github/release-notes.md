@@ -73,7 +73,7 @@
 - typecheck（主进程 + 测试代码 + 渲染层）通过；116 个测试文件 / 1304 项单测通过（引擎重启压力测试默认跳过）。
 - Web 控制台页面内联脚本/样式的 CSP 哈希由单测逐字节校验，改了内联脚本却忘同步哈希会直接失败（否则浏览器会静默拒绝执行脚本，页面白屏）。
 - `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
-- 应用 E2E 175 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、Web 控制台、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局）。
+- 应用 E2E 191 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局）；其中 16 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
 - 扩展静态校验 21 项通过；扩展多浏览器 smoke 50 项通过（Chrome for Testing / Chromium / Edge，Firefox 走 MV3 变体静态校验）；21 种语言文案 key 与占位符保持一致，1.5.0 新增文案已全部翻译。
 - 引擎更新重启压力测试 50 轮通过（无残留端口、无孤儿进程）。
 
@@ -156,7 +156,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 - Typecheck (main process, tests, renderer) passes; 116 test files / 1304 unit tests pass (the engine-restart stress test is skipped by default).
 - `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
-- All 175 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, web console, status filter, per-task settings, download trend, Arabic RTL mirroring).
+- All 191 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring), of which 16 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.
 - The 50-round engine restart stress test passes with no leftover ports or orphan processes.
 

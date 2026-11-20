@@ -20,6 +20,7 @@ import { collectErrors, connect, createReporter, httpJson, killTree, sleep, wait
 import { runAppUi } from './app-ui.mjs'
 import { runExtensionCheck, resolveChromePath } from './extension.mjs'
 import { runPairingCheck } from './pairing.mjs'
+import { runWebConsoleCheck } from './web-console.mjs'
 
 const require = createRequire(import.meta.url)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -29,6 +30,10 @@ const userDataRoot = path.join(outDir, 'userdata')
 const vitePort = Number(process.env.E2E_VITE_PORT || 5173)
 const cdpPort = Number(process.env.E2E_CDP_PORT || 9334)
 const skipExtension = process.argv.includes('--skip-extension') || process.env.E2E_SKIP_EXTENSION === '1'
+/** Web 控制台端口：避开引擎的 6810 与真实安装可能占用的 6802 */
+const webConsolePort = Number(process.env.E2E_WEB_CONSOLE_PORT || 6820)
+/** E2E 专用主令牌：服务端要求至少 16 个字符，故意写成可读串便于排查 */
+const webConsoleToken = 'e2e-web-console-token-0123456789'
 
 fs.mkdirSync(outDir, { recursive: true })
 const reporter = createReporter()
@@ -112,7 +117,15 @@ function prepareIsolatedUserData({ rpcPort, downloadDir }) {
           language: 'zh-CN',
           aria2: { ...localConfig },
           connectionProfiles: [{ id: 'default', name: '', config: { ...localConfig } }],
-          activeProfileId: 'default'
+          activeProfileId: 'default',
+          // Web 控制台：页面跑在浏览器里，CDP 覆盖不到，所以 e2e 直接对它发 HTTP 请求。
+          // allowedIps 留空 → 只监听 127.0.0.1，不会把测试实例暴露到局域网。
+          webConsole: {
+            enabled: true,
+            port: webConsolePort,
+            token: webConsoleToken,
+            allowedIps: []
+          }
         }
       },
       null,
@@ -260,6 +273,15 @@ async function main() {
 
   reporter.check('渲染层无未捕获异常 / error 级日志', collectErrors(session).length === 0)
   session.close()
+
+  console.log('==> Web 控制台检查')
+  await runWebConsoleCheck({
+    reporter,
+    outDir,
+    baseUrl: `http://127.0.0.1:${webConsolePort}`,
+    token: webConsoleToken,
+    auditFile: path.join(isolatedEnv.ARIA2_E2E_USER_DATA, 'web-console-audit.json')
+  })
 
   if (skipExtension) {
     console.log('SKIP 扩展 E2E：按参数跳过')
