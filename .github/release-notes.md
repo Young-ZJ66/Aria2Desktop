@@ -1,15 +1,18 @@
-# v1.5.0-beta.4 更新日志
+# v1.5.0-beta.5 更新日志
 
-> 这是 1.5.0 的第四个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第五个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.4 相对 beta.3 的变化
+## 📌 beta.5 相对 beta.4 的变化
 
-本版**没有任何功能或行为改动**，只有依赖安全升级——beta.3 已验证过的功能在这一版里保持不变，请重点回归"更新、下载、插件、Web 控制台"这些与依赖相关的路径。
+本版**没有任何新功能**，只修了 beta.4 之后发现的 6 个行为问题，并把主进程与渲染层补到每个模块都有单测。beta.4 里已经验过的功能在这一版里保持不变。
 
-- **依赖安全升级**：修掉 `npm audit` 报出的 34 个漏洞（18 moderate / 15 high / 1 critical），其中包含 axios 的拒绝服务、Vue 与 vue-i18n 相关告警、vite 开发服务器与 shell-quote 的命令注入链。运行时 Electron 43.4.0 → 43.8.12，Vue 3.5.46、axios 1.21.1、vite 8.3.8、vitest 5.1.1。`npm audit --omit=dev`（真正随应用发布的生产依赖）现在为 0。
-- **仍有 6 个 moderate**：全部来自 electron-builder 26.18.1 的打包工具链（@electron/universal、app-builder-lib、dmg-builder、minimatch），只在构建期运行、不随安装包发布，等上游修版后消除。
-- **两个发版闸门**（beta.3 引入，本版继续生效）：`npm run verify:versions` 一次校验五处版本号是否自洽，`npm run verify:registry` 按客户端同一口径校验插件注册表结构与签名。两者都在 CI 与发布流水线里跑。
-- **新增生产依赖漏洞闸门**：`npm run verify:audit` 直接跑 `npm audit --omit=dev`，生产依赖只要出现已知漏洞就让 CI 变红。它只拦 CI、不做发版硬闸门——新披露的漏洞不一定有可用修复，硬卡会挡住发布。
+- **显式清空 RPC 密钥后不再每次启动自动生成**：此前用户在设置里主动清空密钥会被"自动生成"覆盖，每次启动都写回一个新的随机密钥，导致按无密钥配置的外部客户端下次启动后静默失效。现在只有从未设置过密钥时才会自动生成。
+- **UPnP 关闭或退出时撤掉路由器上已建的映射**：此前关开关时只是停止续租，已经建好的端口映射会一直留到 30 分钟租期结束（这段时间端口对外开放）。另外续租失败后设置页不再丢失"已映射端口"清单。
+- **插件激活同步抛错不再既报成功又报失败**：插件 `onActivate` 同步抛异常时，宿主会先发 `loaded ok:true` 再发 `loaded ok:false`，主进程按先到的成功记账、激活失败被吞掉。现在统一走 `activate-error`。
+- **Web 控制台页面的 `lang` 跟随实际界面语言**：此前固定写成 `zh-CN`，英文界面下读屏与浏览器翻译都会判断错语言。
+- **更新安装包命名抽成纯函数并与 `package.json` 的 artifactName 双向校验**：避免改了一处忘记另一处，导致自动更新下载到不存在的文件名。
+- **扩展配对凭据存储抽成独立模块**：配对记录读写与去重逻辑从本地接口服务里拆出来，并补上"文件损坏按未配对处理""最多保留 20 条"等边界。
+- **测试覆盖补齐**：主进程 `main.ts`、IPC 控制器、窗口控制器、更新控制器、aria2 进程管理器、扩展本地接口、preload 接口面，渲染层应用生命周期、设置表单、aria2 客户端等全部有单测；单测从 1050 项增至 2400 项。
 
 ## 🎯 主题：可信接管
 
@@ -81,22 +84,25 @@
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.4
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.5
 
 ---
 
-# v1.5.0-beta.4 Release Notes
+# v1.5.0-beta.5 Release Notes
 
-> This is the fourth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the fifth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.3
+## 📌 What changed since beta.4
 
-This release contains **no feature or behaviour changes** — only a dependency security upgrade. Everything you verified in beta.3 behaves identically; please focus regression testing on updates, downloads, plugins and the web console, which are the paths that touch these dependencies.
+This release adds **no new features**. It fixes six behaviour problems found after beta.4 and brings unit-test coverage to every main-process and renderer module. Everything you verified in beta.4 behaves the same.
 
-- **Dependency security upgrade**: fixes the 34 advisories reported by `npm audit` (18 moderate / 15 high / 1 critical), including an axios denial-of-service, advisories around Vue and vue-i18n, and a command-injection chain through the vite dev server and shell-quote. Electron runtime 43.4.0 → 43.8.12, Vue 3.5.46, axios 1.21.1, vite 8.3.8, vitest 5.1.1. `npm audit --omit=dev` (the production dependencies actually shipped) now reports zero.
-- **Six moderate advisories remain**: all from the electron-builder 26.18.1 packaging toolchain (@electron/universal, app-builder-lib, dmg-builder, minimatch). They run at build time only and are not shipped in the installer; they will clear once upstream ships a fix.
-- **Two release gates** (added in beta.3, still active): `npm run verify:versions` checks that the five version literals agree, and `npm run verify:registry` checks the plugin registry structure and signature with the same rules as the client. Both run in CI and the release pipeline.
-- **New production-dependency audit gate**: `npm run verify:audit` runs `npm audit --omit=dev`, so any known advisory in a shipped dependency turns CI red. It is a CI gate only, not a release blocker — a freshly disclosed advisory may have no available fix, and blocking on it would stall releases.
+- **Clearing the RPC secret explicitly no longer gets overwritten on every launch**: previously an empty secret triggered auto-generation, so a fresh random secret was written back on each start and external clients configured for no secret silently broke on the next launch. Auto-generation now only happens when no secret was ever set.
+- **Turning UPnP off or quitting now removes the mappings already created on the router**: previously only the renewal stopped, so the port mappings lingered until the 30-minute lease expired with the ports reachable the whole time. A failed renewal also no longer drops the mapped-ports list from the settings page.
+- **A plugin whose `onActivate` throws synchronously is no longer reported as both loaded and failed**: the host used to send `loaded ok:true` and then `loaded ok:false`, so the main process recorded a success while the activation failure was swallowed. It now reports a single `activate-error`.
+- **The web console page's `lang` follows the actual interface language**: it was hard-coded to `zh-CN`, which made screen readers and browser translation pick the wrong language.
+- **Installer file naming is a pure function cross-checked against `package.json`'s artifactName**: editing one and forgetting the other used to make auto-update download a file that does not exist.
+- **Extension pairing credential storage is now its own module**: reading, writing and de-duplicating pairing records moved out of the local API server, with edge cases covered (a corrupted file is treated as unpaired; at most 20 records are kept).
+- **Test coverage**: `main.ts`, the IPC / window / update controllers, the aria2 process manager, the extension local API and the preload surface on the main side, plus the renderer app lifecycle, settings form and aria2 client, are all covered now; unit tests grew from 1050 to 2400.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -165,4 +171,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.4
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.5
