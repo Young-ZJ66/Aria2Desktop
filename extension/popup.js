@@ -637,14 +637,12 @@ function renderResources() {
   if (streamHint) streamHint.hidden = true
   if (!snifferPermissionGranted) {
     const empty = document.createElement('div')
-    empty.className = 'empty-state'
+    empty.className = 'empty-state is-permission'
     empty.textContent = i18n('snifferPermissionNeeded')
     const button = document.createElement('button')
     button.className = 'btn btn-primary'
-    button.style.marginTop = '10px'
     button.textContent = i18n('snifferEnable')
     button.addEventListener('click', enableSniffer)
-    empty.appendChild(document.createElement('br'))
     empty.appendChild(button)
     list.appendChild(empty)
     $('selectionBar').hidden = true
