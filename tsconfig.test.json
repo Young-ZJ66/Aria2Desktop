@@ -17,7 +17,8 @@
     "electron/**/*.test.ts",
     "src/**/*.test.ts",
     "vitest.config.mts",
-    "src/types/vite-env.d.ts"
+    "src/types/vite-env.d.ts",
+    "src/shims-vue.d.ts"
   ],
   "exclude": [
     "node_modules",
