@@ -2126,5 +2126,53 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
     /今日下载量|Downloaded Today/i.test(String(statusText)) && /累计下载量|Total Downloaded/i.test(String(statusText)),
     String(statusText).slice(0, 120)
   )
+  // —— 下载趋势（D-53）：7/30 天柱状图，数据来自本地按日历史 ——
+  // 前面刚真实下载过一个文件，按日历史里必然有今天的字节数，所以这里不该出现空态。
+  const trendInitial = await evalIn(
+    session,
+    `(() => {
+      const chart = document.querySelector('.trend-chart')
+      if (!chart) return { found: false }
+      const bars = [...chart.querySelectorAll('.trend-bar')]
+      return {
+        found: true,
+        columns: chart.querySelectorAll('.trend-bar-column').length,
+        barsWithHeight: bars.filter((el) => (el.style.height || '') !== '' && el.style.height !== '0%').length,
+        empty: !!document.querySelector('.trend-empty'),
+        axis: [...document.querySelectorAll('.trend-axis span')].map((el) => (el.innerText || '').trim())
+      }
+    })()`
+  )
+  reporter.check('状态页展示下载趋势柱状图', !!trendInitial && trendInitial.found === true && trendInitial.columns === 7, JSON.stringify(trendInitial))
+  reporter.check(
+    '下载趋势默认 7 天且不显示空态',
+    !!trendInitial && trendInitial.empty === false && trendInitial.barsWithHeight >= 1,
+    JSON.stringify(trendInitial)
+  )
+  reporter.check(
+    '下载趋势给出时间轴标签',
+    !!trendInitial && Array.isArray(trendInitial.axis) && trendInitial.axis.length === 3 && trendInitial.axis.every((label) => label.length > 0),
+    JSON.stringify(trendInitial && trendInitial.axis)
+  )
+  const trendSwitched = await evalIn(
+    session,
+    `(() => {
+      const buttons = [...document.querySelectorAll('.n-radio-group .n-radio-button')]
+      const target = buttons.find((el) => (el.innerText || '').trim() === '30')
+      if (!target) return { found: false }
+      target.click()
+      return { found: true }
+    })()`
+  )
+  reporter.check('下载趋势提供 30 天切换', !!trendSwitched && trendSwitched.found === true, JSON.stringify(trendSwitched))
+  await sleep(500)
+  const trendThirty = await evalIn(
+    session,
+    `(() => {
+      const chart = document.querySelector('.trend-chart')
+      return chart ? chart.querySelectorAll('.trend-bar-column').length : -1
+    })()`
+  )
+  reporter.check('切到 30 天后柱状图变 30 根', trendThirty === 30, String(trendThirty))
   await capture(session, path.join(outDir, '08-status-summary.png'))
 }
