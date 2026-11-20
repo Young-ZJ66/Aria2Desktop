@@ -57,6 +57,11 @@ jobs:
       - name: 扩展静态校验
         run: node scripts/run-with-log.mjs 扩展静态校验 npm run check:extension
 
+      # 插件注册表的签名口径与固定 tag：非空清单签错 / 忘签、或版本升了 tag 忘了改，
+      # 都会让客户端把整份市场列表判为不可信——而这种失败只在用户装上之后才暴露
+      - name: 插件注册表校验
+        run: node scripts/run-with-log.mjs 插件注册表校验 npm run verify:registry
+
       # 用真实 aria2 引擎跑扩展接口的全部用例（同时覆盖主进程编译产物）
       - name: 扩展接口端到端验证
         run: |

@@ -17,6 +17,7 @@ npm run test:run
 npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --ignore-pattern .gitignore
 npm run build                # 含 verify-resources
 npm run check:extension
+npm run verify:registry      # 注册表签名口径 + 固定 tag 与版本对齐（非空清单必须验签通过）
 npm run verify:extension-api
 npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解压
 ```
@@ -25,6 +26,8 @@ npm run test:e2e             # 真实 Electron UI + 插件运行时 + 自动解�
 - [ ] 推 tag 之前，`ci.yml` 在 `main` 上必须是绿的——它跑的就是上面这套检查，
       外加应用 E2E、打包产物冒烟与「全新安装」冒烟（空白数据目录也能自己长配置起来）
 
+- [ ] 插件市场注册表：非空清单必须在发版前用私钥签名，且 `npm run verify:registry -- --online`
+      能通过（它会拉取 tag 下已发布的那份，确认签名载荷与仓库文件一致）；空清单可免签
 - [ ] 扩展 E2E 需要 Chrome for Testing：`E2E_CHROME_PATH=<chrome路径> npm run test:e2e`
       （未提供时该项 SKIP，不算通过；发版前必须至少在本机跑过一次）
 - [ ] 截图与日志留存于 `test-results/e2e/<时间戳>/`，失败项必须修复后重跑

@@ -87,6 +87,10 @@ jobs:
       - name: 扩展静态校验
         run: npm run check:extension
 
+      # 注册表签名口径与固定 tag 必须与客户端一致，否则市场整份列表会被拒绝
+      - name: 插件注册表校验
+        run: npm run verify:registry
+
   # 先把 Release 建出来，三个平台的构建才能并行上传：
 
   # Windows 构建只等两样：release-init（传递性地保证了 e2e 与质量闸门已经

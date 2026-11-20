@@ -35,6 +35,7 @@
     "check:extension": "node scripts/check-extension.mjs",
     "verify:extension-api": "node scripts/verify-extension-api.mjs",
     "verify:dist": "node scripts/verify-dist.mjs",
+    "verify:registry": "node --experimental-strip-types scripts/plugin-registry/verify-published-registry.mjs",
     "test:e2e": "node scripts/e2e/run-e2e.mjs",
     "test:e2e:extension": "node scripts/e2e/extension-browsers.mjs",
     "preview": "vite preview",

@@ -43,6 +43,22 @@ node scripts/plugin-registry/sign-registry.mjs verify plugin-registry.json \
 合法 `id`（`/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,80}$/`）、非空 `version`、https 的
 `entryUrl`、64 位十六进制 `sha256`。
 
+## 发布前校验：`npm run verify:registry`
+
+签名只靠上面的人工流程，CI 里原本没有任何一步验证「tag 下那份注册表确实签对了」——
+签错 / 忘签 / 签完又改内容，都要等用户装上才发现市场是空的。`scripts/plugin-registry/verify-published-registry.mjs`
+补上这道闸门，已接入 `ci.yml` 与 `release.yml` 的质量闸门：
+
+```bash
+npm run verify:registry              # 离线校验（CI 用）：结构 + 签名口径 + 固定 tag 与版本对齐
+npm run verify:registry -- --online  # 额外拉取已发布注册表，比对签名载荷逐字节一致（发版前用）
+```
+
+判定口径与客户端完全一致：空清单免签（无条目就无代码可装）；非空清单必须能被
+`DEFAULT_TRUSTED_PLUGIN_PUBLISHERS` 里的某个公钥验签通过；`PLUGIN_REGISTRY_PINNED_TAG`
+必须等于 `package.json` 版本的 `v` 前缀形式。`--online` 比对的是**签名载荷**而非文件字节：
+客户端只对载荷验签，JSON 格式差异不影响安全，但内容（条目、URL、sha256）必须一致。
+
 ## 客户端接线（已生效）
 
 `electron/services/pluginMarketService.ts` 的 `list()` 在解析出 `parsed` 之后、
