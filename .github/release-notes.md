@@ -69,7 +69,8 @@
 
 - typecheck（主进程 + 测试代码 + 渲染层）通过；109 个测试文件 / 1225 项单测全部通过。
 - 应用 E2E 144 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、Web 控制台）。
-- 扩展静态校验 21 项通过；21 种语言文案 key 保持完整。
+- 扩展静态校验 21 项通过；扩展多浏览器 smoke 50 项通过（Chrome for Testing / Chromium / Edge，Firefox 走 MV3 变体静态校验）；21 种语言文案 key 保持完整。
+- 引擎更新重启压力测试 50 轮通过（无残留端口、无孤儿进程）。
 
 ---
 
@@ -147,8 +148,9 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 - Typecheck (main process, tests, renderer) passes; 109 test files / 1225 unit tests pass.
 - All 144 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, web console).
-- All 21 extension static checks pass; the 21 locales remain complete.
+- All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); the 21 locales remain complete.
+- The 50-round engine restart stress test passes with no leftover ports or orphan processes.
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.1
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.2
