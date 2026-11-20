@@ -1,14 +1,16 @@
-# v1.5.0-beta.2 更新日志
+# v1.5.0-beta.3 更新日志
 
-> 这是 1.5.0 的第二个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第三个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.2 相对 beta.1 的变化
+## 📌 beta.3 相对 beta.2 的变化
 
-- **主进程文案本地化**：引擎启动失败对话框与系统通知、更新校验失败、yt-dlp/ffmpeg 安装、RSS 订阅与监听目录校验、Web 控制台 TLS 错误、UPnP 映射失败、扩展配对、托盘菜单等 60+ 处此前硬编码中文的文案，现在按系统语言输出中英双语。英文/日文等界面不再在最关键的失败场景看到中文。
-- 引擎启动失败分类器同时识别中英文错误串，避免英文界面下失败原因退化成「未知」。
-- 新增主进程文案表的单元测试（中英齐全、占位符替换）、v1.4.0 升级兼容用例（缺失配置块回落默认值、已有凭据不被覆盖）与插件注册表校验用例，单测总数 1203 → 1236。
+本版**没有任何功能或行为改动**，只有译文、测试、发布闸门与文档——beta.2 已验证过的行为在这一版里保持不变。
+
+- **13 种语言补齐 1.5.0 译文**：阿拉伯语、捷克语、印地语、印尼语、意大利语、荷兰语、波兰语、葡萄牙语（巴西）、俄语、泰语、土耳其语、乌克兰语、越南语此前把首次向导、任务设置、批量重试、通知等 34 条新增文案原样显示为英文，现已全部翻译；21 种语言的 key 与占位符保持一致。
 - **插件注册表发布前校验**：新增 `npm run verify:registry`，按客户端同一口径检查注册表结构、签名（空清单免签）与固定 tag 是否与版本对齐，已接入 CI 与发布流水线，避免签错/忘签导致市场整份列表被拒。
-- **13 种语言补齐 1.5.0 译文**：阿拉伯语、捷克语、印地语、印尼语、意大利语、荷兰语、波兰语、葡萄牙语（巴西）、俄语、泰语、土耳其语、乌克兰语、越南语此前把首次向导、任务设置、批量重试、通知等 34 条新增文案原样显示为英文，现已全部翻译。
+- **新增测试**：v1.4.0 升级兼容用例（缺失配置块回落默认值、已有凭据不被覆盖）、插件注册表校验用例、引擎重启 50 轮压力用例（默认跳过，`STRESS_ENGINE_RESTART=1` 开启）。单测总数 1203 → 1236。
+- **扩展多浏览器 smoke**：`npm run test:e2e:extension` 自动发现本机 Chromium 系浏览器逐个跑同一套断言（Chrome for Testing / Chromium / Edge 共 50 项通过）。
+- **文档与截图**：README 补齐 1.5.0 功能条目与「如何回退到旧版本」；设置页截图换成带分组导航的新版，新增首次向导截图。
 
 ## 🎯 主题：可信接管
 
@@ -76,21 +78,23 @@
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.2
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.3
 
 ---
 
-# v1.5.0-beta.2 Release Notes
+# v1.5.0-beta.3 Release Notes
 
-> This is the second pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the third pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.1
+## 📌 What changed since beta.2
 
-- **Main-process messages are localized**: engine startup failure dialogs and notifications, update verification failures, yt-dlp/ffmpeg installs, RSS subscription and watch-folder validation, web console TLS errors, UPnP mapping failures, extension pairing and the tray menu — 60+ strings that used to be Chinese-only now follow the system language.
-- The engine startup failure classifier now recognizes both Chinese and English messages, so English UIs no longer fall back to an "unknown" reason.
-- Added unit tests for the main-process copy tables (both languages present, placeholders substituted), v1.4.0 upgrade-compatibility cases, and plugin-registry verification cases; total unit tests 1203 → 1236.
+This release contains **no feature or behaviour changes** — only translations, tests, a release gate and docs. Everything you verified in beta.2 behaves identically here.
+
+- **13 more locales now cover 1.5.0**: Arabic, Czech, Hindi, Indonesian, Italian, Dutch, Polish, Brazilian Portuguese, Russian, Thai, Turkish, Ukrainian and Vietnamese previously fell back to English for 34 new strings (first-run wizard, task settings, batch retry, notifications); all are translated now, and all 21 locales keep matching keys and placeholders.
 - **Plugin registry gate**: a new `npm run verify:registry` checks the registry structure, signature (an empty list needs none) and whether the pinned tag matches the package version, using the same rules as the client. It runs in CI and the release pipeline, so a bad or missing signature can no longer silently empty the marketplace.
-- **13 more locales now cover 1.5.0**: Arabic, Czech, Hindi, Indonesian, Italian, Dutch, Polish, Brazilian Portuguese, Russian, Thai, Turkish, Ukrainian and Vietnamese previously fell back to English for 34 new strings (first-run wizard, task settings, batch retry, notifications); all are translated now.
+- **New tests**: v1.4.0 upgrade-compatibility cases (missing blocks fall back to defaults, existing credentials are preserved), plugin-registry verification cases, and a 50-round engine restart stress test (skipped by default; enable with `STRESS_ENGINE_RESTART=1`). Total unit tests 1203 → 1236.
+- **Multi-browser extension smoke**: `npm run test:e2e:extension` discovers local Chromium-family browsers and runs the same assertions in each (Chrome for Testing / Chromium / Edge, 50 checks passing).
+- **Docs and screenshots**: the README now lists every 1.5.0 feature and explains how to roll back to an older version; the settings screenshot shows the grouped navigation, and there is a new first-run wizard screenshot.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -157,4 +161,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.2
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.3

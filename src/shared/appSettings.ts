@@ -21,7 +21,7 @@
  * 升级 tag 时必须同时更新 DEFAULT_TRUSTED_PLUGIN_PUBLISHERS，
  * 否则新 tag 下的签名校验不过（这是有意的：密钥轮换要走发布流程）。
  */
-export const PLUGIN_REGISTRY_PINNED_TAG = 'v1.5.0-beta.2'
+export const PLUGIN_REGISTRY_PINNED_TAG = 'v1.5.0-beta.3'
 
 /** 官方插件市场注册表默认地址（pluginMarket.registryUrl 留空时使用，固定到 tag） */
 export const DEFAULT_PLUGIN_REGISTRY_URL =
