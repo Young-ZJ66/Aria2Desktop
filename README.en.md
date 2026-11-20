@@ -151,7 +151,7 @@ If a system proxy is enabled, <code>127.0.0.1</code> may be intercepted — chan
 Another Aria2 Desktop instance or another download tool is probably using it. Quit the extra instance or change the port in Settings.
 
 **How do I roll back to an older version**
-Download the older installer and install it over the current one — settings and download history live in your user directory and are unaffected by the installer. Pre-releases such as <code>v1.5.0-beta.4</code> are never served by the automatic updater, so get them from [Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases). Before rolling back, export a settings backup from Settings → Reset &amp; Backup.
+Download the older installer and install it over the current one — settings and download history live in your user directory and are unaffected by the installer. Pre-releases are never served by the automatic updater, so get them from [Releases](https://github.com/Young-ZJ66/Aria2Desktop/releases). Before rolling back, export a settings backup from Settings → Reset &amp; Backup.
 
 **Automatic update fails / verification fails**
 The app compares the downloaded file with the Release <code>.sha256</code>; on mismatch it refuses to install and falls back to a full download. You can also download and install the package manually.
