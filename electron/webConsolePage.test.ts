@@ -98,6 +98,60 @@ describe('Web 控制台页面与 CSP', () => {
     expect(branch![1]).not.toContain('refreshQueue(true)')
   })
 
+  it('队列拉取失败后不会把签名预支掉，下一次仍会重新请求', () => {
+    // 旧实现先写 queueSig=sig 再发请求：请求失败或还在飞的时候签名已被当成「已同步」，
+    // 之后同签名的调用都直接复用旧缓存，队列面板会永久停在旧快照（新任务入队也看不见）。
+    const match = WEB_CONSOLE_HTML.match(/function refreshQueue\(force\)\{([\s\S]*?)\}\nfunction renderTasks/)
+    expect(match).not.toBeNull()
+    const build = new Function(
+      'queueSignature',
+      'applyQueue',
+      'api',
+      'L',
+      'qs',
+      'state',
+      'var queueSig = state.sig; var queueCache = state.cache;\n' +
+        'function refreshQueue(force){' + match![1] + '}\n' +
+        'return { run: function(f){ refreshQueue(f) }, peek: function(){ return { sig: queueSig, cache: queueCache } } }'
+    )
+    const calls: string[] = []
+    let failing = true
+    const queueSignature = (): string => 'g1|g2'
+    const api = (): Promise<unknown> => {
+      calls.push('api')
+      return failing ? Promise.reject(new Error('boom')) : Promise.resolve({ settings: {}, tasks: [], total: 0 })
+    }
+    const harness = build(queueSignature, () => {}, api, (zh: string) => zh, () => ({ textContent: '', innerHTML: '' }), {
+      sig: null,
+      cache: null
+    } as { sig: string | null; cache: unknown }) as {
+      run: (force?: boolean) => void
+      peek: () => { sig: string | null; cache: unknown }
+    }
+
+    harness.run()
+    return Promise.resolve()
+      .then(() => Promise.resolve())
+      .then(() => {
+        // 请求失败：签名不能被记住，缓存也保持空
+        expect(calls).toHaveLength(1)
+        expect(harness.peek().sig).toBeNull()
+        expect(harness.peek().cache).toBeNull()
+        // 同样的队列内容再次触发，必须重新拉取
+        failing = false
+        harness.run()
+        return Promise.resolve().then(() => Promise.resolve())
+      })
+      .then(() => {
+        expect(calls).toHaveLength(2)
+        expect(harness.peek().sig).toBe('g1|g2')
+        expect(harness.peek().cache).not.toBeNull()
+        // 签名一致且已有缓存时才走本地缓存，不再发请求
+        harness.run()
+        expect(calls).toHaveLength(2)
+      })
+  })
+
   it('html lang 跟随实际界面语言，英文界面不再声明 zh-CN', () => {
     expect(WEB_CONSOLE_HTML).toContain('document.documentElement.lang')
   })
