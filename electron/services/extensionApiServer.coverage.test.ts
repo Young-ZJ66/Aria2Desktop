@@ -118,7 +118,11 @@ vi.mock('../utils/logger', () => ({
 }))
 
 vi.mock('../utils/mainLocale', () => ({
-  mainLocaleFrom: () => h.state.locale
+  // 真实实现会调用传入的取语言回调（惰性），mock 也要调用一次，否则那段回调永远不被执行
+  mainLocaleFrom: (getLocale?: () => string) => {
+    if (typeof getLocale === 'function') getLocale()
+    return h.state.locale
+  }
 }))
 
 vi.mock('../utils/mainLocaleRuntime', () => ({
@@ -707,6 +711,30 @@ describe('配对确认链', () => {
     expect(json(res)).toMatchObject({ code: 'pairing_denied' })
     expect(seen[0].name).toBe('Aria2 下载扩展')
     expect(h.state.dialogCalls).toHaveLength(0)
+  })
+
+  it('扩展自报的名称经净化后进入确认框', async () => {
+    await makeServer()
+    const res = await call(
+      { method: 'POST', url: '/api/pair', headers: { origin: EXTENSION_ORIGIN } },
+      { name: '  My\tExt\nName  ' }
+    )
+    expect(res.status).toBe(200)
+    const options = h.state.dialogCalls[0] as { detail: string }
+    // 控制字符被压成空格、连续空白收敛：名称落在单独一行里，不会额外撑出多行
+    const nameLine = options.detail.split('\n')[0]
+    expect(nameLine).toBe('扩展名称：My Ext Name')
+  })
+
+  it('自报名称不是字符串时回落到默认名', async () => {
+    await makeServer()
+    const res = await call(
+      { method: 'POST', url: '/api/pair', headers: { origin: EXTENSION_ORIGIN } },
+      { name: 42 }
+    )
+    expect(res.status).toBe(200)
+    const options = h.state.dialogCalls[0] as { detail: string }
+    expect(options.detail).toContain('名称：Aria2 下载扩展')
   })
 
   it('两条确认链都失败时按拒绝处理', async () => {
