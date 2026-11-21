@@ -167,6 +167,18 @@ describe('签名强制（D-02）', () => {
     expect(realFs.existsSync(installedDir())).toBe(false)
   })
 
+  it('非 Ed25519 公钥（RSA）不参与签名校验，安装被拒', async () => {
+    const rsa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const rsaPem = rsa.publicKey.export({ type: 'spki', format: 'pem' }).toString()
+    const manager = new PluginManager(makeStore())
+
+    const result = await manager.installFromRegistry(entry({ signature: sign(CODE) }), [rsaPem])
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('SIGNATURE_INVALID')
+    expect(realFs.existsSync(installedDir())).toBe(false)
+  })
+
   it('签名有效时安装成功，且新装插件默认不自动启用', async () => {
     const manager = new PluginManager(makeStore())
 

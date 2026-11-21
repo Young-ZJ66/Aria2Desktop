@@ -704,6 +704,36 @@ describe('沙箱 API 的转发与拒绝', () => {
     expect(holder.rpcCalls.map(call => call.method)).toEqual(['aria2.getGlobalStat', 'aria2.tellActive'])
   })
 
+  it('插件读设置时返回脱敏快照，缺 config 的连接预设原样带出', async () => {
+    holder.settings = {
+      aria2: { port: 6800, secret: 'rpc-secret' },
+      download: { dir: 'E:/downloads' },
+      connectionProfiles: [
+        { id: 'broken', name: '无配置' },
+        { id: 'local', name: '本机', config: { host: '127.0.0.1', port: 6800, secret: 'profile-secret' } }
+      ]
+    }
+    writePlugin({
+      permissions: ['settings:read', 'notify'],
+      code: [
+        'module.exports = { onActivate() {',
+        '  var dir = settings.get("download")',
+        '  var denied = settings.get("connectionProfiles")',
+        '  notify.send("settings", String(dir && dir.dir) + "|" + String(denied))',
+        '} }'
+      ].join('\n')
+    })
+
+    const { store } = makeStore()
+    const manager = new PluginManager(store)
+    manager.loadAll()
+    await flush()
+
+    expect(String(holder.notifications[0]?.body ?? '')).toBe('E:/downloads|undefined')
+    // 密钥字段永不出主进程：即使插件明确索取也不在白名单里
+    expect(logText('warn')).toContain('settings.get 拒绝未授权键')
+  })
+
   it('没有读权限时四个读方法都被拒绝', async () => {
     writePlugin({
       permissions: ['notify'],

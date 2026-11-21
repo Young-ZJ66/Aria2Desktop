@@ -93,6 +93,25 @@ function respondWith(body: string | Buffer, options: { status?: number; headers?
   })
 }
 
+/** 只发出请求、永不回包的响应：用来验证超时回调确实被挂上并生效 */
+function respondWithTimeout(): () => void {
+  let timeoutHandler: (() => void) | null = null
+  holder.requestMock.mockImplementationOnce((_options: unknown, callback: (res: unknown) => void) => {
+    const res = new EventEmitter() as EventEmitter & { statusCode?: number; headers: Record<string, string>; resume: () => void; destroy: () => void }
+    res.statusCode = 200
+    res.headers = {}
+    res.resume = () => {}
+    res.destroy = () => {}
+    callback(res)
+    const req = new EventEmitter() as EventEmitter & { setTimeout: (ms: number, cb: () => void) => void; end: () => void; destroy: (err?: Error) => void }
+    req.setTimeout = (_ms: number, cb: () => void) => { timeoutHandler = cb }
+    req.end = () => {}
+    req.destroy = (err?: Error) => { queueMicrotask(() => req.emit('error', err ?? new Error('destroyed'))) }
+    return req
+  })
+  return () => { timeoutHandler?.() }
+}
+
 async function flush(times = 12): Promise<void> {
   for (let i = 0; i < times; i++) await Promise.resolve()
 }
@@ -257,5 +276,22 @@ describe('RSS IPC 的窗口取值器与参数校验', () => {
 
     expect(result.success).toBe(true)
     expect(result.added).toBe(1)
+  })
+
+  it('订阅源拉取超时后按失败处理并写回错误状态', async () => {
+    const { service, store } = makeService({ rssSubscriptions: [baseSub()] })
+    const fireTimeout = respondWithTimeout()
+
+    const pending = service.fetchNow('sub-1')
+    await flush()
+    fireTimeout()
+    await flush()
+
+    const result = await pending
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Fetch timed out')
+    expect(holder.requestMock).toHaveBeenCalledTimes(1)
+    const sub = (store.get('rssSubscriptions') as RssSubscription[])[0]
+    expect(sub.lastStatus).toBe('error')
   })
 })

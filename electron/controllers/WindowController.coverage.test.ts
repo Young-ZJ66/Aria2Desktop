@@ -196,6 +196,7 @@ type PrivateApi = {
   setupWindowStatePersistence: () => void
   loadContent: () => void
   isAllowedNavigation: (url: string) => boolean
+  revealWindow: () => void
 }
 
 function store(initial: Record<string, unknown> = {}) {
@@ -430,5 +431,15 @@ describe('窗口无响应事件', () => {
     win.emit('responsive')
     expect(h.state.logs.warn).toHaveBeenCalledWith('[WindowController] Window became unresponsive')
     expect(h.state.logs.info).toHaveBeenCalledWith('[WindowController] Window responsive again')
+  })
+})
+
+describe('显示窗口的兜底', () => {
+  it('没有主窗口时显示请求直接返回，不抛错也不建窗', () => {
+    const controller = createController()
+    const api = controller as unknown as PrivateApi
+
+    expect(() => api.revealWindow()).not.toThrow()
+    expect(h.FakeBrowserWindow.instances).toHaveLength(0)
   })
 })
