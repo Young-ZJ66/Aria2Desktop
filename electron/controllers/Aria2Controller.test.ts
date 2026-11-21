@@ -15,6 +15,8 @@ const h = vi.hoisted(() => {
     managerSeed: {} as Record<string, any>,
     managerCalls: [] as string[],
     handlers: new Map<string, (event: unknown, ...args: any[]) => unknown>(),
+    options: new Map<string, Record<string, any>>(),
+    shutdownOptions: null as any,
     shutdownResult: { success: true, forced: false, timedOut: false, processExited: true, portReleased: true, waitedMs: 5 },
     imported: {} as Record<string, unknown>,
     activeIsLocal: true,
@@ -62,8 +64,9 @@ vi.mock('../managers/Aria2ProcessManager', () => ({
 vi.mock('./WindowController', () => ({ WindowController: class FakeWindowController {} }))
 
 vi.mock('../utils/ipcSecurity', () => ({
-  registerSecureHandler: (channel: string, handler: (event: unknown, ...args: any[]) => unknown) => {
+  registerSecureHandler: (channel: string, handler: (event: unknown, ...args: any[]) => unknown, options?: Record<string, any>) => {
     state.handlers.set(channel, handler)
+    if (options) state.options.set(channel, options)
   }
 }))
 
@@ -112,7 +115,9 @@ vi.mock('../services/engineShutdownService', () => ({
   DEFAULT_ENGINE_SHUTDOWN_MAX_WAIT_MS: 12000,
   waitForPortRelease: async () => state.portReleased,
   EngineShutdownService: class FakeEngineShutdownService {
-    constructor(public options: unknown) {}
+    constructor(public options: unknown) {
+      state.shutdownOptions = options
+    }
     async requestShutdownAndWait() { return state.shutdownResult }
   }
 }))
@@ -165,6 +170,8 @@ beforeEach(() => {
   state.managerSeed = {}
   state.managerCalls = []
   state.handlers = new Map()
+  state.options = new Map()
+  state.shutdownOptions = null
   state.imported = {}
   state.activeIsLocal = true
   state.logs = { info: [], warn: [], error: [] }
@@ -1137,6 +1144,24 @@ describe('initialize 的连接预设边界', () => {
     const controller = await loadController()
     await controller.initialize()
     expect((state.saved[0] as any).connectionProfiles[0]).toEqual({ id: 'broken', name: '无配置' })
+  })
+
+  it('窗口取值器延迟到事件触发时才取主窗口', async () => {
+    const controller = await readyController()
+    const handlers = await channelsOf(controller)
+    expect(handlers.has('aria2-status')).toBe(true)
+    const options = state.options.get('aria2-status')
+    expect(typeof options?.getMainWindow).toBe('function')
+    expect(options?.getMainWindow()).toBeNull()
+    expect(state.options.get('aria2-start')?.getMainWindow()).toBeNull()
+  })
+
+  it('关闭请求把管理器与端口交给关闭服务', async () => {
+    const controller = await readyController()
+    await controller.requestShutdownAndWait(500)
+    const options = state.shutdownOptions as { getProcessManager: () => unknown; getPort: () => number }
+    expect(options.getProcessManager()).toBe(state.manager)
+    expect(options.getPort()).toBe(6800)
   })
 
   it('密钥已一致的预设不重复替换', async () => {

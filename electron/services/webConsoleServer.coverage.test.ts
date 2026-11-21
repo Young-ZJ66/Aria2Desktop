@@ -15,7 +15,10 @@ const h = vi.hoisted(() => ({
     saves: [] as unknown[],
     rpc: vi.fn(),
     logError: vi.fn(),
-    logWarn: vi.fn()
+    logWarn: vi.fn(),
+    getPathThrows: false,
+    networks: null as null | Record<string, { family: string; internal: boolean; address: string }[]>,
+    settingsSeq: [] as Record<string, unknown>[]
   }
 }))
 const { state } = h
@@ -23,7 +26,10 @@ const { state } = h
 vi.mock('electron', () => ({
   app: {
     getVersion: () => '1.3.7',
-    getPath: (name: string) => (name === 'userData' ? state.userData : process.cwd()),
+    getPath: (name: string) => {
+      if (state.getPathThrows) throw new Error('app path unavailable')
+      return name === 'userData' ? state.userData : process.cwd()
+    },
     getLocale: () => 'zh-CN'
   }
 }))
@@ -32,9 +38,15 @@ vi.mock('electron-log', () => ({
 }))
 vi.mock('../utils/aria2Rpc', () => ({ callAria2Rpc: state.rpc }))
 vi.mock('../utils/activeRpcConfig', () => ({ activeRpcOptions: () => ({ host: '127.0.0.1', port: 6800 }) }))
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>()
+  const networkInterfaces = () => state.networks ?? actual.networkInterfaces()
+  return { ...actual, default: { ...actual, networkInterfaces }, networkInterfaces }
+})
 vi.mock('../utils/settingsAccessor', () => ({
   getSettingsFresh: () => {
     if (state.throwSettings) throw new Error('settings boom')
+    if (state.settingsSeq.length > 0) return state.settingsSeq.shift()
     return state.settings
   },
   saveSettings: (next: unknown) => {
@@ -78,6 +90,7 @@ type Internals = {
   sseLastAuthCheck: number
   sseLastPayload: string
   auditFlushTimer: unknown
+  recheckStreamAuth: () => void
 }
 
 function makeRes() {
@@ -164,6 +177,9 @@ beforeEach(() => {
   state.saveThrows = false
   state.userData = ''
   state.saves = []
+  state.getPathThrows = false
+  state.networks = null
+  state.settingsSeq = []
   state.rpc.mockReset()
   state.rpc.mockResolvedValue([])
   state.logError.mockReset()
@@ -553,3 +569,123 @@ describe('令牌最近使用时间的写回', () => {
     state.saveThrows = false
   })
 })
+
+describe('网段解析、审计兜底与状态映射的细节', () => {
+  it('网段里出现非法地址段时判为不匹配', async () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('GET', '/api/status', auth(), undefined, '10.1.2.3'), res, ['10.1.2.300/24'])
+    expect(out.status).toBe(403)
+  })
+
+  it('精确地址放行，掩码超出范围时拒绝', async () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const exact = makeRes()
+    await server.handle(makeReq('GET', '/api/status', auth(), undefined, '10.9.9.9'), exact.res, ['10.9.9.9'])
+    expect(exact.out.status).toBe(200)
+    const badMask = makeRes()
+    await server.handle(makeReq('GET', '/api/status', auth(), undefined, '10.9.9.9'), badMask.res, ['10.9.9.0/40'])
+    expect(badMask.out.status).toBe(403)
+  })
+
+  it('取不到非回环的 IPv4 时回落到回环地址', () => {
+    state.networks = { lo: [{ family: 'IPv4', internal: true, address: '127.0.0.1' }] }
+    const server = makeServer({ webConsole: { token: MASTER } })
+    server.bindHost = '0.0.0.0'
+    expect(server.publicHost()).toBe('127.0.0.1')
+  })
+
+  it('读取 userData 抛错时放弃审计持久化', () => {
+    state.getPathThrows = true
+    const server = makeServer({ webConsole: { token: MASTER } })
+    server.record('127.0.0.1', 'add', 'x', true)
+    expect(() => server.flushAuditSync()).not.toThrow()
+    expect(server.getStatus().audit).toHaveLength(1)
+  })
+
+  it('审计文件内容不是数组时按空日志处理', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aria2-webconsole-shape-'))
+    try {
+      state.userData = dir
+      fs.writeFileSync(path.join(dir, 'web-console-audit.json'), JSON.stringify({ entries: [] }))
+      const server = makeServer({ webConsole: { token: MASTER } })
+      expect(server.getStatus().audit).toEqual([])
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('落盘定时器到点后自动写盘并清空句柄', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aria2-webconsole-flush-'))
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      state.userData = dir
+      const server = makeServer({ webConsole: { token: MASTER } })
+      server.record('127.0.0.1', 'add', 'auto', true)
+      expect(server.auditFlushTimer).not.toBeNull()
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(server.auditFlushTimer).toBeNull()
+      const parsed = JSON.parse(fs.readFileSync(path.join(dir, 'web-console-audit.json'), 'utf8')) as AuditEntry[]
+      expect(parsed[0]).toMatchObject({ detail: 'auto', success: true })
+    } finally {
+      vi.useRealTimers()
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('等待与已停止队列也映射成精简结构', async () => {
+    state.rpc.mockImplementation(async (options: { method: string }) => {
+      if (options.method === 'aria2.tellWaiting') return [{ gid: 'w1', status: 'waiting', files: [{ path: '/dl/w1.bin' }] }]
+      if (options.method === 'aria2.tellStopped') return [{ gid: 's1', status: 'complete', files: [{ path: '/dl/s1.bin' }] }]
+      return []
+    })
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('GET', '/api/status', auth()), res, [])
+    const body = JSON.parse(out.body || '{}') as { waiting: { name: string }[]; stopped: { name: string }[] }
+    expect(body.waiting[0].name).toBe('w1.bin')
+    expect(body.stopped[0].name).toBe('s1.bin')
+  })
+
+  it('SSE 定时器到点自动推送一帧', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    try {
+      const server = makeServer({ webConsole: { token: MASTER } })
+      const stream = makeStreamRes()
+      await server.handle(makeReq('GET', '/api/events', auth()), stream.res, [])
+      const before = stream.chunks.length
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(stream.chunks.length).toBeGreaterThan(before)
+      expect(stream.chunks.join('')).toContain('event: status')
+      await server.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('没有订阅者时鉴权复检直接返回', () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    server.sseLastAuthCheck = 0
+    expect(() => server.recheckStreamAuth()).not.toThrow()
+  })
+
+  it('复检时令牌已不在配置里就跳过写回', async () => {
+    const withToken = { webConsole: { token: MASTER, tokens: [{ id: 'ro', name: '只读', token: RO_TOKEN, scopes: ['tasks:read'] }] } }
+    state.settings = withToken
+    state.settingsSeq = [withToken, { webConsole: { token: MASTER, tokens: [] } }]
+    const server = makeServer(withToken)
+    const { res, out } = makeRes()
+    await server.handle(makeReq('GET', '/api/status', auth(RO_TOKEN)), res, [])
+    expect(out.status).toBe(200)
+    expect(state.saves).toHaveLength(0)
+  })
+
+  it('方法大小写与路由不一致时落到 404', async () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('post', '/api/tasks/g1/pause', auth()), res, [])
+    expect(out.status).toBe(404)
+    expect(JSON.parse(out.body || '{}').error).toBe('Not found')
+  })
+})
+
