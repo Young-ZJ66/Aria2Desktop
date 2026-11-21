@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Aria2Task } from '@/types/aria2'
+import { getLocale, setLocale } from '@/i18n'
 import {
   formatCompleteTime,
   formatDateTime,
@@ -183,8 +184,16 @@ describe('formatShortDateTime', () => {
   })
 })
 describe('formatCompleteTime 的日期分段', () => {
+  // 「昨天」走 i18n，而默认语言按系统语言猜：CI 是 en-US、本机是 zh-CN，
+  // 不锁语言的话这组断言在两种环境里结论相反。这里显式钉成中文。
+  let originalLocale: ReturnType<typeof getLocale>
+  beforeEach(() => {
+    originalLocale = getLocale()
+    setLocale('zh-CN')
+  })
   afterEach(() => {
     vi.useRealTimers()
+    setLocale(originalLocale)
   })
 
   function fixNow(y: number, m: number, d: number) {
