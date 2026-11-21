@@ -358,8 +358,9 @@ export async function getFormatUrl(url: string, formatId: string): Promise<{ suc
     return { success: false, error: 'Invalid URL' }
   }
   // formatId 直接拼入 -f 参数：校验只允许 yt-dlp 合法格式标识字符，
-  // 防止以 "--" 开头的值被 yt-dlp 误解析为命令行选项（参数注入）
-  if (!/^[A-Za-z0-9+._-]+$/.test(formatId)) {
+  // 并显式拒绝以 "-" 开头的值——字符类本身允许 "-"，但那样的值会被 yt-dlp
+  // 当成命令行选项（如 "--exec"），而不是 -f 的取值。
+  if (!/^[A-Za-z0-9+._-]+$/.test(formatId) || formatId.startsWith('-')) {
     return { success: false, error: 'Invalid format id' }
   }
   try {
