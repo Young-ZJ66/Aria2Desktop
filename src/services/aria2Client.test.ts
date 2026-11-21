@@ -473,6 +473,32 @@ describe('自动重连', () => {
     client.disconnect()
     expect(client.isConnected()).toBe(false)
   })
+
+  it('已有排队中的重连时再次触发不会叠加定时器', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { client, socket } = await connectedClient()
+    socket.serverClose()
+    // onclose 已排了一个 1s 定时器，再直接触发一次应被早退守卫拦下
+    ;(client as unknown as { scheduleReconnect: () => void }).scheduleReconnect()
+    expect(console.warn).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(sockets()).toHaveLength(2)
+  })
+
+  it('定时器到期时若已手动断开则不再建新连接', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { client, socket } = await connectedClient()
+    socket.serverClose()
+    // disconnect 里的 clearTimeout 被屏蔽，模拟定时器回调仍被排到队列上
+    const clearSpy = vi.spyOn(globalThis, 'clearTimeout').mockImplementation(() => {})
+    try {
+      client.disconnect()
+      await vi.advanceTimersByTimeAsync(1000)
+    } finally {
+      clearSpy.mockRestore()
+    }
+    expect(sockets()).toHaveLength(1)
+  })
 })
 
 describe('updateConfig', () => {

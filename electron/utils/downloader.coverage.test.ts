@@ -15,6 +15,8 @@ interface Spec {
   chunks?: Buffer[]
   headers?: Record<string, string | string[]>
   requestError?: Error
+  /** response 自身触发 error（而非 request），用于覆盖流式响应中途断开的兜底 */
+  responseError?: Error
   lateEvents?: boolean
   noResponse?: boolean
 }
@@ -29,7 +31,9 @@ const holder = vi.hoisted(() => ({
   destroyed: 0,
   removed: [] as string[],
   setProxyThrows: false,
-  setProxyCalls: [] as unknown[]
+  setProxyCalls: [] as unknown[],
+  /** 让写流的 end 回调延后一拍触发，模拟真实 fs 写流收尾晚于网络事件 */
+  deferEnd: false
 }))
 
 vi.mock('electron', () => ({
@@ -51,6 +55,10 @@ vi.mock('electron', () => ({
           res.headers = spec.headers ?? {}
           req.emit('response', res)
           for (const chunk of spec.chunks ?? []) res.emit('data', chunk)
+          if (spec.responseError) {
+            res.emit('error', spec.responseError)
+            return
+          }
           res.emit('end')
           if (spec.lateEvents) {
             res.emit('data', Buffer.from('late'))
@@ -77,7 +85,11 @@ vi.mock('fs', async (importOriginal) => {
   const fakeStream = () => {
     const stream = new EventEmitter() as EventEmitter & { write: (chunk: Buffer) => void; end: (cb?: () => void) => void; destroy: () => void }
     stream.write = (chunk: Buffer) => { holder.written.push(chunk) }
-    stream.end = (cb?: () => void) => { holder.ended += 1; cb?.() }
+    stream.end = (cb?: () => void) => {
+      holder.ended += 1
+      if (holder.deferEnd) setTimeout(() => cb?.(), 0)
+      else cb?.()
+    }
     stream.destroy = () => { holder.destroyed += 1 }
     return stream
   }
@@ -121,6 +133,7 @@ function reset(): void {
   holder.removed.length = 0
   holder.setProxyThrows = false
   holder.setProxyCalls.length = 0
+  holder.deferEnd = false
   delete process.env.HTTPS_PROXY
   delete process.env.https_proxy
   delete process.env.HTTP_PROXY
@@ -221,6 +234,52 @@ describe('fetchText 的超时与重试', () => {
     const outcome = await drive(fetchText('https://example.invalid/latest'))
     expect(outcome.ok).toBe(true)
     expect(String(outcome.error)).toContain('HTTP 404')
+    expect(holder.requests).toBe(3)
+  })
+})
+
+describe('响应流中途报错', () => {
+  it('downloadToFile 在响应流报错时按失败重试，最终抛出该错误', async () => {
+    const { downloadToFile } = await loadDownloader()
+    holder.fallback = {
+      statusCode: 200,
+      headers: { 'content-length': '10' },
+      chunks: [Buffer.from('abc')],
+      responseError: new Error('ECONNRESET: response aborted')
+    }
+    const outcome = await drive(downloadToFile('https://example.invalid/a.bin', 'E:/tmp/a.bin'))
+    expect(outcome.ok).toBe(true)
+    expect(String(outcome.error)).toContain('ECONNRESET: response aborted')
+    expect(holder.requests).toBe(3)
+    expect(holder.destroyed).toBe(3)
+  })
+
+  it('写流收尾晚于网络失败时不会二次结算', async () => {
+    const { downloadToFile } = await loadDownloader()
+    // end 回调延后一拍：期间迟到的事件先把 Promise 判失败，回调再到时必须被 settled 守卫吞掉
+    holder.deferEnd = true
+    holder.fallback = {
+      statusCode: 200,
+      headers: { 'content-length': '4' },
+      chunks: [Buffer.from('abcd')],
+      lateEvents: true
+    }
+    const outcome = await drive(downloadToFile('https://example.invalid/a.bin', 'E:/tmp/a.bin'))
+    expect(outcome.ok).toBe(true)
+    expect(String(outcome.error)).toContain('late error')
+    expect(holder.requests).toBe(3)
+  })
+
+  it('fetchText 在响应流报错时同样失败重试', async () => {
+    const { fetchText } = await loadDownloader()
+    holder.fallback = {
+      statusCode: 200,
+      chunks: [Buffer.from('partial')],
+      responseError: new Error('stream closed unexpectedly')
+    }
+    const outcome = await drive(fetchText('https://example.invalid/latest'))
+    expect(outcome.ok).toBe(true)
+    expect(String(outcome.error)).toContain('stream closed unexpectedly')
     expect(holder.requests).toBe(3)
   })
 })

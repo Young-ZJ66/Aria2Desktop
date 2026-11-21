@@ -268,3 +268,30 @@ describe('streamTaskStore：删除与重试的失败分支', () => {
     await expect(store.retryTask('missing')).resolves.toEqual({ success: false, error: 'Task not found' })
   })
 })
+
+describe('streamTaskStore：启动时恢复持久化记录', () => {
+  it('上次运行遗留的进行中任务恢复为可重试的错误态', () => {
+    stubLocalStorage(JSON.stringify({
+      schemaVersion: 1,
+      tasks: [
+        { gid: 'sd-old-1', url: 'https://example.com/a', status: 'active', createdAt: 1_700_000_000_000 },
+        { gid: 'sd-old-2', url: 'https://example.com/b', status: 'complete', createdAt: 1_700_000_100_000 }
+      ]
+    }))
+
+    const store = useStreamTaskStore()
+
+    expect(store.tasks.map((task) => task.gid)).toEqual(['sd-old-1', 'sd-old-2'])
+    expect(store.findByGid('sd-old-1')?.status).toBe('error')
+    expect(store.findByGid('sd-old-1')?.error).toBeTruthy()
+    expect(store.findByGid('sd-old-2')?.status).toBe('complete')
+  })
+
+  it('持久化里没有可识别记录时不改动任务列表', () => {
+    stubLocalStorage(JSON.stringify({ schemaVersion: 1, tasks: [{ gid: 'bad' }, null, 42] }))
+
+    const store = useStreamTaskStore()
+
+    expect(store.tasks).toEqual([])
+  })
+})

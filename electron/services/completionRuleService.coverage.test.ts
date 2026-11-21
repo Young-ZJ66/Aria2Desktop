@@ -39,7 +39,13 @@ vi.mock('./webhookDispatchService', () => ({ getWebhookDispatchService: () => ({
 vi.mock('../utils/mainProcessCopy', () => ({
   downloadNotificationTitle: (_locale: string, succeeded: boolean) => (succeeded ? 'Download complete' : 'Download failed')
 }))
-vi.mock('../utils/mainLocale', () => ({ mainLocaleFrom: () => 'en' }))
+// 语言回调必须真的被调用：生产代码用 mainLocaleFrom(() => app.getLocale()) 取语言
+vi.mock('../utils/mainLocale', () => ({
+  mainLocaleFrom: (getLocale?: () => string) => {
+    if (typeof getLocale === 'function') getLocale()
+    return 'en'
+  }
+}))
 
 const { applyCompletionRules, applyCompletionRulesForTask } = await import('./completionRuleService')
 
@@ -137,5 +143,27 @@ describe('完成规则的分支兜底', () => {
 
     const warns = holder.warn.mock.calls.map((call) => String(call[0]))
     expect(warns.some((text) => text.includes('动作 open 失败'))).toBe(true)
+  })
+
+  it('轮询时读取任务状态失败直接放弃，不再尝试规则', async () => {
+    setRules([{ id: 'r1', name: 'any', enabled: true, actions: [] }])
+    holder.rpc = vi.fn(async () => { throw new Error('rpc down') })
+
+    await expect(applyCompletionRules('g3')).resolves.toBe(false)
+
+    const warns = holder.warn.mock.calls.map((call) => String(call[0]))
+    expect(warns.some((text) => text.includes('读取任务状态失败'))).toBe(true)
+    expect(holder.rpc).toHaveBeenCalledTimes(1)
+  })
+
+  it('通知标题显式给出时不走默认文案，且超长标题被截断', async () => {
+    const longTitle = 'T'.repeat(200)
+    setRules([{ id: 'r1', name: 'notify', enabled: true, actions: [{ type: 'notify', title: longTitle, body: 'custom body' }] }])
+
+    await applyCompletionRulesForTask({ status: 'complete', dir: tmpDir, files: [path.join(tmpDir, 'd.mkv')] })
+
+    expect(holder.notifications).toHaveLength(1)
+    expect(holder.notifications[0].title).toBe('T'.repeat(120))
+    expect(holder.notifications[0].body).toBe('custom body')
   })
 })
