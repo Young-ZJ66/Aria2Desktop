@@ -170,7 +170,9 @@ export class HistoryDatabase {
    */
   saveOne(gid: string, task: unknown): { success: boolean; error?: string } {
     if (!gid || typeof gid !== 'string') return { success: false, error: 'Invalid gid' }
-    if (!this.db) return this.saveAll({ [gid]: task })
+    // JSON 回退后端只有全量写：必须先读回现有历史再合并这一条，
+    // 否则每完成一个任务都会把之前的历史整份覆盖掉，历史里只剩最后一条。
+    if (!this.db) return this.saveAll({ ...this.loadJson(), [gid]: task })
     try {
       const record = task as { completedAt?: number; persistedAt?: number } | null
       this.db.prepare(
