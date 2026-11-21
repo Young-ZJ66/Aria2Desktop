@@ -253,3 +253,233 @@ describe('connectionStore 连接切换竞态', () => {
     warn.mockRestore()
   })
 })
+
+describe('connectionStore 预设管理', () => {
+  function setSettings(next: Record<string, unknown>) {
+    Object.assign(mocks.settings, next)
+  }
+
+  function baseSettings() {
+    return {
+      aria2: { host: 'localhost', port: 6800, protocol: 'http', secret: '', path: '/jsonrpc' },
+      connectionProfiles: [
+        { id: 'default', name: '本地引擎', config: { host: 'localhost', port: 6800, protocol: 'http', secret: '', path: '/jsonrpc' } }
+      ],
+      activeProfileId: 'default'
+    }
+  }
+
+  beforeEach(() => {
+    setSettings(baseSettings())
+    mocks.updateSettings.mockClear()
+  })
+
+  it('加载预设时把本机引擎密钥补进预设（否则前端拿旧 token 连不上）', async () => {
+    setSettings({
+      aria2: { host: 'localhost', port: 6800, protocol: 'http', secret: 'engine-secret', path: '/jsonrpc' },
+      connectionProfiles: [
+        { id: 'default', name: '本地引擎', config: { host: 'localhost', port: 6800, protocol: 'http', secret: '', path: '/jsonrpc' } },
+        { id: 'remote', name: '远程', config: { host: '10.0.0.5', port: 6800, protocol: 'http', secret: '', path: '/jsonrpc' } }
+      ],
+      activeProfileId: 'default'
+    })
+    const store = await createStore()
+
+    expect(store.profiles[0].config.secret).toBe('engine-secret')
+    // 远程预设不是本机引擎，密钥保持原样（不能把本机密钥发给远程）
+    expect(store.profiles[1].config.secret).toBe('')
+  })
+
+  it('引擎侧没有密钥时不改动预设密钥', async () => {
+    setSettings({
+      aria2: { host: 'localhost', port: 6800, protocol: 'http', secret: '', path: '/jsonrpc' },
+      connectionProfiles: [
+        { id: 'default', name: '本地引擎', config: { host: 'localhost', port: 6800, protocol: 'http', secret: 'user-set', path: '/jsonrpc' } }
+      ],
+      activeProfileId: 'default'
+    })
+    const store = await createStore()
+
+    expect(store.profiles[0].config.secret).toBe('user-set')
+  })
+
+  it('没有保存预设时用旧版 aria2 连接设置迁移出默认预设', async () => {
+    setSettings({
+      aria2: { host: 'localhost', port: 6812, protocol: 'https', secret: 'legacy', path: '/jsonrpc' },
+      connectionProfiles: [],
+      activeProfileId: ''
+    })
+    const store = await createStore()
+
+    expect(store.profiles).toHaveLength(1)
+    expect(store.profiles[0].id).toBe('default')
+    expect(store.profiles[0].config.port).toBe(6812)
+    expect(store.profiles[0].config.protocol).toBe('https')
+    // 端口与引擎一致 → 迁移出来的预设也要拿到引擎密钥
+    expect(store.profiles[0].config.secret).toBe('legacy')
+    expect(store.activeProfileId).toBe('default')
+  })
+
+  it('activeProfileId 指向不存在的预设时回落到第一个', async () => {
+    setSettings({
+      ...baseSettings(),
+      connectionProfiles: [
+        { id: 'a', name: 'A', config: { host: 'localhost', port: 6800, protocol: 'http', secret: '', path: '/jsonrpc' } }
+      ],
+      activeProfileId: 'gone'
+    })
+    const store = await createStore()
+
+    expect(store.activeProfileId).toBe('a')
+  })
+
+  it('新建预设不会抢占当前连接，名字为空时给默认名', async () => {
+    const store = await createStore()
+    const created = await store.createProfile('   ')
+
+    expect(created.name).toBe('未命名')
+    expect(store.profiles).toHaveLength(2)
+    // 未实际连接前不应把新配置标成当前
+    expect(store.activeProfileId).toBe('default')
+    expect(mocks.updateSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('重命名只改指定预设并持久化，空名字时保留原名', async () => {
+    const store = await createStore()
+    const created = await store.createProfile('备用')
+
+    await store.renameProfile(created.id, '   ')
+    expect(store.profiles.find(p => p.id === created.id)?.name).toBe('备用')
+
+    await store.renameProfile(created.id, '生产')
+    expect(store.profiles.find(p => p.id === created.id)?.name).toBe('生产')
+    expect(mocks.updateSettings).toHaveBeenCalledTimes(3)
+  })
+
+  it('删除预设：至少保留一个，删掉当前项后回落到第一个', async () => {
+    const store = await createStore()
+    const created = await store.createProfile('备用')
+    store.setActiveProfile(created.id)
+
+    await store.deleteProfile(created.id)
+    expect(store.profiles).toHaveLength(1)
+    expect(store.activeProfileId).toBe('default')
+
+    // 只剩一个时删除是空操作，也不写盘
+    mocks.updateSettings.mockClear()
+    await store.deleteProfile('default')
+    expect(store.profiles).toHaveLength(1)
+    expect(mocks.updateSettings).not.toHaveBeenCalled()
+  })
+
+  it('删除不存在的预设是空操作', async () => {
+    const store = await createStore()
+    mocks.updateSettings.mockClear()
+
+    await store.deleteProfile('missing')
+
+    expect(store.profiles).toHaveLength(1)
+    expect(mocks.updateSettings).not.toHaveBeenCalled()
+  })
+
+  it('setActiveProfile 忽略不存在的 id', async () => {
+    const store = await createStore()
+    store.setActiveProfile('nope')
+    expect(store.activeProfileId).toBe('default')
+  })
+
+  it('updateActiveConfig 只改内存不写盘，updateProfileConfig 写盘', async () => {
+    const store = await createStore()
+    mocks.updateSettings.mockClear()
+
+    store.updateActiveConfig({ port: 7000 })
+    expect(store.config.port).toBe(7000)
+    expect(mocks.updateSettings).not.toHaveBeenCalled()
+
+    await store.updateProfileConfig('default', { host: '127.0.0.1' })
+    expect(store.config.host).toBe('127.0.0.1')
+    expect(mocks.updateSettings).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('connectionStore 连通性探测与断开', () => {
+  beforeEach(() => {
+    mocks.FakeAria2Service.instances.length = 0
+    mocks.updateSettings.mockClear()
+    mocks.clearTasks.mockClear()
+    mocks.clearCache.mockClear()
+  })
+
+  it('testConnection 成功时返回版本与耗时，并销毁探测实例', async () => {
+    const store = await createStore()
+    const pending = store.testConnection({ host: 'localhost', port: 6800, protocol: 'http', secret: '', path: '/jsonrpc' })
+    const probe = mocks.FakeAria2Service.instances[0]!
+    probe.versionGate.resolve({ version: '1.37.0' })
+
+    const result = await pending
+    expect(result.success).toBe(true)
+    expect(result.version).toBe('1.37.0')
+    expect(result.latencyMs).toBeGreaterThanOrEqual(0)
+    expect(probe.disconnectCalls).toBe(1)
+  })
+
+  it('testConnection 失败时回传错误且不影响当前连接', async () => {
+    const store = await createStore()
+    const pending = store.testConnection({ host: '10.0.0.9', port: 6800, protocol: 'http', secret: '', path: '/jsonrpc' })
+    const probe = mocks.FakeAria2Service.instances[0]!
+    probe.versionGate.reject(new Error('ECONNREFUSED'))
+
+    const result = await pending
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('ECONNREFUSED')
+    expect(probe.disconnectCalls).toBe(1)
+    expect(store.service).toBeNull()
+    expect(store.isConnected).toBe(false)
+  })
+
+  it('disconnect 推进代次、清空服务与缓存', async () => {
+    const store = await createStore()
+    const pending = store.connect(undefined, 'default')
+    const service = mocks.FakeAria2Service.instances[0]!
+    service.connectGate.resolve()
+    await flush()
+    service.versionGate.resolve({ version: '1.37.0' })
+    await expect(pending).resolves.toBe(true)
+    mocks.clearTasks.mockClear()
+    mocks.clearCache.mockClear()
+
+    store.disconnect()
+
+    expect(store.service).toBeNull()
+    expect(store.isConnected).toBe(false)
+    expect(store.isConnecting).toBe(false)
+    expect(store.connectionError).toBeNull()
+    expect(service.disconnectCalls).toBe(1)
+    // 重新连接时要展示新实例的数据，旧缓存必须清掉
+    expect(mocks.clearTasks).toHaveBeenCalledTimes(1)
+    expect(mocks.clearCache).toHaveBeenCalledTimes(1)
+  })
+
+  it('连接成功后会清空旧任务列表（切换实例不能沿用上一个实例的任务）', async () => {
+    const store = await createStore()
+
+    const first = store.connect(undefined, 'default')
+    const firstService = mocks.FakeAria2Service.instances[0]!
+    firstService.connectGate.resolve()
+    await flush()
+    firstService.versionGate.resolve({ version: '1.37.0' })
+    await expect(first).resolves.toBe(true)
+    mocks.clearTasks.mockClear()
+
+    const second = store.connect(undefined, 'backup')
+    const secondService = mocks.FakeAria2Service.instances[1]!
+    secondService.connectGate.resolve()
+    await flush()
+    secondService.versionGate.resolve({ version: '1.37.0' })
+    await expect(second).resolves.toBe(true)
+
+    expect(store.service).toBe(secondService)
+    expect(firstService.disconnectCalls).toBe(1)
+    expect(mocks.clearTasks).toHaveBeenCalledTimes(1)
+  })
+})
