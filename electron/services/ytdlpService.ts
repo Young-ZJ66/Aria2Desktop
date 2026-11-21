@@ -277,7 +277,8 @@ async function performInstall(
       fs.renameSync(targetPath, backupPath)
       hadBackup = true
     }
-    fs.rmSync(tempPath, { force: true })
+    // 注意：这里不能再 rm 掉 tempPath —— 它是刚下载并校验通过的安装包本体，
+    // 删掉后紧接着的 rename 必然 ENOENT（回归自 f5416d0）。残留清理已在下载前做过。
     fs.renameSync(tempPath, targetPath)
     installed = true
     if (process.platform !== 'win32') fs.chmodSync(targetPath, 0o755)
