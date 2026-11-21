@@ -228,3 +228,63 @@ describe('StreamTaskPersistenceService：落盘与恢复', () => {
     expect(service.getSnapshot()).toEqual([])
   })
 })
+
+describe('StreamTaskPersistenceService 的存储异常', () => {
+  it('localStorage 属性本身抛错时按无存储处理', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() { throw new Error('storage disabled') }
+    })
+    try {
+      const service = new StreamTaskPersistenceService()
+      expect(service.load()).toEqual([])
+      expect(() => service.flush()).not.toThrow()
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor)
+      else delete (globalThis as { localStorage?: unknown }).localStorage
+    }
+  })
+
+  it('getItem 抛错时当作没有数据，且不清除存储', () => {
+    const storage = {
+      getItem: vi.fn((): string | null => { throw new Error('quota') }),
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    }
+    expect(new StreamTaskPersistenceService({ storage }).load()).toEqual([])
+    expect(storage.removeItem).not.toHaveBeenCalled()
+  })
+
+  it('setItem 抛错只记日志，内存快照照常更新', () => {
+    const storage = {
+      getItem: vi.fn((): string | null => null),
+      setItem: vi.fn(() => { throw new Error('full') }),
+      removeItem: vi.fn()
+    }
+    const service = new StreamTaskPersistenceService({ storage })
+    expect(() => {
+      service.upsert(makeTask())
+      service.flush()
+    }).not.toThrow()
+    expect(storage.setItem).toHaveBeenCalled()
+    expect(service.getSnapshot()).toHaveLength(1)
+  })
+
+  it('写入走 300ms 合批：连续 upsert 只落盘一次', async () => {
+    vi.useFakeTimers()
+    try {
+      const storage = createFakeStorage()
+      const service = new StreamTaskPersistenceService({ storage })
+      service.upsert(makeTask({ gid: 'sd-batch-1' }))
+      service.upsert(makeTask({ gid: 'sd-batch-2' }))
+      expect(storage.setItem).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(300)
+      expect(storage.setItem).toHaveBeenCalledTimes(1)
+      expect(storage.dump()).toContain('sd-batch-2')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+

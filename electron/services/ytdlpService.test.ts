@@ -144,3 +144,29 @@ describe('mapPlaylistEntries：上限与边界', () => {
     expect(mapPlaylistEntries(null, 'https://example.com/list')).toBeNull()
   })
 })
+
+describe('非 YouTube 站点的条目形状', () => {
+  it('播放列表地址无法解析时按非 YouTube 处理，用条目自带地址', () => {
+    const raw = { title: 't', entries: [{ id: 'a', title: 'A', url: 'https://cdn.example.com/a.mp4' }] }
+    const info = mapPlaylistEntries(raw, 'not-a-url')
+    expect(info?.entries[0]?.url).toBe('https://cdn.example.com/a.mp4')
+  })
+
+  it('条目本身不是对象时跳过，不影响其余条目', () => {
+    const raw = {
+      title: 't',
+      entries: [null, 'oops', 42, { id: 'ok', title: 'OK', url: 'https://cdn.example.com/ok.mp4' }]
+    }
+    const info = mapPlaylistEntries(raw, 'https://example.com/list')
+    expect(info?.entries.map((entry) => entry.id)).toEqual(['ok'])
+    expect(info?.hasPlaceholderUrls).toBe(false)
+  })
+
+  it('相对地址原样保留（由 yt-dlp 负责补全），不算占位地址', () => {
+    const raw = { title: 't', entries: [{ id: 'rel', title: 'R', url: '/files/rel.mp4' }] }
+    const info = mapPlaylistEntries(raw, 'https://example.com/list')
+    expect(info?.entries[0]?.url).toBe('/files/rel.mp4')
+    expect(info?.hasPlaceholderUrls).toBe(false)
+  })
+})
+

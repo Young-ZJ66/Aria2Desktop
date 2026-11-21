@@ -178,3 +178,21 @@ describe('mergeCategoryRules', () => {
     expect(DEFAULT_CATEGORIES[1]?.extensions.includes('should-not-leak')).toBe(false)
   })
 })
+
+describe('mergeCategoryRules 与 resolveTargetDir 的边界', () => {
+  it('列表里混入空条目或缺 id 的条目时跳过，不产生脏分类', () => {
+    const merged = mergeCategoryRules([
+      null as unknown as { id: string; dir: string; extensions: string[] },
+      { id: '', dir: 'X', extensions: ['mp4'] },
+      { id: 'video', dir: 'V', extensions: ['mp4'] }
+    ])
+    expect(merged.map((c) => c.id)).toEqual([CATEGORY_GENERAL, 'video'])
+    expect(merged.every((c) => Boolean(c.id))).toBe(true)
+  })
+
+  it('分类子目录名与内置英文名都为空时回落到主下载目录', () => {
+    const rule = { id: 'ebooks', dir: '', extensions: ['epub'] }
+    expect(resolveTargetDir('D:/Downloads', rule)).toBe('D:/Downloads')
+  })
+})
+

@@ -46,3 +46,18 @@ describe('parseMetalinkFiles', () => {
     expect(parseMetalinkFiles(text)).toEqual({ files: [{ name: 'a.iso', size: 0 }], totalSize: 0 })
   })
 })
+
+describe('parseMetalinkFiles 的缺名条目', () => {
+  it('没有 name 属性的 file 节点被跳过，其余照常解析', () => {
+    const text = [
+      '<metalink>',
+      '  <file size="10" />',
+      '  <file name="b.iso" size="20" />',
+      '</metalink>'
+    ].join('\n')
+    const parsed = parseMetalinkFiles(text)
+    expect(parsed.files).toEqual([{ name: 'b.iso', size: 20 }])
+    expect(parsed.totalSize).toBe(20)
+  })
+})
+

@@ -7,6 +7,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -25,13 +26,18 @@ import {
  */
 const holder = vi.hoisted(() => ({ zsyncThrows: null, zsyncCalls: [] }))
 
-vi.mock('node:child_process', () => ({
-  execFileSync: (command, args) => {
-    holder.zsyncCalls.push({ command, args })
-    if (holder.zsyncThrows) throw new Error(holder.zsyncThrows)
-    return Buffer.alloc(0)
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    default: actual,
+    execFileSync: (command, args) => {
+      holder.zsyncCalls.push({ command, args })
+      if (holder.zsyncThrows) throw new Error(holder.zsyncThrows)
+      return Buffer.alloc(0)
+    }
   }
-}))
+})
 
 /** 构造最小 ELF64 镜像：header + 两个数据节 + 节头表 + 字符串表。 */
 function buildFakeElf({ includeUpdInfo = true }) {
@@ -184,6 +190,60 @@ describe('writeUpdateInfo / readUpdateInfo', () => {
       },
       { includeUpdInfo: false }
     )
+  })
+})
+
+
+describe('readElfSections 的镜像头校验', () => {
+  function withMutatedElf(mutate, fn) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'updinfo-'))
+    const file = path.join(dir, 'fake.AppImage')
+    const image = buildFakeElf({})
+    mutate(image)
+    fs.writeFileSync(file, image)
+    try {
+      return fn(file)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  }
+
+  it('ELF32 被拒绝（AppImage runtime 一定是 ELF64）', () => {
+    withMutatedElf((image) => { image[4] = 1 }, (file) => {
+      expect(() => readElfSections(file)).toThrow(/ELF64/)
+    })
+  })
+
+  it('大端镜像被拒绝', () => {
+    withMutatedElf((image) => { image[5] = 2 }, (file) => {
+      expect(() => readElfSections(file)).toThrow(/little-endian/)
+    })
+  })
+
+  it('节头表偏移为 0 时报错而不是死循环', () => {
+    withMutatedElf((image) => { image.writeBigUInt64LE(BigInt(0), 0x28) }, (file) => {
+      expect(() => readElfSections(file)).toThrow(/节头表缺失/)
+    })
+  })
+})
+
+describe('readUpdateInfo 的缺省返回值', () => {
+  it('没有 .upd_info 节区时返回 null', () => {
+    withTempElf(
+      (file) => {
+        expect(readUpdateInfo(file)).toBeNull()
+      },
+      { includeUpdInfo: false }
+    )
+  })
+})
+
+describe('脚本入口', () => {
+  it('直接执行脚本且缺参数时以退出码 1 结束并打印用法', () => {
+    const script = path.join(process.cwd(), 'scripts', 'embed-appimage-update-info.mjs')
+    const result = spawnSync(process.execPath, [script], { encoding: 'utf8' })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('用法')
   })
 })
 

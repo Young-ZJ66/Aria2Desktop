@@ -193,3 +193,12 @@ describe('settingsAccessor', () => {
     expect(getSettings().aria2?.secret).toBe('plain-secret')
   })
 })
+
+describe('未绑定存储时的读取', () => {
+  it('getSettingsFresh 同样要求先绑定，避免读到空配置', async () => {
+    const { getSettingsFresh } = await loadModule()
+
+    expect(() => getSettingsFresh()).toThrow(/bindSettingsStore/)
+  })
+})
+

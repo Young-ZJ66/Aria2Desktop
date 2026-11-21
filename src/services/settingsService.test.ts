@@ -514,3 +514,74 @@ describe('重置', () => {
     expect(saved.connectionProfiles[0]?.config?.secret).toBe('keep-me')
   })
 })
+
+describe('浏览器环境的读取与单键读写', () => {
+  it('没有 electronAPI 时从 localStorage 读设置', async () => {
+    vi.stubGlobal('window', {})
+    const getItem = vi.fn(() => JSON.stringify({ theme: 'dark', refreshInterval: 8000 }))
+    vi.stubGlobal('localStorage', { getItem, setItem: vi.fn(), removeItem: vi.fn() })
+    vi.resetModules()
+    const mod = await import('./settingsService')
+    const service = new mod.SettingsService()
+    await service.loadSettings()
+
+    expect(getItem).toHaveBeenCalledWith('aria2-desktop-settings')
+    expect(service.getSettings().theme).toBe('dark')
+    expect(service.getSettings().refreshInterval).toBe(8000)
+  })
+
+  it('getSetting 读单个键，updateSetting 只写这一个键', async () => {
+    const { service, api } = await loadService({ stored: { theme: 'light' } })
+
+    expect(service.getSetting('theme')).toBe('light')
+
+    await service.updateSetting('theme', 'dark')
+
+    expect(service.getSetting('theme')).toBe('dark')
+    const saved = savedPayload(api!)
+    expect(saved.theme).toBe('dark')
+  })
+})
+
+describe('导入时的密钥回填边界', () => {
+  it('令牌不是脱敏占位时原样保留，不覆盖为本机值', async () => {
+    const { service, api } = await loadService({
+      stored: { webConsole: { token: 'local-console', tokens: [{ name: 'phone', token: 'local-phone' }] } }
+    })
+
+    await service.importSettings(JSON.stringify({
+      webConsole: {
+        token: '***',
+        tokens: [
+          { name: 'phone', token: 'imported-phone' },
+          { name: 'tablet', token: '***' }
+        ]
+      }
+    }))
+
+    const saved = savedPayload(api!)
+    expect(saved.webConsole?.token).toBe('local-console')
+    expect(saved.webConsole?.tokens).toEqual([
+      { name: 'phone', token: 'imported-phone' },
+      { name: 'tablet', token: '***' }
+    ])
+  })
+
+  it('没有 config 的连接预设原样保留，不会补出空密钥', async () => {
+    const { service, api } = await loadService({
+      stored: { connectionProfiles: [{ id: 'default', name: '本机', config: { host: 'localhost', port: 6800, protocol: 'http', secret: 'local-secret', path: '/jsonrpc' } }] }
+    })
+
+    await service.importSettings(JSON.stringify({
+      connectionProfiles: [
+        { id: 'default', name: '本机', config: { host: 'localhost', port: 6800, protocol: 'http', secret: '***', path: '/jsonrpc' } },
+        { id: 'broken', name: '坏预设' }
+      ]
+    }))
+
+    const saved = savedPayload(api!)
+    expect(saved.connectionProfiles[0]?.config?.secret).toBe('local-secret')
+    expect(saved.connectionProfiles[1]).toEqual({ id: 'broken', name: '坏预设' })
+  })
+})
+

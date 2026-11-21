@@ -193,3 +193,21 @@ describe('异常与主进程推送', () => {
     expect(openNewTaskWithUrl).not.toHaveBeenCalled()
   })
 })
+
+describe('读取过程中的状态变化', () => {
+  it('等待主进程回话期间被 stop 时丢弃这次结果', async () => {
+    let resolveRead: (value: string) => void = () => {}
+    readClipboard.mockReturnValue(new Promise<string>((resolve) => { resolveRead = resolve }))
+    const monitor = useClipboardMonitor()
+    monitor.start()
+    doc.handlers.get('visibilitychange')?.()
+    await vi.advanceTimersByTimeAsync(300)
+    expect(readClipboard).toHaveBeenCalledTimes(1)
+
+    monitor.stop()
+    resolveRead('https://example.com/late.zip')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(openNewTaskWithUrl).not.toHaveBeenCalled()
+  })
+})
+

@@ -396,3 +396,83 @@ describe('normalizeImportedEngineSettings', () => {
   })
 })
 
+describe('applySettingsImport 的边界输入', () => {
+  it('theme 不是字符串时被 rejected 且不写入', () => {
+    const result = applySettingsImport(fullSettings(), {
+      app: SETTINGS_EXPORT_APP_ID,
+      settings: { theme: 42 }
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.report.applied).toEqual([])
+    expect(result.report.rejected.map(r => r.key)).toEqual(['theme'])
+    expect(result.report.rejected[0]?.reason.length).toBeGreaterThan(0)
+    expect(result.next.theme).toBe('dark')
+  })
+
+  it('值为 undefined 的键按没有可导入的值跳过', () => {
+    const result = applySettingsImport(fullSettings(), {
+      app: SETTINGS_EXPORT_APP_ID,
+      settings: { theme: undefined, language: 'en-US' }
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.report.skipped).toEqual(['theme'])
+    expect(result.report.applied).toEqual(['language'])
+    expect(result.next.theme).toBe('dark')
+    expect(result.next.language).toBe('en-US')
+  })
+})
+
+describe('deepClone 与密钥还原的下标兜底', () => {
+  it('导出时 Date 值被复制成新的 Date 实例', () => {
+    const stamp = new Date('2026-01-01T00:00:00.000Z')
+    const settings = { ...fullSettings(), lastSyncAt: stamp } as unknown as AppSettings
+    const exported = buildSettingsExport(settings, '1.5.0', true)
+    const copied = (exported.settings as Record<string, unknown>).lastSyncAt as Date
+    expect(copied).toBeInstanceOf(Date)
+    expect(copied).not.toBe(stamp)
+    expect(copied.getTime()).toBe(stamp.getTime())
+  })
+
+  it('导入条目 id 与本地对不上时按同下标找回密钥', () => {
+    const imported = {
+      app: SETTINGS_EXPORT_APP_ID,
+      redacted: true,
+      settings: {
+        connectionProfiles: [
+          { id: 'renamed-a', name: 'A', config: { host: '127.0.0.1', port: 6800, protocol: 'http', secret: '', path: '/jsonrpc' } },
+          { id: 'renamed-b', name: 'B', config: { host: '10.0.0.2', port: 6800, protocol: 'https', secret: '', path: '/jsonrpc' } }
+        ]
+      }
+    }
+    const result = applySettingsImport(fullSettings(), imported)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.next.connectionProfiles?.map(p => p.config.secret)).toEqual(['profile-secret', 'profile-secret-2'])
+    expect(result.report.preservedSecrets).toBe(2)
+  })
+
+  it('导入侧把 aria2 分区置空时还原逻辑直接跳过', () => {
+    const result = applySettingsImport(fullSettings(), {
+      app: SETTINGS_EXPORT_APP_ID,
+      redacted: true,
+      settings: { aria2: null }
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.next.aria2).toBeNull()
+    expect(result.report.preservedSecrets).toBe(0)
+  })
+})
+
+describe('normalizeImportedEngineSettings 的缺省输入', () => {
+  it('没有 aria2 分区时原样返回且不报告归一化项', () => {
+    const settings: AppSettings = { theme: 'light' }
+    const result = normalizeImportedEngineSettings(settings)
+    expect(result.next).toBe(settings)
+    expect(result.normalized).toEqual([])
+  })
+})
+
+
