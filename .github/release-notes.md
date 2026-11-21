@@ -1,20 +1,15 @@
-# v1.5.0-beta.10 更新日志
+# v1.5.0-beta.11 更新日志
 
-> 这是 1.5.0 的第十个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第十一个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.10 相对 beta.9 的变化
+## 📌 beta.11 相对 beta.10 的变化
 
-beta.9 之后没有再动功能面。这一版把验证过程中暴露出来的几个确定性缺陷修掉，另外把单测从 2432 项补到 3996 项，作为正式版前的最后一道网。
+beta.10 发布后又把计划里遗留的三处功能缺口补齐（嗅探分片、流媒体限速、Web 控制台令牌存储），并把单测从 3960 项补到 3996 项。
 
-- **应用内安装 yt-dlp 不再必然失败**：原子替换前误删了刚下载并校验通过的临时文件，紧接着的 rename 必然 `ENOENT`，流媒体组件因此装不上（旧版本还会被一起挪走）。现已保留安装包本体，备份 / 回滚逻辑不变。
-- **完成历史不再只剩最后一条**：历史库走 JSON 回退后端时，单条保存实际是「用这一条覆盖整份文件」，每完成一个任务就把之前的历史清空。现在单条保存会先读回已有内容再合并。
-- **重命名模板不再产出双扩展名**：模板里写了 `{ext}` 时不再额外追加一次扩展名（此前 `{name}-{date}{ext}` 得到 `episode-2026-01-01.mkv.mkv`）。
-- **MCP 工具的参数类型错误不再被吞掉**：`list_tasks` 的 `status`、`change_task_position` 的 `how` 传了错误类型时，此前会被当成「没传」直接回落默认值；现在按参数非法拒绝。
-- **停用插件时钩子抛错不再冒到界面**：插件 `onDeactivate` 同步抛错会让界面提示「停用插件失败」，但插件状态其实已经改了。现在钩子异常只记日志，停用照常成功。
-- **单测补到 3996 项**：新增 1564 项单测覆盖此前零覆盖的兜底分支（进程结算守卫、响应流中断、更新检查超时、插件沙箱脱敏、RSS 拉取超时等），语句覆盖率 99.78%、分支 91.34%；同时修掉 CI 上因 en-US 环境导致的两条日期用例失败。
-- **HLS 的 .ts 分片不再被当成普通视频**：嗅探只把 `.m4s` 认作分片，HLS 的 `.ts` 被当成普通视频列出来，一次播放就能刷满 200 条嗅探缓冲并被批量直下。现在 `.ts` 与 `.m4s` 一样只计数量、不进资源列表。
-- **流媒体任务也吃全局限速**：yt-dlp 任务不进 aria2 队列、拿不到 `max-overall-download-limit`，限速对流媒体下载完全无效。现在启动与继续前都会读一次全局限速并转成 `--limit-rate`。
+- **HLS 的 .ts 分片不再被当成普通视频**：嗅探只把 `.m4s` 认作分片，HLS 的 `.ts` 既不是播放列表也不是分片，于是被当成普通视频列出来，一次播放就能刷满 200 条嗅探缓冲并被批量直下（下到的是没有 init 段的碎片）。现在 `.ts` 与 `.m4s` 一样只计数量、不进资源列表，`.m3u8` / `.mpd` 仍作为播放列表交给流媒体解析。
+- **流媒体任务也吃全局限速**：yt-dlp 任务不进 aria2 队列、拿不到 `max-overall-download-limit`，设成 1 MB/s 对流媒体下载完全无效。现在启动与继续前都会读一次全局限速并转成 `--limit-rate`；暂停期间改了限速，继续时按新值生效。
 - **Web 控制台的令牌不再落进 localStorage**：页面此前把访问令牌明文存在 localStorage，任何 XSS 都能读走并长期复用。现在改为「用令牌换 HttpOnly + SameSite=Strict 会话 Cookie」，页面脚本读不到令牌原文，浏览器自动携带；退出登录会通知服务端立刻作废会话。`Authorization: Bearer` 通道保留，扩展、MCP 与脚本客户端不受影响。
+- **单测补到 3996 项**：本版新增 36 项单测（含扩展嗅探与批量下载的首个行为测试），语句覆盖率 99.78%、分支 91.34%。
 
 ## 🎯 主题：可信接管
 
@@ -94,27 +89,22 @@ beta.9 之后没有再动功能面。这一版把验证过程中暴露出来的�
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.10
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.11
 
 ---
 
-# v1.5.0-beta.10 Release Notes
+# v1.5.0-beta.11 Release Notes
 
-> This is the tenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the eleventh pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.9
+## 📌 What changed since beta.10
 
-Nothing on the feature surface changed after beta.9. This release fixes the definite defects that surfaced during validation and raises the unit-test suite from 2432 to 3996 tests as a last net before the stable release.
-- **HLS `.ts` segments are no longer treated as ordinary videos**: the sniffer only recognised `.m4s` as a segment, so HLS `.ts` files appeared as regular videos — one playback could fill the 200-entry buffer with segments that could be batch-downloaded. `.ts` is now counted like `.m4s` and kept out of the list.
-- **Streaming downloads now obey the global speed limit**: yt-dlp tasks never enter the aria2 queue and could not see `max-overall-download-limit`, so the limit had no effect on them. It is now read before launch and resume and passed as `--limit-rate`.
+After beta.10 this release closes the last three functional gaps left in the plan (sniffer segments, streaming speed limit, web console token storage) and raises the unit-test suite from 3960 to 3996 tests.
+
+- **HLS `.ts` segments are no longer treated as ordinary videos**: the sniffer only recognised `.m4s` as a segment, so HLS `.ts` files were neither playlists nor segments and showed up as regular videos — a single playback could fill the 200-entry sniffer buffer with segments that could then be batch-selected and downloaded (yielding fragments without an init section). `.ts` is now counted like `.m4s` and kept out of the resource list, while `.m3u8`/`.mpd` still resolve as playlists for "hand to streaming".
+- **Streaming downloads now obey the global speed limit**: yt-dlp tasks never enter the aria2 queue, so they could not see `max-overall-download-limit` and a "1 MB/s" limit had no effect on them. The limit is now read before launch (including resume after pause) and passed to yt-dlp as `--limit-rate`; changing the limit while paused applies the new value on resume.
 - **The web console no longer keeps its token in localStorage**: the page used to store the access token in plain text there, so any XSS could read it and reuse it indefinitely. It now exchanges the token for an HttpOnly, SameSite=Strict session cookie: page scripts cannot read the token itself and the browser attaches the cookie automatically, while signing out invalidates the session server-side. The `Authorization: Bearer` channel is unchanged for extensions, MCP and scripted clients.
-
-- **In-app yt-dlp installation no longer always fails**: the atomic swap deleted the freshly downloaded, checksum-verified temporary file, so the following rename always hit `ENOENT` and the streaming component could not be installed (the previous build was moved aside as well). The downloaded binary is now preserved; backup and rollback behaviour is unchanged.
-- **Completion history no longer keeps only the last entry**: with the JSON fallback backend, saving one record actually overwrote the whole file, so every completed task wiped the history before it. A single save now reads the existing records back and merges into them.
-- **Rename templates no longer produce a double extension**: when the template contains `{ext}` the extension is no longer appended a second time (`{name}-{date}{ext}` used to yield `episode-2026-01-01.mkv.mkv`).
-- **MCP tool argument type errors are no longer swallowed**: a wrong type for `list_tasks` `status` or `change_task_position` `how` used to be treated as "not provided" and silently replaced by the default; it is now rejected as invalid.
-- **A throwing deactivate hook no longer reaches the UI**: a synchronous throw from a plugin `onDeactivate` made the UI report "failed to disable plugin" even though the state had already changed. Hook errors are now logged and the disable succeeds.
-- **1564 new unit tests**: they cover fallback branches that previously had no coverage at all (process-settle guards, interrupted response streams, update-check timeouts, plugin sandbox redaction, RSS fetch timeouts), taking statement coverage to 99.78% and branch coverage to 91.34%; two date-format tests that failed on en-US CI runners are fixed as well.
+- **36 new unit tests**: the suite now has 3996 tests, including the first behaviour tests for the extension sniffer and batch downloader; statement coverage 99.78%, branch coverage 91.34%.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -191,4 +181,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.10
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.11
