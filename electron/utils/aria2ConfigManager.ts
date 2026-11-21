@@ -300,10 +300,30 @@ bt-tracker=${DEFAULT_BT_TRACKERS_CSV}
   }
 
   /**
-   * 将完整配置内容写入磁盘（0o600：配置可能包含 rpc-secret，限制为仅当前用户可读写）
+   * 将完整配置内容写入磁盘（0o600：配置可能包含 rpc-secret，限制为仅当前用户可读写）。
+   *
+   * 用「同目录临时文件 + rename」做原子替换：aria2 进程会在启动瞬间读取这份 conf，
+   * 直接 writeFileSync 覆盖存在"文件已被截断、内容还没写完"的窗口，
+   * 此时 aria2 读到的是残缺配置（Linux CI 上表现为 stderr 报
+   * "Specify at least one URL." 后立刻退出）。rename 在同一文件系统内是原子的，
+   * 读方要么看到旧文件、要么看到完整新文件。
    */
   private writeToDisk(output: string): void {
-    fs.writeFileSync(this.configPath, output, { encoding: 'utf-8', mode: 0o600 })
+    const tempPath = `${this.configPath}.tmp`
+    try {
+      fs.writeFileSync(tempPath, output, { encoding: 'utf-8', mode: 0o600 })
+      fs.renameSync(tempPath, this.configPath)
+    } catch (error) {
+      // 临时文件方案失败时退回直接覆盖：配置仍要落盘，不能因为"更安全"的写法反而写不进去。
+      // 残留的 .tmp 一并清掉，避免下次启动被当成脏文件。
+      logger.warn('原子写入 aria2 配置失败，退回直接覆盖:', error)
+      try {
+        fs.unlinkSync(tempPath)
+      } catch {
+        // 临时文件可能根本没创建成功，忽略
+      }
+      fs.writeFileSync(this.configPath, output, { encoding: 'utf-8', mode: 0o600 })
+    }
   }
 
   /**

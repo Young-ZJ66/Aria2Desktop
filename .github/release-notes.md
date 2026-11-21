@@ -1,15 +1,15 @@
-# v1.5.0-beta.7 更新日志
+# v1.5.0-beta.8 更新日志
 
-> 这是 1.5.0 的第七个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第八个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.7 相对 beta.6 的变化
+## 📌 beta.8 相对 beta.7 的变化
 
-beta.6 加了 Web 控制台的只读队列视图，但那份面板只在首屏和手动刷新时更新。beta.7 把它的实时性补齐，其余行为保持不变。
+beta.7 的 Linux x64 打包产物在发布流水线里启动失败过一次：引擎刚起来就报 `Specify at least one URL.` 退出，应用停在「引擎启动失败」对话框，浏览器扩展接口因此始终没监听。根因是首次启动时 `aria2.conf` 的写入还没落盘，引擎就读到了不完整的配置。beta.8 把这条写盘链路改成"先落盘、再启动"，其余行为保持不变。
 
-- **队列面板跟随实时推送更新**：等待中的任务增减、顺序变化、开始下载都会即时反映到队列面板，不用再手动点刷新。此前面板停在首屏快照，新排进队列的任务在页面上看不见。
-- **只在队列真的变了才重新拉取**：面板按等待队列的 gid 序列判断是否需要重新请求，成员与顺序都没变就直接复用上一份数据，避免每秒对 `/api/queue` 空轮询。
-- **队列面板仍然只读**：beta.6 定的规矩不变——面板里没有任何改并发或重试的入口，`POST /api/queue` 依旧返回 404。
-- **新增闸门用例**：把「SSE 状态帧必须刷新队列面板」写成单测，防止以后改页面脚本时又把这条同步悄悄丢掉。
+- **启动前强制落盘配置**：`spawn` 之前把本轮改动的配置（会话文件路径等）同步写入磁盘，不再依赖微任务合批。此前合批写盘通常能在启动前跑完，但进程启动/自动重启等时序抢先时，引擎读到的是上一次的旧配置。
+- **配置写盘改为原子替换**：先写同目录临时文件再 `rename`，避免引擎在文件被截断、内容还没写完的瞬间读到残缺内容；`rename` 失败（跨设备、被杀软占用）时退回直接覆盖并清掉临时文件，配置不会因为"更安全的写法"反而写不进去。
+- **落盘失败不阻断启动**：写不进去时用上一次的完整配置继续启动，并在日志里留痕，而不是让引擎直接不启动。
+- **新增闸门用例**：断言配置落盘发生在 `spawn` 之前、`rename` 失败时仍能写进正式文件且目录里不留 `.tmp` 残留。
 
 ## 🎯 主题：可信接管
 
@@ -72,7 +72,7 @@ beta.6 加了 Web 控制台的只读队列视图，但那份面板只在首屏�
 
 ## ✅ 验证
 
-- typecheck（主进程 + 测试代码 + 渲染层）通过；186 个测试文件 / 2408 项单测通过（引擎重启压力测试默认跳过）。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；186 个测试文件 / 2412 项单测通过（引擎重启压力测试默认跳过）。
 - Web 控制台页面内联脚本/样式的 CSP 哈希由单测逐字节校验，改了内联脚本却忘同步哈希会直接失败（否则浏览器会静默拒绝执行脚本，页面白屏）。
 - `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
 - 应用 E2E 193 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局）；其中 18 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、队列视图只读、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
@@ -81,22 +81,22 @@ beta.6 加了 Web 控制台的只读队列视图，但那份面板只在首屏�
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.7
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.8
 
 ---
 
-# v1.5.0-beta.7 Release Notes
+# v1.5.0-beta.8 Release Notes
 
-> This is the seventh pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the eighth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.6
+## 📌 What changed since beta.7
 
-beta.6 added the read-only queue view in the web console, but that panel only refreshed on first load and on a manual refresh. beta.7 makes it live; nothing else changed.
+The Linux x64 artifact from beta.7 failed to start once in the release pipeline: the engine came up and immediately exited with `Specify at least one URL.`, the app stopped on the "engine failed to start" dialog, and the browser-extension API therefore never listened. The root cause was that `aria2.conf` had not finished being written on first launch, so the engine read an incomplete config. beta.8 makes that write path "flush first, start second"; nothing else changed.
 
-- **The queue panel follows the real-time stream**: waiting tasks appearing, leaving, reordering or starting a download now show up in the queue panel immediately, with no manual refresh. Before, the panel stayed on its first-load snapshot and a task that had just been queued was invisible.
-- **It refetches only when the queue actually changes**: the panel compares the gid sequence of the waiting list and reuses the previous payload when the membership and order are unchanged, so it does not poll `/api/queue` every second for nothing.
-- **The panel is still read-only**: the rule beta.6 set stands — nothing in it can change concurrency or retry, and `POST /api/queue` still returns 404.
-- **A new gate**: a unit test now asserts that the SSE status frame refreshes the queue panel, so a future edit to the page script cannot silently drop that sync again.
+- **Configuration is flushed before launch**: the changes made during this start-up (session file paths and friends) are written to disk synchronously before `spawn`, instead of relying on the batched microtask write. That batch normally finished before launch, but when process start-up or an automatic restart won the race, the engine read the previous config.
+- **Config writes are atomic**: the file is written to a sibling temp file and `rename`d into place, so the engine can never read a truncated, half-written config; if `rename` fails (cross-device, held by antivirus) it falls back to a direct overwrite and removes the temp file, so the "safer" path can never end up writing nothing.
+- **A failed flush does not block start-up**: if the write fails, the app starts with the last complete config and logs the failure, instead of refusing to start the engine.
+- **New gates**: unit tests assert that the flush happens before `spawn`, and that a failed `rename` still lands in the real file with no `.tmp` left behind.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -157,7 +157,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ## ✅ Verification
 
-- Typecheck (main process, tests, renderer) passes; 186 test files / 2408 unit tests pass (the engine-restart stress test is skipped by default).
+- Typecheck (main process, tests, renderer) passes; 186 test files / 2412 unit tests pass (the engine-restart stress test is skipped by default).
 - `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
 - All 193 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring), of which 18 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, the read-only queue view, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.
@@ -165,4 +165,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.7
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.8

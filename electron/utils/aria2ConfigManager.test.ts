@@ -181,6 +181,38 @@ describe('Aria2ConfigManager', () => {
     expect(text).toContain('dir=D:/Downloads')
   })
 
+
+  it('写盘走临时文件 + rename，不会留下半截文件', () => {
+    writeConfig('dir=D:/Downloads\nrpc-listen-port=6800\n')
+    const manager = new Aria2ConfigManager(configPath)
+
+    manager.setConfigValue('rpc-listen-port', 6810)
+    manager.flushSave()
+
+    // 目录里只应有正式文件，没有残留的 .tmp
+    expect(fs.readdirSync(dir)).toEqual(['aria2.conf'])
+    expect(readConfig()).toContain('rpc-listen-port=6810')
+  })
+
+  it('rename 失败时退回直接覆盖，配置仍能落盘', () => {
+    writeConfig('dir=D:/Downloads\nrpc-listen-port=6800\n')
+    const manager = new Aria2ConfigManager(configPath)
+
+    // 模拟跨设备/被占用导致 rename 失败：临时文件写成功，rename 抛错
+    const renameSpy = vi.spyOn(fs, 'renameSync').mockImplementation(() => {
+      throw Object.assign(new Error('EXDEV: cross-device link not permitted'), { code: 'EXDEV' })
+    })
+    try {
+      manager.setConfigValue('rpc-listen-port', 6820)
+      expect(() => manager.flushSave()).not.toThrow()
+    } finally {
+      renameSpy.mockRestore()
+    }
+
+    // 退回直接覆盖后正式文件仍是新值，临时文件已清理
+    expect(readConfig()).toContain('rpc-listen-port=6820')
+    expect(fs.readdirSync(dir)).toEqual(['aria2.conf'])
+  })
   it('getRelevantConfigs 只挑出目录 / 端口 / 密钥三项', () => {
     writeConfig('dir=D:/Downloads\nrpc-listen-port=6800\nrpc-secret=s1\nmax-concurrent-downloads=5\n')
     const manager = new Aria2ConfigManager(configPath)

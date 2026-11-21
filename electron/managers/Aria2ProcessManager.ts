@@ -202,6 +202,18 @@ export class Aria2ProcessManager {
       // 确保下载目录存在并更新配置
       this.ensureDownloadDirectory()
 
+      // spawn 之前必须把本轮改动的配置（会话文件键等）同步落盘。
+      // ensureDownloadDirectory 里的 setConfigValue/removeConfigKey 只排了微任务合批写盘，
+      // 正常情况下会在本轮事件循环末尾写完，但进程启动/自动重启等时序可能先于微任务执行，
+      // aria2 于是读到还没更新的 conf（Linux CI 上曾表现为 stderr 报
+      // "Specify at least one URL." 后立刻退出，启动被判失败）。
+      // 写盘失败不阻断启动：此时 aria2 会读到上一次的完整文件，比直接不启动更容易自愈。
+      try {
+        this.configManager.flushSave()
+      } catch (error) {
+        logger.error('启动前写入 aria2 配置失败，将使用现有配置文件启动:', error)
+      }
+
       // 启动 Aria2 进程 - 简化启动命令，只使用配置文件
       const args = [
         `--conf-path=${this.config.configPath}`

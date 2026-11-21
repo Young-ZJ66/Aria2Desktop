@@ -358,6 +358,29 @@ describe('启动引擎', () => {
     expect(configManager.removeConfigKey).toHaveBeenCalledWith('metalink-servers')
   })
 
+  it('spawn 之前把本轮改动的配置同步落盘，避免 aria2 读到残缺 conf', async () => {
+    state.portOpen = true
+    const manager = await loadManager()
+    await manager.start()
+    const configManager = state.configManagers[0]
+    expect(configManager.flushSave).toHaveBeenCalled()
+    // 顺序必须早于 spawn：先落盘再起进程，否则 aria2 可能读到上一次的旧文件
+    const { spawn } = (await import('child_process')) as unknown as { spawn: { mock: { invocationCallOrder: number[] } } }
+    const flushOrder = configManager.flushSave.mock.invocationCallOrder[0]
+    const spawnOrder = spawn.mock.invocationCallOrder[0]
+    expect(flushOrder).toBeLessThan(spawnOrder)
+  })
+
+  it('启动前落盘失败不阻断启动（用上一次的完整配置继续）', async () => {
+    state.portOpen = true
+    const manager = await loadManager()
+    // 配置管理器在构造函数里就建好了，这里让它落盘失败
+    const configManager = state.configManagers[0]
+    configManager.flushSave.mockImplementation(() => { throw new Error('disk full') })
+    expect(await manager.start()).toBe(true)
+    expect(state.logs.error.some((entry: unknown[]) => String(entry[0]).includes('启动前写入 aria2 配置失败'))).toBe(true)
+  })
+
   it('引擎启动成功后回调一次，回调抛错不影响启动结果', async () => {
     state.portOpen = true
     const manager = await loadManager()
