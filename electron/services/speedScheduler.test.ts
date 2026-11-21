@@ -102,3 +102,194 @@ describe('SpeedScheduler', () => {
     expect(mockedRpc).not.toHaveBeenCalled()
   })
 })
+
+/** 让 applyLimit / clearLimit 里的 Promise 链跑完 */
+const flush = async () => {
+  for (let i = 0; i < 5; i += 1) await Promise.resolve()
+}
+
+describe('SpeedScheduler 生命周期', () => {
+  it('start() 立即检查一次，之后每分钟重复检查', async () => {
+    mockedSettings.mockReturnValue(settingsWith([RULE]))
+    const scheduler = new SpeedScheduler()
+
+    scheduler.start()
+    await flush()
+    expect(mockedRpc).toHaveBeenCalledTimes(1)
+
+    // 时间窗换掉后，定时器到点应把限速回滚（证明 setInterval 真的在跑）
+    mockedSettings.mockReturnValue(settingsWith([{ ...RULE, startTime: '12:00', endTime: '13:00' }]))
+    await vi.advanceTimersByTimeAsync(60 * 1000)
+    await flush()
+
+    expect(mockedRpc).toHaveBeenCalledTimes(2)
+    expect(mockedRpc).toHaveBeenLastCalledWith(
+      expect.objectContaining({ params: [{ 'max-overall-download-limit': '0' }] })
+    )
+
+    scheduler.stop()
+  })
+
+  it('重复 start() 不会叠加定时器', async () => {
+    mockedSettings.mockReturnValue(settingsWith([RULE]))
+    const scheduler = new SpeedScheduler()
+
+    scheduler.start()
+    scheduler.start()
+    await flush()
+    expect(mockedRpc).toHaveBeenCalledTimes(1)
+
+    mockedSettings.mockReturnValue(settingsWith([]))
+    await vi.advanceTimersByTimeAsync(60 * 1000)
+    await flush()
+
+    // 若叠了两个定时器，同一时刻会发两次回滚指令
+    expect(mockedRpc).toHaveBeenCalledTimes(2)
+
+    scheduler.stop()
+  })
+
+  it('stop() 把已下发的下载与上传限速一并恢复，并停掉定时器', async () => {
+    mockedSettings.mockReturnValue(settingsWith([{ ...RULE, uploadLimit: 524288 }]))
+    const scheduler = new SpeedScheduler()
+
+    scheduler.start()
+    await flush()
+    expect(mockedRpc).toHaveBeenCalledTimes(1)
+
+    scheduler.stop()
+    await flush()
+
+    expect(mockedRpc).toHaveBeenCalledTimes(2)
+    expect(mockedRpc).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        method: 'aria2.changeGlobalOption',
+        params: [{ 'max-overall-download-limit': '0', 'max-overall-upload-limit': '0' }]
+      })
+    )
+
+    // 定时器已停：再推进 5 分钟也不会有新指令
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+    await flush()
+    expect(mockedRpc).toHaveBeenCalledTimes(2)
+  })
+
+  it('没下发过限速时 stop() 不发多余的 RPC', async () => {
+    mockedSettings.mockReturnValue(settingsWith([]))
+    const scheduler = new SpeedScheduler()
+
+    scheduler.start()
+    scheduler.stop()
+    await flush()
+
+    expect(mockedRpc).not.toHaveBeenCalled()
+  })
+
+  it('关闭调度后立即回滚已生效的限速', async () => {
+    mockedSettings.mockReturnValue(settingsWith([RULE]))
+    const scheduler = new SpeedScheduler()
+
+    scheduler.check()
+    await flush()
+    expect(mockedRpc).toHaveBeenCalledTimes(1)
+
+    mockedSettings.mockReturnValue(settingsWith([RULE], false))
+    scheduler.check()
+    await flush()
+
+    expect(mockedRpc).toHaveBeenCalledTimes(2)
+    expect(mockedRpc).toHaveBeenLastCalledWith(
+      expect.objectContaining({ params: [{ 'max-overall-download-limit': '0' }] })
+    )
+  })
+
+  it('规则窗口结束后只回滚本调度器改过的项', async () => {
+    mockedSettings.mockReturnValue(settingsWith([{ ...RULE, uploadLimit: 524288 }]))
+    const scheduler = new SpeedScheduler()
+
+    scheduler.check()
+    await flush()
+
+    mockedSettings.mockReturnValue(settingsWith([{ ...RULE, startTime: '12:00', endTime: '13:00' }]))
+    scheduler.check()
+    await flush()
+
+    expect(mockedRpc).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        params: [{ 'max-overall-download-limit': '0', 'max-overall-upload-limit': '0' }]
+      })
+    )
+  })
+
+  it('下发失败不记为已生效，下一轮检查会重试', async () => {
+    mockedSettings.mockReturnValue(settingsWith([RULE]))
+    mockedRpc.mockRejectedValueOnce(new Error('engine down'))
+    const scheduler = new SpeedScheduler()
+
+    scheduler.check()
+    await flush()
+    expect(mockedRpc).toHaveBeenCalledTimes(1)
+
+    scheduler.check()
+    await flush()
+    expect(mockedRpc).toHaveBeenCalledTimes(2)
+    expect(mockedRpc).toHaveBeenLastCalledWith(
+      expect.objectContaining({ params: [{ 'max-overall-download-limit': '1048576' }] })
+    )
+  })
+
+  it('同一条规则下发未返回时不会重复下发', async () => {
+    const gate: { release?: () => void } = {}
+    mockedRpc.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          gate.release = () => resolve({})
+        })
+    )
+    mockedSettings.mockReturnValue(settingsWith([RULE]))
+    const scheduler = new SpeedScheduler()
+
+    scheduler.check()
+    scheduler.check()
+    scheduler.check()
+    expect(mockedRpc).toHaveBeenCalledTimes(1)
+
+    gate.release?.()
+    await flush()
+
+    // 生效之后同一规则也不重复下发
+    scheduler.check()
+    expect(mockedRpc).toHaveBeenCalledTimes(1)
+  })
+
+  it('reapply() 强制重发同一条规则，上传限速一并带上', async () => {
+    mockedSettings.mockReturnValue(settingsWith([{ ...RULE, uploadLimit: 524288 }]))
+    const scheduler = new SpeedScheduler()
+
+    scheduler.check()
+    await flush()
+    expect(mockedRpc).toHaveBeenCalledTimes(1)
+
+    scheduler.reapply()
+    await flush()
+
+    expect(mockedRpc).toHaveBeenCalledTimes(2)
+    expect(mockedRpc).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        params: [{ 'max-overall-download-limit': '1048576', 'max-overall-upload-limit': '524288' }]
+      })
+    )
+  })
+
+  it('回滚失败只记录日志，不抛出', async () => {
+    mockedSettings.mockReturnValue(settingsWith([RULE]))
+    const scheduler = new SpeedScheduler()
+
+    scheduler.check()
+    await flush()
+
+    mockedRpc.mockRejectedValueOnce(new Error('engine gone'))
+    expect(() => scheduler.check()).not.toThrow()
+    await flush()
+  })
+})
