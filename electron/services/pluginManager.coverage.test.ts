@@ -170,7 +170,7 @@ vi.mock('fs', async (importOriginal) => {
   }
 })
 
-import { PluginManager } from './pluginManager'
+import { PluginManager, verifyRegistrySignature } from './pluginManager'
 
 type StoreLike = ConstructorParameters<typeof PluginManager>[0]
 
@@ -1104,5 +1104,206 @@ describe('从注册表安装的参数与落盘校验', () => {
 
     expect(result).toEqual({ success: false, error: 'network down' })
     expect(logText('error')).toContain('installFromRegistry failed')
+  })
+
+  it('签名解出来是空字节时按签名无效拒绝', async () => {
+    stubFetch(async () => okResponse())
+    const { store } = makeStore()
+    const manager = new PluginManager(store)
+
+    const result = await manager.installFromRegistry(entry({ signature: '!!!' }) as never)
+
+    expect(result).toEqual({ success: false, error: 'SIGNATURE_INVALID' })
+  })
+
+  it('拉取入口超过 20 秒就中止请求并把错误带回调用方', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn((_url: string, init: { signal?: AbortSignal }) =>
+      new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new Error('This operation was aborted')))
+      })))
+    const { store } = makeStore()
+    const manager = new PluginManager(store)
+
+    const pending = manager.installFromRegistry(entry() as never, [], { developerMode: true })
+    await vi.advanceTimersByTimeAsync(20_000)
+
+    await expect(pending).resolves.toEqual({ success: false, error: 'This operation was aborted' })
+  })
+
+  it('升级已启用的插件后仍然保持启用', async () => {
+    stubFetch(async () => okResponse())
+    const { store, data } = makeStore()
+    const manager = new PluginManager(store)
+    await manager.installFromRegistry(entry() as never, [], { developerMode: true })
+    expect(manager.enable('market-demo')).toBe(true)
+
+    const upgraded = await manager.installFromRegistry(entry({ version: '2.1.0' }) as never, [], {
+      developerMode: true, upgrade: true
+    })
+
+    expect(upgraded.success).toBe(true)
+    expect(manager.getPlugins().find(item => item.manifest.id === 'market-demo')?.enabled).toBe(true)
+    expect((data.get('disabledPlugins') as string[] | undefined) ?? []).not.toContain('market-demo')
+  })
+})
+
+describe('运行时残留分支', () => {
+  it('公钥解析失败与算法不匹配都判签名无效', () => {
+    expect(verifyRegistrySignature({ signature: 'c2ln' }, 'not-a-pem')).toBe(false)
+    const { publicKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+    })
+    expect(verifyRegistrySignature({ signature: 'c2ln' }, publicKey)).toBe(false)
+  })
+
+  it('激活不存在的插件时直接返回', () => {
+    const manager = new PluginManager(makeStore().store)
+    const api = manager as unknown as { activatePlugin: (pluginId: string) => void }
+    expect(() => api.activatePlugin('missing')).not.toThrow()
+  })
+
+  it('旧代次 worker 的 spawn 事件不再下发插件代码', () => {
+    installWorkerProcess()
+    writePlugin({ code: 'module.exports = {}' })
+    const manager = new PluginManager(makeStore().store)
+    manager.loadAll()
+    const worker = holder.workers[0] as FakeWorker
+    managed(manager).generation += 1
+
+    worker.emit('spawn')
+
+    expect(worker.sentOfType('load')).toHaveLength(0)
+  })
+
+  it('加载成功后超时定时器不再判失败', async () => {
+    vi.useFakeTimers()
+    installWorkerProcess()
+    writePlugin({ code: 'module.exports = {}' })
+    const manager = new PluginManager(makeStore().store)
+    manager.loadAll()
+    const worker = holder.workers[0] as FakeWorker
+    worker.emit('spawn')
+    worker.emit('message', { type: 'loaded', ok: true })
+
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    expect(managed(manager).status).toBe('running')
+    expect(worker.sentOfType('terminate')).toHaveLength(0)
+  })
+
+  it('getWaitingTasks 映射到 tellWaiting 且取满 1000 条', async () => {
+    installWorkerProcess()
+    writePlugin({ permissions: ['aria2:read'], code: 'module.exports = {}' })
+    const manager = new PluginManager(makeStore().store)
+    manager.loadAll()
+    const worker = holder.workers[0] as FakeWorker
+    worker.emit('spawn')
+    worker.emit('message', { type: 'loaded', ok: true })
+
+    worker.emit('message', { type: 'api', id: 'req-wait', method: 'aria2.getWaitingTasks', args: [] })
+    await flush()
+
+    expect(holder.rpcCalls[0]?.method).toBe('aria2.tellWaiting')
+    expect(holder.rpcCalls[0]?.params).toEqual([0, 1000])
+  })
+
+  it('worker 通知后端抛错只记录警告', () => {
+    installWorkerProcess()
+    writePlugin({ permissions: ['notify'], code: 'module.exports = {}' })
+    const manager = new PluginManager(makeStore().store)
+    manager.loadAll()
+    const worker = holder.workers[0] as FakeWorker
+    worker.emit('spawn')
+    worker.emit('message', { type: 'loaded', ok: true })
+    holder.notifyThrows = true
+
+    worker.emit('message', { type: 'notify', title: '标题', body: '正文' })
+
+    expect(holder.notifications).toHaveLength(0)
+    expect(logText('warn')).toContain('发送通知失败')
+  })
+
+  it('终止非当前代次的 worker 时直接忽略', () => {
+    installWorkerProcess()
+    writePlugin({ code: 'module.exports = {}' })
+    const manager = new PluginManager(makeStore().store)
+    manager.loadAll()
+    const worker = holder.workers[0] as FakeWorker
+    const plugin = managed(manager)
+    const api = manager as unknown as { terminateWorker: (target: unknown, generation: number) => void }
+
+    api.terminateWorker(plugin, plugin.generation + 5)
+    expect(plugin.worker).toBe(worker)
+
+    api.terminateWorker(plugin, plugin.generation)
+    expect(plugin.worker).toBeUndefined()
+
+    api.terminateWorker(plugin, plugin.generation)
+    expect(worker.sentOfType('terminate')).toHaveLength(1)
+  })
+
+  it('vm 里 getStoppedTasks 也取满 1000 条', async () => {
+    writePlugin({
+      permissions: ['aria2:read'],
+      code: 'module.exports = { onActivate() { aria2.getStoppedTasks() } }'
+    })
+    const manager = new PluginManager(makeStore().store)
+    manager.loadAll()
+
+    await flush()
+
+    expect(holder.rpcCalls[0]?.method).toBe('aria2.tellStopped')
+    expect(holder.rpcCalls[0]?.params).toEqual([0, 1000])
+  })
+
+  it('私有 RPC 包装把参数原样转给模块级调用', async () => {
+    const manager = new PluginManager(makeStore().store)
+    const api = manager as unknown as {
+      callAria2Rpc: (port: number, secret: string, method: string) => Promise<unknown>
+    }
+
+    await expect(api.callAria2Rpc(6800, 'sec', 'aria2.getVersion')).resolves.toBe('rpc-ok')
+    expect(holder.rpcCalls[0]).toEqual({ port: 6800, secret: 'sec', method: 'aria2.getVersion', params: [] })
+  })
+
+  it('vm 停用时 onDeactivate 异步拒绝只记录日志', async () => {
+    writePlugin({
+      code: 'module.exports = { onDeactivate() { return Promise.reject(new Error("async teardown boom")) } }'
+    })
+    const manager = new PluginManager(makeStore().store)
+    manager.loadAll()
+
+    expect(manager.disable('demo')).toBe(true)
+    await flush()
+
+    expect(logText('error')).toContain('onDeactivate error')
+  })
+
+  it('实例缺失或没有对应钩子时事件被跳过', () => {
+    writePlugin({ code: 'module.exports = {}' })
+    const manager = new PluginManager(makeStore().store)
+    manager.loadAll()
+    const plugin = managed(manager)
+
+    plugin.instance = null
+    expect(() => manager.emit('downloadComplete', { gid: 'g1', name: 'a.zip' })).not.toThrow()
+    plugin.instance = {}
+    expect(() => manager.emit('downloadComplete', { gid: 'g1', name: 'a.zip' })).not.toThrow()
+  })
+
+  it('关闭时跳过未启用的插件并清掉遗留定时器', () => {
+    writePlugin({ code: 'setTimeout(function () {}, 60000)\nmodule.exports = {}' })
+    const manager = new PluginManager(makeStore().store)
+    manager.loadAll()
+    const timers = (manager as unknown as { pluginTimers: Map<string, Set<unknown>> }).pluginTimers
+    expect(timers.get('demo')?.size).toBe(1)
+
+    managed(manager).enabled = false
+    expect(() => manager.shutdown()).not.toThrow()
+
+    expect(timers.size).toBe(0)
   })
 })
