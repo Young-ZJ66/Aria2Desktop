@@ -244,3 +244,71 @@ describe('useAria2LocalService', () => {
     setIntervalSpy.mockRestore()
   })
 })
+describe('useAria2LocalService 的兜底分支', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    installBridge({})
+  })
+
+  it('上一次状态拉取未返回时，并发调用直接返回且不再打 IPC', async () => {
+    let release: (value: unknown) => void = () => {}
+    const getStatus = vi.fn(() => new Promise<unknown>((resolve) => { release = resolve }))
+    installBridge({ getStatus })
+    const { useAria2LocalService } = await load()
+    const service = useAria2LocalService()
+    const first = service.getStatus()
+    await expect(service.getStatus()).resolves.toBeUndefined()
+    expect(getStatus).toHaveBeenCalledTimes(1)
+    release(runningStatus())
+    await first
+    expect(service.isRunning.value).toBe(true)
+    // 锁释放后可以再次拉取（换成立即返回的实现，否则会拿到新的挂起 Promise）
+    getStatus.mockImplementation(async () => runningStatus())
+    await service.getStatus()
+    expect(getStatus).toHaveBeenCalledTimes(2)
+  })
+
+  it('没有 electronAPI 时 initLocalService 直接返回，不装轮询', async () => {
+    installBridge(null)
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    const { initLocalService } = await load()
+    initLocalService()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(setIntervalSpy).not.toHaveBeenCalled()
+    setIntervalSpy.mockRestore()
+  })
+
+  it('canRestart 只在既没启动也没停止时可用', async () => {
+    let releaseStop: (value: { success: boolean }) => void = () => {}
+    installBridge({ stop: () => new Promise((resolve) => { releaseStop = resolve }) })
+    const { useAria2LocalService } = await load()
+    const service = useAria2LocalService()
+    expect(service.canRestart.value).toBe(true)
+    const pending = service.stop()
+    expect(service.isStopping.value).toBe(true)
+    expect(service.canRestart.value).toBe(false)
+    releaseStop({ success: true })
+    await pending
+    expect(service.canRestart.value).toBe(true)
+  })
+
+  it('restart 抛错时失败日志用「重启」而不是启动/停止', async () => {
+    installBridge({ restart: async () => { throw new Error('restart boom') } })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { useAria2LocalService } = await load()
+    const service = useAria2LocalService()
+    await expect(service.restart()).resolves.toBe(false)
+    expect(feedback.error).toHaveBeenCalledWith('localService.restartFailed|restart boom')
+    expect(error.mock.calls.flat().join(' ')).toContain('重启 Aria2 失败:')
+    error.mockRestore()
+  })
+
+  it('没有 electronAPI 时 updateConfig 直接给 electronUnavailable，不调 IPC', async () => {
+    installBridge(null)
+    const { useAria2LocalService } = await load()
+    const service = useAria2LocalService()
+    await expect(service.updateConfig({ port: 6801 })).resolves.toBe(false)
+    expect(feedback.error).toHaveBeenCalledWith('localService.electronUnavailable')
+  })
+})

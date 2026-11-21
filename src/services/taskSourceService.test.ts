@@ -168,3 +168,46 @@ describe('损坏缓存的容错', () => {
     expect(getStoreValue).toHaveBeenCalledTimes(1)
   })
 })
+describe('恢复与未命中', () => {
+  it('localStorage 里是合法对象时启动即恢复记录', async () => {
+    storage.set('taskSources', JSON.stringify({
+      'gid-a': { source: { kind: 'uri', uris: ['https://a'] }, createdAt: 11 },
+      'gid-b': { source: { kind: 'torrent', torrent: 'BASE64' }, createdAt: 12 }
+    }))
+    const { taskSourceService } = await loadService()
+    expect(taskSourceService.get('gid-a')?.createdAt).toBe(11)
+    expect(taskSourceService.get('gid-b')?.source.kind).toBe('torrent')
+  })
+
+  it('localStorage 里是数组时按空表启动（数组不是合法记录表）', async () => {
+    storage.set('taskSources', JSON.stringify(['gid-a']))
+    const { taskSourceService } = await loadService()
+    expect(taskSourceService.get('gid-a')).toBeUndefined()
+    // 数组不算损坏数据，键不会被清掉
+    expect(storage.has('taskSources')).toBe(true)
+  })
+
+  it('ensureLoaded 读取失败只告警并保持空表', async () => {
+    api.getStoreValue = vi.fn(async () => { throw new Error('ipc down') })
+    installWindow()
+    const { taskSourceService } = await loadService()
+    await expect(taskSourceService.ensureLoaded()).resolves.toBeUndefined()
+    expect(console.warn).toHaveBeenCalled()
+    expect(taskSourceService.get('gid-1')).toBeUndefined()
+  })
+
+  it('remove 未命中的 gid 不会触发写盘', async () => {
+    vi.useFakeTimers()
+    const setStoreValue = vi.fn(async () => {})
+    api.setStoreValue = setStoreValue
+    installWindow()
+    const { taskSourceService } = await loadService()
+    taskSourceService.record('gid-1', { kind: 'uri', uris: ['https://a'] })
+    await vi.advanceTimersByTimeAsync(300)
+    expect(setStoreValue).toHaveBeenCalledTimes(1)
+    taskSourceService.remove('nope')
+    await vi.advanceTimersByTimeAsync(300)
+    expect(setStoreValue).toHaveBeenCalledTimes(1)
+    expect(taskSourceService.get('gid-1')).toBeDefined()
+  })
+})

@@ -76,3 +76,24 @@ describe('parseCurlCommand', () => {
     expect(parsed!.headers['X']).toBe('2')
   })
 })
+
+describe('parseCurlCommand 的短选项与转义', () => {
+  it('只有 curl 一个词时返回 null', () => {
+    expect(tokenizeCurlCommand('curl')).toEqual(['curl'])
+    expect(parseCurlCommand('curl')).toBeNull()
+  })
+
+  it('引号外的反斜杠转义下一个字符', () => {
+    expect(tokenizeCurlCommand('curl http://x/a\\ b.zip')).toEqual(['curl', 'http://x/a b.zip'])
+    expect(tokenizeCurlCommand('curl http://x/\\')).toEqual(['curl', 'http://x/\\'])
+  })
+
+  it('-e / --referer 与 -A / --user-agent 的短长两种写法', () => {
+    const shortForm = parseCurlCommand('curl http://x/a.zip -e http://ref/1 -A agent-short')
+    expect(shortForm).toMatchObject({ referer: 'http://ref/1', userAgent: 'agent-short' })
+    expect(shortForm!.headers).toEqual({})
+
+    const longForm = parseCurlCommand('curl http://x/a.zip --referer http://ref/2 --user-agent agent-long')
+    expect(longForm).toMatchObject({ referer: 'http://ref/2', userAgent: 'agent-long' })
+  })
+})
