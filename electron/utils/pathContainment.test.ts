@@ -33,4 +33,10 @@ describe('isPathInside', () => {
     expect(isPathInside('', 'D:\\Downloads')).toBe(false)
     expect(isPathInside('D:\\Downloads\\a.zip', '')).toBe(false)
   })
+  describe('isPathInside 的归一化边界', () => {
+    it('只有分隔符的路径归一后为空，直接判否', () => {
+      expect(isPathInside('///', 'D:\\Downloads')).toBe(false)
+      expect(isPathInside('D:\\Downloads\\a.zip', '///')).toBe(false)
+    })
+  })
 })

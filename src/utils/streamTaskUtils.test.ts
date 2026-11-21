@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { streamTaskToAria2Task, type StreamTask } from './streamTaskUtils'
+import { streamTaskFilePaths, streamTaskToAria2Task, type StreamTask } from './streamTaskUtils'
 
 function makeTask(patch: Partial<StreamTask> = {}): StreamTask {
   return {
@@ -61,3 +61,32 @@ describe('streamTaskToAria2Task', () => {
     expect(mapped.files[0]?.uris[0]?.uri).toBe('https://example.com/video')
   })
 })
+describe('streamTaskFilePaths', () => {
+  it('优先多文件列表，并去掉重复项', () => {
+    const paths = streamTaskFilePaths(makeTask({
+      filePaths: ['D:/a.mp4', 'D:/b.srt', 'D:/a.mp4'],
+      filePath: 'D:/legacy.mp4'
+    }))
+    expect(paths).toEqual(['D:/a.mp4', 'D:/b.srt', 'D:/legacy.mp4'])
+  })
+
+  it('只有历史单文件字段时回退到它', () => {
+    expect(streamTaskFilePaths(makeTask({ filePath: 'D:/only.mp4' }))).toEqual(['D:/only.mp4'])
+  })
+
+  it('两个字段都没有时返回空数组（调用方据此跳过删除）', () => {
+    expect(streamTaskFilePaths(makeTask())).toEqual([])
+  })
+
+  it('历史单文件与多文件首项相同时只保留一条', () => {
+    expect(streamTaskFilePaths(makeTask({ filePaths: ['D:/same.mp4'], filePath: 'D:/same.mp4' }))).toEqual(['D:/same.mp4'])
+  })
+
+  it('非字符串或空串的条目被跳过', () => {
+    const paths = streamTaskFilePaths(makeTask({
+      filePaths: ['', 'D:/ok.mp4', null as unknown as string]
+    }))
+    expect(paths).toEqual(['D:/ok.mp4'])
+  })
+})
+

@@ -145,4 +145,49 @@ describe('taskTimeService', () => {
     expect(reloaded.getTaskTime('old')).toBeUndefined()
     expect(reloaded.getTaskTime('fresh')).toBeDefined()
   })
+  describe('taskTimeService 的读写收尾', () => {
+    it('getAddTime 取到添加时间，未知 gid 返回 undefined', async () => {
+      const { taskTimeService } = await loadService()
+      taskTimeService.recordTaskAdd('add-1', 'a.zip')
+      expect(taskTimeService.getAddTime('add-1')).toBe(Date.parse('2026-05-20T10:00:00'))
+      expect(taskTimeService.getAddTime('missing')).toBeUndefined()
+    })
+
+    it('removeTaskTime 删掉记录并在合批窗口后落盘', async () => {
+      const { taskTimeService } = await loadService()
+      taskTimeService.recordTaskAdd('r1')
+      taskTimeService.flush()
+      expect(taskTimeService.getTaskTime('r1')).toBeDefined()
+      taskTimeService.removeTaskTime('r1')
+      expect(taskTimeService.getTaskTime('r1')).toBeUndefined()
+      vi.advanceTimersByTime(300)
+      expect(JSON.parse(store[storageKey()!] ?? '{}')).toEqual({})
+    })
+
+    it('localStorage 写入抛错时只记日志，不冒泡给调用方', async () => {
+      const { taskTimeService } = await loadService()
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const setItem = vi.fn(() => { throw new Error('quota exceeded') })
+      vi.stubGlobal('localStorage', { ...(globalThis as unknown as { localStorage: object }).localStorage, setItem })
+      taskTimeService.recordTaskAdd('quota')
+      expect(() => taskTimeService.flush()).not.toThrow()
+      expect(errorSpy).toHaveBeenCalledWith('Failed to save task times to storage:', expect.any(Error))
+      errorSpy.mockRestore()
+    })
+
+    it('模块级定时器到点会清理过期记录，stopTimeCleanupTimer 之后不再清理', async () => {
+      const mod = await loadService()
+      mod.taskTimeService.recordTaskAdd('keep')
+      mod.taskTimeService.flush()
+      const key = storageKey()!
+      const raw = JSON.parse(store[key] ?? '{}') as Record<string, { gid: string; addTime: number }>
+      raw['stale'] = { gid: 'stale', addTime: Date.now() - 31 * 24 * 60 * 60 * 1000 }
+      store[key] = JSON.stringify(raw)
+      const reloaded = await loadService()
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000)
+      expect(reloaded.taskTimeService.getTaskTime('stale')).toBeUndefined()
+      reloaded.stopTimeCleanupTimer()
+      expect(() => vi.advanceTimersByTime(24 * 60 * 60 * 1000)).not.toThrow()
+    })
+  })
 })

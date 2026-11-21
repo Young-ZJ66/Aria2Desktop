@@ -97,6 +97,30 @@ describe('语言映射', () => {
     expect(String(locale.name)).toMatch(/ar/i)
   })
 
+  describe('重复初始化与主题覆盖', () => {
+    it('已初始化过监听器时再调用只同步当前系统值，不重复注册', () => {
+      const manager = useThemeManager()
+      mql.matches = true
+      manager.initSystemThemeListener()
+      expect(manager.isDark.value).toBe(true)
+      let added = 0
+      const original = mql.addEventListener
+      mql.addEventListener = (type, handler) => { added += 1; original(type, handler) }
+      mql.matches = false
+      manager.initSystemThemeListener()
+      expect(manager.isDark.value).toBe(false)
+      expect(added).toBe(0)
+      manager.disposeSystemThemeListener()
+    })
+
+    it('themeOverrides 跟随深浅色重新计算', () => {
+      settings.settings.theme = 'dark'
+      expect(useThemeManager().themeOverrides.value).toEqual({ dark: true })
+      settings.settings.theme = 'light'
+      expect(useThemeManager().themeOverrides.value).toEqual({ dark: false })
+    })
+  })
+
   it('印地语没有官方语言包，回落英文', () => {
     localeRef.value = 'hi-IN'
     const hindi = useThemeManager().naiveLocale.value
