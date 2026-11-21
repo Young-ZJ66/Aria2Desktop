@@ -19,7 +19,7 @@ const h = vi.hoisted(() => {
     } as Record<string, unknown>,
     activeTasks: [] as Array<Record<string, string>>,
     waitingTasks: [] as Array<Record<string, string>>,
-    completedTasks: [] as Array<Record<string, string>>,
+    completedTasks: [] as Array<Record<string, unknown>>,
     allTasks: [] as Array<Record<string, unknown>>,
     isConnected: false,
     showConnectionDialog: false,
@@ -883,5 +883,183 @@ describe('卸载与退出刷盘', () => {
     await h.window.__flushPendingTaskData?.()
     expect(h.spies.flushTasks).toHaveBeenCalledTimes(1)
     expect(h.spies.flushTimes).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('通道缺失时的降级', () => {
+  it('主进程没有任务栏进度通道时直接跳过', async () => {
+    delete (api() as unknown as Record<string, unknown>).setTaskbarProgress
+    await mountApp()
+    h.state.activeTasks = [{ gid: 'a', totalLength: '100', completedLength: '10' }]
+    expect(() => runWatcher(0, h.state.activeTasks)).not.toThrow()
+  })
+
+  it('没有自动解压通道时不尝试解压', async () => {
+    h.state.settings.download = { autoExtract: true, autoDeleteArchive: true }
+    h.state.allTasks = [{ gid: 'g1', files: [{ path: 'D:/dl/a.zip' }], totalLength: '10' }]
+    delete (api() as unknown as Record<string, unknown>).extractArchive
+    await mountApp()
+    runConnectionWatcher(true, false)
+    h.cbs.downloadComplete('g1')
+    await vi.runAllTicks()
+    expect(api().deleteFiles).not.toHaveBeenCalled()
+  })
+
+  it('任务没有文件路径时不解压', async () => {
+    h.state.settings.download = { autoExtract: true }
+    h.state.allTasks = [{ gid: 'g1', files: [], totalLength: '10' }]
+    await mountApp()
+    runConnectionWatcher(true, false)
+    h.cbs.downloadComplete('g1')
+    await vi.runAllTicks()
+    expect(api().extractArchive).not.toHaveBeenCalled()
+  })
+
+  it('解压接口抛错只告警，不影响完成流程', async () => {
+    h.state.settings.download = { autoExtract: true }
+    h.state.allTasks = [{ gid: 'g1', files: [{ path: 'D:/dl/a.zip' }], totalLength: '10' }]
+    api().extractArchive.mockRejectedValueOnce(new Error('EACCES'))
+    await mountApp()
+    runConnectionWatcher(true, false)
+    h.cbs.downloadComplete('g1')
+    await vi.runAllTicks()
+    expect(console.warn).toHaveBeenCalledWith('Auto extract failed:', expect.any(Error))
+    expect(h.spies.messageError).not.toHaveBeenCalled()
+  })
+
+  it('没有启动更新检查通道时静默跳过', async () => {
+    delete (api() as unknown as Record<string, unknown>).checkUpdatesOnStartup
+    await mountApp()
+    await vi.runAllTicks()
+    expect(h.spies.openUpdateDialog).not.toHaveBeenCalled()
+  })
+})
+
+describe('下载完成判定的边界', () => {
+  async function armCompletion(action: string): Promise<void> {
+    h.state.settings.downloadCompleteAction = action
+    await mountApp()
+    runConnectionWatcher(true, false)
+    h.state.activeTasks = [{ gid: 'a1' }]
+    runCompletionWatcher()
+  }
+
+  async function fireCompletion(): Promise<void> {
+    h.cbs.downloadComplete('a1')
+    h.state.activeTasks = []
+    h.state.completedTasks = [{ gid: 'a1', dir: 'D:/dl', files: [{ path: 'D:/dl/a.mp4' }] }]
+    h.state.completionDecision = 'fire'
+    runCompletionWatcher()
+  }
+
+  it('断线会丢弃上一批状态，重连后不误触发', async () => {
+    await armCompletion('close')
+    runConnectionWatcher(false, true)
+    h.state.activeTasks = []
+    h.state.completedTasks = [{ gid: 'a1' }]
+    h.state.completionDecision = 'fire'
+    runConnectionWatcher(true, false)
+    runCompletionWatcher()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api().close).not.toHaveBeenCalled()
+  })
+
+  it('本批次没有任何任务时不触发动作', async () => {
+    h.state.settings.downloadCompleteAction = 'close'
+    await mountApp()
+    runConnectionWatcher(true, false)
+    h.state.completedTasks = [{ gid: 'z' }]
+    h.state.completionDecision = 'fire'
+    runCompletionWatcher()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api().close).not.toHaveBeenCalled()
+  })
+
+  it('3 秒宽限期内断线则不执行动作', async () => {
+    await armCompletion('close')
+    await fireCompletion()
+    runConnectionWatcher(false, true)
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api().close).not.toHaveBeenCalled()
+  })
+
+  it('3 秒宽限期内完成任务被删光则不执行动作', async () => {
+    await armCompletion('close')
+    await fireCompletion()
+    h.state.completedTasks = []
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api().close).not.toHaveBeenCalled()
+  })
+
+  it('打开文件时用最近完成任务的路径与目录', async () => {
+    await armCompletion('open-file')
+    await fireCompletion()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api().openFile).toHaveBeenCalledWith('D:/dl/a.mp4', 'D:/dl')
+  })
+
+  it('打开文件夹时用资源管理器定位', async () => {
+    await armCompletion('open-folder')
+    await fireCompletion()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api().openInExplorer).toHaveBeenCalledWith('D:/dl/a.mp4', 'D:/dl')
+  })
+
+  it('只有目录没有文件路径时退回打开目录', async () => {
+    h.state.settings.downloadCompleteAction = 'open-folder'
+    await mountApp()
+    runConnectionWatcher(true, false)
+    h.state.activeTasks = [{ gid: 'a1' }]
+    runCompletionWatcher()
+    h.cbs.downloadComplete('a1')
+    h.state.activeTasks = []
+    h.state.completedTasks = [{ gid: 'a1', dir: 'D:/dl', files: [] }]
+    h.state.completionDecision = 'fire'
+    runCompletionWatcher()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api().openPath).toHaveBeenCalledWith('D:/dl')
+  })
+
+  it('打开失败时把原因告诉用户', async () => {
+    api().openInExplorer.mockResolvedValueOnce({ success: false, error: 'no such dir' })
+    await armCompletion('open-folder')
+    await fireCompletion()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(h.spies.messageError).toHaveBeenCalledWith('generalSettings.openAfterCompleteFailed|{"error":"no such dir"}')
+  })
+
+  it('休眠失败时把原因告诉用户', async () => {
+    api().systemHibernate.mockResolvedValueOnce({ success: false, error: 'not supported' })
+    await armCompletion('hibernate')
+    await fireCompletion()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(h.spies.messageError).toHaveBeenCalledWith('generalSettings.hibernateFailed|{"error":"not supported"}')
+  })
+
+  it('关机成功后新任务到来会撤销关机', async () => {
+    h.spies.shouldCancelShutdown.mockReturnValue(false)
+    await armCompletion('shutdown')
+    await fireCompletion()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api().systemShutdown).toHaveBeenCalledTimes(1)
+    h.spies.shouldCancelShutdown.mockReturnValue(true)
+    h.state.activeTasks = [{ gid: 'a2' }]
+    runCompletionWatcher()
+    expect(api().systemCancelShutdown).toHaveBeenCalledTimes(1)
+    await vi.runAllTicks()
+    expect(h.spies.messageInfo).toHaveBeenCalledWith('notification.shutdownCancelled')
+  })
+})
+
+describe('重连后的首次连接标记', () => {
+  it('断线会重置标记，重连时再次关闭残留对话框', async () => {
+    await mountApp()
+    h.state.showConnectionDialog = true
+    runConnectionWatcher(true, false)
+    expect(h.state.showConnectionDialog).toBe(false)
+    runWatcher(4, false, true)
+    h.state.showConnectionDialog = true
+    runConnectionWatcher(true, true)
+    expect(h.state.showConnectionDialog).toBe(false)
   })
 })
