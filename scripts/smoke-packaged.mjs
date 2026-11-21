@@ -123,6 +123,50 @@ const BUILD_HINT =
       ? 'npx electron-builder --linux --x64 --publish never'
       : 'npm run dist:win64:nsis（或 npx electron-builder --win --x64 --dir）'
 
+/**
+ * 从主进程日志里认出"启动到底坏在哪一步"。
+ *
+ * 为什么需要：冒烟只报"某条判据超时"时，日志里往往同时存在两种相反的证据——
+ * 引擎先崩一次、3 秒后自动重启成功（于是"进程启动成功"这条判据 PASS），
+ * 而应用初始化其实已经判失败、扩展接口再也不会启动。beta.7 的 Linux x64 就是这样：
+ * 结论只写着"扩展本地接口超时"，真正的原因 `Specify at least one URL.` 埋在日志中段。
+ * 这里把已知的致命行翻成人话，让 CI 的失败输出本身就能指向根因。
+ *
+ * @param {string} logText 主进程日志全文
+ * @returns {{ pattern: string, line: string, hint: string } | null}
+ */
+export function diagnoseStartupFailure(logText) {
+  const text = String(logText || '')
+  if (!text) return null
+  const rules = [
+    {
+      pattern: /Specify at least one URL/,
+      hint: 'aria2 读到的配置里没有任何可执行内容（conf 为空/未落盘），检查启动前配置是否已写入磁盘'
+    },
+    {
+      pattern: /Aria2 initialization failed|初始化 Aria2 管理器失败/,
+      hint: '引擎初始化失败，应用停在启动失败流程：扩展本地接口与 Web 控制台都不会启动'
+    },
+    {
+      pattern: /应用初始化失败/,
+      hint: '主进程初始化抛错并退出，看这一行上方的堆栈定位具体步骤'
+    },
+    {
+      pattern: /端口 \d+ 已被占用/,
+      hint: 'RPC 端口被别的进程占着，冒烟环境里通常是上一次尝试的引擎没退干净'
+    },
+    {
+      pattern: /Aria2 进程异常退出/,
+      hint: '引擎起来后立刻退出，通常是配置有问题（看同一时间点的 aria2 stderr）'
+    }
+  ]
+  for (const rule of rules) {
+    const line = text.split('\n').find((entry) => rule.pattern.test(entry))
+    if (line) return { pattern: String(rule.pattern), line: line.trim(), hint: rule.hint }
+  }
+  return null
+}
+
 /** 启动成功的判据：引擎起来了，扩展本地接口也起来了（两条都在主进程日志里） */
 const EXPECTED_MARKERS = [
   { name: '打包后的应用拉起了内置 aria2', pattern: /Aria2 进程启动成功/ },
@@ -418,7 +462,13 @@ async function runAttempt(options, attempt, attemptCount) {
           : hasLog
             ? `超时 ${options.timeoutMs}ms 未出现`
             : `超时 ${options.timeoutMs}ms，应用没有写出日志（可能启动即退出）`
-        results.push({ name: marker.name, ok: false, detail })
+        // 超时只说"没等到"没有用，顺手从日志里认一下最可能的根因，
+        // 让这一行 FAIL 本身就能指向问题，而不是要人去翻几十行日志。
+        const diagnosis = diagnoseStartupFailure(readLog(logFile))
+        const detailWithHint = diagnosis
+          ? `${detail}；根因线索：${diagnosis.line}（${diagnosis.hint}）`
+          : detail
+        results.push({ name: marker.name, ok: false, detail: detailWithHint })
         break
       }
     }
@@ -448,6 +498,12 @@ async function runAttempt(options, attempt, attemptCount) {
 /** 失败现场：打印日志尾部与子进程输出，并落一份到 test-results/ 供 CI 作为 artifact 上传 */
 function reportFailure(options, outcome, attempt, attemptCount) {
   const fullLog = readLog(outcome.logFile)
+  const diagnosis = diagnoseStartupFailure(fullLog)
+  if (diagnosis) {
+    console.error('\n--- 根因线索（按已知致命行推断，不是完整结论）---')
+    console.error(`日志行：${diagnosis.line}`)
+    console.error(`推断：${diagnosis.hint}`)
+  }
   const tail = fullLog.split('\n').slice(-120).join('\n')
   console.error(`\n--- 主进程日志尾部（第 ${attempt}/${attemptCount} 次尝试，最多 120 行）---`)
   console.error(tail || '(日志文件为空)')
@@ -470,6 +526,7 @@ function reportFailure(options, outcome, attempt, attemptCount) {
       attemptCount,
       exitCode: outcome.exitCode,
       results: outcome.results,
+      diagnosis,
       stdout: outcome.stdout,
       stderr: outcome.stderr
     }, null, 2))
