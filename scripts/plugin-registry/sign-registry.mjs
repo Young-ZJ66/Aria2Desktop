@@ -105,18 +105,21 @@ export function readPem(filePath) {
   return fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '')
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const [command, file, ...rest] = argv
   const options = {}
-  for (let i = 0; i < rest.length; i += 2) {
+  for (let i = 0; i < rest.length; ) {
     const key = rest[i]
-    if (!key?.startsWith('--')) continue
+    // 裸参数（不是 --xxx）不能占掉后面那个位置，否则 `--pubkey` 会被错配成它的值，
+    // 最终变成 readPem(undefined) 抛一个和用法无关的 TypeError。
+    if (!key?.startsWith('--')) { i += 1; continue }
     options[key.slice(2)] = rest[i + 1]
+    i += 2
   }
   return { command, file, options }
 }
 
-function main(argv) {
+export function main(argv) {
   const { command, file, options } = parseArgs(argv)
   if (!command || !file || (command !== 'sign' && command !== 'verify')) {
     console.error('用法: sign-registry.mjs <sign|verify> <registry.json> [--key pem] [--pubkey pem] [--out file]')
