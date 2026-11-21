@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 /**
@@ -143,5 +143,105 @@ describe('缓存清理', () => {
 
     await store.getGlobalOptions(true)
     expect(service.getGlobalOption).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('加载失败时不清掉已有数据', () => {
+  it('getVersion 抛错只记日志，版本保持原值', async () => {
+    const store = useStatsStore()
+    store.version = { version: '1.36.0', enabledFeatures: [] } as never
+    service.getVersion.mockRejectedValueOnce(new Error('rpc down'))
+    await expect(store.loadVersion()).resolves.toBeUndefined()
+    expect(store.version).toEqual({ version: '1.36.0', enabledFeatures: [] })
+  })
+
+  it('getGlobalStat 抛错时统计保持上一次的数值', async () => {
+    const store = useStatsStore()
+    await store.loadGlobalStat()
+    const before = { ...store.globalStat }
+    service.getGlobalStat.mockRejectedValueOnce(new Error('rpc down'))
+    await expect(store.loadGlobalStat()).resolves.toBeUndefined()
+    expect(store.globalStat).toEqual(before)
+  })
+
+  it('getGlobalOption 抛错时全局选项保持原值', async () => {
+    const store = useStatsStore()
+    store.globalOptions = { dir: '/keep' }
+    service.getGlobalOption.mockRejectedValueOnce(new Error('rpc down'))
+    await expect(store.loadGlobalOptions()).resolves.toBeUndefined()
+    expect(store.globalOptions).toEqual({ dir: '/keep' })
+  })
+
+  it('getGlobalOptions 失败会把错误抛给调用方（界面要提示）', async () => {
+    const store = useStatsStore()
+    store.globalOptions = {}
+    service.getGlobalOption.mockRejectedValueOnce(new Error('rpc down'))
+    await expect(store.getGlobalOptions()).rejects.toThrow('rpc down')
+  })
+
+  it('changeGlobalOptions 成功后重新读一次全局选项', async () => {
+    const store = useStatsStore()
+    service.getGlobalOption.mockResolvedValue({ 'max-overall-download-limit': '2048' })
+    await expect(store.changeGlobalOptions({ 'max-overall-download-limit': '2048' })).resolves.toBe('OK')
+    expect(service.changeGlobalOption).toHaveBeenCalledWith({ 'max-overall-download-limit': '2048' })
+    expect(store.globalOptions).toEqual({ 'max-overall-download-limit': '2048' })
+  })
+
+  it('changeGlobalOptions 失败把错误抛给调用方', async () => {
+    const store = useStatsStore()
+    service.changeGlobalOption.mockRejectedValueOnce(new Error('denied'))
+    await expect(store.changeGlobalOptions({ 'max-overall-download-limit': '1' })).rejects.toThrow('denied')
+  })
+})
+
+describe('未连接时的行为', () => {
+  afterEach(() => {
+    vi.doUnmock('./connectionStore')
+  })
+
+  it('没有 service 时加载类方法静默返回，取/改类方法抛 Not connected', async () => {
+    vi.resetModules()
+    vi.doMock('./connectionStore', () => ({ useConnectionStore: () => ({ service: null }) }))
+    const mod = await import('./statsStore')
+    setActivePinia(createPinia())
+    const store = mod.useStatsStore()
+
+    await expect(store.loadVersion()).resolves.toBeUndefined()
+    await expect(store.loadGlobalStat()).resolves.toBeUndefined()
+    await expect(store.loadGlobalOptions()).resolves.toBeUndefined()
+    await expect(store.getGlobalOptions()).rejects.toThrow('Not connected')
+    await expect(store.changeGlobalOptions({})).rejects.toThrow('Not connected')
+    await expect(store.toggleSpeedLimit()).resolves.toBe(false)
+  })
+})
+
+describe('限速显示', () => {
+  it('没有限速时显示空串，限速时给出友好单位', () => {
+    const store = useStatsStore()
+    store.globalOptions = { 'max-overall-download-limit': '0' }
+    expect(store.isSpeedLimited).toBe(false)
+    expect(store.speedLimitDisplay).toBe('')
+
+    store.globalOptions = { 'max-overall-download-limit': '1048576' }
+    expect(store.isSpeedLimited).toBe(true)
+    expect(store.speedLimitDisplay).toBe('1024 KB/s')
+  })
+
+  it('限速值不是数字时按 0 处理（不显示 NaN）', () => {
+    const store = useStatsStore()
+    store.globalOptions = { 'max-overall-download-limit': 'unlimited' }
+    expect(store.isSpeedLimited).toBe(true)
+    expect(store.speedLimitDisplay).toBe('0 KB/s')
+  })
+
+  it('clearGlobalOptions 只清选项，不动版本与统计', async () => {
+    const store = useStatsStore()
+    await store.loadGlobalStat()
+    store.version = { version: '1.37.0', enabledFeatures: [] } as never
+    store.globalOptions = { dir: '/x' }
+    store.clearGlobalOptions()
+    expect(store.globalOptions).toEqual({})
+    expect(store.version).not.toBeNull()
+    expect(store.globalStat.downloadSpeed).toBe(1024)
   })
 })

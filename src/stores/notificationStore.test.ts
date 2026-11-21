@@ -246,3 +246,158 @@ describe('通知标题回退（D-25）', () => {
     expect(gidPrefix('')).toBe('')
   })
 })
+
+describe('通知中心：去重、已读与持久化', () => {
+  beforeEach(() => {
+    stubStorage()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('同一任务同一类型在 60 秒内只记一条（断线重连重放不刷屏）', async () => {
+    const store = await freshStore()
+    store.push({ type: 'error', gid: 'g1', name: 'a.zip', errorCode: '9' })
+    store.push({ type: 'error', gid: 'g1', name: 'a.zip', errorCode: '9' })
+    expect(store.items).toHaveLength(1)
+  })
+
+  it('换了失败码算另一次失败，要单独记', async () => {
+    const store = await freshStore()
+    store.push({ type: 'error', gid: 'g1', name: 'a.zip', errorCode: '9' })
+    store.push({ type: 'error', gid: 'g1', name: 'a.zip', errorCode: '18' })
+    expect(store.items).toHaveLength(2)
+  })
+
+  it('超过去重窗口后同一次失败会重新记录', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-21T10:00:00'))
+    const store = await freshStore()
+    store.push({ type: 'error', gid: 'g1', name: 'a.zip', errorCode: '9' })
+    vi.setSystemTime(new Date('2026-11-21T10:01:30'))
+    store.push({ type: 'error', gid: 'g1', name: 'a.zip', errorCode: '9' })
+    expect(store.items).toHaveLength(2)
+  })
+
+  it('多个任务交错插入时各自的去重互不影响（不能只看最新一条）', async () => {
+    const store = await freshStore()
+    store.push({ type: 'error', gid: 'g1', name: 'a.zip' })
+    store.push({ type: 'error', gid: 'g2', name: 'b.zip' })
+    store.push({ type: 'error', gid: 'g1', name: 'a.zip' })
+    expect(store.items).toHaveLength(2)
+  })
+
+  it('gid 为空时不记录（避免无主通知）', async () => {
+    const store = await freshStore()
+    store.push({ type: 'complete', gid: '', name: 'a.zip' })
+    expect(store.items).toHaveLength(0)
+  })
+
+  it('只保留最近 100 条', async () => {
+    const store = await freshStore()
+    for (let index = 0; index < 105; index += 1) {
+      store.push({ type: 'complete', gid: 'g' + index, name: 'f' + index + '.zip' })
+    }
+    expect(store.items).toHaveLength(100)
+    expect(store.items[0]?.gid).toBe('g104')
+  })
+
+  it('markRead 只标记指定条目并落盘', async () => {
+    const data = stubStorage()
+    const store = await freshStore()
+    store.push({ type: 'complete', gid: 'g1', name: 'a.zip' })
+    store.push({ type: 'complete', gid: 'g2', name: 'b.zip' })
+    expect(store.unreadCount).toBe(2)
+
+    store.markRead(store.items[0]!.id)
+    expect(store.unreadCount).toBe(1)
+    expect(store.items[0]?.read).toBe(true)
+    expect(store.items[1]?.read).toBe(false)
+    expect(data['aria2-desktop-notifications']).toContain('"read":true')
+  })
+
+  it('markRead 对不存在的 id 与已读条目都是无操作', async () => {
+    const store = await freshStore()
+    store.push({ type: 'complete', gid: 'g1', name: 'a.zip' })
+    const id = store.items[0]!.id
+    store.markRead(id)
+    expect(() => store.markRead(id)).not.toThrow()
+    expect(() => store.markRead('missing')).not.toThrow()
+    expect(store.unreadCount).toBe(0)
+  })
+
+  it('markAllRead 全部标为已读；本来都读过时不重复落盘', async () => {
+    const store = await freshStore()
+    store.push({ type: 'complete', gid: 'g1', name: 'a.zip' })
+    store.push({ type: 'complete', gid: 'g2', name: 'b.zip' })
+    store.markAllRead()
+    expect(store.unreadCount).toBe(0)
+
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem, removeItem: () => {} })
+    store.markAllRead()
+    expect(setItem).not.toHaveBeenCalled()
+  })
+
+  it('remove 删除指定条目；id 不存在时返回 false', async () => {
+    const store = await freshStore()
+    store.push({ type: 'complete', gid: 'g1', name: 'a.zip' })
+    const id = store.items[0]!.id
+    expect(store.remove(id)).toBe(true)
+    expect(store.items).toHaveLength(0)
+    expect(store.remove(id)).toBe(false)
+  })
+
+  it('clear 清空列表并落盘', async () => {
+    const data = stubStorage()
+    const store = await freshStore()
+    store.push({ type: 'complete', gid: 'g1', name: 'a.zip' })
+    store.clear()
+    expect(store.items).toEqual([])
+    expect(data['aria2-desktop-notifications']).toBe('[]')
+  })
+
+  it('localStorage 写入失败不影响内存里的通知', async () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: () => { throw new Error('QuotaExceededError') },
+      removeItem: () => {}
+    })
+    const store = await freshStore()
+    expect(() => store.push({ type: 'complete', gid: 'g1', name: 'a.zip' })).not.toThrow()
+    expect(store.items).toHaveLength(1)
+  })
+
+  it('损坏的存档按空列表处理', async () => {
+    stubStorage({ 'aria2-desktop-notifications': '{not json' })
+    const store = await freshStore()
+    expect(store.items).toEqual([])
+  })
+
+  it('存档不是数组时按空列表处理', async () => {
+    stubStorage({ 'aria2-desktop-notifications': '{"items":[]}' })
+    const store = await freshStore()
+    expect(store.items).toEqual([])
+  })
+
+  it('加载时丢弃缺字段或类型非法的老记录，并把非字符串 detail 归为 undefined', async () => {
+    stubStorage({
+      'aria2-desktop-notifications': JSON.stringify([
+        { id: 'ok', type: 'complete', gid: 'g1', name: 'a.zip', createdAt: 1, read: true, detail: 'x', errorCode: '9' },
+        { id: 'no-gid', type: 'complete', name: 'b.zip', createdAt: 2 },
+        { id: 'bad-type', type: 'other', gid: 'g2', name: 'c.zip', createdAt: 3 },
+        { id: 'bad-detail', type: 'error', gid: 'g3', name: 'd.zip', createdAt: 4, detail: 42, errorCode: 7 },
+        null
+      ])
+    })
+    const store = await freshStore()
+    expect(store.items.map(item => item.id)).toEqual(['ok', 'bad-detail'])
+    expect(store.items[0]?.detail).toBe('x')
+    expect(store.items[1]?.detail).toBeUndefined()
+    expect(store.items[1]?.errorCode).toBeUndefined()
+    expect(store.items[0]?.read).toBe(true)
+    expect(store.items[1]?.read).toBe(false)
+  })
+})

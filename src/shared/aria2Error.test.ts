@@ -48,3 +48,43 @@ describe('把 aria2 退出码翻译成分类', () => {
     }
   })
 })
+
+describe('退出码分类的边界', () => {
+  it('磁盘满 / 文件已存在 / 文件系统类错误各有分类', () => {
+    expect(classifyAria2Error(4)).toBe('resourceExhausted')
+    expect(classifyAria2Error(13)).toBe('fileExists')
+    expect(classifyAria2Error(16)).toBe('cannotCreateFile')
+    expect(classifyAria2Error(17)).toBe('filesystem')
+    expect(classifyAria2Error(23)).toBe('tooManyRedirects')
+    expect(classifyAria2Error(29)).toBe('serverBusy')
+  })
+
+  it('小数、科学计数与带符号的码都不被当成有效退出码', () => {
+    expect(classifyAria2Error('18.0')).toBe('unknown')
+    expect(classifyAria2Error('1e2')).toBe('unknown')
+    expect(classifyAria2Error('+18')).toBe('unknown')
+    expect(classifyAria2Error(Number.NaN)).toBe('unknown')
+    expect(classifyAria2Error(Infinity)).toBe('unknown')
+  })
+
+  it('文案键与分类一一对应，没有遗漏也没有多余', () => {
+    const keys = Object.keys(ARIA2_ERROR_MESSAGE_KEYS).sort()
+    expect(keys).toEqual([
+      'authFailed',
+      'cannotCreateDir',
+      'cannotCreateFile',
+      'checksum',
+      'diskFull',
+      'dns',
+      'fileExists',
+      'filesystem',
+      'network',
+      'notFound',
+      'other',
+      'resourceExhausted',
+      'serverBusy',
+      'timeout',
+      'tooManyRedirects'
+    ])
+  })
+})
