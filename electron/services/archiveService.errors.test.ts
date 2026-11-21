@@ -119,8 +119,10 @@ describe('extractArchiveTo 的失败路径', () => {
     holder.plan.push({ kind: 'exit', code: 0, stdout: '' })
     holder.plan.push({ kind: 'hang' })
     const pending = extractArchiveTo(archivePath, workDir)
-    // 分多次推进：第一次推进里先跑完"列举条目"的 setImmediate，超时计时器才装上
-    for (let round = 0; round < 5; round += 1) await vi.advanceTimersByTimeAsync(2 * 60 * 1000)
+    // 分多次推进：前几轮先跑完"列举条目"的 setImmediate，超时计时器才装上，
+    // 再往后才轮到 5 分钟的超时。轮数留足余量（多推进几轮对已结束的用例无副作用），
+    // 否则机器一忙，setImmediate 慢一拍就会让计时器还没装上就把预算推完。
+    for (let round = 0; round < 10; round += 1) await vi.advanceTimersByTimeAsync(2 * 60 * 1000)
     const result = await pending
     expect(result.success).toBe(false)
     expect(result.reason).toBe('extract_timeout')
