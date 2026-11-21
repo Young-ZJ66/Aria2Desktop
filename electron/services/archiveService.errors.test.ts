@@ -22,8 +22,22 @@ const holder = vi.hoisted(() => ({
     stderr?: string
     /** 退出前在 cwd 里创建的文件（模拟解出一半） */
     createFiles?: string[]
-  } | { kind: 'error', code?: string, message?: string } | { kind: 'hang' }>
+  } | { kind: 'error', code?: string, message?: string } | { kind: 'hang' }>,
+  // 为 true 时 rmSync 对任何路径都抛错，用来覆盖「清理半成品也失败」的分支
+  cleanupThrows: false
 }))
+
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>()
+  return {
+    ...actual,
+    default: actual,
+    rmSync: (...args: Parameters<typeof actual.rmSync>) => {
+      if (holder.cleanupThrows) throw new Error('EBUSY: resource busy or locked')
+      return actual.rmSync(...args)
+    }
+  }
+})
 
 vi.mock('electron', () => ({ app: { isPackaged: false, getPath: () => '' } }))
 vi.mock('electron-log/main', () => ({
@@ -80,12 +94,14 @@ function makeArchive(name = 'bundle.tar.gz'): string {
 beforeEach(() => {
   holder.calls.length = 0
   holder.plan.length = 0
+  holder.cleanupThrows = false
   workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-errors-'))
   archivePath = makeArchive()
 })
 
 afterEach(() => {
   vi.useRealTimers()
+  holder.cleanupThrows = false
   fs.rmSync(workDir, { recursive: true, force: true })
 })
 
@@ -176,6 +192,43 @@ describe('extractArchiveTo 的失败路径', () => {
   it('相对路径与非绝对目标目录都被拒绝', async () => {
     expect(await extractArchiveTo('relative.tar.gz', workDir)).toEqual({ success: false, extracted: false, reason: 'invalid_path' })
     expect(await extractArchiveTo(archivePath, 'relative-dir')).toEqual({ success: false, extracted: false, reason: 'invalid_target' })
+  })
+
+  it('清理半成品本身失败时只记日志，仍然如实回报解压失败', async () => {
+    holder.plan.push({ kind: 'exit', code: 0, stdout: 'bundle/' })
+    holder.plan.push({ kind: 'exit', code: 2, stderr: 'tar: broken', createFiles: ['bundle'] })
+    holder.cleanupThrows = true
+
+    const result = await extractArchiveTo(archivePath, workDir)
+
+    expect(result.success).toBe(false)
+    expect(result.reason).toBe('tar: broken')
+  })
+
+  it('列举条目卡死时超时放弃统计，解压照常进行', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    holder.plan.push({ kind: 'hang' })
+    holder.plan.push({ kind: 'exit', code: 0 })
+    const pending = extractArchiveTo(archivePath, workDir)
+    for (let round = 0; round < 2000 && holder.calls.length < 1; round += 1) {
+      await new Promise((resolve) => setImmediate(resolve))
+    }
+    expect(holder.calls).toHaveLength(1)
+    // 跨过 5 分钟阈值，列举段被强杀；解压段随后正常启动并成功
+    await vi.advanceTimersByTimeAsync(6 * 60 * 1000)
+    const result = await pending
+
+    expect(result).toEqual({ success: true, extracted: true, targetDir: workDir, skipped: 0 })
+    expect(holder.calls).toHaveLength(2)
+  }, 20000)
+
+  it('列举条目时 tar 以非 ENOENT 的错误退出，按无法统计处理', async () => {
+    holder.plan.push({ kind: 'error', code: 'EACCES', message: 'spawn tar EACCES' })
+    holder.plan.push({ kind: 'exit', code: 0 })
+
+    const result = await extractArchiveTo(archivePath, workDir)
+
+    expect(result).toEqual({ success: true, extracted: true, targetDir: workDir, skipped: 0 })
   })
 })
 

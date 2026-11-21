@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   plan: [] as Array<Record<string, unknown>>,
   requests: [] as Array<Record<string, unknown>>,
   failWrite: false,
+  failWriteAt: 0,
+  writeCalls: 0,
   failRead: false,
   logs: { info: [] as string[], warn: [] as string[], error: [] as string[] }
 }))
@@ -33,9 +35,15 @@ vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fs')>()
   const open = async (target: fs.PathLike, flags?: string | number): Promise<fs.promises.FileHandle> => {
     const handle = await actual.promises.open(target, flags as string)
-    if (state.failWrite && flags === 'w') {
+    if ((state.failWrite || state.failWriteAt > 0) && flags === 'w') {
       const fake = {
-        write: async (): Promise<{ bytesWritten: number }> => { throw new Error('ENOSPC: no space left on device') },
+        write: async (): Promise<{ bytesWritten: number }> => {
+          state.writeCalls += 1
+          if (state.failWrite || state.writeCalls >= state.failWriteAt) {
+            throw new Error('ENOSPC: no space left on device')
+          }
+          return { bytesWritten: 0 }
+        },
         close: (): Promise<void> => handle.close()
       }
       return fake as unknown as fs.promises.FileHandle
@@ -100,6 +108,7 @@ vi.mock('https', async (importOriginal) => {
     queueMicrotask(() => {
       if (entry.body !== undefined) res.emit('data', Buffer.from(String(entry.body)))
       if (entry.data !== undefined) res.emit('data', Buffer.from(entry.data as Buffer))
+      if (entry.data2 !== undefined) res.emit('data', Buffer.from(entry.data2 as Buffer))
       res.emit('end')
     })
   }
@@ -184,6 +193,8 @@ describe('deltaUpdater 失败路径（脚本化的 https 响应）', () => {
     state.plan = []
     state.requests = []
     state.failWrite = false
+    state.failWriteAt = 0
+    state.writeCalls = 0
     state.failRead = false
     state.logs = { info: [], warn: [], error: [] }
   })
@@ -334,5 +345,31 @@ describe('deltaUpdater 失败路径（脚本化的 https 响应）', () => {
     await saveDeltaCache(installer, '1.2.1-x64', NEW_URL)
     expect(fs.readdirSync(getDeltaCacheDir()).sort()).toEqual(['cached-blocks.json', 'cached-setup.exe'])
     expect(fs.readFileSync(path.join(getDeltaCacheDir(), 'cached-setup.exe')).equals(newBuf)).toBe(true)
+  })
+
+  it('Range 请求连续重定向超过上限就放弃（块表已取到）', async () => {
+    seedCache(oldBuf, oldTable)
+    state.plan = [tableBody(), ...[1, 2, 3, 4, 5, 6].map((i) => ({ kind: 'redirect', location: '/hop' + i }))]
+    await expect(downloadDelta({ installerUrl: NEW_URL, newVersion: '1.2.1-x64', targetPath: targetPath() }))
+      .rejects.toThrow(/Too many redirects/)
+    // 1 次块表 + 6 次 Range 请求，第 7 次在发起前就被拦下
+    expect(state.requests).toHaveLength(7)
+  })
+
+  it('同一段里第二个分片写盘失败时整段作废并停止后续写入', async () => {
+    seedCache(oldBuf, oldTable)
+    const ranges = rangeEntries()
+    const first = ranges[0]
+    const payload = first.data as Buffer
+    const half = Math.floor(payload.length / 2)
+    state.failWriteAt = 2
+    state.plan = [
+      tableBody(),
+      { ...first, data: payload.subarray(0, half), data2: payload.subarray(half) },
+      ...ranges.slice(1)
+    ]
+    await expect(downloadDelta({ installerUrl: NEW_URL, newVersion: '1.2.1-x64', targetPath: targetPath() }))
+      .rejects.toThrow(/ENOSPC/)
+    expect(state.writeCalls).toBe(2)
   })
 })
