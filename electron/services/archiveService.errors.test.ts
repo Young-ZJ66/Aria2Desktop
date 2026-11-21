@@ -131,7 +131,9 @@ describe('extractArchiveTo 的失败路径', () => {
     const result = await pending
     expect(result.success).toBe(false)
     expect(result.reason).toBe('extract_timeout')
-  })
+    // 覆盖率插桩下每轮 advanceTimersByTimeAsync 都要走一遍被插桩的微任务队列，
+    // 60 轮在慢机器上可能超过默认的 5s；这条用例本身是确定性的，给足预算即可。
+  }, 30000)
 
   it('列举条目失败不影响解压（按无法统计处理）', async () => {
     fs.writeFileSync(path.join(workDir, 'existing.txt'), 'keep me')
