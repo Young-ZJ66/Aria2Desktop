@@ -115,24 +115,25 @@ describe('extractArchiveTo 的失败路径', () => {
   })
 
   it('tar 卡死时超时并强杀，原因是 extract_timeout', async () => {
-    vi.useFakeTimers()
+    // 只伪造 setTimeout/clearTimeout：假子进程的 exit 走真实 setImmediate，
+    // 这样"等两次 spawn 都完成"只需要让事件循环转一圈，不依赖假定时器的推进次数
+    // （曾用 advanceTimersByTimeAsync 反复推进，覆盖率插桩下会在全量跑时超时）。
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     holder.plan.push({ kind: 'exit', code: 0, stdout: '' })
     holder.plan.push({ kind: 'hang' })
     const pending = extractArchiveTo(archivePath, workDir)
-    // 分两步，避免"时间没推进够/推进过头"的时序脆弱（曾因此在全量跑时超时）：
-    // 1) advanceTimersByTimeAsync(0) 只清空当前时刻的队列，让假子进程的 exit（setImmediate）
-    //    跑完、5 分钟超时计时器装上，不推进时间；
-    for (let round = 0; round < 20 && holder.calls.length < 2; round += 1) {
-      await vi.advanceTimersByTimeAsync(0)
+    // 第一段 tar -t 的 exit 走 setImmediate，之后还要经过若干 fs.promises 轮询才会发起
+    // 第二段 spawn；给足事件循环轮次（纯微/宏任务推进，毫秒级），不靠计时器推进次数。
+    for (let round = 0; round < 2000 && holder.calls.length < 2; round += 1) {
+      await new Promise((resolve) => setImmediate(resolve))
     }
-    // 2) 一次性跨过超时阈值，触发强杀与 reject。
+    expect(holder.calls).toHaveLength(2)
+    // 一次性跨过 5 分钟阈值，触发强杀与 reject
     await vi.advanceTimersByTimeAsync(6 * 60 * 1000)
     const result = await pending
     expect(result.success).toBe(false)
     expect(result.reason).toBe('extract_timeout')
-    // 覆盖率插桩下每轮 advanceTimersByTimeAsync 都要走一遍被插桩的微任务队列，
-    // 60 轮在慢机器上可能超过默认的 5s；这条用例本身是确定性的，给足预算即可。
-  }, 30000)
+  }, 20000)
 
   it('列举条目失败不影响解压（按无法统计处理）', async () => {
     fs.writeFileSync(path.join(workDir, 'existing.txt'), 'keep me')
