@@ -131,6 +131,16 @@ describe('Aria2ConfigManager 的读失败自愈', () => {
     expect(() => manager.flushSave()).toThrow()
   })
 
+  it('配置目录不存在时先建目录再写默认配置', () => {
+    // 首次启动：userData 下的 aria2 子目录还没建出来
+    configPath = path.join(dir, 'nested', 'aria2.conf')
+    const manager = new Aria2ConfigManager(configPath)
+
+    expect(fs.existsSync(configPath)).toBe(true)
+    expect(readConfig()).toContain('rpc-listen-port=6800')
+    expect(manager.getConfigValue('rpc-listen-port')).toBe('6800')
+  })
+
   it('空基线但有待写内容时拒绝覆盖整份配置', () => {
     writeConfig(['dir=D:/Downloads', ''].join('\n'))
     const manager = new Aria2ConfigManager(configPath)

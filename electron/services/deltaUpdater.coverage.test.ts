@@ -241,6 +241,14 @@ describe('deltaUpdater 失败路径（脚本化的 https 响应）', () => {
       .rejects.toThrow(/Fetch timed out/)
   })
 
+  it('Range 请求超时会中止整次差量下载', async () => {
+    seedCache(oldBuf, oldTable)
+    const ranges = rangeEntries()
+    state.plan = [tableBody(), { kind: 'timeout' }, ...ranges.slice(1)]
+    await expect(downloadDelta({ installerUrl: NEW_URL, newVersion: '1.2.1-x64', targetPath: targetPath() }))
+      .rejects.toThrow(/Range fetch timed out/)
+  })
+
   it('Range 请求跟随 302 时仍然携带 Range 头', async () => {
     seedCache(oldBuf, oldTable)
     const ranges = rangeEntries()

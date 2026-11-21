@@ -46,6 +46,7 @@ const h = vi.hoisted(() => {
     shutdownStarted: false,
     dialogResponse: 1,
     storeChanges: [] as string[],
+    storeHandlers: new Map<string, () => void>(),
     statusProvider: null as null | (() => unknown),
     extensionDeps: null as Record<string, (...args: never[]) => unknown> | null,
     trayGaveUp: null as number | null,
@@ -107,8 +108,9 @@ vi.mock('electron', () => ({
 vi.mock('electron-store', () => ({
   default: class {
     constructor(public options: unknown) {}
-    onDidChange(key: string) {
+    onDidChange(key: string, handler?: () => void) {
       h.state.storeChanges.push(key)
+      if (typeof handler === 'function') h.state.storeHandlers.set(key, handler)
     }
   }
 }))
@@ -466,6 +468,7 @@ beforeEach(() => {
   state.shutdownStarted = false
   state.dialogResponse = 1
   state.storeChanges = []
+  state.storeHandlers.clear()
   state.statusProvider = null
   state.extensionDeps = null
   state.trayGaveUp = null
@@ -626,6 +629,17 @@ describe('初始化编排', () => {
     expect(h.state.appliedConsole).toBe(1)
     expect(h.state.storeChanges).toContain('settings.webConsole')
     expect(h.state.logs.info).toContain('应用初始化完成')
+  })
+
+  it('设置页改动 Web 控制台配置后立即重新应用，无需重启', async () => {
+    await loadMain()
+    const handler = h.state.storeHandlers.get('settings.webConsole')
+    expect(handler).toBeTypeOf('function')
+
+    handler?.()
+
+    // 初始化时已 apply 过一次，改动后再 apply 一次
+    expect(h.state.appliedConsole).toBe(2)
   })
 
   it('初始化失败时记录错误并退出应用', async () => {
