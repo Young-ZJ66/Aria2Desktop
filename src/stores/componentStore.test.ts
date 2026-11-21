@@ -176,6 +176,43 @@ describe('组件检测与安装的补充边界', () => {
     await first
   })
 
+  describe('组件检测与安装的兜底分支', () => {
+    it('检测进行中再次调用直接返回，不重复打主进程', async () => {
+      let release: (value: unknown) => void = () => {}
+      api.ffmpegCheck.mockImplementation(() => new Promise((resolve) => { release = resolve }))
+      const store = useComponentStore()
+      const first = store.checkFfmpeg()
+      await store.checkFfmpeg()
+      expect(api.ffmpegCheck).toHaveBeenCalledTimes(1)
+      release({ available: false, installable: true })
+      await first
+      expect(store.ffmpeg.checked).toBe(true)
+    })
+
+    it('主进程没有检测接口时按未安装处理，checked 仍置 true', async () => {
+      ;(globalThis as unknown as { window: unknown }).window = { electronAPI: {} }
+      const store = useComponentStore()
+      await store.checkFfmpeg()
+      expect(store.ffmpeg.available).toBe(false)
+      expect(store.ffmpeg.checked).toBe(true)
+      expect(store.ffmpeg.checking).toBe(false)
+    })
+
+    it('安装抛错时把异常归一成 success:false 且退出安装态', async () => {
+      api.ytdlpInstall.mockRejectedValueOnce(new Error('磁盘满了'))
+      const store = useComponentStore()
+      await expect(store.installYtdlp()).resolves.toEqual({ success: false, error: '磁盘满了' })
+      expect(store.ytdlp.installing).toBe(false)
+      expect(store.ytdlp.installPercent).toBe(0)
+    })
+
+    it('安装抛非 Error 值时按字符串归一', async () => {
+      api.ffmpegInstall.mockRejectedValueOnce('纯字符串失败')
+      const store = useComponentStore()
+      await expect(store.installFfmpeg()).resolves.toEqual({ success: false, error: '纯字符串失败' })
+    })
+  })
+
   it('主进程没有安装接口时返回 Not available 且不进入安装态', async () => {
     ;(globalThis as unknown as { window: unknown }).window = {
       electronAPI: { ytdlpCheck: api.ytdlpCheck, ffmpegCheck: api.ffmpegCheck }

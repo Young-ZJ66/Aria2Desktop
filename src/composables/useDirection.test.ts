@@ -24,6 +24,19 @@ describe('isRtlLocale', () => {
   })
 })
 
+describe('applyDocumentDirection 的默认根元素', () => {
+  it('没有 document 时只返回方向，不抛错', () => {
+    const previous = (globalThis as { document?: unknown }).document
+    delete (globalThis as { document?: unknown }).document
+    try {
+      expect(applyDocumentDirection('ar-SA')).toBe('rtl')
+      expect(applyDocumentDirection('zh-CN')).toBe('ltr')
+    } finally {
+      ;(globalThis as { document?: unknown }).document = previous
+    }
+  })
+})
+
 describe('applyDocumentDirection', () => {
   it('阿拉伯语写 rtl，并把 lang/dir/data-dir 三处一起写上', () => {
     const root = fakeRoot()

@@ -18,6 +18,30 @@ function makeTask(gid: string): Aria2Task {
   } as Aria2Task
 }
 
+describe('useTaskSelection 派生状态与清理', () => {
+  it('selectedCount 与 hasSelection 跟随选择变化', () => {
+    const s = useTaskSelection('test-count')
+    expect(s.selectedCount.value).toBe(0)
+    expect(s.hasSelection.value).toBe(false)
+    s.selectTask(makeTask('g1'))
+    expect(s.selectedCount.value).toBe(1)
+    expect(s.hasSelection.value).toBe(true)
+    s.clearSelection()
+    expect(s.hasSelection.value).toBe(false)
+  })
+
+  it('cleanupNonExistentTasks 有失效项时换成新 Map 并丢掉它们', () => {
+    const s = useTaskSelection('test-cleanup-changed')
+    s.selectTasks([makeTask('a'), makeTask('b')])
+    const before = s.selectedTasks.value
+    s.cleanupNonExistentTasks(['a'])
+    expect(s.selectedTasks.value).not.toBe(before)
+    expect(s.selectedTaskGids.value.has('a')).toBe(true)
+    expect(s.selectedTaskGids.value.has('b')).toBe(false)
+    expect(s.selectedCount.value).toBe(1)
+  })
+})
+
 describe('useTaskSelection 作用域隔离', () => {
   it('下载页与完成页的勾选互不影响', () => {
     const downloading = useTaskSelection('test-downloading')

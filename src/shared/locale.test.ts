@@ -1,5 +1,25 @@
-import { describe, expect, it } from 'vitest'
-import { APP_LOCALES, DEFAULT_APP_LOCALE, normalizeLocale, pickLocale } from './locale'
+import { describe, expect, it, vi } from 'vitest'
+import { APP_LOCALES, DEFAULT_APP_LOCALE, normalizeLocale, pickLocale, systemLocale } from './locale'
+
+describe('systemLocale', () => {
+  it('有 navigator 时返回其语言', () => {
+    vi.stubGlobal('navigator', { language: 'ja-JP' })
+    try {
+      expect(systemLocale()).toBe('ja-JP')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('没有 navigator（主进程 / 测试环境）时返回 undefined', () => {
+    vi.stubGlobal('navigator', undefined)
+    try {
+      expect(systemLocale()).toBeUndefined()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
 
 describe('normalizeLocale', () => {
   it('认出全部 21 种支持的语言', () => {

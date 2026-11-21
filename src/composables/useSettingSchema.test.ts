@@ -32,6 +32,35 @@ function makeForm(): PortForm {
   return reactive<PortForm>({ dhtListenPort: 6881, listenPort: 6881, maxTries: 5 })
 }
 
+describe('useSettingSchema：未知类型走默认转换', () => {
+  it('optionToValue 对未知类型直接用原始字符串，缺失时回退字段默认值', () => {
+    const schema = {
+      fields: [
+        { key: 'custom', aria2Key: 'custom-opt', type: 'custom' as never, default: 'fallback' }
+      ]
+    }
+    const form = reactive<Record<string, unknown>>({ custom: '' })
+    const { applyOptions } = useSettingSchema(schema as never, form)
+    applyOptions({ 'custom-opt': 'raw-value' } as never)
+    expect(form.custom).toBe('raw-value')
+    applyOptions({} as never)
+    expect(form.custom).toBe('fallback')
+  })
+
+  it('valueToOption 对未知类型只在有值时才写入', () => {
+    const schema = {
+      fields: [{ key: 'custom', aria2Key: 'custom-opt', type: 'custom' as never }]
+    }
+    const form = reactive<Record<string, unknown>>({ custom: 42 })
+    const { toOptions } = useSettingSchema(schema as never, form)
+    expect(toOptions()).toEqual({ 'custom-opt': '42' })
+    form.custom = null
+    expect(toOptions()).toEqual({})
+    form.custom = undefined
+    expect(toOptions()).toEqual({})
+  })
+})
+
 describe('useSettingSchema：aria2 选项 → 表单', () => {
   it('端口范围字符串取范围下界，不产生 NaN', () => {
     const form = makeForm()

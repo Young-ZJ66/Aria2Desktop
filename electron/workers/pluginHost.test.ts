@@ -50,6 +50,63 @@ function load(code: string): Outgoing | undefined {
   return last('loaded')
 }
 
+describe('插件宿主：aria2 桥的完整方法表与停用异常', () => {
+  beforeEach(async () => {
+    await loadHost()
+  })
+
+  afterEach(() => {
+    delete (process as unknown as Record<string, unknown>).parentPort
+    vi.restoreAllMocks()
+  })
+
+  it('getActiveTasks / getWaitingTasks / getStoppedTasks 各自映射到对应 RPC', async () => {
+    load(`
+      module.exports = {
+        onActivate() {
+          aria2.getActiveTasks()
+          aria2.getWaitingTasks()
+          aria2.getStoppedTasks()
+        }
+      }
+    `)
+    await flush()
+    expect(messagesOf('api').map(message => message.method)).toEqual([
+      'aria2.getActiveTasks',
+      'aria2.getWaitingTasks',
+      'aria2.getStoppedTasks'
+    ])
+  })
+
+  it('unpause 与 remove 带上 gid 参数', async () => {
+    load(`
+      module.exports = {
+        onActivate() {
+          aria2.unpause('g-unpause')
+          aria2.remove('g-remove')
+        }
+      }
+    `)
+    await flush()
+    const calls = messagesOf('api')
+    expect(calls[0]).toMatchObject({ method: 'aria2.unpause', args: ['g-unpause'] })
+    expect(calls[1]).toMatchObject({ method: 'aria2.remove', args: ['g-remove'] })
+  })
+
+  it('onDeactivate 抛错时报 event-error，但仍然发 deactivated', async () => {
+    load(`
+      module.exports = {
+        onActivate() {},
+        onDeactivate() { throw new Error('停用炸了') }
+      }
+    `)
+    await flush()
+    dispatch({ type: 'deactivate' })
+    await vi.waitFor(() => expect(messagesOf('deactivated')).toHaveLength(1))
+    expect(String(messagesOf('event-error')[0].error)).toContain('停用炸了')
+  })
+})
+
 describe('插件宿主：启动与沙箱隔离', () => {
   beforeEach(async () => {
     await loadHost()

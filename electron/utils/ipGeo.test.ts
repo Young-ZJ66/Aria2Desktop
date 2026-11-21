@@ -5,6 +5,27 @@ function jsonResponse(body: unknown, ok = true): Response {
   return { ok, json: async () => body } as unknown as Response
 }
 
+describe('lookupPeerLocations 的超时保护', () => {
+  it('请求超过 8 秒未返回时主动 abort，并按失败返回空对象', async () => {
+    vi.useFakeTimers()
+    try {
+      let signal: AbortSignal | undefined
+      const fetcher = vi.fn((_url: string, init: { signal?: AbortSignal }) => {
+        signal = init.signal
+        return new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+        })
+      })
+      const pending = lookupPeerLocations(['1.1.1.1'], fetcher as never)
+      await vi.advanceTimersByTimeAsync(8000)
+      await expect(pending).resolves.toEqual({})
+      expect(signal?.aborted).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('lookupPeerLocations 批量查 Peer 地理位置', () => {
   it('空列表不发请求', async () => {
     const fetcher = vi.fn()

@@ -12,6 +12,20 @@ vi.mock('../utils/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })
 }))
 
+// ESM 的 fs 命名空间不可 spy，要模拟读盘抛错只能整体 mock 后再包一层。
+const fsState = vi.hoisted(() => ({ existsThrows: false }))
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>()
+  return {
+    ...actual,
+    default: actual,
+    existsSync: (target: fs.PathLike, ...rest: unknown[]): boolean => {
+      if (fsState.existsThrows) throw new Error('EACCES')
+      return (actual.existsSync as (p: fs.PathLike, ...a: unknown[]) => boolean)(target, ...rest)
+    }
+  }
+})
+
 const { getAutoLaunchEnabled, setAutoLaunchEnabled } = await import('./autoLaunch')
 
 const originalPlatform = process.platform
@@ -43,6 +57,18 @@ afterEach(() => {
   if (originalAppImage === undefined) delete process.env.APPIMAGE
   else process.env.APPIMAGE = originalAppImage
   fs.rmSync(configHome, { recursive: true, force: true })
+})
+
+describe('Linux 状态查询的读盘失败兜底', () => {
+  it('读文件系统抛错时按未启用处理', () => {
+    setPlatform('linux')
+    fsState.existsThrows = true
+    try {
+      expect(getAutoLaunchEnabled()).toBe(false)
+    } finally {
+      fsState.existsThrows = false
+    }
+  })
 })
 
 describe('Linux 开机自启（XDG autostart）', () => {

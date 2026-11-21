@@ -372,3 +372,55 @@ describe('filterAndSortTasks / getTaskStats', () => {
     expect(stats.totalSpeed).toBe(10)
   })
 })
+
+describe('getTaskName 的 URI 推断边界', () => {
+  it('magnet 里没有 dn 时继续看下一条 URI', () => {
+    const t = task({
+      files: [file({ uris: [
+        { status: 'used', uri: 'magnet:?xt=urn:btih:abc' },
+        { status: 'waiting', uri: 'https://example.com/Second.iso' }
+      ] })]
+    })
+    expect(getTaskName(t)).toBe('Second.iso')
+  })
+
+  it('magnet 的 dn 是非法百分号编码时退回未解码原文', () => {
+    const t = task({ files: [file({ uris: [{ status: 'used', uri: 'magnet:?xt=urn:btih:aa&dn=100%' }] })] })
+    expect(getTaskName(t)).toBe('100%')
+  })
+
+  it('URL 没有路径末段（根路径）时继续下一条', () => {
+    const t = task({
+      files: [file({ uris: [
+        { status: 'used', uri: 'https://example.com/' },
+        { status: 'waiting', uri: 'https://example.com/b.zip' }
+      ] })]
+    })
+    expect(getTaskName(t)).toBe('b.zip')
+  })
+
+  it('路径末段是非法百分号编码时退回未解码原文', () => {
+    const t = task({ files: [file({ uris: [{ status: 'used', uri: 'http://example.com/100%.zip' }] })] })
+    expect(getTaskName(t)).toBe('100%.zip')
+  })
+
+  it('URI 是空串时跳过（不当成文件名）', () => {
+    const t = task({ gid: 'empty-uri-gid', files: [file({ uris: [{ status: 'used', uri: '' }] })] })
+    expect(getTaskName(t)).toBe('empty-uri-gid')
+  })
+})
+
+describe('searchTasks 的文件与 URI 命中', () => {
+  it('任务名不含关键词但完整路径含时也能搜到', () => {
+    const list = [task({ gid: 'p1', files: [file({ path: 'D:/dl/reports/rare-report.pdf' })] })]
+    expect(searchTasks(list, 'reports').map(t => t.gid)).toEqual(['p1'])
+  })
+
+  it('任务名与路径都不含关键词、只有 URI 含时也能搜到', () => {
+    const list = [task({
+      gid: 'u2',
+      files: [file({ path: 'D:/dl/a.zip', uris: [{ status: 'used', uri: 'https://example.com/special-keyword.bin' }] })]
+    })]
+    expect(searchTasks(list, 'special-keyword').map(t => t.gid)).toEqual(['u2'])
+  })
+})

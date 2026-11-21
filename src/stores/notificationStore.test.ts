@@ -401,3 +401,32 @@ describe('通知中心：去重、已读与持久化', () => {
     expect(store.items[1]?.read).toBe(false)
   })
 })
+
+describe('通知标题解析的 URI 边界', () => {
+  const unknown = (prefix: string) => '未知任务（' + prefix + '）'
+
+  it('magnet 没有 dn 参数时不当作名字（回落到兜底文案）', () => {
+    expect(resolveNotificationTitle({ uris: ['magnet:?xt=urn:btih:aa'], gid: 'abcdef0123456789' }, unknown))
+      .toBe('未知任务（abcdef01）')
+  })
+
+  it('magnet 的 dn 是非法百分号编码时退回未解码原文', () => {
+    expect(resolveNotificationTitle({ uris: ['magnet:?xt=urn:btih:aa&dn=100%'], gid: 'abcdef0123456789' }, unknown))
+      .toBe('100%')
+  })
+
+  it('空 URI 不产生名字', () => {
+    expect(resolveNotificationTitle({ uris: [''], gid: 'abcdef0123456789' }, unknown))
+      .toBe('未知任务（abcdef01）')
+  })
+
+  it('普通 URL 末段是非法百分号编码时退回未解码原文', () => {
+    expect(resolveNotificationTitle({ uris: ['https://example.com/100%.zip'], gid: 'abcdef0123456789' }, unknown))
+      .toBe('100%.zip')
+  })
+
+  it('不是合法 URL 的纯字符串按路径取最后一段', () => {
+    expect(resolveNotificationTitle({ uris: ['not a url'], gid: 'abcdef0123456789' }, unknown))
+      .toBe('not a url')
+  })
+})
