@@ -134,6 +134,40 @@ describe('删除已完成任务时与引擎的配合', () => {
     expect(result.errors).toEqual([])
     expect(removePersistedTask).toHaveBeenCalledWith('gid-1')
   })
+
+  it('清理本地记录时抛错：文件已删但记录没清，结果必须报失败而不是成功', async () => {
+    removePersistedTask.mockImplementationOnce(() => {
+      throw new Error('persist boom')
+    })
+    const service = {
+      removeDownloadResult: async () => 'OK',
+      remove: async () => 'OK',
+      tellStatus: async () => {
+        throw new Error('GID gid-1 is not found')
+      }
+    }
+
+    const result = await completedTaskDeleteService.deleteCompletedTask(task, false, service)
+
+    expect(result.success).toBe(false)
+    expect(result.errors.join(' ')).toContain('persist boom')
+    expect(removeTaskTime).not.toHaveBeenCalled()
+  })
+
+  it('外层出现意外异常时归到 unknownError，不把异常抛给调用方', async () => {
+    // 模拟桥接对象本身坏掉：读 electronAPI 就抛
+    vi.stubGlobal('window', {
+      get electronAPI(): never {
+        throw new Error('bridge gone')
+      }
+    })
+
+    const result = await completedTaskDeleteService.deleteCompletedTask(task, true, null)
+
+    expect(result.success).toBe(false)
+    expect(result.errors.join(' ')).toContain('bridge gone')
+    expect(removePersistedTask).not.toHaveBeenCalled()
+  })
 })
 
 describe('批量删除已完成任务', () => {
@@ -207,6 +241,23 @@ describe('批量删除已完成任务', () => {
     expect(result.failedTasks).toBeGreaterThanOrEqual(1)
     expect(result.successfulTasks).toBeGreaterThanOrEqual(1)
     expect(result.errors.join(' ')).toContain('IPC 崩了')
+  })
+
+  it('单条在 deleteCompletedTask 内部抛错时整批不中断，错误按任务归集', async () => {
+    const tasks = [
+      { ...task, gid: 'gid-1' },
+      { ...task, gid: 'gid-2' }
+    ] as unknown as Aria2Task[]
+    const spy = vi.spyOn(completedTaskDeleteService, 'deleteCompletedTask')
+    spy.mockRejectedValueOnce(new Error('kaboom'))
+
+    const result = await completedTaskDeleteService.batchDeleteCompletedTasks(tasks, false, engineOk)
+    spy.mockRestore()
+
+    expect(result.totalTasks).toBe(2)
+    expect(result.failedTasks).toBe(1)
+    expect(result.successfulTasks).toBe(1)
+    expect(result.errors.join(' ')).toContain('kaboom')
   })
 
   it('空任务列表返回全零，不报错', async () => {

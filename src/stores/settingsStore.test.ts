@@ -325,4 +325,140 @@ describe('applyTheme', () => {
     await store.applyTheme()
     expect(mql.removeEventListener).toHaveBeenCalledWith('change', expect.any(Function))
   })
+
+  function installDoc(mql: ReturnType<typeof fakeMatchMedia>) {
+    const classes = new Set<string>()
+    const attrs: Record<string, string> = {}
+    ;(globalThis as { document?: unknown }).document = {
+      documentElement: {
+        classList: {
+          add: (name: string) => classes.add(name),
+          remove: (name: string) => classes.delete(name),
+          toggle: (name: string, on: boolean) => (on ? classes.add(name) : classes.delete(name))
+        },
+        setAttribute: (key: string, value: string) => { attrs[key] = value }
+      }
+    }
+    h.matchMedia.mockImplementation(() => mql)
+    return { classes, attrs }
+  }
+
+  it('非首次应用主题时挂过渡类，320ms 后移除', async () => {
+    vi.useFakeTimers()
+    try {
+      const mql = fakeMatchMedia(false)
+      const { classes } = installDoc(mql)
+      h.state.settings = { ...h.defaultSettings, theme: 'light' } as AppSettings
+      const store = useSettingsStore()
+      await store.applyTheme()
+      // 首次应用不播过渡，避免启动首帧闪烁
+      expect(classes.has('theme-transition')).toBe(false)
+
+      store.settings = { ...h.defaultSettings, theme: 'dark' } as AppSettings
+      await store.applyTheme()
+      expect(classes.has('theme-transition')).toBe(true)
+      vi.advanceTimersByTime(320)
+      expect(classes.has('theme-transition')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('主进程设置窗口主题失败只告警，不影响本地主题', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const mql = fakeMatchMedia(false)
+    const { classes, attrs } = installDoc(mql)
+    ;(window.electronAPI as unknown as { setWindowTheme: () => Promise<void> }).setWindowTheme = vi.fn(async () => {
+      throw new Error('theme boom')
+    })
+    h.state.settings = { ...h.defaultSettings, theme: 'dark' } as AppSettings
+    const store = useSettingsStore()
+    await store.applyTheme()
+
+    expect(classes.has('dark')).toBe(true)
+    expect(attrs['data-theme']).toBe('dark')
+    expect(warn).toHaveBeenCalledWith('Failed to update window theme:', expect.any(Error))
+  })
+
+  it('没有主进程桥接时只改本地类名', async () => {
+    const mql = fakeMatchMedia(false)
+    const { classes, attrs } = installDoc(mql)
+    ;(globalThis as unknown as { window: unknown }).window = { matchMedia: h.matchMedia }
+    h.state.settings = { ...h.defaultSettings, theme: 'dark' } as AppSettings
+    const store = useSettingsStore()
+    await store.applyTheme()
+
+    expect(classes.has('dark')).toBe(true)
+    expect(attrs['data-theme']).toBe('dark')
+  })
+
+  it('系统主题变化时只在 auto 模式下重新应用主题', async () => {
+    const mql = fakeMatchMedia(false)
+    const { classes } = installDoc(mql)
+    h.state.settings = { ...h.defaultSettings, theme: 'auto' } as AppSettings
+    const store = useSettingsStore()
+    await store.applyTheme()
+    const listener = mql.addEventListener.mock.calls[0][1] as () => void
+    expect(listener).toBeTypeOf('function')
+
+    mql.matches = true
+    listener()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(classes.has('dark')).toBe(true)
+
+    // 切到固定浅色后，系统变化不再影响主题
+    classes.delete('dark')
+    store.settings = { ...h.defaultSettings, theme: 'light' } as AppSettings
+    listener()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(classes.has('dark')).toBe(false)
+  })
+})
+
+describe('设置的失败路径与合并口径', () => {
+  it('初始化失败时把原因写进 error 并结束 loading', async () => {
+    vi.mocked(settingsService.loadSettings).mockRejectedValueOnce(new Error('load boom'))
+    const store = useSettingsStore()
+    await store.initialize()
+    expect(store.error).toBe('load boom')
+    expect(store.isLoading).toBe(false)
+  })
+
+  it('初始化抛出非 Error 时用兜底文案', async () => {
+    vi.mocked(settingsService.loadSettings).mockRejectedValueOnce('ipc closed')
+    const store = useSettingsStore()
+    await store.initialize()
+    expect(store.error).toBe('加载设置失败')
+  })
+
+  it('重置设置失败时记错误并向上抛', async () => {
+    vi.mocked(settingsService.resetSettings).mockRejectedValueOnce(new Error('reset boom'))
+    const store = useSettingsStore()
+    await expect(store.resetSettings()).rejects.toThrow('reset boom')
+    expect(store.error).toBe('reset boom')
+    expect(store.isLoading).toBe(false)
+  })
+
+  it('导入设置失败且抛出非 Error 时用兜底文案', async () => {
+    vi.mocked(settingsService.importSettings).mockRejectedValueOnce('bad json')
+    const store = useSettingsStore()
+    await expect(store.importSettings('{}')).rejects.toBe('bad json')
+    expect(store.error).toBe('导入设置失败')
+  })
+
+  it('updateCategoryConfig 只合并传入的字段', async () => {
+    const store = useSettingsStore()
+    await store.updateCategoryConfig({ autoClassify: false })
+    expect(store.settings.category?.autoClassify).toBe(false)
+    expect(store.settings.category?.categories).toHaveLength(1)
+  })
+
+  it('store 销毁时摘掉设置变更监听器（HMR 下不泄漏）', () => {
+    const store = useSettingsStore()
+    expect(h.listeners).toHaveLength(1)
+    store.$dispose()
+    expect(h.listeners).toHaveLength(0)
+  })
 })

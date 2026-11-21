@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Aria2Task } from '@/types/aria2'
 import {
   formatCompleteTime,
@@ -180,5 +180,47 @@ describe('formatShortDateTime', () => {
     expect(formatShortDateTime(null)).toBe('--')
     expect(formatShortDateTime('nope')).toBe('--')
     expect(formatShortDateTime(Number.POSITIVE_INFINITY)).toBe('--')
+  })
+})
+describe('formatCompleteTime 的日期分段', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function fixNow(y: number, m: number, d: number) {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(y, m - 1, d, 10, 0, 0))
+  }
+
+  it('昨天的任务显示「昨天」加时分，不再带日期', () => {
+    fixNow(2026, 5, 20)
+    const text = formatCompleteTime(new Date(2026, 4, 19, 8, 30, 0).getTime())
+    expect(text).toContain('昨天')
+    expect(text).not.toContain('2026')
+    expect(text).toMatch(/\d{1,2}:\d{2}/)
+  })
+
+  it('今年的旧任务显示月日与时分，不带年份与秒', () => {
+    fixNow(2026, 5, 20)
+    const text = formatCompleteTime(new Date(2026, 0, 2, 3, 4, 5).getTime())
+    expect(text).not.toContain('2026')
+    expect(text).not.toContain('昨天')
+    // 月日与时分都出现，秒不出现（分段比较避免依赖 locale 分隔符）
+    expect(text).toMatch(/\d{1,2}[^\d]+\d{1,2}/)
+    expect(text.split(':').length).toBe(2)
+  })
+
+  it('往年的任务显示完整日期', () => {
+    fixNow(2026, 5, 20)
+    const text = formatCompleteTime(new Date(2024, 2, 4, 3, 4, 5).getTime())
+    expect(text).toContain('2024')
+    expect(text).toMatch(/\d{1,2}:\d{2}/)
+  })
+
+  it('跨年边界：昨天恰好落在上一年时仍按「昨天」显示', () => {
+    fixNow(2026, 1, 1)
+    const text = formatCompleteTime(new Date(2025, 11, 31, 22, 15, 0).getTime())
+    expect(text).toContain('昨天')
+    expect(text).not.toContain('2025')
   })
 })
