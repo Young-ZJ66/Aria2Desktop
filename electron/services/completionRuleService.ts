@@ -110,12 +110,15 @@ async function executeAction(action: CompletionRuleAction, status: Aria2TaskStat
     const ext = path.extname(file)
     const base = path.basename(file, ext)
     const date = new Date().toISOString().slice(0, 10)
+    // 模板里写了 {ext} 就把带点的扩展名放进去、不再额外追加，
+    // 否则界面提示的「{name}-{date}{ext}」会得到 episode-2026-01-01.mkv.mkv。
+    const hasExtToken = action.pattern.includes('{ext}')
     const nextBase = action.pattern
       .replace(/\{name\}/g, base)
-      .replace(/\{ext\}/g, ext.replace(/^\./, ''))
+      .replace(/\{ext\}/g, hasExtToken ? ext : ext.replace(/^\./, ''))
       .replace(/\{date\}/g, date)
       .replace(/[\\/:*?"<>|]/g, '_')
-    const destination = path.join(path.dirname(file), `${nextBase || base}${ext}`)
+    const destination = path.join(path.dirname(file), `${nextBase || base}${hasExtToken ? '' : ext}`)
     if (destination !== file) await fs.promises.rename(file, destination)
     return
   }
