@@ -480,6 +480,21 @@ describe('停止流程的竞态与兜底', () => {
     await stopping
   })
 
+  it('超时强杀后迟到的 exit 事件被结算守卫忽略', async () => {
+    state.portMode = 'connect'
+    const manager = await loadManager()
+    await manager.start()
+    const child = latestChild()
+    // 让 removeListener 失效：超时结算后迟到的 exit 仍会进 finish，命中 settled 早退
+    child.removeListener = vi.fn()
+    const stopping = manager.stop()
+    await flush()
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(await stopping).toBe(false)
+    expect(logText('error')).toContain('未在超时内退出')
+    expect(() => child.emit('exit', 1, null)).not.toThrow()
+  })
+
   it('按 PID 强杀在 POSIX 上走 process.kill，失败只记日志', async () => {
     const original = setPlatform('linux')
     const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
@@ -573,4 +588,48 @@ describe('配置写入与自动重启', () => {
     const manager = await loadManager()
     expect(manager.isAria2Available()).toBe(true)
   })
+
+  it('启动进行中而进程已死时拒绝重复启动', async () => {
+    const manager = await loadManager()
+    const first = manager.start()
+    await flush()
+    latestChild().exitCode = 1
+    expect(await manager.start()).toBe(false)
+    expect(logText('info')).toContain('Aria2 进程正在启动中')
+    await vi.advanceTimersByTimeAsync(16000)
+    expect(await first).toBe(false)
+  })
+
+  it('可执行文件缺失时给出对应错误原因', async () => {
+    state.spawnThrows = 'ENOENT: no such file or directory, spawn aria2c'
+    const manager = await loadManager()
+    expect(await manager.start()).toBe(false)
+    expect(logText('error')).toContain('错误原因: Aria2 可执行文件不存在')
+  })
+
+  it('等待端口释放时首轮探测即通过就直接返回', async () => {
+    const manager = await loadManager()
+    await internalsOf(manager).waitForPortRelease(6800, 1000)
+    expect(logText('warn')).not.toContain('释放超时')
+  })
+
+  it('没有进程句柄时挂载处理器直接返回', async () => {
+    const manager = await loadManager()
+    internalsOf(manager).process = null
+    const internals = manager as unknown as { setupProcessHandlers: (token: number) => void }
+    expect(() => internals.setupProcessHandlers(1)).not.toThrow()
+  })
+
+  it('自动重启时 start 抛错只记录日志', async () => {
+    state.portMode = 'connect'
+    const manager = await loadManager()
+    await manager.start()
+    const spy = vi.spyOn(manager, 'start').mockRejectedValueOnce(new Error('boom'))
+    latestChild().exitWith(1)
+    await vi.advanceTimersByTimeAsync(20000)
+    await flush()
+    expect(spy).toHaveBeenCalled()
+    expect(logText('error')).toContain('次重启失败')
+  })
 })
+

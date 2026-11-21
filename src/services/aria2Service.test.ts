@@ -284,6 +284,20 @@ describe('选项与统计', () => {
   })
 })
 
+describe('任务列表的字段参数', () => {
+  it('tellWaiting 传 keys 时把字段列表作为第三个参数', async () => {
+    h.response = []
+    const service = await loadService()
+
+    await service.tellWaiting(0, 100, ['gid', 'status'])
+
+    expect(lastCall()).toEqual({
+      method: Aria2Methods.TELL_WAITING,
+      params: [0, 100, ['gid', 'status']]
+    })
+  })
+})
+
 describe('错误传播', () => {
   it('底层 RPC 拒绝时原样冒泡，不被吞掉', async () => {
     vi.resetModules()
@@ -300,3 +314,4 @@ describe('错误传播', () => {
     vi.doUnmock('./aria2Client')
   })
 })
+

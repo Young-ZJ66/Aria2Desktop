@@ -171,3 +171,15 @@ describe('ExtensionTokenStore lastSeenAt', () => {
     expect(fs.readFileSync(filePath, 'utf8')).toBe(before)
   })
 })
+
+describe('落盘失败的兜底', () => {
+  it('写临时文件失败时只记警告，不抛出', () => {
+    // 让 .tmp 路径先成为目录：writeFileSync 会以 EISDIR 失败，走到 flush 的 catch
+    fs.mkdirSync(`${filePath}.tmp`)
+    const s = store()
+
+    expect(() => s.add(record())).not.toThrow()
+
+    expect(warn).toHaveBeenCalledWith('写入扩展配对记录失败:', expect.any(Error))
+  })
+})

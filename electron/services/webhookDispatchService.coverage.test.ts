@@ -342,6 +342,30 @@ describe('IPC 通道的窗口取值器', () => {
   })
 })
 
+describe('密钥反查的条目筛选', () => {
+  it('按类型、地址、方法逐条筛掉不匹配的动作', () => {
+    state.settings = {
+      completionRules: [
+        {
+          id: 'r1',
+          actions: [
+            { type: 'webhook', url: 'https://other.test/hook', method: 'POST', secret: 'wrong-url' },
+            { type: 'notify', title: 'x' },
+            { type: 'webhook', url: 'https://a.test/signed', method: 'GET', secret: 'wrong-method' },
+            { type: 'webhook', url: 'https://a.test/signed', method: 'POST', secret: 'persisted-secret' }
+          ]
+        }
+      ]
+    }
+    const { fetcher } = okFetch()
+    const { service } = makeService(fetcher)
+    const internals = internalsOf(service)
+    expect(internals.resolveSecret(makeEntry({ url: 'https://a.test/signed', method: 'POST' }))).toBe('persisted-secret')
+    expect(internals.resolveSecret(makeEntry({ url: 'https://a.test/signed', method: 'GET' }))).toBe('wrong-method')
+    expect(internals.resolveSecret(makeEntry({ url: 'https://missing.test/hook', method: 'POST' }))).toBe('')
+  })
+})
+
 describe('模块级单例访问器', () => {
   it('initWebhookDispatchService 复用同一个实例，getter 可取得', () => {
     const { fetcher } = okFetch()

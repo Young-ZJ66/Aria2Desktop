@@ -229,6 +229,15 @@ describe('TrackerSubscriptionService 的 IPC 通道', () => {
     const status = h.handlers.get('tracker-subscription-status')?.({}) as Record<string, unknown>
     expect(status).toMatchObject({ success: true, autoUpdate: false, lastCount: 42, syncIntervalHours: 24 })
   })
+  it('窗口取值器按主窗口存活状态返回窗口或 null', () => {
+    const { service } = makeService({ trackerSubscription: { autoUpdate: false } })
+    service.registerIpcHandlers()
+    const options = h.options[0] as { getMainWindow: () => unknown }
+    const windowRef = options.getMainWindow() as { isDestroyed: () => boolean }
+    expect(windowRef.isDestroyed()).toBe(false)
+    h.windowAlive = false
+    expect(options.getMainWindow()).toBeNull()
+  })
 
   it('开关通道把间隔钳进 12–168 小时并立即拉取一次', async () => {
     h.plan = [{ kind: 'body', text: 'udp://a.example:1337/announce' }]

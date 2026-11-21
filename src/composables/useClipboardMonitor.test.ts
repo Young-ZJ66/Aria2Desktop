@@ -168,7 +168,7 @@ describe('异常与主进程推送', () => {
   })
 
   it('没有 electronAPI 时直接跳过', async () => {
-    ;(globalThis as unknown as { window: unknown }).window = Object.assign(win, {})
+    delete (globalThis as unknown as { window: { electronAPI?: unknown } }).window.electronAPI
     const monitor = useClipboardMonitor()
     monitor.start()
     await triggerCheck()

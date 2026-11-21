@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+const logs = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }))
+
 vi.mock('../utils/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })
+  createLogger: () => logs
 }))
 vi.mock('../utils/aria2Rpc', () => ({ callAria2Rpc: vi.fn().mockResolvedValue({}) }))
 vi.mock('../utils/settingsAccessor', () => ({ getSettingsFresh: vi.fn() }))
@@ -36,6 +38,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-05-20T10:30:00'))
   mockedRpc.mockClear()
   mockedSettings.mockReset()
+  logs.warn.mockClear()
 })
 
 afterEach(() => {
@@ -291,5 +294,26 @@ describe('SpeedScheduler 生命周期', () => {
     mockedRpc.mockRejectedValueOnce(new Error('engine gone'))
     expect(() => scheduler.check()).not.toThrow()
     await flush()
+  })
+
+  it('清除限速的 RPC 失败时只记录日志，不抛出', async () => {
+    // 上一条用例可能留下未消费的 mockRejectedValueOnce，先清空实现再铺默认成功
+    mockedRpc.mockReset()
+    mockedRpc.mockResolvedValue({})
+    mockedSettings.mockReturnValue(settingsWith([RULE]))
+    const scheduler = new SpeedScheduler()
+
+    scheduler.check()
+    await flush()
+    expect(mockedRpc).toHaveBeenCalledTimes(1)
+
+    // 规则被删空：走 clearLimit，而这一次下发失败
+    mockedSettings.mockReturnValue(settingsWith([]))
+    mockedRpc.mockRejectedValueOnce(new Error('engine gone'))
+    expect(() => scheduler.check()).not.toThrow()
+    await flush()
+
+    expect(mockedRpc).toHaveBeenCalledTimes(2)
+    expect(logs.warn).toHaveBeenCalledWith('[SpeedScheduler] Failed to clear speed limit:', expect.any(Error))
   })
 })

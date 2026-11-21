@@ -650,6 +650,25 @@ describe('MCP 工具参数类型校验', () => {
     })
   }
 
+  const gidRequiredTools = [
+    'remove_task',
+    'get_task_peers',
+    'get_task_servers',
+    'get_task_files',
+    'change_task_position',
+    'set_task_speed_limit',
+    'purge_download_result'
+  ]
+
+  for (const toolName of gidRequiredTools) {
+    it(toolName + ' 缺少 gid 时提示必填', async () => {
+      await makeServer()
+      const text = await callMcpTool(toolName, { confirm: true })
+      expect(text).toBe('gid is required')
+      expect(h.state.rpcCalls).toHaveLength(0)
+    })
+  }
+
   it('change_task_position 的 how 类型非法时拒绝执行', async () => {
     await makeServer()
     const text = await callMcpTool('change_task_position', { gid: 'g1', position: 1, how: 5 })
@@ -844,3 +863,64 @@ describe('scope 与下载细节', () => {
     expect(json(res)).toMatchObject({ code: 'bad_request', error: 'socket hang up' })
   })
 })
+
+describe('scope 闸门与重复监听的兜底', () => {
+  it('已监听时再次走私有 listen 直接返回', async () => {
+    const server = await makeServer()
+    const internals = server as unknown as { listen: (port: number) => void }
+    internals.listen(6801)
+    internals.listen(6802)
+    expect(h.state.servers).toHaveLength(1)
+    expect(server.isListening()).toBe(true)
+  })
+
+  it('只有 tasks:read 的 token 改任务被拒', async () => {
+    h.state.tokens = [makeTokenRecord(['tasks:read'])]
+    await makeServer()
+    const res = await call(
+      { method: 'POST', url: '/api/task', headers: tokenHeaders(TOKEN) },
+      { action: 'pause', gid: 'g1' }
+    )
+    expect(res.status).toBe(403)
+    expect(json(res)).toMatchObject({ code: 'insufficient_scope' })
+    expect(h.state.logs.warn).toContain('扩展 token 缺少 scope：tasks:control')
+  })
+
+  it('只有 tasks:read 的 token 解析下载地址被拒', async () => {
+    h.state.tokens = [makeTokenRecord(['tasks:read'])]
+    await makeServer()
+    const res = await call(
+      { method: 'POST', url: '/api/resolve', headers: tokenHeaders(TOKEN) },
+      { url: 'https://www.example.com/a.zip' }
+    )
+    expect(res.status).toBe(403)
+    expect(json(res)).toMatchObject({ code: 'insufficient_scope' })
+    expect(h.state.logs.warn).toContain('扩展 token 缺少 scope：download:add')
+  })
+
+  it('只有 tasks:read 的 token 新建下载被拒', async () => {
+    h.state.tokens = [makeTokenRecord(['tasks:read'])]
+    await makeServer()
+    const res = await call(
+      { method: 'POST', url: '/api/add', headers: tokenHeaders(TOKEN) },
+      { url: 'https://www.example.com/a.zip' }
+    )
+    expect(res.status).toBe(403)
+    expect(json(res)).toMatchObject({ code: 'insufficient_scope' })
+    expect(h.state.added).toHaveLength(0)
+    expect(h.state.rpcCalls).toHaveLength(0)
+  })
+
+  it('只有 tasks:read 的 token 操作流媒体任务被拒', async () => {
+    h.state.tokens = [makeTokenRecord(['tasks:read'])]
+    await makeServer()
+    const res = await call(
+      { method: 'POST', url: '/api/stream-task', headers: tokenHeaders(TOKEN) },
+      { action: 'pause', id: 'stream-1' }
+    )
+    expect(res.status).toBe(403)
+    expect(json(res)).toMatchObject({ code: 'insufficient_scope' })
+    expect(h.state.logs.warn).toContain('扩展 token 缺少 scope：stream:control')
+  })
+})
+

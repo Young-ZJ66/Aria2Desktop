@@ -205,3 +205,30 @@ describe('useDownloadHistoryStore 的读写与重置', () => {
     expect(store.todayBytes).toBe(256)
   })
 })
+
+describe('useDownloadHistoryStore 的作用域清理', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: () => undefined,
+      removeItem: () => undefined
+    })
+    setActivePinia(createPinia())
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('store 销毁时清掉跨零点检查定时器', () => {
+    const store = useDownloadHistoryStore()
+    const before = vi.getTimerCount()
+    expect(before).toBeGreaterThan(0)
+
+    store.$dispose()
+
+    expect(vi.getTimerCount()).toBe(before - 1)
+  })
+})

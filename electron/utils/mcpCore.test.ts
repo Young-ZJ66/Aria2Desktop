@@ -175,6 +175,15 @@ describe('pickTaskName', () => {
     expect(pickTaskName({ gid: 'g5', files: [{ path: '', uris: [{ uri: 'magnet:?xt=urn:btih:abc' }] }] })).toBe('g5')
   })
 
+  it('URI 条目缺少 uri 字段时跳过，继续看后面的条目', () => {
+    expect(
+      pickTaskName({
+        gid: 'g9',
+        files: [{ path: '', uris: [{}, { uri: '' }, { uri: 'https://a.com/real.zip' }] }]
+      } as never)
+    ).toBe('real.zip')
+  })
+
   it('无 files 时回落 gid；异常形状不抛错', () => {
     expect(pickTaskName({ gid: 'g6' })).toBe('g6')
     expect(pickTaskName({} as never)).toBe('')
