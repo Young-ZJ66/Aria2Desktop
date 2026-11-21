@@ -13,6 +13,7 @@ import {
   checkFreshDefaults,
   checkRendererRendered,
   diagnoseStartupFailure,
+  evaluateMarker,
   isRendererHealthy,
   readOptions,
   resolveDefaultExe,
@@ -322,4 +323,69 @@ describe('diagnoseStartupFailure', () => {
     expect(diagnosis.line).toContain('code=1')
   })
 })
+
+describe('evaluateMarker', () => {
+  const marker = { name: '扩展本地接口已在监听', pattern: /浏览器扩展本地接口已启动/ }
+
+  it('日志里出现判据就算通过，detail 带上命中的那一行', () => {
+    const result = evaluateMarker(marker, {
+      logText: ['[info] 启动中', '[info] [ExtensionApiServer] 浏览器扩展本地接口已启动: 6801'].join('\n'),
+      timeoutMs: 5000
+    })
+    expect(result.ok).toBe(true)
+    expect(result.name).toBe('扩展本地接口已在监听')
+    expect(result.detail).toContain('浏览器扩展本地接口已启动: 6801')
+  })
+
+  it('通过时也把致命行摆进 detail（beta.7：引擎自愈但初始化已判失败）', () => {
+    const result = evaluateMarker(marker, {
+      logText: [
+        '[error] [Aria2 stderr]: Specify at least one URL.',
+        '[info] [Aria2ProcessManager] Aria2 进程启动成功, PID: 2948',
+        '[info] [ExtensionApiServer] 浏览器扩展本地接口已启动'
+      ].join('\n'),
+      timeoutMs: 5000
+    })
+    expect(result.ok).toBe(true)
+    expect(result.detail).toContain('Specify at least one URL')
+    expect(result.detail).toContain('应用可能已进入启动失败流程')
+  })
+
+  it('超时且应用仍在运行时报超时，并附上根因线索', () => {
+    const result = evaluateMarker(marker, {
+      logText: '[error] [Aria2Controller] 初始化 Aria2 管理器失败',
+      timeoutMs: 120000
+    })
+    expect(result.ok).toBe(false)
+    expect(result.detail).toContain('超时 120000ms 未出现')
+    expect(result.detail).toContain('根因线索：')
+    expect(result.detail).toContain('初始化 Aria2 管理器失败')
+  })
+
+  it('应用在等待期间退出时说明退出码，而不是笼统的超时', () => {
+    const result = evaluateMarker(marker, { logText: '[info] 启动中', exited: true, exitCode: 1, timeoutMs: 120000 })
+    expect(result.ok).toBe(false)
+    expect(result.detail).toContain('应用在等待期间退出（exitCode=1）')
+  })
+
+  it('连日志都没写时提示可能启动即退出', () => {
+    const result = evaluateMarker(marker, { logText: '', timeoutMs: 90000 })
+    expect(result.ok).toBe(false)
+    expect(result.detail).toContain('应用没有写出日志')
+  })
+
+  it('没有根因线索时不硬编造，detail 只有基础结论', () => {
+    const result = evaluateMarker(marker, { logText: '[info] 应用初始化完成', timeoutMs: 90000 })
+    expect(result.ok).toBe(false)
+    expect(result.detail).toBe('超时 90000ms 未出现')
+    expect(result.detail).not.toContain('根因线索')
+  })
+
+  it('不传 context 也能给出结论（缺省 90s 超时）', () => {
+    const result = evaluateMarker(marker)
+    expect(result.ok).toBe(false)
+    expect(result.detail).toContain('超时 90000ms')
+  })
+})
+
 

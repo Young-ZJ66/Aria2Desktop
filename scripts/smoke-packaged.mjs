@@ -167,6 +167,52 @@ export function diagnoseStartupFailure(logText) {
   return null
 }
 
+/**
+ * 判定单条启动判据的结果。
+ *
+ * 为什么单独抽出来：这段逻辑原先埋在 runAttempt 的循环里，既要按"启动即退 / 起来了但没就绪 /
+ * 连日志都没写"三种情况给 detail，又要顺手贴根因线索，混在一起没法单测。而冒烟脚本判错的
+ * 代价比脚本里任何其它代码都高——判宽了 CI 静默放过坏包，判严了把好包判死。
+ *
+ * 判据过了也不等于应用健康：beta.7 的 Linux x64 里引擎先崩一次、3 秒后自动重启成功，
+ * 于是"进程启动成功"这条 PASS，而初始化其实已经判失败、扩展接口再也不会起来。
+ * 这里不改变 PASS/FAIL 结论（瞬时崩溃后自愈是允许的），只把致命行摆进 detail。
+ *
+ * @param {{ name: string, pattern: RegExp }} marker 判据
+ * @param {{ logText?: string, exited?: boolean, exitCode?: number|null, timeoutMs?: number }} context
+ * @returns {{ name: string, ok: boolean, detail: string }}
+ */
+export function evaluateMarker(marker, context = {}) {
+  const logText = String(context.logText || '')
+  const timeoutMs = context.timeoutMs ?? 90000
+  const diagnosis = diagnoseStartupFailure(logText)
+  const line = logText.split('\n').find((text) => marker.pattern.test(text))
+
+  if (line) {
+    const hit = line.trim()
+    return {
+      name: marker.name,
+      ok: true,
+      detail: diagnosis ? `${hit}（注意：日志里同时出现 ${diagnosis.line}，应用可能已进入启动失败流程）` : hit
+    }
+  }
+
+  const hasLog = logText.length > 0
+  const base = context.exited
+    ? `应用在等待期间退出（exitCode=${context.exitCode}）`
+    : hasLog
+      ? `超时 ${timeoutMs}ms 未出现`
+      : `超时 ${timeoutMs}ms，应用没有写出日志（可能启动即退出）`
+
+  // 超时只说"没等到"没有用，顺手从日志里认一下最可能的根因，
+  // 让这一行 FAIL 本身就能指向问题，而不是要人去翻几十行日志。
+  return {
+    name: marker.name,
+    ok: false,
+    detail: diagnosis ? `${base}；根因线索：${diagnosis.line}（${diagnosis.hint}）` : base
+  }
+}
+
 /** 启动成功的判据：引擎起来了，扩展本地接口也起来了（两条都在主进程日志里） */
 const EXPECTED_MARKERS = [
   { name: '打包后的应用拉起了内置 aria2', pattern: /Aria2 进程启动成功/ },
@@ -447,30 +493,21 @@ async function runAttempt(options, attempt, attemptCount) {
   const results = []
   try {
     for (const marker of EXPECTED_MARKERS) {
-      const hit = await waitFor(() => {
+      // 先等判据出现（轮询日志），超时后交给 evaluateMarker 统一判定，
+      // 这样"命中/超时/退出"三种情况的文案只有一处实现，也才能被单测覆盖。
+      await waitFor(() => {
         const line = readLog(logFile).split('\n').find((text) => marker.pattern.test(text))
         return line ? line.trim() : null
       }, { timeout: options.timeoutMs })
 
-      if (hit) {
-        results.push({ name: marker.name, ok: true, detail: hit })
-      } else {
-        // 三种失败要分开说：启动即退（exitCode 有值）、起来了但没就绪、连日志都没写
-        const hasLog = readLog(logFile).length > 0
-        const detail = exited
-          ? `应用在等待期间退出（exitCode=${child.exitCode}）`
-          : hasLog
-            ? `超时 ${options.timeoutMs}ms 未出现`
-            : `超时 ${options.timeoutMs}ms，应用没有写出日志（可能启动即退出）`
-        // 超时只说"没等到"没有用，顺手从日志里认一下最可能的根因，
-        // 让这一行 FAIL 本身就能指向问题，而不是要人去翻几十行日志。
-        const diagnosis = diagnoseStartupFailure(readLog(logFile))
-        const detailWithHint = diagnosis
-          ? `${detail}；根因线索：${diagnosis.line}（${diagnosis.hint}）`
-          : detail
-        results.push({ name: marker.name, ok: false, detail: detailWithHint })
-        break
-      }
+      const result = evaluateMarker(marker, {
+        logText: readLog(logFile),
+        exited,
+        exitCode: child.exitCode,
+        timeoutMs: options.timeoutMs
+      })
+      results.push(result)
+      if (!result.ok) break
     }
 
     // 引擎起来了才谈"它自己长出的配置对不对"；前面失败的话这里没必要再报一遍
