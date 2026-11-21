@@ -28,7 +28,7 @@ vi.mock('electron-log/main', () => ({
   default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), transports: { file: {}, console: {} } }
 }))
 
-const { encryptSecret, decryptSecret, encryptSettingsSecrets, decryptSettingsSecrets } = await import('./secretCipher')
+const { encryptSecret, decryptSecret, encryptSettingsSecrets, decryptSettingsSecrets, isSecretEncryptionAvailable } = await import('./secretCipher')
 type Settings = Parameters<typeof encryptSettingsSecrets>[0]
 
 beforeEach(() => {
@@ -205,5 +205,39 @@ describe('settings 级加解密（读-改-写循环不得破坏密钥）', () =>
     const saved = encryptSettingsSecrets(inMemory, first)
 
     expect(decryptSettingsSecrets(saved).aria2?.secret).toBe('brand-new-secret')
+  })
+})
+
+describe('加密能力探测与降级', () => {
+  it('safeStorage 探测抛错时视为不可用（不向上冒泡）', () => {
+    safeStorageMock.isEncryptionAvailable.mockImplementationOnce(() => { throw new Error('keyring missing') })
+    expect(isSecretEncryptionAvailable()).toBe(false)
+  })
+
+  it('加密过程抛错时回退明文，绝不返回半截密文', () => {
+    safeStorageMock.encryptString.mockImplementationOnce(() => { throw new Error('DPAPI 调用失败') })
+    const stored = encryptSecret('fallback-plain')
+    expect(stored).toBe('fallback-plain')
+    expect(stored.startsWith('v1:')).toBe(false)
+  })
+
+  it('非对象入参原样返回（IPC 边界上可能是 null）', () => {
+    expect(encryptSettingsSecrets(null as unknown as Settings, null)).toBeNull()
+    expect(decryptSettingsSecrets(undefined as unknown as Settings)).toBeUndefined()
+  })
+
+  it('预设缺 config 时原样保留，不影响其它预设', () => {
+    const broken = {
+      aria2: { port: 6800, secret: 'rpc-secret-value' },
+      connectionProfiles: [
+        { id: 'no-config', name: '坏数据' },
+        { id: 'p1', name: '本机', config: { host: '127.0.0.1', port: 6800, protocol: 'http', path: '/jsonrpc', secret: 'profile-secret' } }
+      ]
+    } as unknown as Settings
+
+    const onDisk = encryptSettingsSecrets(broken, null)
+
+    expect(onDisk.connectionProfiles?.[0]).toEqual({ id: 'no-config', name: '坏数据' })
+    expect(onDisk.connectionProfiles?.[1]?.config?.secret).toMatch(/^v1:/)
   })
 })

@@ -125,3 +125,65 @@ describe('安装', () => {
     expect(store.ytdlp.installPercent).toBe(0)
   })
 })
+
+describe('组件检测与安装的补充边界', () => {
+  it('检测进行中再次调用不会重复打主进程', async () => {
+    let release: (value: unknown) => void = () => {}
+    api.ytdlpCheck.mockImplementation(() => new Promise((resolve) => { release = resolve }))
+    const store = useComponentStore()
+    const first = store.checkYtdlp()
+    await store.checkYtdlp()
+    expect(api.ytdlpCheck).toHaveBeenCalledTimes(1)
+    release({ available: true, version: 'v', installable: true, approxSizeMB: 1 })
+    await first
+  })
+
+  it('ffmpeg 检测抛错同样按未安装处理且 checked 置 true', async () => {
+    api.ffmpegCheck.mockRejectedValue(new Error('spawn failed'))
+    const store = useComponentStore()
+    await store.checkFfmpeg()
+    expect(store.ffmpeg.available).toBe(false)
+    expect(store.ffmpeg.checked).toBe(true)
+    expect(store.ffmpeg.checking).toBe(false)
+  })
+
+  it('ffmpeg 安装进度事件写入 installPercent 且只订阅一次', async () => {
+    const store = useComponentStore()
+    await store.installFfmpeg()
+    await store.installFfmpeg()
+    expect(api.onFfmpegInstallProgress).toHaveBeenCalledTimes(1)
+    progressHandlers.ffmpeg?.({ percent: 66 })
+    expect(store.ffmpeg.installPercent).toBe(66)
+    progressHandlers.ffmpeg?.({})
+    expect(store.ffmpeg.installPercent).toBe(0)
+  })
+
+  it('ffmpeg 安装成功后重新检测', async () => {
+    const store = useComponentStore()
+    const result = await store.installFfmpeg()
+    expect(result).toEqual({ success: true, version: '7.1' })
+    expect(api.ffmpegCheck).toHaveBeenCalledTimes(1)
+  })
+
+  it('ffmpeg 安装中再次点击直接返回失败', async () => {
+    let release: (value: unknown) => void = () => {}
+    api.ffmpegInstall.mockImplementation(() => new Promise((resolve) => { release = resolve }))
+    const store = useComponentStore()
+    const first = store.installFfmpeg()
+    const second = await store.installFfmpeg()
+    expect(second).toEqual({ success: false, error: 'Not available' })
+    release({ success: true, version: 'x' })
+    await first
+  })
+
+  it('主进程没有安装接口时返回 Not available 且不进入安装态', async () => {
+    ;(globalThis as unknown as { window: unknown }).window = {
+      electronAPI: { ytdlpCheck: api.ytdlpCheck, ffmpegCheck: api.ffmpegCheck }
+    }
+    const store = useComponentStore()
+    await expect(store.installYtdlp()).resolves.toEqual({ success: false, error: 'Not available' })
+    await expect(store.installFfmpeg()).resolves.toEqual({ success: false, error: 'Not available' })
+    expect(store.ytdlp.installing).toBe(false)
+    expect(store.ffmpeg.installing).toBe(false)
+  })
+})

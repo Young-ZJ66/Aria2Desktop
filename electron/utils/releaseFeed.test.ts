@@ -54,3 +54,25 @@ describe('decodeHtmlEntities', () => {
     expect(decodeHtmlEntities('&amp;amp;')).toBe('&amp;')
   })
 })
+
+describe('编码异常的容错', () => {
+  it('非法百分号编码的 tag 原样返回，不抛错', () => {
+    // decodeURIComponent 遇到截断的多字节序列会抛 URIError；此时宁可返回原始 tag，
+    // 也不能把「解析失败」当成「没有新版本」
+    expect(parseStableTagFromLocation('https://github.com/o/r/releases/tag/v1.1.0%E0%A4%A'))
+      .toBe('v1.1.0%E0%A4%A')
+  })
+
+  it('atom 条目里编码异常的 tag 也按原值参与匹配', () => {
+    const broken = '<feed><entry><link href="https://github.com/o/r/releases/tag/v1.1.0%E0%A4%A"/><content type="html">raw tag notes</content></entry></feed>'
+    expect(extractReleaseNotes(broken, 'v1.1.0%E0%A4%A')).toBe('raw tag notes')
+  })
+
+  it('tag 命中但条目没有 content 时继续找下一条', () => {
+    const atomWithEmpty = '<feed>'
+      + '<entry><link href="https://github.com/o/r/releases/tag/v1.1.0"/></entry>'
+      + '<entry><link href="https://github.com/o/r/releases/tag/v1.1.0"/><content type="html">real notes</content></entry>'
+      + '</feed>'
+    expect(extractReleaseNotes(atomWithEmpty, 'v1.1.0')).toBe('real notes')
+  })
+})
