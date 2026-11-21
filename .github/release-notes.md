@@ -4,14 +4,14 @@
 
 ## 📌 beta.10 相对 beta.9 的变化
 
-beta.9 之后没有再动功能面。这一版把验证过程中暴露出来的几个确定性缺陷修掉，另外把单测从 2432 项补到 3960 项，作为正式版前的最后一道网。
+beta.9 之后没有再动功能面。这一版把验证过程中暴露出来的几个确定性缺陷修掉，另外把单测从 2432 项补到 3966 项，作为正式版前的最后一道网。
 
 - **应用内安装 yt-dlp 不再必然失败**：原子替换前误删了刚下载并校验通过的临时文件，紧接着的 rename 必然 `ENOENT`，流媒体组件因此装不上（旧版本还会被一起挪走）。现已保留安装包本体，备份 / 回滚逻辑不变。
 - **完成历史不再只剩最后一条**：历史库走 JSON 回退后端时，单条保存实际是「用这一条覆盖整份文件」，每完成一个任务就把之前的历史清空。现在单条保存会先读回已有内容再合并。
 - **重命名模板不再产出双扩展名**：模板里写了 `{ext}` 时不再额外追加一次扩展名（此前 `{name}-{date}{ext}` 得到 `episode-2026-01-01.mkv.mkv`）。
 - **MCP 工具的参数类型错误不再被吞掉**：`list_tasks` 的 `status`、`change_task_position` 的 `how` 传了错误类型时，此前会被当成「没传」直接回落默认值；现在按参数非法拒绝。
 - **停用插件时钩子抛错不再冒到界面**：插件 `onDeactivate` 同步抛错会让界面提示「停用插件失败」，但插件状态其实已经改了。现在钩子异常只记日志，停用照常成功。
-- **单测补到 3960 项**：新增 1528 项单测覆盖此前零覆盖的兜底分支（进程结算守卫、响应流中断、更新检查超时、插件沙箱脱敏、RSS 拉取超时等），语句覆盖率 99.78%、分支 91.34%；同时修掉 CI 上因 en-US 环境导致的两条日期用例失败。
+- **单测补到 3966 项**：新增 1534 项单测覆盖此前零覆盖的兜底分支（进程结算守卫、响应流中断、更新检查超时、插件沙箱脱敏、RSS 拉取超时等），语句覆盖率 99.78%、分支 91.34%；同时修掉 CI 上因 en-US 环境导致的两条日期用例失败。
 
 ## 🎯 主题：可信接管
 
@@ -79,7 +79,7 @@ beta.9 之后没有再动功能面。这一版把验证过程中暴露出来的�
 
 ## ✅ 验证
 
-- typecheck（主进程 + 测试代码 + 渲染层）通过；230 个测试文件 / 3960 项单测通过（引擎重启压力测试默认跳过）。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；231 个测试文件 / 3966 项单测通过（引擎重启压力测试默认跳过）。
 - Web 控制台页面内联脚本/样式的 CSP 哈希由单测逐字节校验，改了内联脚本却忘同步哈希会直接失败（否则浏览器会静默拒绝执行脚本，页面白屏）。
 - `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
 - 应用 E2E 214 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局，以及真实 Chrome 里的扩展 16 项与配对回归 6 项）；其中 18 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、队列视图只读、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
@@ -98,7 +98,7 @@ beta.9 之后没有再动功能面。这一版把验证过程中暴露出来的�
 
 ## 📌 What changed since beta.9
 
-Nothing on the feature surface changed after beta.9. This release fixes the definite defects that surfaced during validation and raises the unit-test suite from 2432 to 3960 tests as a last net before the stable release.
+Nothing on the feature surface changed after beta.9. This release fixes the definite defects that surfaced during validation and raises the unit-test suite from 2432 to 3966 tests as a last net before the stable release.
 
 - **In-app yt-dlp installation no longer always fails**: the atomic swap deleted the freshly downloaded, checksum-verified temporary file, so the following rename always hit `ENOENT` and the streaming component could not be installed (the previous build was moved aside as well). The downloaded binary is now preserved; backup and rollback behaviour is unchanged.
 - **Completion history no longer keeps only the last entry**: with the JSON fallback backend, saving one record actually overwrote the whole file, so every completed task wiped the history before it. A single save now reads the existing records back and merges into them.
@@ -171,7 +171,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ## ✅ Verification
 
-- Typecheck (main process, tests, renderer) passes; 230 test files / 3960 unit tests pass (the engine-restart stress test is skipped by default).
+- Typecheck (main process, tests, renderer) passes; 231 test files / 3966 unit tests pass (the engine-restart stress test is skipped by default).
 - `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
 - All 214 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring, plus 16 extension checks and 6 pairing regression checks in a real Chrome), of which 18 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, the read-only queue view, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.

@@ -671,8 +671,17 @@ const SNIFFER_STORAGE_PREFIX = 'snifferTab:'
 const snifferPersistTimers = new Map()
 const snifferHydratedTabs = new Set()
 
+/**
+ * 清单里的分片：HLS 的 .ts、DASH 的 .m4s。
+ *
+ * 为什么 .ts 也算（D-07）：HLS 的分片就是 .ts，一次播放会有几百个；它们既不能单独播放
+ * （缺 init 段/编码参数），也不该作为普通视频被批量勾选下载。旧实现只认 .m4s，
+ * 于是 .ts 落进下面的 videoExts 变成"可下载的普通视频"，用户批量下载后得到一堆无法播放的碎片。
+ */
+const SEGMENT_EXTS = ['ts', 'm4s']
+
 function isMediaFragment(url) {
-  return extFromUrl(url) === 'm4s'
+  return SEGMENT_EXTS.includes(extFromUrl(url))
 }
 
 // B 站 DASH 音频分片的文件名形如 42513599167-1-30216.m4s（302xx 为音频，1000xx 为视频）
@@ -701,8 +710,9 @@ function isPlaylistUrl(url) {
 function classifySniffedResource(details) {
   const ext = extFromUrl(details.url)
   const audioExts = ['mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'opus', 'wma', 'ape']
-  // 注意：m3u8/mpd 已从 videoExts 移除，走下面的 playlist 分支（D-07）
-  const videoExts = ['mp4', 'm4v', 'webm', 'mkv', 'mov', 'avi', 'wmv', 'flv', 'mpg', 'mpeg', 'ts']
+  // 注意：m3u8/mpd 已从 videoExts 移除，走下面的 playlist 分支（D-07）；
+  // ts 也已移除——HLS 分片由 isMediaFragment 标记为 fragment，不能当普通视频下载（D-07）
+  const videoExts = ['mp4', 'm4v', 'webm', 'mkv', 'mov', 'avi', 'wmv', 'flv', 'mpg', 'mpeg']
   const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']
   if (details.type === 'image' || imageExts.includes(ext)) return 'image'
   if (audioExts.includes(ext) || (ext === 'm4s' && isBilibiliAudioSegment(details.url))) return 'audio'
@@ -801,12 +811,16 @@ async function getSnifferData() {
     if (!tab?.id) return { success: false, error: i18n('mediaUnsupportedPage') }
     await hydrateSnifferTab(tab.id)
     const map = snifferByTab.get(tab.id)
-    const items = map ? [...map.values()].reverse() : []
+    const all = map ? [...map.values()].reverse() : []
+    // D-07：分片（.ts/.m4s）不进列表——HLS 一次播放有几百个，列出来会把整页刷满，
+    // 勾选后下到的也只是无法播放的碎片。只把数量带出去，弹窗据此提示"用智能解析"。
+    const items = all.filter(item => !item.fragment)
     return {
       success: true,
       tabId: tab.id,
       items,
-      fragmentCount: items.filter(item => item.fragment).length,
+      totalCount: all.length,
+      fragmentCount: all.length - items.length,
       playlistCount: items.filter(item => item.playlist).length
     }
   } catch (error) {

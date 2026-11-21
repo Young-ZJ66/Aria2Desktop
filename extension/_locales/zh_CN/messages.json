@@ -630,7 +630,7 @@
     "message": "交给 App 的 yt-dlp；B 站等 DASH 页面会自动合并音视频"
   },
   "snifferBilibiliHint": {
-    "message": "检测到流媒体分片（DASH/MSE），完整视频请用上方「智能解析本页视频」。"
+    "message": "检测到流媒体分片（HLS/DASH），完整视频请用上方「智能解析本页视频」。"
   },
   "snifferFragment": {
     "message": "分片"

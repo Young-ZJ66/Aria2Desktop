@@ -630,7 +630,7 @@
     "message": "Uses the app's yt-dlp; merges DASH audio/video (e.g. Bilibili)"
   },
   "snifferBilibiliHint": {
-    "message": "Streaming segments (DASH/MSE) detected — use \u201cSmart video resolver\u201d above to download the complete video."
+    "message": "Streaming segments (HLS/DASH) detected — use \u201cSmart video resolver\u201d above to download the complete video."
   },
   "snifferFragment": {
     "message": "segment"
