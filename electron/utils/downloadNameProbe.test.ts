@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -98,5 +98,132 @@ describe('resolveConflictingFileName', () => {
   it('目录或文件名为空时原样返回', () => {
     expect(resolveConflictingFileName('', 'a.rar')).toEqual({ fileName: 'a.rar', conflict: false })
     expect(resolveConflictingFileName('D:\\x', '')).toEqual({ fileName: '', conflict: false })
+  })
+})
+
+interface FakeResponse {
+  status: number
+  ok?: boolean
+  headers: { get: (name: string) => string | null }
+  body: null
+}
+
+/** 构造最小 fetch 响应：探测器只读 status / headers / body */
+function fakeResponse(status: number, headers: Record<string, string> = {}): FakeResponse {
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
+    body: null
+  }
+}
+
+describe('probeDownloadFileName 网络行为', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('从 Content-Disposition 取到真实文件名，并按 Range 只请求首字节', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: { method: string; headers: Record<string, string>; redirect: string }) =>
+        fakeResponse(206, { 'content-disposition': 'attachment; filename="真实文件.rar"' })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const name = await probeDownloadFileName('https://pan.example.com/file/abc123')
+
+    expect(name).toBe('真实文件.rar')
+    const init = fetchMock.mock.calls[0]?.[1] as { method: string; headers: Record<string, string>; redirect: string }
+    expect(init.method).toBe('GET')
+    expect(init.headers.Range).toBe('bytes=0-0')
+    // 必须自己跟跳：redirect: 'follow' 只挡首跳，后续跳转可能指向内网
+    expect(init.redirect).toBe('manual')
+  })
+
+  it('跟随 302 到同主机的新路径，用相对地址解析出绝对地址', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(fakeResponse(302, { location: '/real/abc123.zip' }))
+      .mockResolvedValueOnce(fakeResponse(200, { 'content-disposition': 'attachment; filename="pkg.zip"' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const name = await probeDownloadFileName('https://pan.example.com/file/abc123')
+
+    expect(name).toBe('pkg.zip')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://pan.example.com/real/abc123.zip')
+  })
+
+  it('跳转到回环地址时立即放弃（防止被 302 到本机服务）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(fakeResponse(302, { location: 'http://127.0.0.1:8080/admin' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const name = await probeDownloadFileName('https://pan.example.com/file/abc123')
+
+    expect(name).toBe('')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('跳转到云元数据地址时立即放弃', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(fakeResponse(302, { location: 'http://169.254.169.254/latest/meta-data/' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await probeDownloadFileName('https://pan.example.com/file/abc123')).toBe('')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('重定向次数超过上限时放弃，不再继续请求', async () => {
+    const fetchMock = vi.fn(async () => fakeResponse(302, { location: '/loop' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await probeDownloadFileName('https://pan.example.com/file/abc123')).toBe('')
+    // MAX_PROBE_REDIRECTS = 5：首跳 + 5 次跟随，第 6 次重定向后返回空串
+    expect(fetchMock).toHaveBeenCalledTimes(6)
+  })
+
+  it('3xx 但缺少 Location 时返回空串', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(302)))
+
+    expect(await probeDownloadFileName('https://pan.example.com/file/abc123')).toBe('')
+  })
+
+  it('非 2xx 响应返回空串（不把错误页当文件名来源）', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(404)))
+
+    expect(await probeDownloadFileName('https://pan.example.com/file/abc123')).toBe('')
+  })
+
+  it('没有 Content-Disposition 时返回空串', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(200)))
+
+    expect(await probeDownloadFileName('https://pan.example.com/file/abc123')).toBe('')
+  })
+
+  it('fetch 抛错时返回空串，不阻塞任务创建', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('ECONNRESET')
+    }))
+
+    expect(await probeDownloadFileName('https://pan.example.com/file/abc123')).toBe('')
+  })
+
+  it('超时后中止请求并返回空串', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => reject(new Error('aborted')))
+        })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const pending = probeDownloadFileName('https://pan.example.com/file/abc123', 50)
+    await vi.advanceTimersByTimeAsync(60)
+
+    await expect(pending).resolves.toBe('')
+    vi.useRealTimers()
   })
 })
