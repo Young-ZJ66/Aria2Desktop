@@ -302,6 +302,12 @@ describe('排序', () => {
     expect(sortTasks([bad, good], 'addTime', 'asc').map(t => t.gid)).toEqual(['not-hex', '0000000000000010'])
   })
 
+  it('排序值完全相同时保持原有顺序', () => {
+    // 两个同名文件：比较函数返回 0，稳定排序不应把顺序打乱
+    const list = [task({ gid: '1', files: [file({ path: 'D:/same.zip' })] }), task({ gid: '2', files: [file({ path: 'D:/same.zip' })] })]
+    expect(sortTasks(list, 'name', 'asc').map(t => t.gid)).toEqual(['1', '2'])
+  })
+
   it('排序返回新数组，不改动入参顺序', () => {
     const list = [task({ gid: '2' }), task({ gid: '1' })]
     const sorted = sortTasks(list, 'addTime', 'asc')

@@ -621,6 +621,7 @@ describe('connectionStore 连接收尾与预设落盘的边界', () => {
     const secondService = await connectWith(store, 'backup')
     expect(store.service).toBe(secondService)
 
+    firstService.emit('connected')
     firstService.emit('disconnected')
     firstService.emit('error', new Error('stale socket'))
     expect(store.isConnected).toBe(true)

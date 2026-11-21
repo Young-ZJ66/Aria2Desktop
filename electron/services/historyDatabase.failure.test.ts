@@ -252,6 +252,14 @@ describe('JSON 回退后端的写盘失败', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('EISDIR')
   })
+
+  it('没有 SQLite 句柄时容量裁剪直接跳过', () => {
+    // JSON 回退后端由 saveJson 自己控制大小，trimToLimit 必须在入口就退出
+    const instance = openFallbackDb(path.join(tmpDir, 'legacy-none.json'))
+
+    expect(instance.enabled).toBe(false)
+    expect(() => (instance as unknown as { trimToLimit: () => void }).trimToLimit()).not.toThrow()
+  })
 })
 
 describe('旧数据迁移的边界', () => {

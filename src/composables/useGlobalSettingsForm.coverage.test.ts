@@ -328,4 +328,14 @@ describe('脏标记快照的对齐时机', () => {
     const { saveDirtyPage } = await setupTracked()
     await expect(saveDirtyPage('not-registered')).resolves.toBeNull()
   })
+
+  it('加载成功后再触发 loading 的 watch 也会对齐快照', async () => {
+    const { api, getDirtyPages, loadingWatcher } = await setupTracked()
+    await api.loadSettings()
+    // 加载成功后用户又改了字段：此时 loading 的 watch 才真正起到兜底对齐的作用
+    form.dir = '/edited'
+    expect(getDirtyPages()).toEqual(['download'])
+    loadingWatcher.cb(false, true)
+    expect(getDirtyPages()).toEqual([])
+  })
 })

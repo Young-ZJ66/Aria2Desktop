@@ -180,6 +180,25 @@ describe('WatchFolderService 定时器与扫描兜底', () => {
     const log = store.get('autoImportLog') as AutoImportLogEntry[]
     expect(log[0].gid).toBe('4242')
   })
+
+  it('清理源文件失败时只留痕，不影响已导入的结果', async () => {
+    const { service, store } = makeService({ watchFolders: [folderConfig()] })
+    // 用同名普通文件占住 imported/ 目录，mkdir 必然失败
+    fs.writeFileSync(path.join(tmpDir, 'imported'), 'blocker')
+    writeStableFile(tmpDir, 'file.torrent', 'torrent-data')
+
+    const result = await scan(service)
+
+    expect(result.success).toBe(true)
+    expect(result.imported).toBe(1)
+    expect(holder.warn).toHaveBeenCalledWith(
+      '[WatchFolder] 清理源文件失败:',
+      path.join(tmpDir, 'file.torrent'),
+      expect.any(String)
+    )
+    const log = store.get('autoImportLog') as AutoImportLogEntry[]
+    expect(log.some(entry => entry.status === 'error')).toBe(true)
+  })
 })
 
 describe('WatchFolderService 配置校验与通道注册', () => {
