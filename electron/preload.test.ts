@@ -263,3 +263,67 @@ describe('事件订阅与退订', () => {
     expect(state.removed[0].channel).toBe('tracker:updated')
   })
 })
+
+/**
+ * 全通道清点：把 electronAPI 上每个叶子函数都真调一次，记录它落到哪个 IPC 通道。
+ *
+ * 为什么需要：桥接层是渲染层与主进程之间唯一的契约面，漏接一个通道的表现是
+ * 「点了按钮没反应」，而单测里逐个手写断言总会漏掉后加的接口。这里用遍历把
+ * 覆盖面锁成"接口面变化必须被看见"：新增方法会自动纳入，通道重名会立刻失败。
+ */
+describe('全通道清点', () => {
+  type Leaf = { path: string; fn: () => unknown }
+
+  function collectLeaves(source: Record<string, unknown>, prefix = ''): Leaf[] {
+    const leaves: Leaf[] = []
+    for (const [key, value] of Object.entries(source)) {
+      const path = prefix ? `${prefix}.${key}` : key
+      if (typeof value === 'function') {
+        leaves.push({ path, fn: value as () => unknown })
+      } else if (typeof value === 'object' && value !== null) {
+        leaves.push(...collectLeaves(value as Record<string, unknown>, path))
+      }
+    }
+    return leaves
+  }
+
+  it('每个叶子方法都对应一个 IPC 通道，且通道不重名', async () => {
+    const leaves = collectLeaves(api)
+    // 平台信息是值而不是函数，不属于叶子方法
+    expect(leaves.length).toBeGreaterThanOrEqual(100)
+
+    const channels: string[] = []
+    for (const leaf of leaves) {
+      state.invokes = []
+      state.sends = []
+      state.onCalls = []
+      await leaf.fn()
+      const touched = state.invokes.length + state.sends.length + state.onCalls.length
+      expect(touched, `${leaf.path} 没有落到任何 IPC 通道`).toBe(1)
+      const channel = state.invokes[0]?.channel ?? state.sends[0]?.channel ?? state.onCalls[0]?.channel
+      expect(typeof channel, `${leaf.path} 的通道名不是字符串`).toBe('string')
+      channels.push(channel as string)
+    }
+
+    const duplicates = channels.filter((channel, index) => channels.indexOf(channel) !== index)
+    expect(duplicates, `通道被多个方法共用：${duplicates.join(', ')}`).toEqual([])
+  })
+
+  it('订阅类方法全部登记了监听器而不是发请求', async () => {
+    const leaves = collectLeaves(api).filter(leaf => /(^|\.)on[A-Z]/.test(leaf.path))
+    expect(leaves.length).toBeGreaterThanOrEqual(12)
+    for (const leaf of leaves) {
+      state.invokes = []
+      state.sends = []
+      state.onCalls = []
+      state.removed = []
+      const unsubscribe = await leaf.fn()
+      expect(state.onCalls, `${leaf.path} 应该登记监听器`).toHaveLength(1)
+      expect(state.invokes).toHaveLength(0)
+      expect(typeof unsubscribe, `${leaf.path} 应该返回退订函数`).toBe('function')
+      ;(unsubscribe as () => void)()
+      expect(state.removed).toHaveLength(1)
+      expect(state.removed[0].channel).toBe(state.onCalls[0].channel)
+    }
+  })
+})

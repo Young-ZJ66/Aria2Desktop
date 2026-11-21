@@ -1045,3 +1045,489 @@ describe('请求体限制', () => {
     expect(json(res)).toMatchObject({ code: 'bad_request' })
   })
 })
+
+async function callTool(
+  name: string,
+  args: Record<string, unknown> = {}
+): Promise<{ text: string; isError: boolean }> {
+  const res = await call(
+    { method: 'POST', url: '/api/mcp', headers: authHeaders() },
+    { jsonrpc: '2.0', id: 42, method: 'tools/call', params: { name, arguments: args } }
+  )
+  const result = json(res).result as { content: Array<{ text: string }>; isError?: boolean }
+  return { text: result.content[0]?.text ?? '', isError: result.isError === true }
+}
+
+function lastRpc(): { method?: unknown; params?: unknown[] } {
+  return h.state.rpcCalls[h.state.rpcCalls.length - 1] as { method?: unknown; params?: unknown[] }
+}
+
+describe('MCP 工具：参数校验与 RPC 映射', () => {
+  it('add_download 缺 url 时直接报错，不碰引擎', async () => {
+    await makeServer()
+    const result = await callTool('add_download')
+    expect(result.isError).toBe(true)
+    expect(result.text).toBe('url is required')
+    expect(h.state.rpcCalls).toHaveLength(0)
+  })
+
+  it('add_download 的 url 不是字符串时明确区分「缺失」与「类型错」', async () => {
+    await makeServer()
+    const result = await callTool('add_download', { url: 42 })
+    expect(result.text).toBe('url must be a string')
+    expect(h.state.rpcCalls).toHaveLength(0)
+  })
+
+  it('add_download 拒绝白名单以外的协议', async () => {
+    await makeServer()
+    const result = await callTool('add_download', { url: 'file:///etc/passwd' })
+    expect(result.isError).toBe(true)
+    expect(result.text).toContain('URL is not allowed')
+    expect(h.state.rpcCalls).toHaveLength(0)
+  })
+
+  it('add_download 的 fileName 非字符串时报错', async () => {
+    await makeServer()
+    const result = await callTool('add_download', { url: 'http://a/b.zip', fileName: 7 })
+    expect(result.text).toBe('fileName must be a string')
+  })
+
+  it('add_download 把净化后的文件名放进 out，并回带 gid', async () => {
+    h.state.rpcPlan = { 'aria2.addUri': 'gid-9' }
+    await makeServer()
+    const result = await callTool('add_download', { url: 'http://a/b.zip', fileName: '../../evil.zip' })
+    expect(result.isError).toBe(false)
+    expect(result.text).toBe('Download added. gid=gid-9')
+    const params = lastRpc().params as unknown[]
+    expect(params[0]).toEqual(['http://a/b.zip'])
+    expect((params[1] as Record<string, unknown>).out).toBe('evil.zip')
+  })
+
+  it('add_download 的 fileName 只有空白时不带 out（不让空名盖掉服务器给的名字）', async () => {
+    h.state.rpcPlan = { 'aria2.addUri': 'gid-10' }
+    await makeServer()
+    await callTool('add_download', { url: 'http://a/b.zip', fileName: '   ' })
+    const options = (lastRpc().params as unknown[])[1] as Record<string, unknown>
+    expect(options.out).toBeUndefined()
+  })
+
+  it('list_tasks 默认查 active + waiting，并把任务映射成精简字段', async () => {
+    h.state.rpcPlan = {
+      'aria2.tellActive': [
+        { gid: 'g1', status: 'active', totalLength: '100', completedLength: '50', downloadSpeed: '10', bittorrent: { info: { name: 'a.zip' } } }
+      ],
+      'aria2.tellWaiting': []
+    }
+    await makeServer()
+    const result = await callTool('list_tasks')
+    const parsed = JSON.parse(result.text) as { count: number; tasks: Array<Record<string, unknown>> }
+    expect(parsed.count).toBe(1)
+    expect(parsed.tasks[0]).toEqual({ gid: 'g1', status: 'active', name: 'a.zip', size: '100', completed: '50', speed: '10' })
+    expect(h.state.rpcCalls.map((row) => row.method)).toEqual(['aria2.tellActive', 'aria2.tellWaiting'])
+  })
+
+  it('list_tasks 的 limit 会把结果截断', async () => {
+    h.state.rpcPlan = {
+      'aria2.tellActive': [
+        { gid: 'g1', status: 'active', bittorrent: { info: { name: 'a' } } },
+        { gid: 'g2', status: 'active', bittorrent: { info: { name: 'b' } } }
+      ],
+      'aria2.tellWaiting': []
+    }
+    await makeServer()
+    const result = await callTool('list_tasks', { limit: 1 })
+    const parsed = JSON.parse(result.text) as { count: number; tasks: Array<Record<string, unknown>> }
+    expect(parsed.count).toBe(1)
+    expect(parsed.tasks[0]?.gid).toBe('g1')
+  })
+
+  it('list_tasks 的 limit 会被钳到 1..100', async () => {
+    h.state.rpcPlan = { 'aria2.tellWaiting': [] }
+    await makeServer()
+    await callTool('list_tasks', { status: 'waiting', limit: 0 })
+    expect((lastRpc().params as unknown[]).slice(0, 2)).toEqual([0, 1])
+
+    h.state.rpcCalls = []
+    await callTool('list_tasks', { status: 'waiting', limit: 999 })
+    expect((lastRpc().params as unknown[]).slice(0, 2)).toEqual([0, 100])
+  })
+
+  it('list_tasks 的 limit 非数字时报错', async () => {
+    await makeServer()
+    const result = await callTool('list_tasks', { limit: 'ten' })
+    expect(result.text).toBe('limit must be a number')
+  })
+
+  it('list_tasks 的 status 非字符串时报错', async () => {
+    await makeServer()
+    const result = await callTool('list_tasks', { status: 3 })
+    expect(result.text).toBe('status must be a string')
+  })
+
+  it('list_tasks 指定 status 时只查对应的那一类', async () => {
+    h.state.rpcPlan = { 'aria2.tellStopped': [] }
+    await makeServer()
+    await callTool('list_tasks', { status: 'stopped' })
+    expect(h.state.rpcCalls.map((row) => row.method)).toEqual(['aria2.tellStopped'])
+  })
+
+  it('list_tasks 的 all 三路并发后整体截断到 limit', async () => {
+    h.state.rpcPlan = {
+      'aria2.tellActive': [
+        { gid: 'a1', status: 'active' },
+        { gid: 'a2', status: 'active' }
+      ],
+      'aria2.tellWaiting': [{ gid: 'w1', status: 'waiting' }],
+      'aria2.tellStopped': [{ gid: 's1', status: 'complete' }]
+    }
+    await makeServer()
+    const result = await callTool('list_tasks', { status: 'all', limit: 2 })
+    const parsed = JSON.parse(result.text) as { count: number; tasks: Array<Record<string, unknown>> }
+    expect(parsed.count).toBe(2)
+    expect(parsed.tasks.map((task) => task.gid)).toEqual(['a1', 'a2'])
+  })
+
+  it('get_download_status 不带 gid 时只回五项全局统计', async () => {
+    h.state.rpcPlan = {
+      'aria2.getGlobalStat': {
+        downloadSpeed: '9',
+        uploadSpeed: '1',
+        numActive: '2',
+        numWaiting: '3',
+        numStopped: '4',
+        extra: 'should be dropped'
+      }
+    }
+    await makeServer()
+    const result = await callTool('get_download_status')
+    expect(JSON.parse(result.text)).toEqual({
+      downloadSpeed: '9',
+      uploadSpeed: '1',
+      numActive: '2',
+      numWaiting: '3',
+      numStopped: '4'
+    })
+  })
+
+  it('get_download_status 带 gid 时改查单个任务', async () => {
+    h.state.rpcPlan = { 'aria2.tellStatus': { gid: 'g1', status: 'active', dir: 'C:/d' } }
+    await makeServer()
+    const result = await callTool('get_download_status', { gid: 'g1' })
+    expect(result.text).toContain('C:/d')
+    const params = lastRpc().params as unknown[]
+    expect(params[0]).toBe('g1')
+    expect((params[1] as string[]).length).toBe(12)
+  })
+
+  it('get_download_status 的 gid 非字符串时报错', async () => {
+    await makeServer()
+    expect((await callTool('get_download_status', { gid: 1 })).text).toBe('gid must be a string')
+  })
+
+  it('get_task_status 缺 gid 与 gid 类型错的文案不同', async () => {
+    await makeServer()
+    expect((await callTool('get_task_status')).text).toBe('gid is required')
+    expect((await callTool('get_task_status', { gid: null })).text).toBe('gid is required')
+    expect((await callTool('get_task_status', { gid: 5 })).text).toBe('gid must be a string')
+  })
+
+  it('get_task_status 查询时多要一个 bittorrent 字段', async () => {
+    h.state.rpcPlan = { 'aria2.tellStatus': { gid: 'g1', bittorrent: { info: { name: 'x' } } } }
+    await makeServer()
+    const result = await callTool('get_task_status', { gid: 'g1' })
+    expect(result.text).toContain('"name": "x"')
+    const keys = (lastRpc().params as unknown[])[1] as string[]
+    expect(keys).toContain('bittorrent')
+    expect(keys.length).toBe(13)
+  })
+
+  it('pause_task 与 resume_task 分别下发 pause / unpause', async () => {
+    h.state.rpcPlan = { 'aria2.pause': 'OK', 'aria2.unpause': 'OK' }
+    await makeServer()
+    const paused = await callTool('pause_task', { gid: 'g1' })
+    expect(paused.text).toBe('Paused task g1')
+    const resumed = await callTool('resume_task', { gid: 'g1' })
+    expect(resumed.text).toBe('Resumed task g1')
+    expect(h.state.rpcCalls.map((row) => row.method)).toEqual(['aria2.pause', 'aria2.unpause'])
+  })
+
+  it('pause_task 缺 gid 时报错且不下发', async () => {
+    await makeServer()
+    expect((await callTool('pause_task')).text).toBe('gid is required')
+    expect(h.state.rpcCalls).toHaveLength(0)
+  })
+
+  it('remove_task 先 remove 再清结果，remove 失败也继续', async () => {
+    h.state.rpcPlan = { 'aria2.remove': new Error('already stopped'), 'aria2.removeDownloadResult': 'OK' }
+    await makeServer()
+    const result = await callTool('remove_task', { gid: 'g1', confirm: true })
+    expect(result.isError).toBe(false)
+    expect(result.text).toBe('Removed task g1 (downloaded files were kept)')
+    expect(h.state.rpcCalls.map((row) => row.method)).toEqual(['aria2.remove', 'aria2.removeDownloadResult'])
+  })
+
+  it('pause_all 与 resume_all 各发一条全局命令', async () => {
+    h.state.rpcPlan = { 'aria2.pauseAll': 'OK', 'aria2.unpauseAll': 'OK' }
+    await makeServer()
+    expect((await callTool('pause_all', { confirm: true })).text).toBe('All active tasks paused')
+    expect((await callTool('resume_all')).text).toBe('All paused tasks resumed')
+    expect(h.state.rpcCalls.map((row) => row.method)).toEqual(['aria2.pauseAll', 'aria2.unpauseAll'])
+  })
+
+  it('set_speed_limit 只给下载时不动上传限速', async () => {
+    h.state.rpcPlan = { 'aria2.changeGlobalOption': 'OK' }
+    await makeServer()
+    const result = await callTool('set_speed_limit', { download: 1048576 })
+    expect(result.text).toBe('Speed limit set: download=1048576 B/s')
+    expect((lastRpc().params as unknown[])[0]).toEqual({ 'max-overall-download-limit': '1048576' })
+  })
+
+  it('set_speed_limit 同时给上传时两项都下发', async () => {
+    h.state.rpcPlan = { 'aria2.changeGlobalOption': 'OK' }
+    await makeServer()
+    const result = await callTool('set_speed_limit', { download: 0, upload: 2048 })
+    expect(result.text).toBe('Speed limit set: download=0 B/s, upload=2048 B/s')
+    expect((lastRpc().params as unknown[])[0]).toEqual({
+      'max-overall-download-limit': '0',
+      'max-overall-upload-limit': '2048'
+    })
+  })
+
+  it('set_speed_limit 拒绝负值与非数字', async () => {
+    await makeServer()
+    expect((await callTool('set_speed_limit', { download: -1 })).text).toBe('download must be a non-negative number')
+    expect((await callTool('set_speed_limit', { download: 1, upload: -2 })).text).toBe('upload must be a non-negative number')
+    expect((await callTool('set_speed_limit', { download: 'fast' })).text).toBe('download must be a non-negative number')
+    expect(h.state.rpcCalls).toHaveLength(0)
+  })
+
+  it('只读统计类工具各发一条对应 RPC 并原样回 JSON', async () => {
+    h.state.rpcPlan = {
+      'aria2.getGlobalStat': { numActive: '1' },
+      'aria2.getVersion': { version: '1.37.0' },
+      'aria2.getSessionInfo': { sessionId: 'abc' },
+      'aria2.getGlobalOption': { dir: 'C:/d' }
+    }
+    await makeServer()
+    expect((await callTool('get_global_stats')).text).toContain('numActive')
+    expect((await callTool('get_version')).text).toContain('1.37.0')
+    expect((await callTool('get_session_info')).text).toContain('abc')
+    expect((await callTool('get_global_options')).text).toContain('C:/d')
+    expect(h.state.rpcCalls.map((row) => row.method)).toEqual([
+      'aria2.getGlobalStat',
+      'aria2.getVersion',
+      'aria2.getSessionInfo',
+      'aria2.getGlobalOption'
+    ])
+  })
+
+  it('get_task_peers / servers / files 三个查询各自映射到对应 RPC', async () => {
+    h.state.rpcPlan = {
+      'aria2.getPeers': [{ peerId: 'p1' }],
+      'aria2.getServers': [{ index: '1' }],
+      'aria2.tellStatus': { gid: 'g1', files: [{ path: 'C:/d/a.bin' }] }
+    }
+    await makeServer()
+    expect((await callTool('get_task_peers', { gid: 'g1' })).text).toContain('p1')
+    expect((await callTool('get_task_servers', { gid: 'g1' })).text).toContain('"index": "1"')
+    expect((await callTool('get_task_files', { gid: 'g1' })).text).toContain('a.bin')
+    expect(h.state.rpcCalls.map((row) => row.method)).toEqual([
+      'aria2.getPeers',
+      'aria2.getServers',
+      'aria2.tellStatus'
+    ])
+  })
+
+  it('change_task_position 默认用 POS_SET 并回新位置', async () => {
+    h.state.rpcPlan = { 'aria2.changePosition': 3 }
+    await makeServer()
+    const result = await callTool('change_task_position', { gid: 'g1', position: 2 })
+    expect(result.text).toBe('Task g1 moved; new position=3')
+    expect(lastRpc().params).toEqual(['g1', 2, 'POS_SET'])
+  })
+
+  it('change_task_position 的 how 与 position 都有校验', async () => {
+    await makeServer()
+    expect((await callTool('change_task_position', { gid: 'g1', position: 0, how: 'END' })).text).toBe(
+      'how must be POS_SET, POS_CUR or POS_END'
+    )
+    expect((await callTool('change_task_position', { gid: 'g1', position: -1 })).text).toBe(
+      'position must be a non-negative number'
+    )
+    expect(h.state.rpcCalls).toHaveLength(0)
+  })
+
+  it('set_task_speed_limit 只给下载时只写 max-download-limit', async () => {
+    h.state.rpcPlan = { 'aria2.changeOption': 'OK' }
+    await makeServer()
+    const result = await callTool('set_task_speed_limit', { gid: 'g1', download: 1024 })
+    expect(result.text).toContain('"max-download-limit":"1024"')
+    expect(lastRpc().params).toEqual(['g1', { 'max-download-limit': '1024' }])
+  })
+
+  it('set_task_speed_limit 两项都给时都写进去', async () => {
+    h.state.rpcPlan = { 'aria2.changeOption': 'OK' }
+    await makeServer()
+    await callTool('set_task_speed_limit', { gid: 'g1', download: 0, upload: 0 })
+    expect(lastRpc().params).toEqual(['g1', { 'max-download-limit': '0', 'max-upload-limit': '0' }])
+  })
+
+  it('set_task_speed_limit 既不传下载也不传上传时报错', async () => {
+    await makeServer()
+    expect((await callTool('set_task_speed_limit', { gid: 'g1' })).text).toBe('download or upload is required')
+    expect(h.state.rpcCalls).toHaveLength(0)
+  })
+
+  it('set_task_speed_limit 的上传不接受负数（与全局 -1 语义不同）', async () => {
+    await makeServer()
+    expect((await callTool('set_task_speed_limit', { gid: 'g1', upload: -1 })).text).toBe(
+      'upload must be a non-negative number'
+    )
+  })
+
+  it('set_max_concurrent 写入全局选项，越界则报错', async () => {
+    h.state.rpcPlan = { 'aria2.changeGlobalOption': 'OK' }
+    await makeServer()
+    const result = await callTool('set_max_concurrent', { value: 5 })
+    expect(result.text).toBe('Maximum concurrent downloads set to 5')
+    expect((lastRpc().params as unknown[])[0]).toEqual({ 'max-concurrent-downloads': '5' })
+    expect((await callTool('set_max_concurrent', { value: 0 })).text).toBe('value must be between 1 and 50')
+    expect((await callTool('set_max_concurrent', { value: 51 })).text).toBe('value must be between 1 and 50')
+  })
+
+  it('purge_download_result 带 confirm 才清结果记录', async () => {
+    h.state.rpcPlan = { 'aria2.removeDownloadResult': 'OK' }
+    await makeServer()
+    const result = await callTool('purge_download_result', { gid: 'g1', confirm: true })
+    expect(result.text).toBe('Removed result entry for g1')
+    expect(h.state.rpcCalls.map((row) => row.method)).toEqual(['aria2.removeDownloadResult'])
+  })
+
+  it('save_session 落盘会话', async () => {
+    h.state.rpcPlan = { 'aria2.saveSession': 'OK' }
+    await makeServer()
+    expect((await callTool('save_session')).text).toBe('Download session saved')
+  })
+
+  it('RPC 抛错被包成 isError 而不是 500', async () => {
+    h.state.rpcPlan = { 'aria2.getVersion': new Error('engine down') }
+    await makeServer()
+    const result = await callTool('get_version')
+    expect(result.isError).toBe(true)
+    expect(result.text).toBe('engine down')
+  })
+
+  it('tools/call 缺 params 时回 invalidParams 而不是执行空工具', async () => {
+    await makeServer()
+    const res = await call({ method: 'POST', url: '/api/mcp', headers: authHeaders() }, { jsonrpc: '2.0', id: 43, method: 'tools/call' })
+    expect((json(res).error as { code: number }).code).toBe(-32602)
+    expect(h.state.rpcCalls).toHaveLength(0)
+  })
+
+  it('resources/read 三类任务 URI 各自带上分页与字段清单', async () => {
+    h.state.rpcPlan = {
+      'aria2.tellActive': [{ gid: 'a' }],
+      'aria2.tellWaiting': [{ gid: 'w' }],
+      'aria2.tellStopped': [{ gid: 's' }]
+    }
+    await makeServer()
+    for (const uri of ['aria2://tasks/active', 'aria2://tasks/waiting', 'aria2://tasks/stopped']) {
+      const res = await call(
+        { method: 'POST', url: '/api/mcp', headers: authHeaders() },
+        { jsonrpc: '2.0', id: 44, method: 'resources/read', params: { uri } }
+      )
+      const contents = (json(res).result as { contents: Array<{ uri: string }> }).contents
+      expect(contents[0]?.uri).toBe(uri)
+    }
+    const stoppedKeys = (h.state.rpcCalls[2]?.params as unknown[])[2] as string[]
+    expect(stoppedKeys).toContain('errorMessage')
+    expect(stoppedKeys.length).toBe(9)
+  })
+
+  it('prompts/get 两个模板分别带出过滤条件与 gid', async () => {
+    await makeServer()
+    const summary = await call(
+      { method: 'POST', url: '/api/mcp', headers: authHeaders() },
+      { jsonrpc: '2.0', id: 45, method: 'prompts/get', params: { name: 'download_summary', arguments: { status: 'active' } } }
+    )
+    const summaryResult = json(summary).result as { messages: Array<{ content: { text: string } }> }
+    expect(summaryResult.messages[0]?.content.text).toContain('"active"')
+
+    const diagnose = await call(
+      { method: 'POST', url: '/api/mcp', headers: authHeaders() },
+      { jsonrpc: '2.0', id: 46, method: 'prompts/get', params: { name: 'diagnose_downloads', arguments: { gid: 'g1' } } }
+    )
+    const diagnoseText = (json(diagnose).result as { messages: Array<{ content: { text: string } }> }).messages[0]
+      ?.content.text
+    expect(diagnoseText).toContain('gid g1')
+    expect(diagnoseText).toContain('get_task_peers')
+  })
+
+  it('prompts/get 不带参数时回落到通用文案', async () => {
+    await makeServer()
+    const summary = await call(
+      { method: 'POST', url: '/api/mcp', headers: authHeaders() },
+      { jsonrpc: '2.0', id: 47, method: 'prompts/get', params: { name: 'download_summary' } }
+    )
+    expect((json(summary).result as { messages: Array<{ content: { text: string } }> }).messages[0]?.content.text).toContain(
+      '"all"'
+    )
+    const diagnose = await call(
+      { method: 'POST', url: '/api/mcp', headers: authHeaders() },
+      { jsonrpc: '2.0', id: 48, method: 'prompts/get', params: { name: 'diagnose_downloads' } }
+    )
+    expect((json(diagnose).result as { messages: Array<{ content: { text: string } }> }).messages[0]?.content.text).toContain(
+      'List current downloads'
+    )
+  })
+})
+
+describe('/api/stream* 补充分支', () => {
+  it('GET /api/stream 回 405', async () => {
+    await makeServer()
+    const res = await call({ url: '/api/stream', headers: authHeaders() })
+    expect(res.status).toBe(405)
+  })
+
+  it('没有 stream:control 的 token 被 403 拦住', async () => {
+    h.state.tokens = [makeTokenRecord(['download:add'])]
+    await makeServer()
+    const res = await call({ method: 'POST', url: '/api/stream', headers: tokenHeaders(TOKEN) }, { url: 'https://a/b' })
+    expect(res.status).toBe(403)
+    expect(json(res)).toMatchObject({ code: 'insufficient_scope' })
+    expect(h.state.streamInputs).toHaveLength(0)
+  })
+
+  it('流媒体服务启动失败时把 code 与 error 原样带回', async () => {
+    h.state.streamStart = { success: false, code: 'ffmpeg_missing', error: 'ffmpeg not found' }
+    await makeServer()
+    const res = await call({ method: 'POST', url: '/api/stream', headers: authHeaders() }, { url: 'https://a/b' })
+    expect(json(res)).toEqual({ ok: false, code: 'ffmpeg_missing', error: 'ffmpeg not found' })
+  })
+
+  it('POST /api/stream-tasks 回 405', async () => {
+    await makeServer()
+    const res = await call({ method: 'POST', url: '/api/stream-tasks', headers: authHeaders() }, {})
+    expect(res.status).toBe(405)
+  })
+
+  it('resume 与 pause 一样按任务 id 下发', async () => {
+    h.state.resumeResult = true
+    await makeServer()
+    const res = await call({ method: 'POST', url: '/api/stream-task', headers: authHeaders() }, { action: 'resume', id: 's1' })
+    expect(json(res)).toEqual({ ok: true })
+  })
+
+  it('未知 action 回 invalid_action', async () => {
+    await makeServer()
+    const res = await call({ method: 'POST', url: '/api/stream-task', headers: authHeaders() }, { action: 'explode', id: 's1' })
+    expect(json(res)).toMatchObject({ code: 'invalid_action' })
+  })
+
+  it('/api/stream-task 的非法 JSON 回 bad_request', async () => {
+    await makeServer()
+    const res = await call({ method: 'POST', url: '/api/stream-task', headers: authHeaders() }, '{oops')
+    expect(res.status).toBe(400)
+    expect(json(res)).toMatchObject({ code: 'bad_request' })
+  })
+})

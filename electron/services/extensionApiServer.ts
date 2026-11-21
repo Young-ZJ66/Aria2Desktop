@@ -819,8 +819,10 @@ export class ExtensionApiServer {
         }
 
         case 'list_tasks': {
-          const status = optString(args, 'status') ?? 'default'
-          if (status === null) return buildToolErrorResult('status must be a string')
+          // 注意顺序：先判 null（类型非法）再回落默认值，否则 '?? default' 会把类型错误吞掉
+          const rawStatus = optString(args, 'status')
+          if (rawStatus === null) return buildToolErrorResult('status must be a string')
+          const status = rawStatus ?? 'default'
           const limitRaw = optNumber(args, 'limit', 20)
           if (limitRaw === null) return buildToolErrorResult('limit must be a number')
           const limit = Math.min(Math.max(limitRaw, 1), 100)
@@ -981,7 +983,9 @@ export class ExtensionApiServer {
           if (gid === null) return buildToolErrorResult('gid must be a string')
           const position = optNumber(args, 'position', 0)
           if (position === null || position < 0) return buildToolErrorResult('position must be a non-negative number')
-          const how = optString(args, 'how') ?? 'POS_SET'
+          const rawHow = optString(args, 'how')
+          if (rawHow === null) return buildToolErrorResult('how must be POS_SET, POS_CUR or POS_END')
+          const how = rawHow ?? 'POS_SET'
           if (how !== 'POS_SET' && how !== 'POS_CUR' && how !== 'POS_END') {
             return buildToolErrorResult('how must be POS_SET, POS_CUR or POS_END')
           }
