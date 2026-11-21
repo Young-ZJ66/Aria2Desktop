@@ -4,14 +4,14 @@
 
 ## 📌 beta.10 相对 beta.9 的变化
 
-beta.9 之后没有再动功能面。这一版把验证过程中暴露出来的几个确定性缺陷修掉，另外把单测从 2432 项补到 3994 项，作为正式版前的最后一道网。
+beta.9 之后没有再动功能面。这一版把验证过程中暴露出来的几个确定性缺陷修掉，另外把单测从 2432 项补到 3996 项，作为正式版前的最后一道网。
 
 - **应用内安装 yt-dlp 不再必然失败**：原子替换前误删了刚下载并校验通过的临时文件，紧接着的 rename 必然 `ENOENT`，流媒体组件因此装不上（旧版本还会被一起挪走）。现已保留安装包本体，备份 / 回滚逻辑不变。
 - **完成历史不再只剩最后一条**：历史库走 JSON 回退后端时，单条保存实际是「用这一条覆盖整份文件」，每完成一个任务就把之前的历史清空。现在单条保存会先读回已有内容再合并。
 - **重命名模板不再产出双扩展名**：模板里写了 `{ext}` 时不再额外追加一次扩展名（此前 `{name}-{date}{ext}` 得到 `episode-2026-01-01.mkv.mkv`）。
 - **MCP 工具的参数类型错误不再被吞掉**：`list_tasks` 的 `status`、`change_task_position` 的 `how` 传了错误类型时，此前会被当成「没传」直接回落默认值；现在按参数非法拒绝。
 - **停用插件时钩子抛错不再冒到界面**：插件 `onDeactivate` 同步抛错会让界面提示「停用插件失败」，但插件状态其实已经改了。现在钩子异常只记日志，停用照常成功。
-- **单测补到 3994 项**：新增 1562 项单测覆盖此前零覆盖的兜底分支（进程结算守卫、响应流中断、更新检查超时、插件沙箱脱敏、RSS 拉取超时等），语句覆盖率 99.78%、分支 91.34%；同时修掉 CI 上因 en-US 环境导致的两条日期用例失败。
+- **单测补到 3996 项**：新增 1564 项单测覆盖此前零覆盖的兜底分支（进程结算守卫、响应流中断、更新检查超时、插件沙箱脱敏、RSS 拉取超时等），语句覆盖率 99.78%、分支 91.34%；同时修掉 CI 上因 en-US 环境导致的两条日期用例失败。
 - **HLS 的 .ts 分片不再被当成普通视频**：嗅探只把 `.m4s` 认作分片，HLS 的 `.ts` 被当成普通视频列出来，一次播放就能刷满 200 条嗅探缓冲并被批量直下。现在 `.ts` 与 `.m4s` 一样只计数量、不进资源列表。
 - **流媒体任务也吃全局限速**：yt-dlp 任务不进 aria2 队列、拿不到 `max-overall-download-limit`，限速对流媒体下载完全无效。现在启动与继续前都会读一次全局限速并转成 `--limit-rate`。
 - **Web 控制台的令牌不再落进 localStorage**：页面此前把访问令牌明文存在 localStorage，任何 XSS 都能读走并长期复用。现在改为「用令牌换 HttpOnly + SameSite=Strict 会话 Cookie」，页面脚本读不到令牌原文，浏览器自动携带；退出登录会通知服务端立刻作废会话。`Authorization: Bearer` 通道保留，扩展、MCP 与脚本客户端不受影响。
@@ -85,7 +85,7 @@ beta.9 之后没有再动功能面。这一版把验证过程中暴露出来的�
 
 ## ✅ 验证
 
-- typecheck（主进程 + 测试代码 + 渲染层）通过；232 个测试文件 / 3994 项单测通过（引擎重启压力测试默认跳过）。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；232 个测试文件 / 3996 项单测通过（引擎重启压力测试默认跳过）。
 - Web 控制台页面内联脚本/样式的 CSP 哈希由单测逐字节校验，改了内联脚本却忘同步哈希会直接失败（否则浏览器会静默拒绝执行脚本，页面白屏）。
 - `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
 - 应用 E2E 214 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局，以及真实 Chrome 里的扩展 16 项与配对回归 6 项）；其中 18 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、队列视图只读、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
@@ -104,7 +104,7 @@ beta.9 之后没有再动功能面。这一版把验证过程中暴露出来的�
 
 ## 📌 What changed since beta.9
 
-Nothing on the feature surface changed after beta.9. This release fixes the definite defects that surfaced during validation and raises the unit-test suite from 2432 to 3994 tests as a last net before the stable release.
+Nothing on the feature surface changed after beta.9. This release fixes the definite defects that surfaced during validation and raises the unit-test suite from 2432 to 3996 tests as a last net before the stable release.
 - **HLS `.ts` segments are no longer treated as ordinary videos**: the sniffer only recognised `.m4s` as a segment, so HLS `.ts` files appeared as regular videos — one playback could fill the 200-entry buffer with segments that could be batch-downloaded. `.ts` is now counted like `.m4s` and kept out of the list.
 - **Streaming downloads now obey the global speed limit**: yt-dlp tasks never enter the aria2 queue and could not see `max-overall-download-limit`, so the limit had no effect on them. It is now read before launch and resume and passed as `--limit-rate`.
 - **The web console no longer keeps its token in localStorage**: the page used to store the access token in plain text there, so any XSS could read it and reuse it indefinitely. It now exchanges the token for an HttpOnly, SameSite=Strict session cookie: page scripts cannot read the token itself and the browser attaches the cookie automatically, while signing out invalidates the session server-side. The `Authorization: Bearer` channel is unchanged for extensions, MCP and scripted clients.
@@ -114,7 +114,7 @@ Nothing on the feature surface changed after beta.9. This release fixes the defi
 - **Rename templates no longer produce a double extension**: when the template contains `{ext}` the extension is no longer appended a second time (`{name}-{date}{ext}` used to yield `episode-2026-01-01.mkv.mkv`).
 - **MCP tool argument type errors are no longer swallowed**: a wrong type for `list_tasks` `status` or `change_task_position` `how` used to be treated as "not provided" and silently replaced by the default; it is now rejected as invalid.
 - **A throwing deactivate hook no longer reaches the UI**: a synchronous throw from a plugin `onDeactivate` made the UI report "failed to disable plugin" even though the state had already changed. Hook errors are now logged and the disable succeeds.
-- **1562 new unit tests**: they cover fallback branches that previously had no coverage at all (process-settle guards, interrupted response streams, update-check timeouts, plugin sandbox redaction, RSS fetch timeouts), taking statement coverage to 99.78% and branch coverage to 91.34%; two date-format tests that failed on en-US CI runners are fixed as well.
+- **1564 new unit tests**: they cover fallback branches that previously had no coverage at all (process-settle guards, interrupted response streams, update-check timeouts, plugin sandbox redaction, RSS fetch timeouts), taking statement coverage to 99.78% and branch coverage to 91.34%; two date-format tests that failed on en-US CI runners are fixed as well.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -183,7 +183,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ## ✅ Verification
 
-- Typecheck (main process, tests, renderer) passes; 232 test files / 3994 unit tests pass (the engine-restart stress test is skipped by default).
+- Typecheck (main process, tests, renderer) passes; 232 test files / 3996 unit tests pass (the engine-restart stress test is skipped by default).
 - `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
 - All 214 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring, plus 16 extension checks and 6 pairing regression checks in a real Chrome), of which 18 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, the read-only queue view, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.

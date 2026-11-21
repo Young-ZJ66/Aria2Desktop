@@ -648,6 +648,34 @@ describe('会话 Cookie 的 HTTP 往返', () => {
     }
   })
 })
+
+describe('WebConsoleServer.stop 与 keep-alive 连接', () => {
+  it('停服时会立刻断开 keep-alive 空闲连接，不等到超时', async () => {
+    rpcMock.mockImplementation(async (options: { method: string }) => {
+      if (options.method === 'aria2.getGlobalStat') return { downloadSpeed: '0', uploadSpeed: '0', numActive: '0', numWaiting: '0', numStopped: '0' }
+      return []
+    })
+    const port = 39737
+    const server = makeServer({ webConsole: { enabled: true, port, token: MASTER, allowedIps: [] } })
+    const started = await server.apply()
+    expect(started.running).toBe(true)
+    const base = 'http://127.0.0.1:' + String(port)
+    try {
+      const first = await fetch(base + '/api/status', { headers: { authorization: 'Bearer ' + MASTER } })
+      expect(first.status).toBe(200)
+      // 让连接回到 agent 的空闲池（keep-alive 生效时 socket 不关闭）
+      await first.text()
+      const startedAt = Date.now()
+      await server.stop()
+      const elapsed = Date.now() - startedAt
+      // 没有主动断开时空闲连接会让 server.close() 的回调挂到浏览器保活超时（约 5 秒）
+      expect(elapsed).toBeLessThan(2000)
+      await expect(fetch(base + '/api/status', { headers: { authorization: 'Bearer ' + MASTER } })).rejects.toThrow()
+    } finally {
+      await server.stop()
+    }
+  })
+})
 describe('WebConsoleServer.apply LAN 加密约束', () => {
   it('允许局域网但未配置 TLS 时拒绝启动（避免明文 HTTP 泄露令牌）', async () => {
     const server = makeServer({

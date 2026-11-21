@@ -713,6 +713,15 @@ describe('流媒体通道入参校验', () => {
     expect(result).toMatchObject({ success: false, code: 'path_not_allowed' })
   })
 
+  it('相对路径的保存目录按不在下载根内拒绝（D-19）', async () => {
+    const handlers = await registered()
+    const result = await handlers.get('stream-download-start')!({ sender: { isDestroyed: () => false, send: vi.fn() } }, {
+      url: 'https://a',
+      outputDir: 'downloads/video'
+    })
+    expect(result).toMatchObject({ success: false, code: 'path_not_allowed' })
+  })
+
   it('playlist 结构非法时拒绝', async () => {
     const handlers = await registered()
     const result = await handlers.get('stream-download-start')!({ sender: { isDestroyed: () => false, send: vi.fn() } }, {
