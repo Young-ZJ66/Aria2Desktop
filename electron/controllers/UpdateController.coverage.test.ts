@@ -248,6 +248,28 @@ class FakeWriteStream extends EventEmitter {
   }
 }
 
+// 磁盘满/权限不足：第一次写入就同步抛错，模拟 fs 写流报 ENOSPC
+class FailingWriteStream extends EventEmitter {
+  writeCount = 0
+  destroyed = false
+
+  write(_chunk: Buffer): boolean {
+    this.writeCount += 1
+    if (this.writeCount === 1) {
+      this.emit('error', new Error('ENOSPC: no space left on device'))
+    }
+    return true
+  }
+
+  end(callback?: () => void): void {
+    if (callback) callback()
+  }
+
+  destroy(): void {
+    this.destroyed = true
+  }
+}
+
 beforeEach(() => {
   h.state.tempDir = fsReal.mkdtempSync(path.join(os.tmpdir(), 'update-cov-temp-'))
   h.state.userDataDir = fsReal.mkdtempSync(path.join(os.tmpdir(), 'update-cov-data-'))
@@ -625,5 +647,24 @@ describe('校验文件的异常路径', () => {
     const result = await internals(controller).downloadWithRedirects(DOWNLOAD_URL, filePath, '1.5.0', DOWNLOAD_URL, 0)
     expect(result).toEqual({ checksumUnavailable: true })
     expect(h.warn).toHaveBeenCalledWith('[UpdateController] Checksum file unavailable, installer left unverified:', 'checksum stream broken')
+  })
+})
+
+describe('写盘失败的收尾', () => {
+  it('写流报错时中止下载并让 Promise 失败', async () => {
+    const stream = new FailingWriteStream()
+    h.state.fakeStream = stream
+    const filePath = path.join(h.state.tempDir, 'write-fail.download')
+    h.state.plans = [
+      bodyPlan(INSTALLER_CONTENT, { 'content-length': String(Buffer.byteLength(INSTALLER_CONTENT)) }),
+      bodyPlan(sha256Of(INSTALLER_CONTENT))
+    ]
+    const { UpdateController } = await loadController()
+    const controller = createController(UpdateController)
+    await expect(internals(controller).downloadWithRedirects(DOWNLOAD_URL, filePath, '1.5.0', DOWNLOAD_URL, 0))
+      .rejects.toThrow('ENOSPC: no space left on device')
+    expect(stream.destroyed).toBe(true)
+    // 失败后不再继续处理分片：写流没有被第二次写入
+    expect(stream.writeCount).toBe(1)
   })
 })

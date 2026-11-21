@@ -1063,3 +1063,63 @@ describe('重连后的首次连接标记', () => {
     expect(h.state.showConnectionDialog).toBe(false)
   })
 })
+describe('watch 源与完成动作的早退分支', () => {
+  async function armCompletion(action: string): Promise<void> {
+    h.state.settings.downloadCompleteAction = action
+    await mountApp()
+    runConnectionWatcher(true, false)
+    h.state.activeTasks = [{ gid: 'a1' }]
+    runCompletionWatcher()
+  }
+
+  async function fireCompletion(): Promise<void> {
+    h.cbs.downloadComplete('a1')
+    h.state.activeTasks = []
+    h.state.completedTasks = [{ gid: 'a1', dir: 'D:/dl', files: [{ path: 'D:/dl/a.mp4' }] }]
+    h.state.completionDecision = 'fire'
+    runCompletionWatcher()
+  }
+
+  it('各个 watch 的取值函数都反映当前状态', async () => {
+    h.state.activeTasks = [{ gid: 'a1' }]
+    h.state.waitingTasks = [{ gid: 'w1' }]
+    h.state.completedTasks = [{ gid: 'c1' }]
+    h.state.isConnected = true
+    h.state.settings.clipboardMonitorEnabled = true
+    await mountApp()
+
+    expect(h.watchers[0].source()).toEqual([{ gid: 'a1' }])
+    expect(h.watchers[1].source()).toEqual([1, 1, true, 1])
+    expect(h.watchers[2].source()).toBe(true)
+    expect(h.watchers[3].source()).toBe(true)
+    expect(h.watchers[4].source()).toBe(true)
+  })
+
+  it('断线时清空批次状态，不把清空当成下载完成', async () => {
+    await armCompletion('close')
+    runConnectionWatcher(false, true)
+    runCompletionWatcher()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api().close).not.toHaveBeenCalled()
+  })
+
+  it('判定结果不是 fire 时直接返回', async () => {
+    h.state.settings.downloadCompleteAction = 'close'
+    await mountApp()
+    runConnectionWatcher(true, false)
+    h.state.completedTasks = [{ gid: 'c1' }]
+    h.state.completionDecision = 'wait'
+    runCompletionWatcher()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api().close).not.toHaveBeenCalled()
+  })
+
+  it('宽限期内又来了新任务时撤销挂起的完成动作', async () => {
+    await armCompletion('close')
+    await fireCompletion()
+    h.state.activeTasks = [{ gid: 'a2' }]
+    runCompletionWatcher()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(api().close).not.toHaveBeenCalled()
+  })
+})
