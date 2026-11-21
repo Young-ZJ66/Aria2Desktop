@@ -261,7 +261,7 @@ function readOptions(argv = process.argv.slice(2)) {
 export { resolveWindowsExecutable, resolveMacExecutable, resolveLinuxExecutable, resolveDefaultExe, readOptions }
 
 /** 借系统拿一个空闲端口，避免和本机正在运行的正式版抢 6800 */
-function findFreePort() {
+export function findFreePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer()
     server.once('error', reject)
@@ -276,7 +276,7 @@ function findFreePort() {
  * 预置隔离数据：设置、aria2.conf 才是引擎端口的真实来源（与开发态 E2E 同一套路），
  * 这样冒烟跑的是真实启动路径，不需要为测试在正式代码里留分支。
  */
-function seedUserData(userData, rpcPort) {
+export function seedUserData(userData, rpcPort) {
   fs.mkdirSync(userData, { recursive: true })
   // 阻止旧版数据迁移把仓库 data/ 下的真实任务复制进来（迁移逻辑见 electron/main.ts）
   fs.writeFileSync(path.join(userData, '.legacy-data-migrated'), 'smoke')
@@ -323,7 +323,7 @@ function seedUserData(userData, rpcPort) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function waitFor(check, { timeout, intervalMs = 500 }) {
+export async function waitFor(check, { timeout, intervalMs = 500 }) {
   const deadline = Date.now() + timeout
   while (Date.now() < deadline) {
     const value = await check()
@@ -333,7 +333,7 @@ async function waitFor(check, { timeout, intervalMs = 500 }) {
   return null
 }
 
-function readLog(file) {
+export function readLog(file) {
   try {
     return fs.readFileSync(file, 'utf8')
   } catch {
@@ -341,7 +341,7 @@ function readLog(file) {
   }
 }
 
-function stopProcess(child) {
+export function stopProcess(child) {
   if (!child || child.exitCode !== null) return
   if (process.platform === 'win32') {
     // 应用会派生 aria2 子进程，只杀父进程会留下孤儿引擎
@@ -581,7 +581,7 @@ function reportFailure(options, outcome, attempt, attemptCount) {
   }
 }
 
-function cleanup(options, userData) {
+export function cleanup(options, userData) {
   if (options.keepData) {
     console.log(`\n按 --keep 保留隔离数据：${userData}`)
     return
@@ -593,7 +593,7 @@ function cleanup(options, userData) {
   }
 }
 
-async function main() {
+export async function main() {
   let options
   try {
     options = readOptions()

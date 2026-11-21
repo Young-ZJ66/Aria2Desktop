@@ -115,8 +115,8 @@ export function readUpdateInfo(filePath) {
   }
 }
 
-/** CLI 入口。 */
-function main(argv) {
+/** CLI 入口（导出以便单测覆盖参数校验与回读断言）。 */
+export function main(argv) {
   const [filePath, owner, repo, ...rest] = argv
   if (!filePath || !owner || !repo) {
     console.error('用法：node scripts/embed-appimage-update-info.mjs <AppImage> <owner> <repo> [--channel=latest]')

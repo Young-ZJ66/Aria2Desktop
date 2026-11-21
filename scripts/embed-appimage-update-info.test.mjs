@@ -6,17 +6,32 @@
  * 不依赖真实 AppImage（数百 MB），真实产物的验证交给 release CI 的回读断言。
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {
   buildUpdateInfo,
+  main,
   readElfSections,
   readUpdateInfo,
   writeUpdateInfo,
   zsyncPatternFor
 } from './embed-appimage-update-info.mjs'
+
+/**
+ * zsyncmake 只在发布机（Linux CI）上存在，本地与 Windows 都没有。
+ * 所以 CLI 用例把 execFileSync 换掉，只验证"参数怎么传、失败怎么降级"。
+ */
+const holder = vi.hoisted(() => ({ zsyncThrows: null, zsyncCalls: [] }))
+
+vi.mock('node:child_process', () => ({
+  execFileSync: (command, args) => {
+    holder.zsyncCalls.push({ command, args })
+    if (holder.zsyncThrows) throw new Error(holder.zsyncThrows)
+    return Buffer.alloc(0)
+  }
+}))
 
 /** 构造最小 ELF64 镜像：header + 两个数据节 + 节头表 + 字符串表。 */
 function buildFakeElf({ includeUpdInfo = true }) {
@@ -169,5 +184,72 @@ describe('writeUpdateInfo / readUpdateInfo', () => {
       },
       { includeUpdInfo: false }
     )
+  })
+})
+
+describe('CLI 入口 main', () => {
+  afterEach(() => {
+    holder.zsyncThrows = null
+    holder.zsyncCalls = []
+    process.exitCode = undefined
+    vi.restoreAllMocks()
+  })
+
+  it('缺参数时打印用法并以退出码 1 结束', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const exit = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error('exit:' + code)
+    })
+    expect(() => main(['only-one-arg'])).toThrow('exit:1')
+    expect(String(error.mock.calls[0][0])).toContain('用法')
+    expect(exit).toHaveBeenCalledWith(1)
+  })
+
+  it('写入成功时回读一致，并按文件名推导 zsync 通配模式', () => {
+    withTempElf((file) => {
+      const named = path.join(path.dirname(file), 'Aria2Desktop-1.5.0-arm64.AppImage')
+      fs.copyFileSync(file, named)
+      const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+      main([named, 'Young-ZJ66', 'Aria2Desktop'])
+      expect(readUpdateInfo(named)).toBe(
+        'gh-releases-zsync|Young-ZJ66|Aria2Desktop|latest|Aria2Desktop-*-arm64.AppImage.zsync'
+      )
+      const text = log.mock.calls.map((call) => String(call[0])).join('\n')
+      expect(text).toContain('已写入 update information')
+      expect(text).toContain('.upd_info 节区 offset=')
+      expect(text).toContain('已生成')
+      // zsyncmake 的参数：-u 指向 AppImage 自身文件名，-o 输出 .zsync
+      expect(holder.zsyncCalls).toEqual([
+        {
+          command: 'zsyncmake',
+          args: ['-u', 'Aria2Desktop-1.5.0-arm64.AppImage', '-o', named + '.zsync', named]
+        }
+      ])
+      expect(process.exitCode).toBeUndefined()
+    })
+  })
+
+  it('--channel 覆盖默认发布通道', () => {
+    withTempElf((file) => {
+      const named = path.join(path.dirname(file), 'Aria2Desktop-1.5.0-x86_64.AppImage')
+      fs.copyFileSync(file, named)
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      main([named, 'Young-ZJ66', 'Aria2Desktop', '--channel=beta'])
+      expect(readUpdateInfo(named)).toContain('|beta|')
+    })
+  })
+
+  it('zsyncmake 不可用时只告警并把退出码设为 2，AppImage 已写入的部分保留', () => {
+    withTempElf((file) => {
+      const named = path.join(path.dirname(file), 'Aria2Desktop-1.5.0-x86_64.AppImage')
+      fs.copyFileSync(file, named)
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      holder.zsyncThrows = 'spawnSync zsyncmake ENOENT'
+      main([named, 'Young-ZJ66', 'Aria2Desktop'])
+      expect(String(error.mock.calls[0][0])).toContain('WARN zsyncmake')
+      expect(process.exitCode).toBe(2)
+      expect(readUpdateInfo(named)).toContain('gh-releases-zsync|Young-ZJ66|Aria2Desktop|latest|')
+    })
   })
 })

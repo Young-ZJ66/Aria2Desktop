@@ -118,11 +118,16 @@ describe('extractArchiveTo 的失败路径', () => {
     vi.useFakeTimers()
     holder.plan.push({ kind: 'exit', code: 0, stdout: '' })
     holder.plan.push({ kind: 'hang' })
-    const pending = extractArchiveTo(archivePath, workDir)
-    // 分多次推进：前几轮先跑完"列举条目"的 setImmediate，超时计时器才装上，
-    // 再往后才轮到 5 分钟的超时。轮数留足余量（多推进几轮对已结束的用例无副作用），
-    // 否则机器一忙，setImmediate 慢一拍就会让计时器还没装上就把预算推完。
-    for (let round = 0; round < 10; round += 1) await vi.advanceTimersByTimeAsync(2 * 60 * 1000)
+    let settled = false
+    const pending = extractArchiveTo(archivePath, workDir).finally(() => {
+      settled = true
+    })
+    // 分多轮推进：前几轮先跑完"列举条目"的 setImmediate，5 分钟的超时计时器才装上。
+    // 按"是否已结算"决定继续推，而不是写死轮数——覆盖率插桩会让 setImmediate 慢一拍，
+    // 固定轮数在慢机器上会把预算推完而计时器还没装上（曾因此在全量跑时超时）。
+    for (let round = 0; round < 60 && !settled; round += 1) {
+      await vi.advanceTimersByTimeAsync(60 * 1000)
+    }
     const result = await pending
     expect(result.success).toBe(false)
     expect(result.reason).toBe('extract_timeout')

@@ -5,8 +5,28 @@
  * 尤其是 PLUGIN_REGISTRY_PINNED_TAG：漏改它本地一切正常，用户拉到的却是上一版注册表。
  * 这里把每条规则单独钉死，避免以后放宽成"看起来差不多就行"。
  */
-import { describe, expect, it } from 'vitest'
-import { checkVersions, collectVersions, expectedPinnedTag, extensionVersionFor } from './check-versions.mjs'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { checkVersions, collectVersions, expectedPinnedTag, extensionVersionFor, main } from './check-versions.mjs'
+
+/**
+ * main() 的失败分支只能在"仓库自身不自洽"时触发，而那种状态不该被提交。
+ * 所以这里只替换 package.json 的 version 读取，其余文件照旧从磁盘读。
+ */
+const fsState = vi.hoisted(() => ({ overridePackageVersion: null }))
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal()
+  const patched = (file, encoding) => {
+    const text = actual.default.readFileSync(file, encoding)
+    if (fsState.overridePackageVersion && String(file).endsWith('package.json')) {
+      const pkg = JSON.parse(String(text))
+      pkg.version = fsState.overridePackageVersion
+      return JSON.stringify(pkg)
+    }
+    return text
+  }
+  return { ...actual, default: { ...actual.default, readFileSync: patched }, readFileSync: patched }
+})
 
 /** 一份完全自洽的输入，用例只改其中一处 */
 function healthy(overrides = {}) {
@@ -102,5 +122,38 @@ describe('版本一致性校验', () => {
   it('extensionVersionFor 去掉预发布后缀', () => {
     expect(extensionVersionFor('1.5.0-beta.3')).toBe('1.5.0')
     expect(extensionVersionFor('1.5.0')).toBe('1.5.0')
+  })
+})
+
+describe('CLI 入口 main', () => {
+  afterEach(() => {
+    fsState.overridePackageVersion = null
+    vi.restoreAllMocks()
+  })
+
+  it('仓库自洽时退出码 0，并打印五个版本来源', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(main()).toBe(0)
+    const text = log.mock.calls.map((call) => String(call[0])).join('\n')
+    expect(text).toContain('package.json')
+    expect(text).toContain('package-lock.json')
+    expect(text).toContain('PLUGIN_REGISTRY_TAG')
+    expect(text).toContain('extension/manifest')
+    expect(text).toContain('release-notes 首行')
+    expect(text).toContain('版本一致性校验通过')
+    expect(error).not.toHaveBeenCalled()
+  })
+
+  it('版本号对不上时退出码 1，并逐条打印失败项', () => {
+    fsState.overridePackageVersion = '9.9.9'
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(main()).toBe(1)
+    const lines = error.mock.calls.map((call) => String(call[0]))
+    expect(lines.length).toBeGreaterThanOrEqual(4)
+    expect(lines.every((line) => line.startsWith('✗ '))).toBe(true)
+    expect(lines.join('\n')).toContain('package-lock.json')
+    expect(lines.join('\n')).toContain('PLUGIN_REGISTRY_PINNED_TAG')
   })
 })
