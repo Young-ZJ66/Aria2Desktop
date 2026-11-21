@@ -364,6 +364,37 @@ describe('applyTheme', () => {
     }
   })
 
+  it('连续切换主题时只保留最后一次过渡计时器', async () => {
+    vi.useFakeTimers()
+    try {
+      const mql = fakeMatchMedia(false)
+      const { classes } = installDoc(mql)
+      const store = useSettingsStore()
+      store.settings = { ...h.defaultSettings, theme: 'light' } as AppSettings
+      await store.applyTheme()
+      // 首次不挂过渡类，但此后 themeAppliedOnce 已置位
+      expect(classes.has('theme-transition')).toBe(false)
+
+      store.settings = { ...h.defaultSettings, theme: 'dark' } as AppSettings
+      await store.applyTheme()
+      expect(classes.has('theme-transition')).toBe(true)
+
+      // 第二次切换时上一个计时器还没到期：必须清掉它，否则它会提前摘掉过渡类
+      await vi.advanceTimersByTimeAsync(100)
+      store.settings = { ...h.defaultSettings, theme: 'light' } as AppSettings
+      await store.applyTheme()
+
+      await vi.advanceTimersByTimeAsync(240)
+      // 旧计时器若没被清掉，此刻（距第一次切换 340ms）过渡类已被移除
+      expect(classes.has('theme-transition')).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(100)
+      expect(classes.has('theme-transition')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('主进程设置窗口主题失败只告警，不影响本地主题', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const mql = fakeMatchMedia(false)
@@ -453,6 +484,23 @@ describe('设置的失败路径与合并口径', () => {
     await store.updateCategoryConfig({ autoClassify: false })
     expect(store.settings.category?.autoClassify).toBe(false)
     expect(store.settings.category?.categories).toHaveLength(1)
+  })
+
+  it('导入成功后 store 直接采用服务层的最新设置', async () => {
+    const imported = { ...h.defaultSettings, theme: 'dark', language: 'en-US' } as AppSettings
+    // 服务层导入成功后会把新设置写回自己的单例，store 必须重新取一次而不是保留旧值
+    vi.mocked(settingsService.importSettings).mockImplementationOnce(async () => {
+      h.state.settings = imported
+    })
+    const store = useSettingsStore()
+    expect(store.theme).toBe('light')
+
+    await store.importSettings('{"theme":"dark"}')
+
+    expect(store.theme).toBe('dark')
+    expect(store.language).toBe('en-US')
+    expect(store.error).toBeNull()
+    expect(store.isLoading).toBe(false)
   })
 
   it('store 销毁时摘掉设置变更监听器（HMR 下不泄漏）', () => {

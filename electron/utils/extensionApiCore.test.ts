@@ -315,6 +315,23 @@ describe('sanitizeRequestHeaders（下发请求头前的净化）', () => {
     expect(sanitizeRequestHeaders(['Referer: http://localhost:8080/a']).referer).toBe('http://localhost:8080/a')
   })
 
+  it('Referer 超过 2048 字符直接丢弃（避免超长头占用通道）', () => {
+    const longReferer = 'https://example.com/' + 'a'.repeat(2100)
+    expect(longReferer.length).toBeGreaterThan(2048)
+    expect(sanitizeRequestHeaders(['Referer: ' + longReferer]).referer).toBe('')
+    // 边界内的仍然保留，确认不是一律丢弃
+    const okReferer = 'https://example.com/' + 'a'.repeat(2000)
+    expect(sanitizeRequestHeaders(['Referer: ' + okReferer]).referer).toBe(okReferer)
+  })
+
+  it('累计头长度超过上限后停止收集（上限是总量 16KB，不是单条 4KB）', () => {
+    // 每条约 3999 字符：小于单条上限 4096，因此不会被逐条丢弃
+    const chunk = 'a'.repeat(3990)
+    const headers = [0, 1, 2, 3, 4].map((i) => 'X-Pad-' + i + ': ' + chunk)
+    // 前 4 条累计仍在 16384 以内，第 5 条越过上限 → 停止收集
+    expect(sanitizeRequestHeaders(headers).header).toHaveLength(4)
+  })
+
   it('非数组输入返回空结果（接口不信任调用方类型）', () => {
     for (const input of [undefined, null, '', 'Cookie: a=1', 42, { header: ['a: b'] }]) {
       expect(sanitizeRequestHeaders(input)).toEqual({ header: [], userAgent: '', referer: '' })
@@ -497,6 +514,24 @@ describe('isAuthorizedExtensionRequestWithToken', () => {
         tokens: [recordOf(token, ['tasks:read'])]
       }).ok).toBe(false)
     }
+  })
+
+  it('Bearer 后只有空白 → 拒绝（空凭证不等于密钥）', () => {
+    expect(isAuthorizedExtensionRequestWithToken({
+      authorization: 'Bearer ',
+      origin: TOKEN_ORIGIN,
+      secret: SECRET,
+      tokens: [recordOf(token, ['tasks:read'])]
+    }).ok).toBe(false)
+  })
+
+  it('凭证非空但与密钥不一致 → 拒绝', () => {
+    expect(isAuthorizedExtensionRequestWithToken({
+      authorization: 'Bearer definitely-not-the-secret',
+      origin: TOKEN_ORIGIN,
+      secret: SECRET,
+      tokens: [recordOf(token, ['tasks:read'])]
+    }).ok).toBe(false)
   })
 
   it('撤销后（tokens 为空）且没有密钥 → 拒绝', () => {

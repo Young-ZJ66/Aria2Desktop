@@ -164,3 +164,16 @@ describe('classifyRpcPortProbe（启动前端口占用分类）', () => {
     expect(classifyRpcPortProbe(err4)).toBe('free')
   })
 })
+
+describe('callAria2Rpc 的结构校验', () => {
+  it('合法 JSON 但缺少 jsonrpc 字段 → 拒绝并给出固定文案', async () => {
+    // 与「返回 HTML」不同：这里 JSON.parse 能成功，拒绝发生在结构校验那一步
+    const fake = await startFakeRpc(() => ({ body: JSON.stringify({ result: { version: '1.37.0' } }) }))
+    await expect(callAria2Rpc({ port: fake.port, method: 'aria2.getVersion' })).rejects.toThrow('Invalid JSON-RPC response')
+  })
+
+  it('顶层是数组时同样拒绝（jsonrpc 必须是对象上的字段）', async () => {
+    const fake = await startFakeRpc(() => ({ body: '[]' }))
+    await expect(callAria2Rpc({ port: fake.port, method: 'aria2.getVersion' })).rejects.toThrow('Invalid JSON-RPC response')
+  })
+})

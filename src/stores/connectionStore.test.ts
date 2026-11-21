@@ -612,6 +612,25 @@ describe('connectionStore 连接收尾与预设落盘的边界', () => {
     expect(store.activeProfileId).toBe('backup')
   })
 
+  it('被新连接取代后，旧实例的事件不再改动界面状态', async () => {
+    const store = await createStore()
+    const firstService = await connectWith(store, 'default')
+    expect(store.isConnected).toBe(true)
+
+    // 第二次连接成功接管：connectToken 递增，旧实例的三个监听器全部作废
+    const secondService = await connectWith(store, 'backup')
+    expect(store.service).toBe(secondService)
+
+    firstService.emit('disconnected')
+    firstService.emit('error', new Error('stale socket'))
+    expect(store.isConnected).toBe(true)
+    expect(store.connectionError).toBeNull()
+
+    // 新实例的事件照常生效，证明不是把监听器整体摘掉了
+    secondService.emit('error', new Error('fresh socket'))
+    expect(store.connectionError).toBe('fresh socket')
+  })
+
   it('连通性探测超时后返回失败并销毁探测实例', async () => {
     vi.useFakeTimers()
     const store = await createStore()

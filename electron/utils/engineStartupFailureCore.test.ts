@@ -7,8 +7,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   ENGINE_STARTUP_ACTION_LABELS,
+  ENGINE_STARTUP_ACTION_LABELS_EN,
   buildEngineStartupFailureInfo,
   classifyEngineStartupError,
+  engineStartupActionLabels,
   extractPortFromError
 } from './engineStartupFailureCore'
 
@@ -54,6 +56,11 @@ describe('classifyEngineStartupError', () => {
     expect(classifyEngineStartupError(new Error('Aria2 可执行文件不存在: /opt/aria2c'))).toBe('missing-executable')
     expect(classifyEngineStartupError(new Error('可执行文件不可执行'))).toBe('missing-executable')
     expect(classifyEngineStartupError(new Error('spawn ENOENT'))).toBe('missing-executable')
+  })
+
+  it('英文的权限/不可执行文案同样归到可执行文件问题', () => {
+    expect(classifyEngineStartupError(new Error('spawn failed: permission denied'))).toBe('missing-executable')
+    expect(classifyEngineStartupError(new Error('aria2c is not executable'))).toBe('missing-executable')
   })
 
   it('配置文件读写异常', () => {
@@ -190,5 +197,13 @@ describe('英文界面的失败文案', () => {
       expect(en.actions).toEqual(zh.actions)
       expect(en.retryable).toBe(zh.retryable)
     }
+  })
+})
+
+describe('engineStartupActionLabels', () => {
+  it('按语言返回中文或英文按钮文案', () => {
+    expect(engineStartupActionLabels('zh')).toBe(ENGINE_STARTUP_ACTION_LABELS)
+    expect(engineStartupActionLabels('en')).toBe(ENGINE_STARTUP_ACTION_LABELS_EN)
+    expect(engineStartupActionLabels('en').quit).toBe('Quit')
   })
 })

@@ -362,4 +362,29 @@ describe('useBtInsights 轮询与卸载的边界', () => {
     await vi.advanceTimersByTimeAsync(BT_INSIGHTS_POLL_MS * 3)
     expect(svc.tellStatus).toHaveBeenCalledTimes(1)
   })
+
+  it('遗留的旧轮询定时器到期后自行放弃', async () => {
+    const gate = deferred<Aria2Task>()
+    svc.tellStatus.mockReturnValueOnce(gate.promise)
+    svc.getPeers.mockResolvedValue([])
+    const { gid, enabled } = setup(null, true)
+
+    // 首轮请求挂在 gate 上：轮询定时器到点后只把自己重排（polling 分支），产生第二个定时器
+    gid.value = 'g1'
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(BT_INSIGHTS_POLL_MS)
+
+    // 首轮返回后 finally 又排了一个定时器，此时同时存在两个待触发的定时器
+    gate.resolve(makeTask({ gid: 'g1' }))
+    await vi.advanceTimersByTimeAsync(0)
+    const callsAfterFirstRound = svc.tellStatus.mock.calls.length
+
+    // stop 只清掉最新的那个句柄，更早的那个仍会到期
+    enabled.value = false
+    await vi.advanceTimersByTimeAsync(0)
+
+    svc.tellStatus.mockResolvedValue(makeTask({ gid: 'g1' }))
+    await vi.advanceTimersByTimeAsync(BT_INSIGHTS_POLL_MS)
+    expect(svc.tellStatus.mock.calls.length).toBe(callsAfterFirstRound)
+  })
 })

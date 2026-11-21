@@ -531,3 +531,26 @@ describe('清空历史的三条退路', () => {
     expect(firstPayload(savePersistedTasks)).toEqual({})
   })
 })
+
+describe('后端加载通道与增量写入的异常', () => {
+  it('preload 没暴露加载通道时跳过远端加载（不抛错）', async () => {
+    const savePersistedTasks = vi.fn().mockResolvedValue(undefined)
+    const { service } = await loadService({ api: { savePersistedTasks } })
+
+    await expect(service.ensureLoaded()).resolves.toBeUndefined()
+    expect(service.getPersistedTasks()).toEqual([])
+  })
+
+  it('增量写入抛错时记下原始文案并退回全量合批', async () => {
+    const { service, savePersistedTask, savePersistedTasks } = await loadService()
+    savePersistedTask.mockRejectedValueOnce(new Error('channel closed'))
+
+    service.persistCompletedTask(makeTask('a'), 1_000)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(service.getLastPersistError()).toBe('channel closed')
+    await vi.advanceTimersByTimeAsync(300)
+    expect(savePersistedTasks).toHaveBeenCalledTimes(1)
+  })
+})

@@ -57,6 +57,13 @@ describe('isDeltaBlockTable（接口边界：网络/磁盘内容不可信）', (
     expect(isDeltaBlockTable({ ...valid, blocks: valid.blocks.slice(0, 2) })).toBe(false)
   })
 
+  it('块内 offset/size 不是安全整数一律拒绝', () => {
+    const first = valid.blocks[0]!
+    expect(isDeltaBlockTable({ ...valid, blocks: [{ ...first, size: 'x' }] } as unknown)).toBe(false)
+    expect(isDeltaBlockTable({ ...valid, blocks: [{ ...first, size: 1.5 }] } as unknown)).toBe(false)
+    expect(isDeltaBlockTable({ ...valid, blocks: [{ ...first, offset: 0.5 }] } as unknown)).toBe(false)
+  })
+
   it('CDC 格式（format=2，块长可变）合法表通过', () => {
     const cdc = makeCdcTable('1.0.11', [1024 * 1024, 3 * 1024 * 1024, 500 * 1024], [h(1), h(2), h(3)])
     expect(isDeltaBlockTable(cdc)).toBe(true)
