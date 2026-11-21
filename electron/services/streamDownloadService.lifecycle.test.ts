@@ -113,6 +113,10 @@ vi.mock('./completionRuleService', () => ({
   }
 }))
 
+// 模块加载时会注册一个 process 退出兜底；先记下既有监听，好把它单独拎出来直接调用，
+// 避免在测试进程里真的 emit('exit') 干扰 vitest 自己的退出钩子。
+const exitListenersBefore = process.listeners('exit').slice()
+
 const {
   MAX_CONCURRENT_STREAM_DOWNLOADS,
   activeStreamDownloadCount,
@@ -129,6 +133,8 @@ const {
   startStreamDownload,
   updateStreamTask
 } = await import('./streamDownloadService')
+
+const serviceExitListener = process.listeners('exit').find((listener) => !exitListenersBefore.includes(listener))
 
 let tmpDir = ''
 
@@ -740,5 +746,83 @@ describe('流媒体服务的兜底与边界', () => {
       killSpy.mockRestore()
       if (original) Object.defineProperty(process, 'platform', original)
     }
+  })
+})
+
+describe('进程句柄缺失与退出兜底', () => {
+  it('应用退出时兜底结束仍活着的子进程，已暂停无句柄的任务跳过', async () => {
+    const original = Object.getOwnPropertyDescriptor(process, 'platform')
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    try {
+      await startStreamDownload(makeRequest(), makeEvents().onEvent)
+      const liveChild = lastChild()
+      const paused = await startStreamDownload(makeRequest({ url: 'https://example.com/paused' }), makeEvents().onEvent)
+      const pausedChild = lastChild()
+      expect(pauseStreamDownload(paused.id!)).toBe(true)
+      // 暂停后子进程真的退出：exit 处理器把句柄置空但保留任务记录，正好覆盖 if (!proc) continue
+      pausedChild.exitWith(null)
+      expect(getStreamTask(paused.id!)?.status).toBe('paused')
+
+      const before = state.spawnSyncCalls.length
+      // process.on('exit') 的监听签名带退出码，这里直接喂 0 模拟正常退出
+      serviceExitListener?.(0)
+
+      expect(liveChild.kill).toHaveBeenCalledWith('SIGKILL')
+      expect(state.spawnSyncCalls.length).toBe(before + 1)
+      expect(state.spawnSyncCalls[state.spawnSyncCalls.length - 1]).toMatchObject({
+        file: 'taskkill',
+        args: ['/PID', String(liveChild.pid), '/T', '/F']
+      })
+      // 没有句柄的任务不该再被 kill 一次
+      expect(pausedChild.kill).not.toHaveBeenCalled()
+    } finally {
+      if (original) Object.defineProperty(process, 'platform', original)
+    }
+  })
+
+  it('子进程没有 pid 时结束进程树直接返回（不调 taskkill）', async () => {
+    const { onEvent } = makeEvents()
+    const started = await startStreamDownload(makeRequest(), onEvent)
+    const child = lastChild()
+    child.pid = 0
+
+    expect(cancelStreamDownload(started.id!)).toBe(true)
+    expect(state.spawnSyncCalls).toHaveLength(0)
+    expect(child.kill).not.toHaveBeenCalled()
+  })
+
+  it('记录已被丢弃后再报进程错误不派发失败事件', async () => {
+    const { events, onEvent } = makeEvents()
+    const started = await startStreamDownload(makeRequest(), onEvent)
+    const child = lastChild()
+
+    const pending = discardStreamDownload(started.id!)
+    child.exitWith(null)
+    await expect(pending).resolves.toBe(true)
+    expect(getStreamTask(started.id!)?.status).toBe('cancelled')
+
+    // 记录已从表里移除：迟到的 error 必须被陈旧记录守卫挡掉，不能再改任务状态
+    child.emit('error', new Error('late spawn failure'))
+    expect(events.filter((event) => event.type === 'failed')).toHaveLength(0)
+    expect(getStreamTask(started.id!)?.status).toBe('cancelled')
+  })
+
+  it('进程句柄已置空时暂停只记日志并返回 false', async () => {
+    const { onEvent } = makeEvents()
+    const started = await startStreamDownload(makeRequest(), onEvent)
+    const child = lastChild()
+    expect(pauseStreamDownload(started.id!)).toBe(true)
+    child.exitWith(null)
+    expect(getStreamTask(started.id!)?.status).toBe('paused')
+
+    // 恢复时 spawn 直接抛错：任务被留在「未暂停但也没有进程」的中间态，正是兜底分支的场景
+    const cp = await import('child_process')
+    vi.mocked(cp.spawn).mockImplementationOnce(((() => {
+      throw new Error('spawn EAGAIN')
+    }) as never))
+    expect(() => resumeStreamDownload(started.id!)).toThrow(/spawn EAGAIN/)
+
+    expect(pauseStreamDownload(started.id!)).toBe(false)
+    expect(state.logs.warn.some((line) => String(line).includes('暂停流媒体下载失败'))).toBe(true)
   })
 })
