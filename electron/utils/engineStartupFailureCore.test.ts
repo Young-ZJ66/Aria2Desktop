@@ -125,3 +125,70 @@ describe('buildEngineStartupFailureInfo', () => {
     expect(info.actions).toContain('continue')
   })
 })
+
+describe('英文界面的失败文案', () => {
+  it('每类失败都给出英文 summary / hint，且带上端口标签', () => {
+    const cases: Array<[Error, string]> = [
+      [new Error('RPC port 6800 is already used by another aria2 instance that does not accept this app secret.'), 'port-occupied-other-aria2'],
+      [new Error('The service listening on RPC port 6800 is not aria2'), 'port-non-aria2'],
+      [new Error('The leftover aria2 instance on RPC port 6800 did not exit'), 'leftover-engine'],
+      [new Error('The aria2 RPC service is not ready (port 6800). Check whether another program is using that port'), 'port-in-use-unknown'],
+      [new Error('The aria2 executable does not exist: /opt/aria2c'), 'missing-executable'],
+      [new Error('Configuration file sync verification failed'), 'config-error'],
+      [new Error('boom'), 'unknown']
+    ]
+    for (const [error, kind] of cases) {
+      const info = buildEngineStartupFailureInfo(error, undefined, 'en')
+      expect(info.kind).toBe(kind)
+      // 英文文案不能混进中文：中文界面的文案在英文环境下会露馅
+      expect(/[\u4e00-\u9fa5]/.test(info.summary)).toBe(false)
+      expect(/[\u4e00-\u9fa5]/.test(info.hint)).toBe(false)
+      expect(info.summary.length).toBeGreaterThan(0)
+      expect(info.hint.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('英文环境下端口标签用 "port N"，没有端口时用 "the current port"', () => {
+    // 只有端口类失败的 summary 会带端口标签；unknown 类的 summary 是固定文案
+    const withPort = buildEngineStartupFailureInfo(new Error('another program is using that port'), 7000, 'en')
+    expect(withPort.kind).toBe('port-in-use-unknown')
+    expect(withPort.summary).toContain('port 7000')
+    const withoutPort = buildEngineStartupFailureInfo(new Error('another program is using that port'), undefined, 'en')
+    expect(withoutPort.summary).toContain('the current port')
+  })
+
+  it('中文环境下同样给端口标签', () => {
+    const withPort = buildEngineStartupFailureInfo(new Error('端口已被占用'), 7001, 'zh')
+    expect(withPort.kind).toBe('port-in-use-unknown')
+    expect(withPort.summary).toContain('端口 7001')
+    const withoutPort = buildEngineStartupFailureInfo(new Error('端口已被占用'), undefined, 'zh')
+    expect(withoutPort.summary).toContain('当前端口')
+  })
+
+  it('portHint 优先于错误文案里的端口（设置里的端口才是用户要改的那个）', () => {
+    const info = buildEngineStartupFailureInfo(new Error('RPC 端口 6800 已被另一个 aria2 实例占用'), 9999, 'zh')
+    expect(info.summary).toContain('9999')
+    expect(info.summary).not.toContain('6800')
+    // 没给 portHint 时才从错误文案里抠
+    const fromMessage = buildEngineStartupFailureInfo(new Error('RPC 端口 6800 已被另一个 aria2 实例占用'))
+    expect(fromMessage.summary).toContain('6800')
+  })
+
+  it('每类失败的中英文动作序列都一致（只有文案不同）', () => {
+    const errors = [
+      new Error('RPC 端口 6800 已被另一个 aria2 实例占用'),
+      new Error('RPC 端口 6800 上监听的服务不是 aria2'),
+      new Error('RPC 端口 6800 上的遗留 aria2 实例未能退出'),
+      new Error('Aria2 RPC 服务未就绪（端口 6800）'),
+      new Error('Aria2 可执行文件不存在: aria2c'),
+      new Error('配置文件同步验证失败'),
+      new Error('boom')
+    ]
+    for (const error of errors) {
+      const zh = buildEngineStartupFailureInfo(error, 6800, 'zh')
+      const en = buildEngineStartupFailureInfo(error, 6800, 'en')
+      expect(en.actions).toEqual(zh.actions)
+      expect(en.retryable).toBe(zh.retryable)
+    }
+  })
+})

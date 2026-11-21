@@ -165,3 +165,157 @@ describe('useSettingSchema：默认值（重置表单用）', () => {
     expect(defaults()).toEqual({ enabled: false, count: 0 })
   })
 })
+
+describe('useSettingSchema：布尔字段的默认值语义', () => {
+  it('默认 true 的字段：aria2 没返回或返回非 "false" 都算启用', () => {
+    const schema: SettingSchema = {
+      fields: [{ key: 'continue', aria2Key: 'continue', type: 'boolean', default: true }]
+    }
+    const form = reactive<Record<string, unknown>>({ continue: false })
+    const { applyOptions } = useSettingSchema(schema, form)
+
+    applyOptions({} as never)
+    expect(form.continue).toBe(true)
+    applyOptions({ continue: 'true' } as never)
+    expect(form.continue).toBe(true)
+    applyOptions({ continue: 'false' } as never)
+    expect(form.continue).toBe(false)
+  })
+
+  it('默认 false 的字段：只有明确返回 "true" 才算启用', () => {
+    const schema: SettingSchema = {
+      fields: [{ key: 'rpcSecure', aria2Key: 'rpc-secure', type: 'boolean', default: false }]
+    }
+    const form = reactive<Record<string, unknown>>({ rpcSecure: true })
+    const { applyOptions } = useSettingSchema(schema, form)
+
+    applyOptions({} as never)
+    expect(form.rpcSecure).toBe(false)
+    applyOptions({ 'rpc-secure': 'yes' } as never)
+    expect(form.rpcSecure).toBe(false)
+    applyOptions({ 'rpc-secure': 'true' } as never)
+    expect(form.rpcSecure).toBe(true)
+  })
+
+  it('布尔字段写回时永远是 "true"/"false"，不会是 "0"/"1"', () => {
+    const schema: SettingSchema = {
+      fields: [{ key: 'enabled', aria2Key: 'enable-x', type: 'boolean', default: false }]
+    }
+    const form = reactive<Record<string, unknown>>({ enabled: true })
+    const { toOptions } = useSettingSchema(schema, form)
+
+    expect(toOptions()).toEqual({ 'enable-x': 'true' })
+    form.enabled = 0
+    expect(toOptions()).toEqual({ 'enable-x': 'false' })
+  })
+})
+
+describe('useSettingSchema：size 字段', () => {
+  const schema = (): SettingSchema => ({
+    fields: [{ key: 'pieceLength', aria2Key: 'piece-length', type: 'size', unit: 'M', default: 1, min: 1, max: 1024 }]
+  })
+
+  it('字节数按目标单位换算后填进表单', () => {
+    const form = reactive<Record<string, unknown>>({ pieceLength: 0 })
+    const { applyOptions } = useSettingSchema(schema(), form)
+
+    applyOptions({ 'piece-length': '2097152' } as never)
+    expect(form.pieceLength).toBe(2)
+    applyOptions({ 'piece-length': '2M' } as never)
+    expect(form.pieceLength).toBe(2)
+    applyOptions({ 'piece-length': '1048576' } as never)
+    expect(form.pieceLength).toBe(1)
+  })
+
+  it('aria2 没返回时用字段默认值，并 clamp 到 min/max', () => {
+    const form = reactive<Record<string, unknown>>({ pieceLength: 0 })
+    const { applyOptions } = useSettingSchema(schema(), form)
+
+    applyOptions({} as never)
+    expect(form.pieceLength).toBe(1)
+    // 小于 min 的原始值被抬到 min，大于 max 的被压到 max
+    applyOptions({ 'piece-length': '1024' } as never)
+    expect(form.pieceLength).toBe(1)
+    applyOptions({ 'piece-length': '10G' } as never)
+    expect(form.pieceLength).toBe(1024)
+  })
+
+  it('写回时带单位后缀，0 表示无限制写成 "0"', () => {
+    const form = reactive<Record<string, unknown>>({ pieceLength: 4 })
+    const { toOptions } = useSettingSchema(schema(), form)
+
+    expect(toOptions()).toEqual({ 'piece-length': '4M' })
+    form.pieceLength = 0
+    expect(toOptions()).toEqual({ 'piece-length': '0' })
+  })
+})
+
+describe('useSettingSchema：文本与下拉字段', () => {
+  it('空串回退字段默认值，非空原样保留', () => {
+    const schema: SettingSchema = {
+      fields: [
+        { key: 'userAgent', aria2Key: 'user-agent', type: 'string', default: 'aria2/1.37.0' },
+        { key: 'mode', aria2Key: 'mode', type: 'select', default: 'auto' }
+      ]
+    }
+    const form = reactive<Record<string, unknown>>({ userAgent: '', mode: '' })
+    const { applyOptions } = useSettingSchema(schema, form)
+
+    applyOptions({} as never)
+    expect(form.userAgent).toBe('aria2/1.37.0')
+    expect(form.mode).toBe('auto')
+    applyOptions({ 'user-agent': 'custom/1.0', mode: 'manual' } as never)
+    expect(form.userAgent).toBe('custom/1.0')
+    expect(form.mode).toBe('manual')
+  })
+
+  it('空值不写入 aria2 选项，让引擎保留旧值', () => {
+    const schema: SettingSchema = {
+      fields: [
+        { key: 'userAgent', aria2Key: 'user-agent', type: 'string' },
+        { key: 'mode', aria2Key: 'mode', type: 'select' }
+      ]
+    }
+    const form = reactive<Record<string, unknown>>({ userAgent: '', mode: '' })
+    const { toOptions } = useSettingSchema(schema, form)
+
+    expect(toOptions()).toEqual({})
+    form.userAgent = 'custom/1.0'
+    expect(toOptions()).toEqual({ 'user-agent': 'custom/1.0' })
+  })
+})
+
+describe('useSettingSchema：自定义转换与数组选项', () => {
+  it('字段级 optionToValue / valueToOption 覆盖默认转换', () => {
+    const schema: SettingSchema = {
+      fields: [
+        {
+          key: 'levels',
+          aria2Key: 'log-level',
+          type: 'string',
+          optionToValue: (raw) => (raw ?? '').toUpperCase(),
+          valueToOption: (value) => (value ? String(value).toLowerCase() : undefined)
+        }
+      ]
+    }
+    const form = reactive<Record<string, unknown>>({ levels: '' })
+    const { applyOptions, toOptions } = useSettingSchema(schema, form)
+
+    applyOptions({ 'log-level': 'debug' } as never)
+    expect(form.levels).toBe('DEBUG')
+    expect(toOptions()).toEqual({ 'log-level': 'debug' })
+    form.levels = ''
+    expect(toOptions()).toEqual({})
+  })
+
+  it('数组型选项折叠为首项（设置页只处理标量）', () => {
+    const schema: SettingSchema = {
+      fields: [{ key: 'header', aria2Key: 'header', type: 'string' }]
+    }
+    const form = reactive<Record<string, unknown>>({ header: '' })
+    const { applyOptions } = useSettingSchema(schema, form)
+
+    applyOptions({ header: ['X-A: 1', 'X-B: 2'] } as never)
+    expect(form.header).toBe('X-A: 1')
+  })
+})

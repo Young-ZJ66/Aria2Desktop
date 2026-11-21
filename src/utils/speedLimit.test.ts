@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fromSpeedLimitBytes, parseSpeedLimitInput, toSpeedLimitBytes } from './speedLimit'
+import { formatSpeedLimit, fromSpeedLimitBytes, parseSpeedLimitInput, toSpeedLimitBytes } from './speedLimit'
 
 describe('toSpeedLimitBytes', () => {
   it('按单位换算成字节/秒', () => {
@@ -67,5 +67,21 @@ describe('fromSpeedLimitBytes', () => {
       const { value, unit } = fromSpeedLimitBytes(bytes)
       expect(toSpeedLimitBytes(value, unit)).toBe(bytes)
     }
+  })
+})
+
+describe('formatSpeedLimit', () => {
+  it('按档位拼出展示文本', () => {
+    expect(formatSpeedLimit(2 * 1024 * 1024)).toBe('2 MB/s')
+    expect(formatSpeedLimit(1572864)).toBe('1.5 MB/s')
+    expect(formatSpeedLimit(512 * 1024)).toBe('512 KB/s')
+    expect(formatSpeedLimit(300000)).toBe('293 KB/s')
+  })
+
+  it('不限制时返回空串（面板据此隐藏限速标签）', () => {
+    expect(formatSpeedLimit(0)).toBe('')
+    expect(formatSpeedLimit(-1)).toBe('')
+    expect(formatSpeedLimit(Number.NaN)).toBe('')
+    expect(formatSpeedLimit(Number.POSITIVE_INFINITY)).toBe('')
   })
 })
