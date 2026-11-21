@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AppSettings } from '../../src/shared/appSettings'
-import { sanitizeSettingsInput } from './ipcInputValidation'
+import { isSafeHttpUrl, sanitizeSettingsInput, sanitizeTaskSourcesInput, sanitizeWindowStateInput } from './ipcInputValidation'
 import { ALLOWED_SETTINGS_KEYS } from './settingsSync'
 
 /**
@@ -210,5 +210,159 @@ describe('sanitizeSettingsInput 未知字段与非法输入', () => {
   it('数组条数上限生效', () => {
     const tooMany = Array.from({ length: 101 }, (_, index) => ({ id: 't' + index, name: 'n' }))
     expect(() => sanitizeSettingsInput({ taskTemplates: tooMany })).toThrow()
+  })
+})
+
+describe('sanitizeWindowStateInput', () => {
+  it('合法的窗口状态原样保留', () => {
+    const input = { bounds: { x: 10, y: 20, width: 1280, height: 800 }, isMaximized: true, isFullScreen: false }
+    expect(sanitizeWindowStateInput(input)).toEqual(input)
+  })
+
+  it('只给部分字段时不会凭空补其它键', () => {
+    expect(sanitizeWindowStateInput({ isMaximized: true })).toEqual({ isMaximized: true })
+  })
+
+  it('空对象是合法的（窗口还没被移动过）', () => {
+    expect(sanitizeWindowStateInput({})).toEqual({})
+  })
+
+  it('bounds 不是对象时返回 null', () => {
+    expect(sanitizeWindowStateInput({ bounds: 'big' })).toBeNull()
+    expect(sanitizeWindowStateInput({ bounds: [1, 2, 3, 4] })).toBeNull()
+  })
+
+  it('bounds 缺字段或类型不对时返回 null（不吞成 0）', () => {
+    expect(sanitizeWindowStateInput({ bounds: { x: 1, y: 2, width: 100 } })).toBeNull()
+    expect(sanitizeWindowStateInput({ bounds: { x: 1, y: 2, width: '100', height: 100 } })).toBeNull()
+    expect(sanitizeWindowStateInput({ bounds: { x: 1.5, y: 2, width: 100, height: 100 } })).toBeNull()
+  })
+
+  it('尺寸越界（小于最小值 / 超过 20000）时返回 null', () => {
+    expect(sanitizeWindowStateInput({ bounds: { x: 0, y: 0, width: 99, height: 800 } })).toBeNull()
+    expect(sanitizeWindowStateInput({ bounds: { x: 0, y: 0, width: 1280, height: 20001 } })).toBeNull()
+  })
+
+  it('坐标越界时返回 null', () => {
+    expect(sanitizeWindowStateInput({ bounds: { x: -100001, y: 0, width: 1280, height: 800 } })).toBeNull()
+    expect(sanitizeWindowStateInput({ bounds: { x: 0, y: 100001, width: 1280, height: 800 } })).toBeNull()
+  })
+
+  it('布尔字段类型不对时返回 null', () => {
+    expect(sanitizeWindowStateInput({ isMaximized: 'yes' })).toBeNull()
+    expect(sanitizeWindowStateInput({ isFullScreen: 1 })).toBeNull()
+  })
+
+  it('输入不是对象时返回 null', () => {
+    expect(sanitizeWindowStateInput(null)).toBeNull()
+    expect(sanitizeWindowStateInput([])).toBeNull()
+    expect(sanitizeWindowStateInput('window')).toBeNull()
+  })
+})
+
+describe('sanitizeTaskSourcesInput', () => {
+  it('三种来源都保留结构并补 createdAt', () => {
+    const out = sanitizeTaskSourcesInput({
+      'g1': { source: { kind: 'uri', uris: ['https://example.com/a.zip'] } },
+      'g2': { source: { kind: 'torrent', torrent: 'base64-torrent', uris: ['https://example.com/b'] } },
+      'g3': { source: { kind: 'metalink', metalink: '<metalink/>' } }
+    })
+    expect(out?.g1).toEqual({ source: { kind: 'uri', uris: ['https://example.com/a.zip'] }, createdAt: expect.any(Number) })
+    expect((out?.g2 as { source: { kind: string, uris: string[] } }).source.uris).toEqual(['https://example.com/b'])
+    expect((out?.g3 as { source: { kind: string } }).source.kind).toBe('metalink')
+  })
+
+  it('torrent 不带 uris 时不会凭空补空数组', () => {
+    const out = sanitizeTaskSourcesInput({ g1: { source: { kind: 'torrent', torrent: 'x' } } })
+    expect((out?.g1 as { source: Record<string, unknown> }).source).toEqual({ kind: 'torrent', torrent: 'x' })
+  })
+
+  it('保留合法的 createdAt 与 options，丢弃非法项', () => {
+    const out = sanitizeTaskSourcesInput({
+      g1: {
+        source: { kind: 'uri', uris: ['https://example.com/a'] },
+        createdAt: 1_700_000_000_000,
+        options: { dir: 'D:/Downloads', 'max-connection-per-server': '16', bad: 42 }
+      }
+    })
+    expect(out?.g1).toEqual({
+      source: { kind: 'uri', uris: ['https://example.com/a'] },
+      createdAt: 1_700_000_000_000,
+      options: { dir: 'D:/Downloads', 'max-connection-per-server': '16' }
+    })
+  })
+
+  it('非法 createdAt 回落成当前时间', () => {
+    const before = Date.now()
+    const out = sanitizeTaskSourcesInput({ g1: { source: { kind: 'uri', uris: ['https://a'] }, createdAt: 'yesterday' } })
+    const createdAt = (out?.g1 as { createdAt: number }).createdAt
+    expect(createdAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('未知 kind、缺 source、非对象的条目被跳过而不是整包拒绝', () => {
+    const out = sanitizeTaskSourcesInput({
+      good: { source: { kind: 'uri', uris: ['https://a'] } },
+      badKind: { source: { kind: 'ftp', uris: [] } },
+      noSource: { createdAt: 1 },
+      notRecord: 'nope',
+      '': { source: { kind: 'uri', uris: ['https://a'] } }
+    })
+    expect(Object.keys(out ?? {})).toEqual(['good'])
+  })
+
+  it('gid 超过 128 字符时跳过', () => {
+    const out = sanitizeTaskSourcesInput({ ['g'.repeat(129)]: { source: { kind: 'uri', uris: ['https://a'] } } })
+    expect(out).toEqual({})
+  })
+
+  it('options 只保留字符串值且最多 200 项', () => {
+    const options: Record<string, unknown> = {}
+    for (let index = 0; index < 250; index += 1) options['k' + index] = 'v'
+    options.bad = 1
+    const out = sanitizeTaskSourcesInput({ g1: { source: { kind: 'uri', uris: ['https://a'] }, options } })
+    const kept = (out?.g1 as { options: Record<string, string> }).options
+    expect(Object.keys(kept)).toHaveLength(200)
+    expect('bad' in kept).toBe(false)
+  })
+
+  it('条目超过 2000 时整包拒绝', () => {
+    const input: Record<string, unknown> = {}
+    for (let index = 0; index < 2001; index += 1) input['g' + index] = { source: { kind: 'uri', uris: ['https://a'] } }
+    expect(sanitizeTaskSourcesInput(input)).toBeNull()
+  })
+
+  it('输入不是对象时返回 null', () => {
+    expect(sanitizeTaskSourcesInput(null)).toBeNull()
+    expect(sanitizeTaskSourcesInput([])).toBeNull()
+  })
+})
+
+describe('isSafeHttpUrl', () => {
+  it('http/https 且无凭据的地址放行', () => {
+    expect(isSafeHttpUrl('https://example.com/a.zip')).toBe(true)
+    expect(isSafeHttpUrl('http://127.0.0.1:8080/file')).toBe(true)
+  })
+
+  it('带用户名或密码的地址拒绝（凭据会泄漏进日志）', () => {
+    expect(isSafeHttpUrl('https://user:pass@example.com/a')).toBe(false)
+    expect(isSafeHttpUrl('https://user@example.com/a')).toBe(false)
+  })
+
+  it('非 http(s) 协议拒绝', () => {
+    expect(isSafeHttpUrl('file:///etc/passwd')).toBe(false)
+    expect(isSafeHttpUrl('javascript:alert(1)')).toBe(false)
+    expect(isSafeHttpUrl('magnet:?xt=urn:btih:abc')).toBe(false)
+  })
+
+  it('空串、超长与非字符串拒绝', () => {
+    expect(isSafeHttpUrl('')).toBe(false)
+    expect(isSafeHttpUrl('https://example.com/' + 'a'.repeat(8200))).toBe(false)
+    expect(isSafeHttpUrl(42)).toBe(false)
+    expect(isSafeHttpUrl(null)).toBe(false)
+  })
+
+  it('无法解析的地址拒绝', () => {
+    expect(isSafeHttpUrl('https://')).toBe(false)
+    expect(isSafeHttpUrl('not a url')).toBe(false)
   })
 })
