@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { Aria2Task } from '@/types/aria2'
 import {
   formatCompleteTime,
+  formatDateTime,
   formatRemainingTime,
+  formatShortDateTime,
   formatSize,
   formatSpeed,
   getFileName,
@@ -143,5 +145,40 @@ describe('formatCompleteTime', () => {
     expect(formatted).not.toBe('--')
     // 12/24 小时制与日期分隔符都随 locale 变（en-US 会带 "PM"，长度 11），所以只断言形状
     expect(formatted).toMatch(/^\d{1,2}:\d{2}:\d{2}(\s?[AP]M)?$/i)
+  })
+})
+
+describe('formatDateTime', () => {
+  it('接受 Date、毫秒时间戳与可解析字符串，产出同一时刻的文本', () => {
+    const stamp = Date.UTC(2026, 0, 2, 3, 4, 5)
+    const fromDate = formatDateTime(new Date(stamp))
+    expect(formatDateTime(stamp)).toBe(fromDate)
+    expect(formatDateTime(new Date(stamp).toISOString())).toBe(fromDate)
+    expect(fromDate).not.toBe('--')
+    expect(fromDate).toMatch(/\d/)
+  })
+
+  it('空值与无法解析的输入返回 --（不会渲染 Invalid Date）', () => {
+    expect(formatDateTime(null)).toBe('--')
+    expect(formatDateTime(undefined)).toBe('--')
+    expect(formatDateTime('')).toBe('--')
+    expect(formatDateTime('not a date')).toBe('--')
+    expect(formatDateTime(Number.NaN)).toBe('--')
+  })
+})
+
+describe('formatShortDateTime', () => {
+  it('只保留月日与时分，不带年份和秒', () => {
+    const formatted = formatShortDateTime(Date.UTC(2026, 4, 6, 7, 8, 9))
+    expect(formatted).not.toBe('--')
+    expect(formatted).not.toMatch(/2026/)
+    expect(formatted).toMatch(/\d{1,2}[^\d]+\d{1,2}/)
+    expect(formatted.split(':').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('无效输入返回 --', () => {
+    expect(formatShortDateTime(null)).toBe('--')
+    expect(formatShortDateTime('nope')).toBe('--')
+    expect(formatShortDateTime(Number.POSITIVE_INFINITY)).toBe('--')
   })
 })

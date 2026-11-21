@@ -130,3 +130,38 @@ describe('useSettingSchema：表单 → aria2 选项', () => {
     expect(opts['max-tries']).toBe('0')
   })
 })
+
+describe('useSettingSchema：默认值（重置表单用）', () => {
+  it('优先用字段声明的 default，而不是类型空值', () => {
+    const { defaults } = useSettingSchema(makeSchema(), makeForm())
+
+    expect(defaults()).toEqual({ dhtListenPort: 6881, listenPort: 6881, maxTries: 5 })
+  })
+
+  it('未声明 default 时按类型给空值：布尔 false、数值 0、文本空串', () => {
+    const schema: SettingSchema = {
+      fields: [
+        { key: 'enabled', aria2Key: 'enable-x', type: 'boolean' },
+        { key: 'count', aria2Key: 'count', type: 'number' },
+        { key: 'size', aria2Key: 'size', type: 'size' },
+        { key: 'label', aria2Key: 'label', type: 'string' },
+        { key: 'mode', aria2Key: 'mode', type: 'select' }
+      ]
+    }
+    const { defaults } = useSettingSchema(schema, {})
+
+    expect(defaults()).toEqual({ enabled: false, count: 0, size: 0, label: '', mode: '' })
+  })
+
+  it('default 为 0 或 false 时不会被当成"没写默认值"', () => {
+    const schema: SettingSchema = {
+      fields: [
+        { key: 'enabled', aria2Key: 'enable-x', type: 'boolean', default: false },
+        { key: 'count', aria2Key: 'count', type: 'number', default: 0 }
+      ]
+    }
+    const { defaults } = useSettingSchema(schema, {})
+
+    expect(defaults()).toEqual({ enabled: false, count: 0 })
+  })
+})
