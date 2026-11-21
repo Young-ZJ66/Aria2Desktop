@@ -23,6 +23,7 @@ const h = vi.hoisted(() => {
     trashCalls: [] as string[],
     trashError: null as Error | null,
     completionCalls: [] as any[],
+    completionThrows: false,
     tempRoot: '',
     logs: { info: [] as any[], warn: [] as any[], error: [] as any[] }
   }
@@ -108,6 +109,7 @@ vi.mock('./ffmpegService', () => ({
 vi.mock('./completionRuleService', () => ({
   applyCompletionRulesForTask: async (context: unknown) => {
     state.completionCalls.push(context)
+    if (state.completionThrows) throw new Error('rules exploded')
   }
 }))
 
@@ -120,6 +122,8 @@ const {
   discardStreamDownload,
   getStreamTask,
   listStreamTasks,
+  parseProgressLine,
+  registerStreamTask,
   pauseStreamDownload,
   resumeStreamDownload,
   startStreamDownload,
@@ -173,6 +177,7 @@ beforeEach(() => {
   state.notifications.length = 0
   state.trashCalls.length = 0
   state.completionCalls.length = 0
+  state.completionThrows = false
   state.ffmpegAvailable = true
   state.notificationSupported = false
   state.trashError = null
@@ -625,5 +630,115 @@ describe('deleteStreamDownloadFile：只允许删自己下载目录里的文件'
     const result = await deleteStreamDownloadFile(file, outputDir)
     expect(result.success).toBe(false)
     expect(result.error).toContain('EBUSY')
+  })
+})
+
+describe('流媒体服务的兜底与边界', () => {
+  function fakeRecord(url: string) {
+    return { request: { url, outputDir: path.join(tmpDir, 'out') } } as unknown as Parameters<typeof registerStreamTask>[1]
+  }
+
+  it('任务快照表按容量淘汰最老的条目（进行中 50 / 已结束 20）', () => {
+    for (let i = 0; i < 55; i += 1) registerStreamTask('active-' + i, fakeRecord('https://example.com/a' + i))
+    const activeIds = listStreamTasks().filter((task) => task.status === 'active').map((task) => task.id)
+    expect(activeIds).toHaveLength(50)
+    expect(activeIds).not.toContain('active-0')
+    expect(activeIds).toContain('active-54')
+
+    for (const id of activeIds) updateStreamTask(id, { status: 'complete' })
+    for (let i = 0; i < 25; i += 1) {
+      registerStreamTask('done-' + i, fakeRecord('https://example.com/b' + i))
+      updateStreamTask('done-' + i, { status: 'complete' })
+    }
+    const finished = listStreamTasks().filter((task) => task.status === 'complete')
+    expect(finished.length).toBeLessThanOrEqual(20)
+    expect(finished.map((task) => task.id)).toContain('done-24')
+  })
+
+  it('播放列表与 Cookie 校验失败时整单拒绝（不 spawn）', async () => {
+    const { onEvent } = makeEvents()
+    const badPlaylist = await startStreamDownload(makeRequest({ playlist: { ids: ['ok', 'bad id!'] } }), onEvent)
+    expect(badPlaylist.success).toBe(false)
+    expect(badPlaylist.code).toBe('invalid_request')
+
+    const badCookie = await startStreamDownload(makeRequest({ cookieFile: path.join(tmpDir, 'missing.txt') }), onEvent)
+    expect(badCookie.success).toBe(false)
+    expect(badCookie.code).toBe('invalid_request')
+    expect(state.spawnCalls).toHaveLength(0)
+  })
+
+  it('stdout 的空行被忽略，结尾残行在 end 时补解析', async () => {
+    const { events, onEvent } = makeEvents()
+    const result = await startStreamDownload(makeRequest(), onEvent)
+    const child = lastChild()
+    child.stdout.emit('data', Buffer.from('\n   \n', 'utf8'))
+    expect(events.filter((e) => e.type === 'progress')).toHaveLength(0)
+    child.stdout.emit('data', Buffer.from('__YTDLP_PROGRESS__ 5%|1|20|NA|NA|NA|1|NA|NA', 'utf8'))
+    child.stdout.emit('end')
+    const progress = events.find((e) => e.type === 'progress')
+    expect(progress).toMatchObject({ id: result.id, percent: 5 })
+  })
+
+  it('进度行字段全缺失时解析为 null（不派发脏事件）', () => {
+    expect(parseProgressLine('__YTDLP_PROGRESS__ NA|0|0|0|NA|NA|NA|NA|NA')).toBeNull()
+  })
+
+  it('暂停后再报进程错误只清句柄，不重复派发 failed', async () => {
+    const { events, onEvent } = makeEvents()
+    const result = await startStreamDownload(makeRequest(), onEvent)
+    const child = lastChild()
+    expect(pauseStreamDownload(result.id!)).toBe(true)
+    child.emit('error', new Error('spawn EACCES'))
+    expect(events.filter((e) => e.type === 'failed')).toHaveLength(0)
+    expect(getStreamTask(result.id!)?.status).toBe('paused')
+  })
+
+  it('暂停不存在的任务返回 false', () => {
+    expect(pauseStreamDownload('sd-does-not-exist')).toBe(false)
+  })
+
+  it('完成与失败规则执行抛错时只记日志，不影响任务状态', async () => {
+    state.completionThrows = true
+    const ok = makeEvents()
+    const started = await startStreamDownload(makeRequest(), ok.onEvent)
+    writeFinalPathFile(started.id!, [path.join(tmpDir, 'out', 'a.mp4')])
+    fs.writeFileSync(path.join(tmpDir, 'out', 'a.mp4'), 'x', 'utf8')
+    lastChild().exitWith(0)
+    expect(getStreamTask(started.id!)?.status).toBe('complete')
+    // 规则回调是 void + .catch，错误在微任务里才落到 logger
+    await vi.waitFor(() => {
+      expect(state.logs.warn.some((line) => String(line).includes('流媒体完成规则执行失败'))).toBe(true)
+    })
+
+    const bad = makeEvents()
+    const failed = await startStreamDownload(makeRequest({ url: 'https://example.com/fail' }), bad.onEvent)
+    const child = lastChild()
+    child.stderr.emit('data', Buffer.from('boom', 'utf8'))
+    child.exitWith(1)
+    expect(getStreamTask(failed.id!)?.status).toBe('error')
+    await vi.waitFor(() => {
+      expect(state.logs.warn.some((line) => String(line).includes('流媒体失败规则执行失败'))).toBe(true)
+    })
+  })
+
+  it('取消时按平台结束整棵进程树（Windows 走 taskkill，类 Unix 走进程组）', async () => {
+    const { onEvent } = makeEvents()
+    const started = await startStreamDownload(makeRequest(), onEvent)
+    expect(cancelStreamDownload(started.id!)).toBe(true)
+    expect(state.spawnSyncCalls[0]).toMatchObject({ file: 'taskkill' })
+
+    const original = Object.getOwnPropertyDescriptor(process, 'platform')
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((() => { throw new Error('ESRCH') }) as unknown as typeof process.kill)
+    try {
+      const unix = await startStreamDownload(makeRequest({ url: 'https://example.com/unix' }), onEvent)
+      const child = lastChild()
+      expect(cancelStreamDownload(unix.id!)).toBe(true)
+      expect(killSpy).toHaveBeenCalledWith(-child.pid, 'SIGKILL')
+      expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    } finally {
+      killSpy.mockRestore()
+      if (original) Object.defineProperty(process, 'platform', original)
+    }
   })
 })
