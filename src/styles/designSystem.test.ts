@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { contrastRatio, cssVars, roles, themeCss } from './designSystem'
+import { contrastRatio, cssVars, relativeLuminance, roles, themeCss } from './designSystem'
 
 /**
  * 设计系统的护栏测试。
@@ -58,5 +58,12 @@ describe('设计令牌', () => {
     const r = roles.dark
     expect(contrastRatio(r.bgSurface, r.bgApp)).toBeGreaterThanOrEqual(1.15)
     expect(contrastRatio(r.bgRaised, r.bgSurface)).toBeGreaterThanOrEqual(1.15)
+  })
+
+  it('三位短写十六进制按等价长写计算相对亮度', () => {
+    // 设计令牌里既有 #fff 这种短写，也有 #ffffff；两种写法必须得到同一个亮度
+    expect(relativeLuminance('#fff')).toBe(relativeLuminance('#ffffff'))
+    expect(relativeLuminance('#fff')).toBeCloseTo(1, 10)
+    expect(relativeLuminance('#000')).toBe(0)
   })
 })

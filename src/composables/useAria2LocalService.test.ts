@@ -268,6 +268,24 @@ describe('useAria2LocalService 的兜底分支', () => {
     expect(getStatus).toHaveBeenCalledTimes(2)
   })
 
+  it('首次拉取返回前就被停掉时，收尾仍会装上轮询', async () => {
+    let release: (value: unknown) => void = () => {}
+    installBridge({ getStatus: () => new Promise<unknown>((resolve) => { release = resolve }) })
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    const { initLocalService, stopStatusCheck } = await load()
+    initLocalService()
+    await Promise.resolve()
+    // 首次拉取还挂着，此时页面卸载调用 stopStatusCheck（定时器尚未创建，无事可停）
+    stopStatusCheck()
+    release(runningStatus())
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(setIntervalSpy).toHaveBeenCalledTimes(1)
+    expect(setIntervalSpy.mock.calls[0][1]).toBe(5000)
+    stopStatusCheck()
+    setIntervalSpy.mockRestore()
+  })
+
   it('没有 electronAPI 时 initLocalService 直接返回，不装轮询', async () => {
     installBridge(null)
     const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')

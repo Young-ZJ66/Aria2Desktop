@@ -244,6 +244,17 @@ describe('performRestartAndInstall', () => {
       const released = await waitForPortRelease(6800, 20, async () => true, 5)
       expect(released).toBe(false)
     })
+
+    it('waitForPortRelease 预算为 0 时首轮占用即放弃，不再睡一觉', async () => {
+      // deadline == now：第一轮探测到仍被占用后立刻跳出循环，避免白等一个 interval
+      let probes = 0
+      const released = await waitForPortRelease(6800, 0, async () => {
+        probes += 1
+        return true
+      }, 5)
+      expect(released).toBe(false)
+      expect(probes).toBe(1)
+    })
   })
 
   describe('performRestartAndInstall 的失败分支', () => {

@@ -781,6 +781,28 @@ describe('IPC 通道：引擎启停与会话', () => {
     expect(await handlers.get('aria2-start')!({})).toEqual({ success: false, error: 'bind error' })
   })
 
+  it('aria2-start 初始化后管理器仍为空时返回未就绪', async () => {
+    const controller = await loadController()
+    // 初始化失败后管理器保持为空：此时不能继续走启动流程
+    vi.spyOn(controller, 'initialize').mockResolvedValue(undefined)
+    const handlers = await channelsOf(controller)
+    expect(await handlers.get('aria2-start')!({})).toEqual({
+      success: false,
+      error: 'zh:engine.managerUninitialized'
+    })
+    expect(state.manager).toBeNull()
+  })
+
+  it('aria2-restart 初始化后管理器仍为空时返回未就绪', async () => {
+    const controller = await loadController()
+    vi.spyOn(controller, 'initialize').mockResolvedValue(undefined)
+    const handlers = await channelsOf(controller)
+    expect(await handlers.get('aria2-restart')!({})).toEqual({
+      success: false,
+      error: 'zh:engine.managerUninitialized'
+    })
+  })
+
   it('aria2-stop 未初始化时直接成功', async () => {
     const controller = await loadController()
     const handlers = await channelsOf(controller)
@@ -864,6 +886,21 @@ describe('IPC 通道：引擎启停与会话', () => {
     })
     expect(saved.connectionProfiles[0].config).toMatchObject({ port: 7100, secret: 'next-secret' })
     expect(saved.connectionProfiles[1].config).toMatchObject({ port: 6800, secret: 'nas' })
+  })
+
+  it('aria2-save-global-options 跳过缺 config 的预设，只同步本机预设', async () => {
+    const controller = await readyController({
+      connectionProfiles: [
+        { id: 'broken', name: '无配置' },
+        { id: 'local', name: '本机', config: { host: '127.0.0.1', port: 6800, secret: 's', protocol: 'http', path: '/jsonrpc' } }
+      ]
+    })
+    const handlers = await channelsOf(controller)
+    expect(await handlers.get('aria2-save-global-options')!({}, { 'rpc-listen-port': '7100' })).toEqual({ success: true })
+    const saved = state.saved[0] as any
+    // 缺 config 的预设原样保留，不会被补出半截 config
+    expect(saved.connectionProfiles[0]).toEqual({ id: 'broken', name: '无配置' })
+    expect(saved.connectionProfiles[1].config).toMatchObject({ port: 7100 })
   })
 
   it('aria2-save-global-options 写配置失败时如实返回错误', async () => {
@@ -1097,6 +1134,22 @@ describe('导入设置后的连接预设同步', () => {
       changed: ['port']
     })
     expect(state.saved).toHaveLength(0)
+  })
+
+  it('缺 config 的预设原样保留，其余本机预设照常同步', async () => {
+    const controller = await readyController({
+      connectionProfiles: [
+        { id: 'broken', name: '无配置' },
+        { id: 'local', name: '本机', config: { host: '127.0.0.1', port: 6800, secret: 'old', protocol: 'http', path: '/jsonrpc' } }
+      ]
+    })
+    state.manager.isRunning = vi.fn(() => true)
+    state.imported = { port: 7100, secret: 'next' }
+    const result = await controller.applyImportedSettings({ aria2: { port: 7100, secret: 'next' } } as never)
+    expect(result).toEqual({ requiresRestart: true, changed: ['port', 'secret'] })
+    const saved = state.saved[0] as any
+    expect(saved.connectionProfiles[0]).toEqual({ id: 'broken', name: '无配置' })
+    expect(saved.connectionProfiles[1].config).toMatchObject({ port: 7100, secret: 'next' })
   })
 
   it('只有远程预设时不写盘', async () => {

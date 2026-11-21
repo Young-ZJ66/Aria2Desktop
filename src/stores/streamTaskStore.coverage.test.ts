@@ -287,6 +287,21 @@ describe('streamTaskStore：启动时恢复持久化记录', () => {
     expect(store.findByGid('sd-old-2')?.status).toBe('complete')
   })
 
+  it('持久化记录里 gid 重复时只保留第一条', () => {
+    stubLocalStorage(JSON.stringify({
+      schemaVersion: 1,
+      tasks: [
+        { gid: 'sd-dup', url: 'https://example.com/a', status: 'complete', createdAt: 1_700_000_000_000 },
+        { gid: 'sd-dup', url: 'https://example.com/b', status: 'complete', createdAt: 1_700_000_200_000 }
+      ]
+    }))
+
+    const store = useStreamTaskStore()
+
+    expect(store.tasks.map((task) => task.gid)).toEqual(['sd-dup'])
+    expect(store.tasks[0].url).toBe('https://example.com/a')
+  })
+
   it('持久化里没有可识别记录时不改动任务列表', () => {
     stubLocalStorage(JSON.stringify({ schemaVersion: 1, tasks: [{ gid: 'bad' }, null, 42] }))
 

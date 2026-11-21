@@ -428,6 +428,31 @@ describe('版本探测与日志提取的边界', () => {
   })
 })
 
+describe('更新检查的超时与重复调用', () => {
+  it('重复检查只读一次持久化状态文件', async () => {
+    h.state.plans = [
+      tagRedirect('v1.4.0'), bodyPlan(atomFor('v1.4.0', 'same')),
+      tagRedirect('v1.4.0'), bodyPlan(atomFor('v1.4.0', 'same'))
+    ]
+    const { UpdateController } = await loadController()
+    const controller = createController(UpdateController)
+    expect(await internals(controller).checkForUpdates()).toEqual({ success: true, hasUpdate: false })
+    // 第二次检查走 persistedStateLoaded 早退，不再重复读盘
+    expect(await internals(controller).checkForUpdates()).toEqual({ success: true, hasUpdate: false })
+  })
+
+  it('查询最新稳定版超时时把超时原因带回渲染层', async () => {
+    h.state.plans = [{ kind: 'timeout' }]
+    const { UpdateController } = await loadController()
+    const controller = createController(UpdateController)
+    expect(await internals(controller).checkForUpdates()).toEqual({
+      success: false,
+      hasUpdate: false,
+      error: 'Update check timed out'
+    })
+  })
+})
+
 describe('下载过程中的边界', () => {
   it('差量下载把真实网络流量推给渲染层', async () => {
     h.downloadDelta.mockImplementation(async (options: { targetPath: string, onProgress: (percent: number, remote: number, total: number) => void }) => {
@@ -648,6 +673,19 @@ describe('校验文件的异常路径', () => {
     expect(result).toEqual({ checksumUnavailable: true })
     expect(h.warn).toHaveBeenCalledWith('[UpdateController] Checksum file unavailable, installer left unverified:', 'checksum stream broken')
   })
+
+  it('校验文件拉取超时时按不可用处理', async () => {
+    const filePath = path.join(h.state.tempDir, 'checksum-timeout.download')
+    h.state.plans = [
+      bodyPlan(INSTALLER_CONTENT, { 'content-length': String(Buffer.byteLength(INSTALLER_CONTENT)) }),
+      { kind: 'timeout' }
+    ]
+    const { UpdateController } = await loadController()
+    const controller = createController(UpdateController)
+    const result = await internals(controller).downloadWithRedirects(DOWNLOAD_URL, filePath, '1.5.0', DOWNLOAD_URL, 0)
+    expect(result).toEqual({ checksumUnavailable: true })
+    expect(h.warn).toHaveBeenCalledWith('[UpdateController] Checksum file unavailable, installer left unverified:', 'Fetch checksum timed out')
+  })
 })
 
 describe('写盘失败的收尾', () => {
@@ -665,6 +703,22 @@ describe('写盘失败的收尾', () => {
       .rejects.toThrow('ENOSPC: no space left on device')
     expect(stream.destroyed).toBe(true)
     // 失败后不再继续处理分片：写流没有被第二次写入
+    expect(stream.writeCount).toBe(1)
+  })
+
+  it('写流报错后迟到的分片被 failed 守卫丢掉', async () => {
+    const stream = new FailingWriteStream()
+    h.state.fakeStream = stream
+    const filePath = path.join(h.state.tempDir, 'write-fail-late-chunk.download')
+    h.state.plans = [
+      { kind: 'response', statusCode: 200, headers: { 'content-length': '2' }, chunks: ['a', 'b'] },
+      bodyPlan(sha256Of('ab'))
+    ]
+    const { UpdateController } = await loadController()
+    const controller = createController(UpdateController)
+    await expect(internals(controller).downloadWithRedirects(DOWNLOAD_URL, filePath, '1.5.0', DOWNLOAD_URL, 0))
+      .rejects.toThrow('ENOSPC: no space left on device')
+    // 第一片就报错，第二片被 failed 守卫拦下，写流只被写了一次
     expect(stream.writeCount).toBe(1)
   })
 })

@@ -385,6 +385,20 @@ describe('刷新链路的边界', () => {
     expect(error).toHaveBeenCalledWith('Failed to load active tasks:', expect.anything())
   })
 
+  it('轻量刷新成功时整体写回 active 列表，并跳过已知任务的添加时间', async () => {
+    h.state.lists.active = [makeTask('a1', 'active')]
+    h.state.conn!.service = makeService()
+    const store = useTaskStore()
+    await store.loadAllTasks()
+    h.state.recordedAdds.length = 0
+
+    await store.loadLightTasks()
+
+    expect(store.activeTasks.map(task => task.gid)).toEqual(['a1'])
+    // a1 已在上一次全量刷新里记录过添加时间，轻量刷新不再重复记录
+    expect(h.state.recordedAdds).toEqual([])
+  })
+
   it('刷新在飞时收到 WS 事件只标记补刷，收尾后再补一次全量', async () => {
     let resolveFirst: ((value: unknown) => void) | null = null
     let call = 0
@@ -414,6 +428,7 @@ describe('刷新链路的边界', () => {
     expect(service.multicall.mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(store.isLoading).toBe(false)
   })
+
 })
 
 describe('自动重试的边界', () => {
@@ -492,6 +507,35 @@ describe('自动重试的边界', () => {
     await vi.advanceTimersByTimeAsync(10)
 
     expect(warn).toHaveBeenCalledWith('Auto retry failed:', 'g1', expect.anything())
+  })
+
+  it('同一任务已在重试队列里时再次扫描不会重复排期', async () => {
+    vi.useFakeTimers()
+    h.state.settings = { queue: { retryEnabled: true, retryMaxAttempts: 3, retryDelaySeconds: 5 } }
+    h.state.sources.set('g1', { source: { kind: 'uri', uris: ['https://a/1.zip'] }, options: {} })
+    const service = makeService()
+    h.state.conn!.service = service
+    const store = useTaskStore()
+
+    h.state.lists.active = [makeTask('g1', 'active')]
+    await store.loadAllTasks()
+    // 第二轮：g1 刚从 active 掉进 stopped，排入 5s 后的重试
+    h.state.lists.active = []
+    h.state.lists.stopped = [makeTask('g1', 'error')]
+    await store.loadAllTasks()
+    // 中间把 stopped 清空再放回 g1，使 previousStopped 不含 g1、previousActive 仍含 g1
+    h.state.lists.stopped = []
+    await store.loadAllTasks()
+    h.state.lists.active = [makeTask('g1', 'active')]
+    await store.loadAllTasks()
+    h.state.lists.active = []
+    h.state.lists.stopped = [makeTask('g1', 'error')]
+    await store.loadAllTasks()
+
+    // 重试还没到期，期间反复扫描不会叠加定时器
+    expect(vi.getTimerCount()).toBe(1)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(service.addUri).toHaveBeenCalledTimes(1)
   })
 
   it('删除任务时取消已排的重试，不再对已删除的任务发请求', async () => {
