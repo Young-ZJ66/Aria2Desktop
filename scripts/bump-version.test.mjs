@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -160,3 +161,27 @@ describe('整仓 bump', () => {
     expect(main([])).toBe(1)
   })
 })
+
+describe('脚本入口的收尾分支', () => {
+  it('更新日志首行格式不对时报错而不是静默跳过', () => {
+    expect(() => rewriteFile('.github/release-notes.md', '## 没有版本号的首行\n', '1.5.0')).toThrow(/# vX\.Y\.Z/)
+  })
+
+  it('main() 在 dry-run 下返回 0 且不写盘', () => {
+    const before = fs.readFileSync(path.resolve('package.json'), 'utf8')
+    expect(main(['1.5.0', '--dry-run'])).toBe(0)
+    expect(fs.readFileSync(path.resolve('package.json'), 'utf8')).toBe(before)
+  })
+
+  it('main() 遇到非法版本号时返回 1', () => {
+    expect(main(['1.5'])).toBe(1)
+  })
+
+  it('直接以脚本方式执行时把返回值写进 exitCode', () => {
+    const script = path.resolve('scripts/bump-version.mjs')
+    const result = spawnSync(process.execPath, [script], { encoding: 'utf8' })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('bump:version')
+  })
+})
+
