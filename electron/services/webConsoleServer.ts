@@ -27,7 +27,18 @@ import { getSettingsFresh, saveSettings } from '../utils/settingsAccessor'
 import { WEB_CONSOLE_CSP, WEB_CONSOLE_HTML } from '../webConsolePage'
 import { ICON_192_PNG_B64, ICON_512_PNG_B64, MASKABLE_192_PNG_B64, MASKABLE_512_PNG_B64, WEB_CONSOLE_MANIFEST, WEB_CONSOLE_SW } from '../webConsoleAssets'
 import { buildOpenApiDocument } from '../webConsoleOpenApi'
-import { isPublicPath, resolveAuthFromSettings, routeScope, scopeAllows } from '../utils/webConsoleAuth'
+import {
+  buildClearSessionCookie,
+  buildSessionCookie,
+  createSessionSecret,
+  isPublicPath,
+  readSessionCookie,
+  resolveAuthFromSettings,
+  routeScope,
+  scopeAllows,
+  signSessionToken,
+  verifySessionToken
+} from '../utils/webConsoleAuth'
 import { mainLocaleFrom } from '../utils/mainLocale'
 import { webConsoleTlsError } from '../utils/mainProcessCopy'
 import type { WebConsoleSettings } from '../../src/shared/appSettings'
@@ -138,6 +149,15 @@ export class WebConsoleServer {
   private auditLoaded = false
   /** 审计落盘防抖定时器 */
   private auditFlushTimer: ReturnType<typeof setTimeout> | null = null
+  /**
+   * 会话 Cookie 的签名密钥（D-14）。
+   *
+   * 进程内随机生成、不落盘：重启后旧 Cookie 全部失效，用户重新登录一次即可；
+   * 换来的是浏览器侧永远拿不到令牌原文，localStorage 里也不再有可偷的凭据。
+   */
+  private readonly sessionSecret: Buffer = createSessionSecret()
+  /** 当前会话 Cookie 对应的令牌（用于 SSE 复检；只有一条活动会话，够用） */
+  private sessionToken = ''
 
   /** 启动/重启（设置变更时调用；未启用则停止） */
   async apply(): Promise<{ running: boolean; port: number; token: string; error?: string }> {
@@ -375,12 +395,13 @@ export class WebConsoleServer {
     }
   }
 
-  private sendJson(res: http.ServerResponse, status: number, body: unknown) {
+  private sendJson(res: http.ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) {
     const data = JSON.stringify(body)
     res.writeHead(status, {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff'
+      'X-Content-Type-Options': 'nosniff',
+      ...headers
     })
     res.end(data)
   }
@@ -575,10 +596,65 @@ export class WebConsoleServer {
     this.sseLastPayload = ''
   }
 
-  /** 从请求头取 Bearer 值 */
+  /**
+   * 取请求携带的令牌：优先 Authorization: Bearer，其次会话 Cookie。
+   *
+   * Bearer 是给扩展、MCP、脚本与第三方客户端用的（它们没有浏览器 Cookie 罐）；
+   * Cookie 是给 Web 控制台页面用的，令牌原文不进页面，浏览器自动带上。
+   */
   private presentedToken(req: http.IncomingMessage): string {
     const header = String(req.headers.authorization || '')
-    return header.startsWith('Bearer ') ? header.slice(7) : ''
+    if (header.startsWith('Bearer ')) return header.slice(7)
+    const cookie = readSessionCookie(req.headers.cookie)
+    if (!cookie) return ''
+    return verifySessionToken(this.sessionSecret, this.sessionToken, cookie) ? this.sessionToken : ''
+  }
+
+  /** 会话 Cookie 是否可加 Secure（只有 HTTPS 监听时才加，否则浏览器会丢弃） */
+  private sessionCookieSecure(): boolean {
+    return this.tlsEnabled
+  }
+
+  /**
+   * 会话接口（D-14）：POST /api/session 用令牌换 HttpOnly Cookie，DELETE 退出。
+   *
+   * 页面从此不再把令牌写进 localStorage：XSS 能跑的脚本读不到 Cookie（HttpOnly），
+   * 跨站请求也带不上它（SameSite=Strict）。Bearer 通道保持可用，旧客户端不受影响。
+   * @returns 是否已经处理完（true 表示 handle() 不必继续）
+   */
+  private async handleSession(req: http.IncomingMessage, res: http.ServerResponse, ip: string): Promise<boolean> {
+    if (req.method === 'DELETE') {
+      this.sessionToken = ''
+      this.sendJson(res, 200, { ok: true }, { 'Set-Cookie': buildClearSessionCookie({ secure: this.sessionCookieSecure() }) })
+      this.record(ip, 'logout', '/api/session', true)
+      return true
+    }
+    if (req.method !== 'POST') return false
+    let body: Record<string, unknown>
+    try {
+      body = await this.readBody(req)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.sendJson(res, message === 'Request body too large' ? 413 : 400, { ok: false, error: message })
+      return true
+    }
+    const presented = typeof body.token === 'string' ? body.token.trim() : ''
+    const auth = resolveAuthFromSettings(getSettingsFresh(), presented)
+    if (!auth) {
+      this.record(ip, 'auth', '/api/session', false)
+      this.sendJson(res, 401, { ok: false, error: 'Unauthorized' })
+      return true
+    }
+    if (auth.tokenId) this.touchToken(auth.tokenId)
+    this.sessionToken = presented
+    this.sendJson(
+      res,
+      200,
+      { ok: true, scopes: auth.scopes },
+      { 'Set-Cookie': buildSessionCookie(signSessionToken(this.sessionSecret, presented), { secure: this.sessionCookieSecure() }) }
+    )
+    this.record(ip, 'login', '/api/session', true)
+    return true
   }
 
   /**
@@ -689,6 +765,11 @@ export class WebConsoleServer {
 
     // 静态资源与文档：免鉴权（登录页必须能打开，否则无法输入令牌）
     if (req.method === 'GET' && isPublicPath(pathname) && this.servePublic(pathname, res)) return
+
+    // 会话接口必须排在鉴权之前：登录时用户手里只有令牌，还没有 Cookie
+    if (pathname === '/api/session' && (req.method === 'POST' || req.method === 'DELETE')) {
+      if (await this.handleSession(req, res, ip)) return
+    }
 
     const required = routeScope(req.method || 'GET', pathname)
     if (!required) {

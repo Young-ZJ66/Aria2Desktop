@@ -2,11 +2,19 @@ import { describe, expect, it } from 'vitest'
 import {
   ALL_WEB_CONSOLE_SCOPES,
   MIN_TOKEN_LENGTH,
+  SESSION_MAX_AGE_SECONDS,
+  WEB_CONSOLE_SESSION_COOKIE,
+  buildClearSessionCookie,
+  buildSessionCookie,
+  createSessionSecret,
   isPublicPath,
+  readSessionCookie,
   resolveAuthFromSettings,
   routeScope,
   safeEqual,
-  scopeAllows
+  scopeAllows,
+  signSessionToken,
+  verifySessionToken
 } from './webConsoleAuth'
 import type { AppSettings } from '../../src/shared/appSettings'
 
@@ -183,5 +191,61 @@ describe('isPublicPath', () => {
     expect(isPublicPath('/?x=1')).toBe(false)
     expect(isPublicPath('/sw.js/')).toBe(false)
     expect(isPublicPath('//index.html')).toBe(false)
+  })
+})
+
+describe('会话 Cookie', () => {
+  const secret = createSessionSecret()
+  const TOKEN = 'master-token-abcdef0123'
+
+  it('同一密钥与令牌签名稳定，换密钥或换令牌都验不过', () => {
+    const signed = signSessionToken(secret, TOKEN)
+    expect(signed).toBe(signSessionToken(secret, TOKEN))
+    expect(verifySessionToken(secret, TOKEN, signed)).toBe(true)
+    expect(verifySessionToken(createSessionSecret(), TOKEN, signed)).toBe(false)
+    expect(verifySessionToken(secret, 'another-token-abcdef', signed)).toBe(false)
+  })
+
+  it('签名值不含令牌原文（浏览器手里不是钥匙本身）', () => {
+    const signed = signSessionToken(secret, TOKEN)
+    expect(signed).not.toContain(TOKEN)
+    expect(signed.length).toBeGreaterThan(20)
+  })
+
+  it('空令牌或空 Cookie 一律验不过', () => {
+    expect(verifySessionToken(secret, '', signSessionToken(secret, ''))).toBe(false)
+    expect(verifySessionToken(secret, TOKEN, '')).toBe(false)
+  })
+
+  it('从 Cookie 头里只取同名的那一条', () => {
+    const signed = signSessionToken(secret, TOKEN)
+    expect(readSessionCookie('a=1; ' + WEB_CONSOLE_SESSION_COOKIE + '=' + encodeURIComponent(signed) + '; b=2')).toBe(signed)
+    expect(readSessionCookie(undefined)).toBe('')
+    expect(readSessionCookie('other=1')).toBe('')
+    expect(readSessionCookie('broken-no-equals')).toBe('')
+    expect(readSessionCookie(WEB_CONSOLE_SESSION_COOKIE)).toBe('')
+  })
+
+  it('Cookie 带 HttpOnly / SameSite=Strict / Path=/ 与 8 小时有效期', () => {
+    const cookie = buildSessionCookie('abc', { secure: false })
+    expect(cookie.startsWith(WEB_CONSOLE_SESSION_COOKIE + '=abc')).toBe(true)
+    expect(cookie).toContain('HttpOnly')
+    expect(cookie).toContain('SameSite=Strict')
+    expect(cookie).toContain('Path=/')
+    expect(cookie).toContain('Max-Age=' + String(SESSION_MAX_AGE_SECONDS))
+    expect(SESSION_MAX_AGE_SECONDS).toBe(8 * 60 * 60)
+    expect(cookie).not.toContain('Secure')
+  })
+
+  it('只有 HTTPS 监听时才加 Secure（明文下加了浏览器会丢）', () => {
+    expect(buildSessionCookie('abc', { secure: true })).toContain('Secure')
+    expect(buildClearSessionCookie({ secure: true })).toContain('Secure')
+  })
+
+  it('清除用的 Cookie 立即过期且值为空', () => {
+    const cookie = buildClearSessionCookie({ secure: false })
+    expect(cookie.startsWith(WEB_CONSOLE_SESSION_COOKIE + '=')).toBe(true)
+    expect(cookie).toContain('Max-Age=0')
+    expect(readSessionCookie(cookie.split(';')[0])).toBe('')
   })
 })

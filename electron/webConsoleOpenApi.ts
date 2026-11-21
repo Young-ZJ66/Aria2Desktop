@@ -30,7 +30,9 @@ export function buildOpenApiDocument(appVersion: string): Record<string, unknown
         'Aria2 Desktop 的远程控制接口。除登录页、静态资源与本文档外，所有请求都需要',
         'Authorization: Bearer <令牌>。令牌在 设置 → 高级 → 远程 Web 控制台 中创建，',
         '并按 tasks:read / tasks:write / tasks:control / audit:read 分配权限；',
-        'admin 令牌拥有全部权限，旧版主令牌等价于 admin。'
+        'admin 令牌拥有全部权限，旧版主令牌等价于 admin。',
+        '浏览器页面不走 Bearer：它先 POST /api/session 用令牌换一个 HttpOnly 会话 Cookie，',
+        '之后的请求由浏览器自动携带该 Cookie（页面脚本读不到令牌原文）。'
       ].join('')
     },
     servers: [{ url: '/', description: '当前实例' }],
@@ -95,6 +97,40 @@ export function buildOpenApiDocument(appVersion: string): Record<string, unknown
       }
     },
     paths: {
+      '/api/session': {
+        post: {
+          summary: '用令牌换取 HttpOnly 会话 Cookie（Web 控制台页面登录用）',
+          description: '令牌放在请求体而不是请求头，因此本接口本身不需要 Authorization。成功后响应带 Set-Cookie（HttpOnly、SameSite=Strict，HTTPS 监听时另加 Secure），后续请求由浏览器自动携带。',
+          tags: ['会话'],
+          security: [],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['token'],
+                  properties: { token: { type: 'string', description: '主令牌或细粒度令牌原文' } }
+                }
+              }
+            }
+          },
+          responses: {
+            200: { description: '已登录，响应头 Set-Cookie 带会话，body 返回该令牌的 scopes', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, scopes: { type: 'array', items: { type: 'string' } } } } } } },
+            400: { description: '请求体不是合法 JSON', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+            401: { description: '令牌错误（Unauthorized）', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+          }
+        },
+        delete: {
+          summary: '退出登录（清除会话 Cookie）',
+          tags: ['会话'],
+          security: [],
+          responses: {
+            200: { description: '已退出，响应头 Set-Cookie 把会话置空（Max-Age=0）', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' } } } } } },
+            401: { description: '未登录时也可能返回（不影响客户端继续清理本地状态）', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+          }
+        }
+      },
       '/api/status': {
         get: {
           summary: '读取全局统计与任务列表（活动/等待/已停止各最多 100 条）',

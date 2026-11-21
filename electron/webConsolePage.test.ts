@@ -226,4 +226,22 @@ describe('Web 控制台页面与 CSP', () => {
   it('html lang 跟随实际界面语言，英文界面不再声明 zh-CN', () => {
     expect(WEB_CONSOLE_HTML).toContain('document.documentElement.lang')
   })
+  it('页面不再把令牌存进 localStorage，改用 HttpOnly 会话 Cookie（D-14）', () => {
+    // 令牌存 localStorage 时任何 XSS 都能读走并长期复用；改成会话 Cookie 后
+    // 脚本读不到（HttpOnly）、跨站请求也带不上（SameSite=Strict）。
+    expect(WEB_CONSOLE_HTML).not.toContain('aria2web_token')
+    expect(WEB_CONSOLE_HTML).not.toContain('localStorage.setItem(\'aria2web_token\'')
+    expect(WEB_CONSOLE_HTML).toContain("api('/api/session'")
+    expect(WEB_CONSOLE_HTML).toContain("credentials='same-origin'")
+    // 页面脚本里不能再拼 Authorization 头（令牌已不在页面内存里）
+    expect(WEB_CONSOLE_HTML).not.toContain("'Bearer '+token")
+    expect(WEB_CONSOLE_HTML).not.toMatch(/Authorization/ )
+  })
+
+  it('退出登录会调用 DELETE /api/session 让服务端清掉会话', () => {
+    const logout = WEB_CONSOLE_HTML.match(/function logout\(\)\{([\s\S]*?)\n/)
+    expect(logout).not.toBeNull()
+    expect(logout![1]).toContain("'/api/session'")
+    expect(logout![1]).toContain("method:'DELETE'")
+  })
 })

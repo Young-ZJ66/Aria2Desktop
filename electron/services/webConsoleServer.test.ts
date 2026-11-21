@@ -25,6 +25,7 @@ vi.mock('../utils/settingsAccessor', () => ({
 const {
   ALL_WEB_CONSOLE_SCOPES,
   MIN_TOKEN_LENGTH,
+  WEB_CONSOLE_SESSION_COOKIE,
   safeEqual,
   scopeAllows,
   resolveAuthFromSettings,
@@ -201,7 +202,7 @@ describe('OpenAPI 文档', () => {
     }
     expect(doc.openapi).toBe('3.0.3')
     expect(doc.info.version).toBe('1.3.7')
-    expect(Object.keys(doc.paths).sort()).toEqual(['/api/audit', '/api/events', '/api/queue', '/api/status', '/api/tasks', '/api/tasks/{action}', '/api/tasks/{gid}/{action}', '/openapi.json'])
+    expect(Object.keys(doc.paths).sort()).toEqual(['/api/audit', '/api/events', '/api/queue', '/api/session', '/api/status', '/api/tasks', '/api/tasks/{action}', '/api/tasks/{gid}/{action}', '/openapi.json'])
     expect(doc.components.securitySchemes.bearerAuth).toBeTruthy()
     // 能被 JSON 序列化（无循环引用/函数）
     expect(() => JSON.stringify(doc)).not.toThrow()
@@ -509,6 +510,144 @@ describe('WebConsoleServer.handle', () => {
   })
 })
 
+describe('WebConsoleServer 会话 Cookie', () => {
+  function cookieFrom(out: { headers?: Record<string, string> }): string {
+    const raw = String((out.headers || {})['Set-Cookie'] || '')
+    return raw.split(';')[0]
+  }
+
+  it('用令牌换取 HttpOnly 会话 Cookie，之后不带 Bearer 也能读接口', async () => {
+    rpcMock.mockImplementation(async (options: { method: string }) => {
+      if (options.method === 'aria2.getGlobalStat') return { downloadSpeed: '0', uploadSpeed: '0', numActive: '0', numWaiting: '0', numStopped: '0' }
+      return []
+    })
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const login = makeRes()
+    await server.handle(makeReq('POST', '/api/session', {}, JSON.stringify({ token: MASTER })), login.res, [])
+    expect(login.out.status).toBe(200)
+    expect(JSON.parse(login.out.body || '{}')).toEqual({ ok: true, scopes: ['admin'] })
+    const setCookie = String((login.out.headers || {})['Set-Cookie'] || '')
+    expect(setCookie).toContain('HttpOnly')
+    expect(setCookie).toContain('SameSite=Strict')
+    expect(setCookie).toContain('Path=/')
+    expect(setCookie).toContain('Max-Age=')
+    expect(setCookie).not.toContain(MASTER)
+
+    const status = makeRes()
+    await server.handle(makeReq('GET', '/api/status', { cookie: cookieFrom(login.out) }), status.res, [])
+    expect(status.out.status).toBe(200)
+    expect(JSON.parse(status.out.body || '{}').ok).toBe(true)
+  })
+
+  it('错误令牌换不到 Cookie，且记一条失败审计', async () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('POST', '/api/session', {}, JSON.stringify({ token: 'wrong-token-0123456789' })), res, [])
+    expect(out.status).toBe(401)
+    expect((out.headers || {})['Set-Cookie']).toBeUndefined()
+    const audit = makeRes()
+    await server.handle(makeReq('GET', '/api/audit', { authorization: 'Bearer ' + MASTER }), audit.res, [])
+    const items = JSON.parse(audit.out.body || '{}').items || []
+    expect(items.some((entry: { action: string; detail: string; success: boolean }) => entry.action === 'auth' && entry.detail === '/api/session' && entry.success === false)).toBe(true)
+  })
+
+  it('伪造或过期的 Cookie 换不来权限', async () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('GET', '/api/status', { cookie: WEB_CONSOLE_SESSION_COOKIE + '=forged-value' }), res, [])
+    expect(out.status).toBe(401)
+    expect(rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('退出登录清掉 Cookie，之后的请求重新变成未登录', async () => {
+    rpcMock.mockResolvedValue([])
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const login = makeRes()
+    await server.handle(makeReq('POST', '/api/session', {}, JSON.stringify({ token: MASTER })), login.res, [])
+    const cookie = cookieFrom(login.out)
+
+    const logout = makeRes()
+    await server.handle(makeReq('DELETE', '/api/session', { cookie }), logout.res, [])
+    expect(logout.out.status).toBe(200)
+    expect(String((logout.out.headers || {})['Set-Cookie'] || '')).toContain('Max-Age=0')
+
+    const after = makeRes()
+    await server.handle(makeReq('GET', '/api/status', { cookie }), after.res, [])
+    expect(after.out.status).toBe(401)
+  })
+
+  it('会话接口的请求体非法时返回 400，而不是 500', async () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const { res, out } = makeRes()
+    await server.handle(makeReq('POST', '/api/session', {}, '{oops'), res, [])
+    expect(out.status).toBe(400)
+    expect(JSON.parse(out.body || '{}').error).toBe('Invalid JSON body')
+  })
+
+  it('令牌字段缺失或类型不对时按未授权处理', async () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const missing = makeRes()
+    await server.handle(makeReq('POST', '/api/session', {}, '{}'), missing.res, [])
+    expect(missing.out.status).toBe(401)
+    const wrongType = makeRes()
+    await server.handle(makeReq('POST', '/api/session', {}, JSON.stringify({ token: 123 })), wrongType.res, [])
+    expect(wrongType.out.status).toBe(401)
+  })
+
+  it('只读令牌换到的会话也只有只读权限', async () => {
+    const server = makeServer({
+      webConsole: { token: MASTER, tokens: [{ id: 'ro', name: '只读', token: 'readonly-token-abcdef', scopes: ['tasks:read'] }] }
+    })
+    const login = makeRes()
+    await server.handle(makeReq('POST', '/api/session', {}, JSON.stringify({ token: 'readonly-token-abcdef' })), login.res, [])
+    expect(login.out.status).toBe(200)
+    expect(JSON.parse(login.out.body || '{}').scopes).toEqual(['tasks:read'])
+    const write = makeRes()
+    await server.handle(makeReq('POST', '/api/tasks', { cookie: cookieFrom(login.out) }, JSON.stringify({ uris: ['https://example.com/a.bin'] })), write.res, [])
+    expect(write.out.status).toBe(403)
+    expect(JSON.parse(write.out.body || '{}').required).toBe('tasks:write')
+  })
+})
+describe('会话 Cookie 的 HTTP 往返', () => {
+  it('POST /api/session 拿到的 Set-Cookie 能直接用来读接口，DELETE 之后失效', async () => {
+    rpcMock.mockImplementation(async (options: { method: string }) => {
+      if (options.method === 'aria2.getGlobalStat') return { downloadSpeed: '0', uploadSpeed: '0', numActive: '0', numWaiting: '0', numStopped: '0' }
+      return []
+    })
+    const port = 39736
+    const server = makeServer({ webConsole: { enabled: true, port, token: MASTER, allowedIps: [] } })
+    const started = await server.apply()
+    expect(started.running).toBe(true)
+    const base = 'http://127.0.0.1:' + String(port)
+    try {
+      const login = await fetch(base + '/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: MASTER })
+      })
+      expect(login.status).toBe(200)
+      const setCookie = String(login.headers.get('set-cookie') || '')
+      expect(setCookie).toContain('HttpOnly')
+      expect(setCookie).toContain('SameSite=Strict')
+      const cookie = setCookie.split(';')[0]
+
+      const status = await fetch(base + '/api/status', { headers: { cookie } })
+      expect(status.status).toBe(200)
+      expect(((await status.json()) as { ok: boolean }).ok).toBe(true)
+
+      const anonymous = await fetch(base + '/api/status')
+      expect(anonymous.status).toBe(401)
+
+      const logout = await fetch(base + '/api/session', { method: 'DELETE', headers: { cookie } })
+      expect(logout.status).toBe(200)
+
+      const after = await fetch(base + '/api/status', { headers: { cookie } })
+      expect(after.status).toBe(401)
+    } finally {
+      await server.stop()
+    }
+  })
+})
 describe('WebConsoleServer.apply LAN 加密约束', () => {
   it('允许局域网但未配置 TLS 时拒绝启动（避免明文 HTTP 泄露令牌）', async () => {
     const server = makeServer({

@@ -68,6 +68,8 @@ export function routeScope(method: string, pathname: string): WebConsoleScope | 
   if (verb === 'POST' && pathname === '/api/tasks') return 'tasks:write'
   if (verb === 'POST' && /^\/api\/tasks\/(pauseAll|unpauseAll)$/.test(pathname)) return 'tasks:control'
   if (verb === 'POST' && /^\/api\/tasks\/[^/]+\/(pause|resume|remove)$/.test(pathname)) return 'tasks:control'
+  // /api/session 不登记在这里：它是登录入口，必须能在没有 Cookie 的情况下调用，
+  // 由 handle() 在查路由权限之前单独分支处理（见 handleSession）。
   return null
 }
 
@@ -86,4 +88,69 @@ const PUBLIC_PATHS = new Set([
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.has(pathname)
+}
+
+/* ------------------------------------------------------------------ */
+/* 会话 Cookie（D-14）                                                 */
+/* ------------------------------------------------------------------ */
+
+/** 浏览器端保存会话的 Cookie 名（HttpOnly，页面脚本读不到） */
+export const WEB_CONSOLE_SESSION_COOKIE = 'aria2web_session'
+
+/** 会话有效期：8 小时，足够一次远程盯下载，又不至于长期留一把钥匙 */
+export const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60
+
+/**
+ * 会话 Cookie 的值 = HMAC(进程内随机密钥, 令牌)。
+ *
+ * 这样浏览器手里拿到的不是令牌本身：页面脚本、扩展、XSS 都读不到令牌原文，
+ * 只能拿到一个绑定当前进程的摘要；进程重启密钥变化，旧 Cookie 自动失效。
+ */
+export function createSessionSecret(): Buffer {
+  return crypto.randomBytes(32)
+}
+
+export function signSessionToken(secret: Buffer, token: string): string {
+  return crypto.createHmac('sha256', secret).update(token, 'utf8').digest('base64url')
+}
+
+export function verifySessionToken(secret: Buffer, token: string, presented: string): boolean {
+  if (!token || !presented) return false
+  return safeEqual(presented, signSessionToken(secret, token))
+}
+
+/** 从 Cookie 头里取出会话值（同名 Cookie 取第一个，其余忽略） */
+export function readSessionCookie(cookieHeader: string | undefined): string {
+  const header = String(cookieHeader || '')
+  if (!header) return ''
+  for (const part of header.split(';')) {
+    const index = part.indexOf('=')
+    if (index < 0) continue
+    if (part.slice(0, index).trim() !== WEB_CONSOLE_SESSION_COOKIE) continue
+    return decodeURIComponent(part.slice(index + 1).trim())
+  }
+  return ''
+}
+
+/**
+ * 组装 Set-Cookie 头。
+ *
+ * HttpOnly：页面脚本读不到，XSS 偷不走；SameSite=Strict：跨站请求一律不带，
+ * 顺带挡掉 CSRF；Secure 只在 HTTPS 监听时加，否则明文 LAN 下浏览器会直接丢掉 Cookie。
+ */
+export function buildSessionCookie(value: string, options: { secure: boolean; maxAgeSeconds?: number }): string {
+  const parts = [
+    WEB_CONSOLE_SESSION_COOKIE + '=' + encodeURIComponent(value),
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Strict',
+    'Max-Age=' + String(options.maxAgeSeconds ?? SESSION_MAX_AGE_SECONDS)
+  ]
+  if (options.secure) parts.push('Secure')
+  return parts.join('; ')
+}
+
+/** 清除会话用的 Set-Cookie（Max-Age=0 让浏览器立刻丢弃） */
+export function buildClearSessionCookie(options: { secure: boolean }): string {
+  return buildSessionCookie('', { secure: options.secure, maxAgeSeconds: 0 })
 }
