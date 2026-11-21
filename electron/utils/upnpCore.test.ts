@@ -171,3 +171,27 @@ describe('buildMappingPorts', () => {
     expect(buildMappingPorts(0, 70000)).toEqual([])
   })
 })
+
+describe('isValidDeviceLocation 的解析边界', () => {
+  it('IPv6 非链路本地地址仍然放行（只有回环/未指定/fe80::/10 被拦）', () => {
+    expect(isValidDeviceLocation('http://[2001:db8::1]/desc.xml')).toBe(true)
+  })
+
+  it('无法解析的 http 串返回 false 而不是抛错', () => {
+    expect(isValidDeviceLocation('http://')).toBe(false)
+    expect(isValidDeviceLocation('http://@/x')).toBe(false)
+    expect(isValidDeviceLocation('http://1.2.3.999/')).toBe(false)
+  })
+})
+
+describe('joinControlUrl 的解析边界', () => {
+  it('设备地址无法解析时返回 null', () => {
+    expect(joinControlUrl('not a url', '/ctl')).toBeNull()
+  })
+
+  it('控制路径缺少前导斜杠时自动补上', () => {
+    expect(joinControlUrl('http://192.168.1.1:5000/desc.xml', 'ctl/IPConn')).toBe(
+      'http://192.168.1.1:5000/ctl/IPConn'
+    )
+  })
+})
