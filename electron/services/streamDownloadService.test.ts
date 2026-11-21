@@ -308,6 +308,18 @@ describe('buildStreamArgs：参数构造', () => {
     expect(args).not.toContain('--ffmpeg-location')
   })
 
+  it('全局限速：limitRateBytes 为正时加 --limit-rate（取整），0 或未给时不出现', () => {
+    const limited = buildStreamArgs({ ...BASE_REQUEST }, 'best', { limitRateBytes: 1048576.4 })
+    const limitPos = limited.indexOf('--limit-rate')
+    expect(limitPos).toBeGreaterThan(0)
+    expect(limited[limitPos + 1]).toBe('1048576')
+    // 必须放在 url 之前，否则 yt-dlp 会把它当成待下载地址的一部分
+    expect(limited[limited.length - 1]).toBe(BASE_REQUEST.url)
+
+    expect(buildStreamArgs({ ...BASE_REQUEST }, 'best', { limitRateBytes: 0 })).not.toContain('--limit-rate')
+    expect(buildStreamArgs({ ...BASE_REQUEST }, 'best', {})).not.toContain('--limit-rate')
+  })
+
   it('组合：播放列表 + 字幕 + Cookie + 提取音频 + ffmpeg 全叠加且顺序稳定', () => {
     const args = buildStreamArgs(
       {

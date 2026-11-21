@@ -1374,7 +1374,8 @@ export class ExtensionApiServer {
         : { ok: false, code: 'not_running', error: 'Task is not running' }
     }
     if (action === 'resume') {
-      return resumeStreamDownload(id)
+      // resume 现在是异步的（重新拉起前要读一次全局限速，见 streamDownloadService）
+      return (await resumeStreamDownload(id))
         ? { ok: true }
         : { ok: false, code: 'not_paused', error: 'Task is not paused' }
     }

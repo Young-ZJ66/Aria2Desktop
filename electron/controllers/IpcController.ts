@@ -1058,9 +1058,12 @@ export class IpcController {
       failureValue: false
     })
 
-    registerSecureHandler('stream-download-resume', (_event, id: unknown) => {
+    // 显式写出返回类型：异步 handler 会让 TS 把 R 推断成 Promise<boolean>，
+    // 而 failureValue: false 需要 R = boolean 才对得上（见 registerSecureHandler 的 Awaited<R>）
+    registerSecureHandler<[unknown], Promise<boolean>>('stream-download-resume', async (_event, id) => {
       if (typeof id !== 'string' || !id) return false
-      return resumeStreamDownload(id)
+      // resume 现在是异步的（重新拉起前要读一次全局限速）
+      return await resumeStreamDownload(id)
     }, {
       getMainWindow: this.windowRef,
       failureValue: false

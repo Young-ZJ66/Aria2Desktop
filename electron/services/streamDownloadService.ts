@@ -19,6 +19,7 @@ import { createLogger } from '../utils/logger'
 import { isSafeHttpUrl } from '../utils/ipcInputValidation'
 import { mainLocaleFrom } from '../utils/mainLocale'
 import { downloadNotificationTitle, streamDownloadError } from '../utils/mainProcessCopy'
+import { readGlobalSpeedLimitBytes } from './globalSpeedLimit'
 import type { MainLocale } from '../utils/mainLocale'
 
 /** 流媒体下载的失败文案语言（与主进程其它对话框口径一致） */
@@ -323,6 +324,13 @@ export interface BuildStreamArgsOptions {
   titleFile?: string
   /** --paths temp: 的临时目录；未提供时使用 yt-dlp 默认（输出目录） */
   tempDir?: string
+  /**
+   * 全局限速（字节/秒）；> 0 时追加 --limit-rate。
+   *
+   * yt-dlp 任务不进 aria2 队列，拿不到 aria2 的 max-overall-download-limit，
+   * 必须自己下发，否则"限速 1MB/s"对流媒体任务完全无效（D-10）。
+   */
+  limitRateBytes?: number
 }
 
 /**
@@ -442,6 +450,10 @@ export function buildStreamArgs(
   args.push('-o', '%(title)s.%(ext)s')
   if (merge && opts.ffmpegLocation) {
     args.push('--ffmpeg-location', opts.ffmpegLocation)
+  }
+  // 全局限速：yt-dlp 只认自己的 --limit-rate（纯数字按字节/秒解释）
+  if (opts.limitRateBytes && opts.limitRateBytes > 0) {
+    args.push('--limit-rate', String(Math.round(opts.limitRateBytes)))
   }
   args.push(request.url)
   return args
@@ -571,20 +583,32 @@ export async function startStreamDownload(
     outputDir: request.outputDir
   })
 
-  launchStreamProcess(id, record)
+  await launchStreamProcess(id, record)
+  // 读限速期间任务可能已被取消：此时不能报告"已开始"，否则界面留一条永远不动的任务
+  if (activeDownloads.get(id) !== record || record.cancelled) {
+    return { success: false, code: 'invalid_request', error: 'Cancelled' }
+  }
   return { success: true, id }
 }
 
 /**
  * 启动（或恢复）一条 yt-dlp 子进程。
  * 恢复时复用同一个任务 id、输出目录和最终路径标记，用户看到的是同一条任务。
+ *
+ * 异步的原因只有一个：启动前要读 aria2 的全局限速并转成 --limit-rate。
+ * 每次都重读（而不是在 start 时读一次存进 record），因为用户可能在暂停期间改了限速，
+ * 恢复后应当按新值继续，而不是沿用旧值。
  */
-function launchStreamProcess(id: string, record: ActiveDownload): void {
+async function launchStreamProcess(id: string, record: ActiveDownload): Promise<void> {
+  const limitRateBytes = await readGlobalSpeedLimitBytes()
+  // 读限速期间任务可能已被取消或再次暂停：此时不能再拉起进程
+  if (activeDownloads.get(id) !== record || record.cancelled || record.paused) return
   const args = buildStreamArgs(record.request, record.selector, {
     ffmpegLocation: record.ffmpegLocation,
     finalPathFile: record.finalPathFile,
     titleFile: record.titleFile,
-    tempDir: record.tempDir
+    tempDir: record.tempDir,
+    limitRateBytes
   })
 
   const proc = spawn(getYtdlpExecutablePath(), args, {
@@ -754,14 +778,19 @@ export function pauseStreamDownload(id: string): boolean {
   return true
 }
 
-/** 继续一条已暂停的下载（重新拉起 yt-dlp，沿用原参数与输出目录） */
-export function resumeStreamDownload(id: string): boolean {
+/**
+ * 继续一条已暂停的下载（重新拉起 yt-dlp，沿用原参数与输出目录）。
+ *
+ * 异步是因为重新拉起前要读一次全局限速（用户可能在暂停期间改了限速）；
+ * 返回 true 表示"已接受继续"，进程真正起不来仍走既有的 failed 事件路径。
+ */
+export async function resumeStreamDownload(id: string): Promise<boolean> {
   const record = activeDownloads.get(id)
   if (!record || !record.paused || record.cancelled) return false
   record.paused = false
   updateStreamTask(id, { status: 'active' })
   fs.rmSync(record.finalPathFile, { force: true })
-  launchStreamProcess(id, record)
+  await launchStreamProcess(id, record)
   return true
 }
 

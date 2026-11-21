@@ -24,6 +24,8 @@ const h = vi.hoisted(() => {
     trashError: null as Error | null,
     completionCalls: [] as any[],
     completionThrows: false,
+    /** 全局限速（字节/秒）：0 表示不限速，用例按需覆盖 */
+    limitRateBytes: 0,
     tempRoot: '',
     logs: { info: [] as any[], warn: [] as any[], error: [] as any[] }
   }
@@ -113,6 +115,11 @@ vi.mock('./completionRuleService', () => ({
   }
 }))
 
+// 全局限速：真实实现要读 aria2 的全局选项（RPC），这里换成可控值
+vi.mock('./globalSpeedLimit', () => ({
+  readGlobalSpeedLimitBytes: async () => state.limitRateBytes
+}))
+
 // 模块加载时会注册一个 process 退出兜底；先记下既有监听，好把它单独拎出来直接调用，
 // 避免在测试进程里真的 emit('exit') 干扰 vitest 自己的退出钩子。
 const exitListenersBefore = process.listeners('exit').slice()
@@ -185,6 +192,7 @@ beforeEach(() => {
   state.completionCalls.length = 0
   state.completionThrows = false
   state.ffmpegAvailable = true
+  state.limitRateBytes = 0
   state.notificationSupported = false
   state.trashError = null
   state.logs.info.length = 0
@@ -496,7 +504,8 @@ describe('暂停 / 继续 / 取消', () => {
     lastChild().exitWith(null)
     const spawnCountBefore = state.spawnCalls.length
 
-    expect(resumeStreamDownload(result.id!)).toBe(true)
+    // resume 是异步的：重新拉起前要先读一次全局限速
+    await expect(resumeStreamDownload(result.id!)).resolves.toBe(true)
     expect(state.spawnCalls.length).toBe(spawnCountBefore + 1)
     expect(getStreamTask(result.id!)?.status).toBe('active')
     expect(events.filter((e) => e.type === 'started')).toHaveLength(1)
@@ -505,8 +514,37 @@ describe('暂停 / 继续 / 取消', () => {
   it('继续一条没暂停的任务返回 false', async () => {
     const { onEvent } = makeEvents()
     const result = await startStreamDownload(makeRequest(), onEvent)
-    expect(resumeStreamDownload(result.id!)).toBe(false)
-    expect(resumeStreamDownload('sd-missing')).toBe(false)
+    await expect(resumeStreamDownload(result.id!)).resolves.toBe(false)
+    await expect(resumeStreamDownload('sd-missing')).resolves.toBe(false)
+  })
+
+  it('全局限速生效时把 --limit-rate 传给 yt-dlp（流媒体任务不进 aria2 队列，拿不到全局选项）', async () => {
+    state.limitRateBytes = 524288
+    const { onEvent } = makeEvents()
+    const request = makeRequest()
+    const result = await startStreamDownload(request, onEvent)
+    expect(result.success).toBe(true)
+    const args: string[] = state.spawnCalls[0].args
+    const limitPos = args.indexOf('--limit-rate')
+    expect(limitPos).toBeGreaterThan(0)
+    expect(args[limitPos + 1]).toBe('524288')
+    expect(args[args.length - 1]).toBe(request.url)
+  })
+
+  it('暂停期间改了限速，继续时按新值重新下发', async () => {
+    state.limitRateBytes = 0
+    const { onEvent } = makeEvents()
+    const result = await startStreamDownload(makeRequest(), onEvent)
+    expect(state.spawnCalls[0].args).not.toContain('--limit-rate')
+
+    pauseStreamDownload(result.id!)
+    lastChild().exitWith(null)
+
+    // 用户在这期间把限速调到 1MB/s：恢复出来的进程必须按新值限速
+    state.limitRateBytes = 1048576
+    await expect(resumeStreamDownload(result.id!)).resolves.toBe(true)
+    const resumedArgs: string[] = state.spawnCalls[1].args
+    expect(resumedArgs[resumedArgs.indexOf('--limit-rate') + 1]).toBe('1048576')
   })
 
   it('取消进行中的任务会结束进程并派发 cancelled', async () => {
@@ -820,7 +858,8 @@ describe('进程句柄缺失与退出兜底', () => {
     vi.mocked(cp.spawn).mockImplementationOnce(((() => {
       throw new Error('spawn EAGAIN')
     }) as never))
-    expect(() => resumeStreamDownload(started.id!)).toThrow(/spawn EAGAIN/)
+    // resume 异步：spawn 抛错会变成 rejected promise，而不是同步抛出
+    await expect(resumeStreamDownload(started.id!)).rejects.toThrow(/spawn EAGAIN/)
 
     expect(pauseStreamDownload(started.id!)).toBe(false)
     expect(state.logs.warn.some((line) => String(line).includes('暂停流媒体下载失败'))).toBe(true)
