@@ -1175,9 +1175,15 @@ export class PluginManager {
     if (plugin.worker) {
       this.stopWorker(plugin, true)
     } else if (plugin.instance.onDeactivate) {
-      Promise.resolve(plugin.instance.onDeactivate()).catch(err => {
-        logger.error(`[PluginManager] Plugin "${pluginId}" onDeactivate error:`, err)
-      })
+      // 同步抛错必须就地接住：Promise.resolve(...) 的参数是先求值的，钩子直接 throw
+      // 会从 disable() 冒到 IPC 调用方（界面上表现为"停用插件失败"，实际已经改过状态）。
+      try {
+        Promise.resolve(plugin.instance.onDeactivate()).catch(err => {
+          logger.error(`[PluginManager] Plugin "${pluginId}" onDeactivate error:`, err)
+        })
+      } catch (error) {
+        logger.error(`[PluginManager] Plugin "${pluginId}" onDeactivate error:`, error)
+      }
     }
 
     plugin.enabled = false
