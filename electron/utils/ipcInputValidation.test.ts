@@ -188,6 +188,8 @@ describe('sanitizeSettingsInput 未知字段与非法输入', () => {
     expect(() => sanitizeSettingsInput({ webConsole: { tokens: [{ id: 'a', name: 'b', token: 'c', scopes: ['root'] }] } })).toThrow()
     expect(() => sanitizeSettingsInput({ webConsole: { port: 80 } })).toThrow()
     expect(() => sanitizeSettingsInput({ pluginMarket: { registryUrl: 'file:///etc/passwd' } })).toThrow()
+    // 解析即抛错的地址（new URL 直接 throw）走「必须是合法 URL」分支
+    expect(() => sanitizeSettingsInput({ pluginMarket: { registryUrl: 'http://[' } })).toThrow()
     expect(() => sanitizeSettingsInput({ trustedPluginPublishers: ['ok', 42] })).toThrow()
   })
 
@@ -364,5 +366,104 @@ describe('isSafeHttpUrl', () => {
   it('无法解析的地址拒绝', () => {
     expect(isSafeHttpUrl('https://')).toBe(false)
     expect(isSafeHttpUrl('not a url')).toBe(false)
+  })
+})
+
+describe('嵌套结构的类型校验', () => {
+  it('连接预设的协议白名单与结构校验', () => {
+    const ok = sanitizeSettingsInput({
+      connectionProfiles: [{ id: 'p', name: 'n', config: { host: 'h', port: 6800, protocol: 'ws', secret: '', path: '/jsonrpc' } }]
+    })
+    expect(ok.connectionProfiles?.[0]?.config.protocol).toBe('ws')
+    expect(() => sanitizeSettingsInput({
+      connectionProfiles: [{ id: 'p', name: 'n', config: { host: 'h', port: 6800, protocol: 'ftp', secret: '', path: '/jsonrpc' } }]
+    })).toThrow()
+    expect(() => sanitizeSettingsInput({ connectionProfiles: [{ id: 'p', name: 'n', config: 'nope' }] })).toThrow()
+    expect(() => sanitizeSettingsInput({ connectionProfiles: [{ id: 'p', name: 'n' }] })).toThrow()
+  })
+
+  it('限速规则的时段与字段校验', () => {
+    const ok = sanitizeSettingsInput({
+      speedSchedule: {
+        enabled: true,
+        rules: [{ name: 'n', days: [0, 6], startTime: '00:00', endTime: '23:59', downloadLimit: 1024, uploadLimit: 0 }]
+      }
+    })
+    expect(ok.speedSchedule?.rules[0]?.startTime).toBe('00:00')
+    expect(() => sanitizeSettingsInput({ speedSchedule: { enabled: true, rules: ['nope'] } })).toThrow()
+    expect(() => sanitizeSettingsInput({
+      speedSchedule: { enabled: true, rules: [{ name: 'n', days: [1], startTime: '9:00', endTime: '18:00', downloadLimit: 0, uploadLimit: 0 }] }
+    })).toThrow()
+    expect(() => sanitizeSettingsInput({
+      speedSchedule: { enabled: true, rules: [{ name: 'n', days: [7], startTime: '09:00', endTime: '18:00', downloadLimit: 0, uploadLimit: 0 }] }
+    })).toThrow()
+  })
+
+  it('定时下载规则的条目校验', () => {
+    const ok = sanitizeSettingsInput({
+      downloadSchedule: {
+        enabled: true,
+        rules: [{ name: 'n', enabled: false, days: [1, 2], startTime: '01:00', endTime: '06:00' }]
+      }
+    })
+    expect(ok.downloadSchedule?.rules[0]?.enabled).toBe(false)
+    expect(() => sanitizeSettingsInput({ downloadSchedule: { enabled: true, rules: [42] } })).toThrow()
+    expect(() => sanitizeSettingsInput({ downloadSchedule: { enabled: true, rules: [{ name: 'n', enabled: 'yes', days: [], startTime: '01:00', endTime: '06:00' }] } })).toThrow()
+  })
+
+  it('分类规则的可选字段与结构校验', () => {
+    const ok = sanitizeSettingsInput({
+      category: {
+        autoClassify: true,
+        categories: [{ id: 'c', dir: 'D:/a', extensions: ['.ZIP'], customDir: 'D:/b', name: '压缩包', custom: true }]
+      }
+    })
+    expect(ok.category?.categories?.[0]).toEqual({ id: 'c', dir: 'D:/a', extensions: ['zip'], customDir: 'D:/b', name: '压缩包', custom: true })
+    expect(() => sanitizeSettingsInput({ category: { categories: ['nope'] } })).toThrow()
+    expect(() => sanitizeSettingsInput({ category: { categories: [{ id: 'c', dir: 'D:/a', extensions: ['zip'], custom: 'yes' }] } })).toThrow()
+    expect(() => sanitizeSettingsInput({ category: 'nope' })).toThrow()
+  })
+
+  it('任务模板与完成规则的结构校验', () => {
+    expect(() => sanitizeSettingsInput({ taskTemplates: ['nope'] })).toThrow()
+    expect(() => sanitizeSettingsInput({ completionRules: ['nope'] })).toThrow()
+    expect(() => sanitizeSettingsInput({
+      completionRules: [{ id: 'r', name: 'n', enabled: true, actions: ['nope'] }]
+    })).toThrow()
+    expect(() => sanitizeSettingsInput({
+      completionRules: [{ id: 'r', name: 'n', enabled: true, actions: [{ type: 'webhook', url: '', method: 'PUT' }] }]
+    })).toThrow()
+    expect(() => sanitizeSettingsInput({
+      completionRules: [{ id: 'r', name: 'n', enabled: true, actions: [], condition: 'nope' }]
+    })).toThrow()
+    expect(() => sanitizeSettingsInput({
+      completionRules: [{ id: 'r', name: 'n', enabled: true, actions: [], condition: { status: 'paused' } }]
+    })).toThrow()
+  })
+
+  it('webhook 允许空 URL（未配置时不发通知）与 GET 方法', () => {
+    const ok = sanitizeSettingsInput({
+      completionRules: [{ id: 'r', name: 'n', enabled: true, actions: [{ type: 'webhook', url: '', method: 'GET' }] }]
+    })
+    expect(ok.completionRules?.[0]?.actions[0]).toEqual({ type: 'webhook', url: '', method: 'GET' })
+  })
+
+  it('webConsole 的令牌与结构校验', () => {
+    expect(() => sanitizeSettingsInput({ webConsole: { tokens: ['nope'] } })).toThrow()
+    expect(() => sanitizeSettingsInput({ webConsole: { allowedIps: [42] } })).toThrow()
+    expect(() => sanitizeSettingsInput({ webConsole: 'nope' })).toThrow()
+    expect(() => sanitizeSettingsInput({ pluginMarket: 'nope' })).toThrow()
+  })
+
+  it('各分区不是对象时整包拒绝', () => {
+    expect(() => sanitizeSettingsInput({ aria2: 'nope' })).toThrow()
+    expect(() => sanitizeSettingsInput({ download: 'nope' })).toThrow()
+    expect(() => sanitizeSettingsInput({ speedSchedule: 'nope' })).toThrow()
+    expect(() => sanitizeSettingsInput({ downloadSchedule: 'nope' })).toThrow()
+    expect(() => sanitizeSettingsInput({ bt: 'nope' })).toThrow()
+  })
+
+  it('downloadCompleteAction 的枚举校验', () => {
+    expect(() => sanitizeSettingsInput({ downloadCompleteAction: 'explode' })).toThrow()
   })
 })
