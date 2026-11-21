@@ -165,7 +165,19 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
     await session.send('Log.enable')
     await session.send('Page.enable')
     await session.send('Emulation.setDeviceMetricsOverride', { width: 400, height: 600, deviceScaleFactor: 1, mobile: false })
-    await sleep(1500)
+    // 固定 sleep 不够：popup 的 init() 先填 i18n 文案、绑定导航事件，再 await loadConfig /
+    // refreshStatus 等存储与网络调用。机器忙时 1.5s 内这些可能还没跑完，于是文案取到空串、
+    // 点击导航也没有监听器（表现为「文案不存在」+「pane 没切换」这类看不出因果的断言失败）。
+    // 这里等 init 真正走到绑定事件之后：tab 文案由 initI18n 填充，bindEvents 是紧跟其后的
+    // 同步语句，所以文案非空即代表导航已经可点击。
+    await waitFor(
+      async () =>
+        await evalIn(
+          session,
+          "document.readyState === 'complete' && document.querySelectorAll('.nav-item span').length === 3 && Array.from(document.querySelectorAll('.nav-item span')).every((el) => el.textContent.trim().length > 0)"
+        ),
+      { timeoutMs: 20000, intervalMs: 200, label: '扩展 popup 初始化完成' }
+    )
 
     const popupInfo = await evalIn(
       session,
@@ -208,7 +220,12 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
     await capture(session, path.join(outDir, '07b-extension-popup-tasks.png'))
 
     await evalIn(session, `document.getElementById('navSniffer').click()`)
-    await sleep(300)
+    // 点击后等 pane 真的切过去再读布局，否则读到的还是切换前的任务页
+    await waitFor(async () => await evalIn(session, "document.querySelector('.pane.active')?.dataset.pane === 'sniffer'"), {
+      timeoutMs: 10000,
+      intervalMs: 100,
+      label: '切到网络嗅探页'
+    })
     const snifferLayout = await evalIn(
       session,
       `(() => ({
@@ -225,7 +242,11 @@ export async function runExtensionCheck({ extensionDir, outDir, reporter, port =
     await capture(session, path.join(outDir, '07c-extension-popup-sniffer.png'))
 
     await evalIn(session, `document.getElementById('navSettings').click()`)
-    await sleep(300)
+    await waitFor(async () => await evalIn(session, "document.querySelector('.pane.active')?.dataset.pane === 'settings'"), {
+      timeoutMs: 10000,
+      intervalMs: 100,
+      label: '切到设置页'
+    })
     const settingsLayout = await evalIn(
       session,
       `(() => ({

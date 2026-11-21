@@ -1,15 +1,15 @@
-# v1.5.0-beta.8 更新日志
+# v1.5.0-beta.9 更新日志
 
-> 这是 1.5.0 的第八个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第九个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.8 相对 beta.7 的变化
+## 📌 beta.9 相对 beta.8 的变化
 
-beta.7 的 Linux x64 打包产物在发布流水线里启动失败过一次：引擎刚起来就报 `Specify at least one URL.` 退出，应用停在「引擎启动失败」对话框，浏览器扩展接口因此始终没监听。根因是首次启动时 `aria2.conf` 的写入还没落盘，引擎就读到了不完整的配置。beta.8 把这条写盘链路改成"先落盘、再启动"，其余行为保持不变。
+beta.8 给 Web 控制台加了只读队列视图，这一版把它的刷新语义补齐：面板上的队列信息此前只在几种特定情况下才会更新，桌面端改了什么、任务状态变了什么，网页端可能一直显示旧快照。其余行为保持不变。
 
-- **启动前强制落盘配置**：`spawn` 之前把本轮改动的配置（会话文件路径等）同步写入磁盘，不再依赖微任务合批。此前合批写盘通常能在启动前跑完，但进程启动/自动重启等时序抢先时，引擎读到的是上一次的旧配置。
-- **配置写盘改为原子替换**：先写同目录临时文件再 `rename`，避免引擎在文件被截断、内容还没写完的瞬间读到残缺内容；`rename` 失败（跨设备、被杀软占用）时退回直接覆盖并清掉临时文件，配置不会因为"更安全的写法"反而写不进去。
-- **落盘失败不阻断启动**：写不进去时用上一次的完整配置继续启动，并在日志里留痕，而不是让引擎直接不启动。
-- **新增闸门用例**：断言配置落盘发生在 `spawn` 之前、`rename` 失败时仍能写进正式文件且目录里不留 `.tmp` 残留。
+- **拉取失败不再让面板永久停在旧快照**：此前先记下「已同步」的签名再发请求，请求失败或还在飞时签名已被当成已同步，之后同样的队列内容再也不会重新请求。现在只有拉取成功才记录签名。
+- **签名纳入任务状态**：此前只按任务 gid 算签名，同一个任务从下载中变成已暂停时签名不变，状态徽标会一直停在旧值。现在 gid 和状态一起参与比较。
+- **队列设置变化 30 秒内可见**：签名只覆盖等待中的任务，桌面端改最大并发或失败重试策略不会改变签名。给缓存加 30 秒保鲜期作为兜底，设置改动最坏情况 30 秒后反映到网页端。
+- **新增闸门用例**：断言拉取失败后签名不被预支、任务状态变化会触发刷新、缓存超过保鲜期必然重新拉取。
 
 ## 🎯 主题：可信接管
 
@@ -75,28 +75,28 @@ beta.7 的 Linux x64 打包产物在发布流水线里启动失败过一次：�
 - typecheck（主进程 + 测试代码 + 渲染层）通过；186 个测试文件 / 2432 项单测通过（引擎重启压力测试默认跳过）。
 - Web 控制台页面内联脚本/样式的 CSP 哈希由单测逐字节校验，改了内联脚本却忘同步哈希会直接失败（否则浏览器会静默拒绝执行脚本，页面白屏）。
 - `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
-- 应用 E2E 193 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局）；其中 18 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、队列视图只读、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
+- 应用 E2E 214 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局，以及真实 Chrome 里的扩展 16 项与配对回归 6 项）；其中 18 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、队列视图只读、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
 - 扩展静态校验 21 项通过；扩展多浏览器 smoke 50 项通过（Chrome for Testing / Chromium / Edge，Firefox 走 MV3 变体静态校验）；21 种语言文案 key 与占位符保持一致，1.5.0 新增文案已全部翻译。
 - 引擎更新重启压力测试 50 轮通过（无残留端口、无孤儿进程）。
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.8
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.9
 
 ---
 
-# v1.5.0-beta.8 Release Notes
+# v1.5.0-beta.9 Release Notes
 
-> This is the eighth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the ninth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.7
+## 📌 What changed since beta.8
 
-The Linux x64 artifact from beta.7 failed to start once in the release pipeline: the engine came up and immediately exited with `Specify at least one URL.`, the app stopped on the "engine failed to start" dialog, and the browser-extension API therefore never listened. The root cause was that `aria2.conf` had not finished being written on first launch, so the engine read an incomplete config. beta.8 makes that write path "flush first, start second"; nothing else changed.
+beta.8 added the read-only queue view to the Web console; this release completes how it refreshes. The panel used to update only in a few specific situations, so changes made on the desktop or to task state could leave the browser showing a stale snapshot. Nothing else changed.
 
-- **Configuration is flushed before launch**: the changes made during this start-up (session file paths and friends) are written to disk synchronously before `spawn`, instead of relying on the batched microtask write. That batch normally finished before launch, but when process start-up or an automatic restart won the race, the engine read the previous config.
-- **Config writes are atomic**: the file is written to a sibling temp file and `rename`d into place, so the engine can never read a truncated, half-written config; if `rename` fails (cross-device, held by antivirus) it falls back to a direct overwrite and removes the temp file, so the "safer" path can never end up writing nothing.
-- **A failed flush does not block start-up**: if the write fails, the app starts with the last complete config and logs the failure, instead of refusing to start the engine.
-- **New gates**: unit tests assert that the flush happens before `spawn`, and that a failed `rename` still lands in the real file with no `.tmp` left behind.
+- **A failed fetch no longer freezes the panel on an old snapshot**: the previous code recorded the "already synced" signature before issuing the request, so a failed or in-flight request marked the queue as synced and the same queue content was never fetched again. The signature is now recorded only after a successful fetch.
+- **The signature includes task state**: it used to be built from task gids alone, so a task going from downloading to paused kept the same signature and its status badge stayed stale. gid and status are now compared together.
+- **Queue setting changes show up within 30 seconds**: the signature only covers waiting tasks, so changing max concurrency or the retry policy on the desktop does not alter it. A 30-second freshness bound on the cache guarantees settings changes reach the page within 30 seconds at worst.
+- **New gates**: unit tests assert that a failed fetch does not pre-consume the signature, that task state changes trigger a refresh, and that a cache older than the freshness bound always refetches.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -159,10 +159,10 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 - Typecheck (main process, tests, renderer) passes; 186 test files / 2432 unit tests pass (the engine-restart stress test is skipped by default).
 - `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
-- All 193 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring), of which 18 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, the read-only queue view, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
+- All 214 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring, plus 16 extension checks and 6 pairing regression checks in a real Chrome), of which 18 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, the read-only queue view, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.
 - The 50-round engine restart stress test passes with no leftover ports or orphan processes.
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.8
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.9
