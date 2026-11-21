@@ -14,7 +14,10 @@ const state = vi.hoisted(() => ({
   tooltipCalls: [] as string[],
   iconPath: '/icon.png' as string | null,
   windowVisible: false,
-  sentToRenderer: [] as string[]
+  sentToRenderer: [] as string[],
+  trayThrows: false,
+  imageEmpty: true,
+  resizeCalls: [] as Array<{ width: number; height: number }>
 }))
 
 vi.mock('electron', () => {
@@ -23,6 +26,7 @@ vi.mock('electron', () => {
     destroyed = false
     constructor(public image: unknown) {
       state.trayInstances.push(this as unknown as Record<string, unknown>)
+      if (state.trayThrows) throw new Error('tray unavailable')
     }
     setToolTip(text: string) { state.tooltipCalls.push(text) }
     setContextMenu(menu: { template: Array<Record<string, unknown>> }) { state.menus.push(menu) }
@@ -34,7 +38,13 @@ vi.mock('electron', () => {
     Menu: { buildFromTemplate: (template: Array<Record<string, unknown>>) => ({ template }) },
     app: { getLocale: () => (state.locale === 'zh' ? 'zh-CN' : 'en-US'), quit: vi.fn() },
     nativeImage: {
-      createFromPath: () => ({ isEmpty: () => true, resize: vi.fn() }),
+      createFromPath: () => ({
+        isEmpty: () => state.imageEmpty,
+        resize: (options: { width: number; height: number }) => {
+          state.resizeCalls.push(options)
+          return { resized: true }
+        }
+      }),
       createEmpty: () => ({ empty: true })
     }
   }
@@ -103,6 +113,9 @@ describe('TrayController', () => {
     state.rpcStat = null
     state.iconPath = '/icon.png'
     state.windowVisible = false
+    state.trayThrows = false
+    state.imageEmpty = true
+    state.resizeCalls.length = 0
   })
 
   it('创建托盘后设置初始 tooltip 与上下文菜单', async () => {
@@ -240,6 +253,129 @@ describe('TrayController', () => {
     await flush()
     expect(allLabels().some(label => label === '下载限速：1024 KB/s')).toBe(true)
     expect(state.sentToRenderer).toContain('speed-limit-changed')
+    controller.destroy()
+  })
+
+
+  it('托盘构造失败时只记录日志，不把异常抛给调用方', () => {
+    state.trayThrows = true
+    const controller = new TrayController(fakeWindowController() as never)
+    expect(() => controller.createTray()).not.toThrow()
+    expect(controller.getTray()).toBeNull()
+  })
+
+  it('非 Windows 平台把大图标重采样到 22px', () => {
+    const original = process.platform
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+    try {
+      state.imageEmpty = false
+      const controller = new TrayController(fakeWindowController() as never)
+      controller.createTray()
+      expect(state.resizeCalls).toEqual([{ width: 22, height: 22, quality: 'best' }])
+      controller.destroy()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: original, configurable: true })
+    }
+  })
+
+  it('非 Windows 平台读到空图像时退回图标路径', () => {
+    const original = process.platform
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+    try {
+      state.imageEmpty = true
+      const controller = new TrayController(fakeWindowController() as never)
+      controller.createTray()
+      expect(state.resizeCalls).toHaveLength(0)
+      controller.destroy()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: original, configurable: true })
+    }
+  })
+
+  it('新建 / 设置 / 暂停全部 / 恢复全部 都转给渲染层执行', () => {
+    const controller = new TrayController(fakeWindowController() as never)
+    controller.createTray()
+    for (const label of ['新建下载', '设置', '暂停全部', '恢复全部']) {
+      ;(menuItem(label)?.click as () => void)()
+    }
+    expect(state.sentToRenderer).toEqual(['new-task', 'settings', 'pause-all', 'resume-all'])
+    controller.destroy()
+  })
+
+  it('显示 / 隐藏 菜单项直接操作窗口', () => {
+    const wc = fakeWindowController()
+    const controller = new TrayController(wc as never)
+    controller.createTray()
+    ;(menuItem('显示主窗口')?.click as () => void)()
+    ;(menuItem('隐藏窗口')?.click as () => void)()
+    expect(wc.show).toHaveBeenCalledTimes(1)
+    expect(wc.hide).toHaveBeenCalledTimes(1)
+    controller.destroy()
+  })
+
+  it('退出菜单项先放行 close 拦截再退出应用', () => {
+    const controller = new TrayController(fakeWindowController() as never)
+    controller.createTray()
+    ;(menuItem('退出')?.click as () => void)()
+    expect(appState.isQuitting()).toBe(true)
+    controller.destroy()
+  })
+
+  it('没有托盘时刷新 tooltip、构建菜单、绑定事件都直接返回', async () => {
+    const controller = new TrayController(fakeWindowController() as never)
+    const priv = controller as unknown as {
+      refreshTooltip: () => Promise<void>
+      setupContextMenu: () => void
+      setupEventHandlers: () => void
+    }
+    await expect(priv.refreshTooltip()).resolves.toBeUndefined()
+    priv.setupContextMenu()
+    priv.setupEventHandlers()
+    expect(state.menus).toHaveLength(0)
+  })
+
+  it('引擎正常时 clearEngineGaveUp 不重建菜单', () => {
+    const controller = new TrayController(fakeWindowController() as never)
+    controller.createTray()
+    const before = state.menus.length
+    controller.clearEngineGaveUp()
+    expect(state.menus).toHaveLength(before)
+    controller.destroy()
+  })
+
+  it('tooltip 每 2 秒刷新一次，重复启动不会叠加定时器', async () => {
+    vi.useFakeTimers()
+    try {
+      const controller = new TrayController(fakeWindowController() as never)
+      controller.createTray()
+      await vi.advanceTimersByTimeAsync(0)
+      const before = state.tooltipCalls.length
+      ;(controller as unknown as { startTooltipUpdates: () => void }).startTooltipUpdates()
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(state.tooltipCalls.length).toBe(before + 1)
+      controller.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('未启动 tooltip 定时器时 destroy 也安全', () => {
+    const controller = new TrayController(fakeWindowController() as never)
+    expect(() => controller.destroy()).not.toThrow()
+  })
+
+  it('限速切换失败时保持原菜单且不通知渲染层', async () => {
+    state.speedLimit = { limited: false, limitBytes: 0 }
+    state.toggled = null
+    const controller = new TrayController(fakeWindowController() as never)
+    controller.createTray()
+    await flush()
+    const labelsBefore = allLabels()
+    const item = state.menus[state.menus.length - 1].template.find(entry => String(entry.label ?? '').startsWith('下载限速'))
+    ;(item?.click as () => void)()
+    await flush()
+    expect(allLabels()).toEqual(labelsBefore)
+    expect(state.sentToRenderer).not.toContain('speed-limit-changed')
     controller.destroy()
   })
 

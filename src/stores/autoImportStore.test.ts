@@ -148,3 +148,75 @@ describe('监听文件夹写操作', () => {
     await expect(store.scanNow('w1')).resolves.toEqual({ success: false, imported: 0, error: 'disk' })
   })
 })
+/**
+ * 失败分支：主进程返回 success:false 时不得刷新列表（否则会用旧数据覆盖用户的编辑），
+ * 且错误文本要么来自主进程、要么来自 IPC 异常——两条路径都不能抛到调用方。
+ */
+describe('写操作的失败分支', () => {
+  it('删除订阅失败时清空 lastError 且不刷新列表', async () => {
+    api.rssSubsDelete.mockResolvedValue({ success: false })
+    const store = useAutoImportStore()
+    store.lastError = '旧错误'
+    const result = await store.deleteSubscription('r1')
+    expect(result.success).toBe(false)
+    expect(store.lastError).toBe('')
+    expect(api.rssSubsList).not.toHaveBeenCalled()
+  })
+
+  it('删除订阅抛错时归一成 { success:false, error }', async () => {
+    api.rssSubsDelete.mockRejectedValue(new Error('ipc down'))
+    const store = useAutoImportStore()
+    await expect(store.deleteSubscription('r1')).resolves.toEqual({ success: false, error: 'ipc down' })
+    expect(store.lastError).toBe('ipc down')
+  })
+
+  it('立即拉取失败时记录主进程错误且不刷新日志', async () => {
+    api.rssSubsFetchNow.mockResolvedValue({ success: false, added: 0, error: '源站 502' })
+    const store = useAutoImportStore()
+    const result = await store.fetchNow('r1')
+    expect(result.success).toBe(false)
+    expect(store.lastError).toBe('源站 502')
+    expect(api.autoImportLogList).not.toHaveBeenCalled()
+  })
+
+  it('保存监听文件夹失败时不刷新列表', async () => {
+    api.watchFoldersSave.mockResolvedValue({ success: false, error: '目录不存在' })
+    const store = useAutoImportStore()
+    const result = await store.saveFolder({ id: 'w2', path: '/x', enabled: true })
+    expect(result.success).toBe(false)
+    expect(store.lastError).toBe('目录不存在')
+    expect(api.watchFoldersList).not.toHaveBeenCalled()
+  })
+
+  it('保存监听文件夹抛错时归一成 { success:false, error }', async () => {
+    api.watchFoldersSave.mockRejectedValue(new Error('denied'))
+    const store = useAutoImportStore()
+    await expect(store.saveFolder({ id: 'w2', path: '/x', enabled: true })).resolves.toEqual({ success: false, error: 'denied' })
+  })
+
+  it('删除监听文件夹失败时清空 lastError 且不刷新列表', async () => {
+    api.watchFoldersDelete.mockResolvedValue({ success: false })
+    const store = useAutoImportStore()
+    store.lastError = '旧错误'
+    const result = await store.deleteFolder('w1')
+    expect(result.success).toBe(false)
+    expect(store.lastError).toBe('')
+    expect(api.watchFoldersList).not.toHaveBeenCalled()
+  })
+
+  it('删除监听文件夹抛错时归一成 { success:false, error }', async () => {
+    api.watchFoldersDelete.mockRejectedValue(new Error('gone'))
+    const store = useAutoImportStore()
+    await expect(store.deleteFolder('w1')).resolves.toEqual({ success: false, error: 'gone' })
+  })
+
+  it('立即扫描失败时记录主进程错误且不刷新日志', async () => {
+    api.watchFoldersScanNow.mockResolvedValue({ success: false, imported: 0, error: '目录不可读' })
+    const store = useAutoImportStore()
+    const result = await store.scanNow('w1')
+    expect(result.success).toBe(false)
+    expect(store.lastError).toBe('目录不可读')
+    expect(api.autoImportLogList).not.toHaveBeenCalled()
+  })
+})
+

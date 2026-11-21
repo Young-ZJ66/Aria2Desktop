@@ -50,3 +50,56 @@ describe('parseTorrentFiles', () => {
     expect(() => parseTorrentFiles(bytes)).toThrow()
   })
 })
+/**
+ * 恶意/损坏种子的边界：解析器跑在渲染进程，任何一处漏判都可能让页面卡死或抛未捕获异常，
+ * 因此每一种非法结构都必须抛出可读错误而不是死循环或越界读取。
+ */
+describe('parseTorrentFiles 的损坏数据边界', () => {
+  const bytes = (text: string) => new TextEncoder().encode(text)
+
+  it('根结构不是字典时拒绝解析', () => {
+    expect(() => parseTorrentFiles(bytes('i1e'))).toThrow('根结构非法')
+  })
+
+  it('字符串缺少冒号分隔符时报错', () => {
+    expect(() => parseTorrentFiles(bytes('d4'))).toThrow('字符串缺少分隔符')
+  })
+
+  it('字符串长度不是数字时报错', () => {
+    expect(() => parseTorrentFiles(bytes('d1a:xyz'))).toThrow('字符串长度非法')
+  })
+
+  it('字符串长度超出数据范围时报错', () => {
+    expect(() => parseTorrentFiles(bytes('d5:ab'))).toThrow('字符串越界')
+  })
+
+  it('整数缺少结束符时报错', () => {
+    expect(() => parseTorrentFiles(bytes('di5'))).toThrow('整数缺少结束符')
+  })
+
+  it('整数不是有限数时报错', () => {
+    expect(() => parseTorrentFiles(bytes('diInfinitye'))).toThrow('整数非法')
+  })
+
+  it('列表没有结束符时报错', () => {
+    expect(() => parseTorrentFiles(bytes('dl'))).toThrow('列表未结束')
+  })
+
+  it('字典的键不是字符串时报错', () => {
+    expect(() => parseTorrentFiles(bytes('dli1ee'))).toThrow('字典键必须是字符串')
+  })
+
+  it('字典没有结束符时报错', () => {
+    expect(() => parseTorrentFiles(bytes('d1:ai1e'))).toThrow('字典未结束')
+  })
+
+  it('遇到不支持的标记时报错', () => {
+    expect(() => parseTorrentFiles(bytes('dx'))).toThrow('数据格式不受支持')
+  })
+
+  it('files 里的非字典条目被跳过，缺路径时用种子名补位', () => {
+    const result = parseTorrentFiles(torrent({ name: 'pack', files: [1, { length: 7 }] }))
+    expect(result.files).toEqual([{ index: 2, path: 'pack/2', length: 7 }])
+  })
+})
+

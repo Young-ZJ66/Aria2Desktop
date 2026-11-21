@@ -299,3 +299,78 @@ describe('插件宿主：终止', () => {
     expect(() => dispatch('字符串')).not.toThrow()
   })
 })
+/**
+ * 未覆盖的细节：错误序列化的非 Error 分支、不可 JSON 化的日志参数，
+ * 以及受跟踪定时器在触发后/被插件清掉后的行为（D-16 的收尾条件）。
+ */
+describe('插件宿主：错误序列化与受跟踪定时器', () => {
+  beforeEach(async () => {
+    await loadHost()
+  })
+
+  afterEach(() => {
+    delete (process as unknown as Record<string, unknown>).parentPort
+    vi.restoreAllMocks()
+  })
+
+  it('插件抛非 Error 值时按字符串回传', async () => {
+    load('module.exports = { onActivate() { throw "纯字符串错误" } }')
+    await vi.waitFor(() => expect(messagesOf('activate-error')).toHaveLength(1))
+    expect(String(messagesOf('activate-error')[0].error)).toBe('纯字符串错误')
+  })
+
+  it('console.log 的循环引用参数退化成字符串而不是让宿主崩掉', async () => {
+    load(`
+      module.exports = {
+        onActivate() {
+          var loop = {}
+          loop.self = loop
+          console.log(loop)
+        }
+      }
+    `)
+    await flush()
+    expect(messagesOf('log')[0].args).toEqual(['[object Object]'])
+  })
+
+  it('受跟踪的 setTimeout 触发一次后不再重复', async () => {
+    load(`
+      module.exports = {
+        onActivate() { setTimeout(function () { notify.send('timer', 'fired') }, 10) }
+      }
+    `)
+    await vi.waitFor(() => expect(messagesOf('notify')).toHaveLength(1))
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(messagesOf('notify')).toHaveLength(1)
+  })
+
+  it('插件自己清掉的 setTimeout 与 setInterval 都不再触发', async () => {
+    load(`
+      module.exports = {
+        onActivate() {
+          var timer = setTimeout(function () { notify.send('timeout', 'x') }, 20)
+          var interval = setInterval(function () { notify.send('interval', 'x') }, 20)
+          clearTimeout(timer)
+          clearInterval(interval)
+        }
+      }
+    `)
+    await new Promise(resolve => setTimeout(resolve, 60))
+    expect(messagesOf('notify')).toHaveLength(0)
+  })
+
+  it('setInterval 在 deactivate 之前会持续触发', async () => {
+    load(`
+      module.exports = {
+        onActivate() { setInterval(function () { notify.send('tick', 'x') }, 10) }
+      }
+    `)
+    await vi.waitFor(() => expect(messagesOf('notify').length).toBeGreaterThanOrEqual(2))
+    dispatch({ type: 'deactivate' })
+    await vi.waitFor(() => expect(messagesOf('deactivated')).toHaveLength(1))
+    const before = messagesOf('notify').length
+    await new Promise(resolve => setTimeout(resolve, 60))
+    expect(messagesOf('notify').length).toBe(before)
+  })
+})
+
