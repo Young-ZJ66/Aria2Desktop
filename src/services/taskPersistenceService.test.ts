@@ -292,3 +292,80 @@ describe('与实时任务合并', () => {
     expect(merged.map(task => task.gid).sort()).toEqual(['gone', 'live'])
   })
 })
+
+describe('启动时同步引擎侧的已完成任务', () => {
+  it('只把 complete 状态且尚未记录的写进持久化', async () => {
+    const { service } = await loadService()
+    service.persistCompletedTask(makeTask('already'), 1_000)
+
+    service.syncAria2CompletedTasks([
+      makeTask('already'),
+      makeTask('fresh'),
+      makeTask('active', 'active'),
+      makeTask('error', 'error')
+    ])
+    await service.flush()
+
+    expect(service.getPersistedTasks().map(task => task.gid).sort()).toEqual(['already', 'fresh'])
+  })
+
+  it('同步来的记录用「24 小时前」当完成时间，避免每次启动都刷新成当前时间', async () => {
+    vi.setSystemTime(new Date(2026, 10, 3, 12, 0))
+    const { service } = await loadService()
+
+    service.syncAria2CompletedTasks([makeTask('old-engine-task')])
+
+    const persisted = service.getPersistedTask('old-engine-task')
+    expect(persisted?.completedAt).toBe(Date.now() - 24 * 60 * 60 * 1000)
+  })
+
+  it('已存在的记录不会被同步覆盖（保留原始完成时间）', async () => {
+    vi.setSystemTime(new Date(2026, 10, 3, 12, 0))
+    const { service } = await loadService()
+    service.persistCompletedTask(makeTask('g1'), 1_000)
+
+    service.syncAria2CompletedTasks([makeTask('g1')])
+
+    expect(service.getPersistedTask('g1')?.completedAt).toBe(1_000)
+  })
+
+  it('isTaskPersisted 反映当前记录集合', async () => {
+    const { service } = await loadService()
+
+    expect(service.isTaskPersisted('nope')).toBe(false)
+    service.persistCompletedTask(makeTask('yes'), 1_000)
+    expect(service.isTaskPersisted('yes')).toBe(true)
+  })
+})
+
+describe('按天龄清理（显式 API，不再自动挂定时器）', () => {
+  it('只删早于指定天数的记录，新记录保留', async () => {
+    vi.setSystemTime(new Date(2026, 10, 3, 12, 0))
+    const now = Date.now()
+    const { service, savePersistedTask } = await loadService()
+
+    service.persistCompletedTask(makeTask('old'), now - 40 * 24 * 60 * 60 * 1000)
+    service.persistCompletedTask(makeTask('fresh'), now - 1 * 24 * 60 * 60 * 1000)
+
+    service.cleanupExpiredTasks(30)
+    await service.flush()
+
+    expect(service.getPersistedTasks().map(task => task.gid)).toEqual(['fresh'])
+    expect(savePersistedTask).toHaveBeenCalledTimes(2)
+  })
+
+  it('没有过期记录时不触发额外落盘', async () => {
+    vi.setSystemTime(new Date(2026, 10, 3, 12, 0))
+    const now = Date.now()
+    const { service, savePersistedTask } = await loadService()
+
+    service.persistCompletedTask(makeTask('fresh'), now)
+    savePersistedTask.mockClear()
+
+    service.cleanupExpiredTasks(30)
+
+    expect(service.getPersistedTasks().map(task => task.gid)).toEqual(['fresh'])
+    // 没有删任何记录就不该多写一次：清理是"发现过期才落盘"的
+    expect(savePersistedTask).not.toHaveBeenCalled()
+  })
+})

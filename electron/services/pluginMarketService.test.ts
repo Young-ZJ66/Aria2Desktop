@@ -112,3 +112,265 @@ describe('PluginMarketService 注册表信任', () => {
     expect(result.plugins).toEqual([])
   })
 })
+
+/** 用一个可编程的假 PluginManager 构造市场服务，便于断言安装调用参数 */
+function makeMarketWith(overrides: {
+  plugins?: { manifest: { id: string; version: string } }[]
+  installResult?: unknown
+} = {}) {
+  const installFromRegistry = vi.fn(async () => overrides.installResult ?? { success: true })
+  const market = new PluginMarketService({
+    getPlugins: () => overrides.plugins ?? [],
+    installFromRegistry
+  } as never)
+  return { market, installFromRegistry }
+}
+
+describe('PluginMarketService 列表入口的拒绝分支', () => {
+  it('市场被关闭时直接返回 MARKET_DISABLED，不发请求', async () => {
+    holder.settings = {
+      pluginMarket: { enabled: false, registryUrl: 'https://example.com/registry.json' },
+      trustedPluginPublishers: [PUBLIC_KEY_PEM]
+    }
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await makeMarket().list()
+
+    expect(result).toEqual({ success: false, plugins: [], error: 'MARKET_DISABLED' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('注册表地址不是 https 时拒绝（防被改成明文地址）', async () => {
+    holder.settings = {
+      pluginMarket: { enabled: true, registryUrl: 'http://example.com/registry.json' },
+      trustedPluginPublishers: [PUBLIC_KEY_PEM]
+    }
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await makeMarket().list()
+
+    expect(result.error).toBe('INVALID_REGISTRY_URL')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('注册表地址留空时回落到官方默认地址', async () => {
+    holder.settings = {
+      pluginMarket: { enabled: true, registryUrl: '   ' },
+      trustedPluginPublishers: [PUBLIC_KEY_PEM]
+    }
+    holder.responseBody = JSON.stringify({ version: 1, plugins: [] })
+    const fetchMock = vi.fn(async (_url: string) => new Response(holder.responseBody, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await makeMarket().list()
+
+    expect(result.success).toBe(true)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('plugin-registry.json')
+  })
+
+  it('HTTP 非 2xx 时带出状态码', async () => {
+    holder.responseStatus = 503
+    holder.responseBody = 'unavailable'
+
+    const result = await makeMarket().list()
+
+    expect(result).toEqual({ success: false, plugins: [], error: 'HTTP_503' })
+  })
+
+  it('响应体不是合法 JSON 时返回 INVALID_REGISTRY', async () => {
+    holder.responseBody = '{ not json'
+
+    expect((await makeMarket().list()).error).toBe('INVALID_REGISTRY')
+  })
+
+  it('JSON 合法但没有 plugins 数组时返回 INVALID_REGISTRY', async () => {
+    holder.responseBody = JSON.stringify({ version: 1 })
+
+    expect((await makeMarket().list()).error).toBe('INVALID_REGISTRY')
+  })
+
+  it('顶层直接是数组时也接受（兼容旧格式）', async () => {
+    holder.responseBody = JSON.stringify([])
+
+    const result = await makeMarket().list()
+
+    expect(result.success).toBe(true)
+    expect(result.plugins).toEqual([])
+  })
+
+  it('网络异常（fetch 抛错）时返回 NETWORK_ERROR 而不是抛出去', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('ECONNREFUSED')
+    }))
+
+    const result = await makeMarket().list()
+
+    expect(result).toEqual({ success: false, plugins: [], error: 'NETWORK_ERROR' })
+  })
+
+  it('Content-Length 声明超过上限时直接拒绝，不下载正文', async () => {
+    const arrayBuffer = vi.fn(async () => new ArrayBuffer(0))
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: (name: string) => (name.toLowerCase() === 'content-length' ? String(3 * 1024 * 1024) : null) },
+      arrayBuffer
+    })))
+
+    const result = await makeMarket().list()
+
+    expect(result.error).toBe('REGISTRY_TOO_LARGE')
+    expect(arrayBuffer).not.toHaveBeenCalled()
+  })
+
+  it('没有 Content-Length 但实际字节数超过上限时同样拒绝', async () => {
+    const oversized = new Uint8Array(2 * 1024 * 1024 + 1)
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      arrayBuffer: async () => oversized.buffer
+    })))
+
+    expect((await makeMarket().list()).error).toBe('REGISTRY_TOO_LARGE')
+  })
+
+  it('同 id 重复、缺字段、sha256 非法的条目被逐条过滤', async () => {
+    const dup = { ...ENTRY, name: 'Second Copy' }
+    const missingSha = { id: 'no-sha', name: 'No Sha', version: '1.0.0', entryUrl: 'https://example.com/a.js' }
+    const badSha = { ...ENTRY, id: 'bad-sha', sha256: 'not-a-hash' }
+    const badUrl = { ...ENTRY, id: 'bad-url', entryUrl: 'https://example.com/a.js', sha256: 'b'.repeat(64) }
+    holder.responseBody = JSON.stringify(
+      signedRegistry({ version: 1, plugins: [ENTRY, dup, missingSha, badSha, badUrl] })
+    )
+
+    const result = await makeMarket().list()
+
+    expect(result.success).toBe(true)
+    expect(result.plugins.map(item => item.id)).toEqual(['auto-retry', 'bad-url'])
+  })
+
+  it('十秒内的重复调用命中缓存，不再发第二次请求', async () => {
+    holder.responseBody = JSON.stringify({ version: 1, plugins: [] })
+    const fetchMock = vi.fn(async () => new Response(holder.responseBody, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const market = makeMarket()
+
+    await market.list()
+    await market.list()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('force 为 true 时绕过缓存重新拉取', async () => {
+    holder.responseBody = JSON.stringify({ version: 1, plugins: [] })
+    const fetchMock = vi.fn(async () => new Response(holder.responseBody, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const market = makeMarket()
+
+    await market.list()
+    await market.list(true)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('clearCache 之后下一次调用重新拉取', async () => {
+    holder.responseBody = JSON.stringify({ version: 1, plugins: [] })
+    const fetchMock = vi.fn(async () => new Response(holder.responseBody, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const market = makeMarket()
+
+    await market.list()
+    market.clearCache()
+    await market.list()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('已安装的插件在列表里被标记，并带出本地版本', async () => {
+    holder.responseBody = JSON.stringify(signedRegistry({ version: 1, plugins: [ENTRY] }))
+    const { market } = makeMarketWith({ plugins: [{ manifest: { id: 'auto-retry', version: '0.9.0' } }] })
+
+    const result = await market.list()
+
+    expect(result.plugins[0]).toMatchObject({ id: 'auto-retry', installed: true, installedVersion: '0.9.0' })
+  })
+})
+
+describe('PluginMarketService 安装入口', () => {
+  it('插件 id 非法时直接拒绝，不拉注册表', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const { market, installFromRegistry } = makeMarketWith()
+
+    expect(await market.install('../../etc/passwd')).toEqual({ success: false, error: 'INVALID_ID' })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(installFromRegistry).not.toHaveBeenCalled()
+  })
+
+  it('列表拉取失败时把失败原因原样返回', async () => {
+    holder.responseStatus = 500
+    const { market, installFromRegistry } = makeMarketWith()
+
+    expect(await market.install('auto-retry')).toEqual({ success: false, error: 'HTTP_500' })
+    expect(installFromRegistry).not.toHaveBeenCalled()
+  })
+
+  it('注册表里没有该 id 时返回 NOT_FOUND', async () => {
+    holder.responseBody = JSON.stringify(signedRegistry({ version: 1, plugins: [ENTRY] }))
+    const { market, installFromRegistry } = makeMarketWith()
+
+    expect(await market.install('not-listed')).toEqual({ success: false, error: 'NOT_FOUND' })
+    expect(installFromRegistry).not.toHaveBeenCalled()
+  })
+
+  it('首次安装时 upgrade 为 false，并带上可信发布者列表', async () => {
+    holder.responseBody = JSON.stringify(signedRegistry({ version: 1, plugins: [ENTRY] }))
+    const { market, installFromRegistry } = makeMarketWith()
+
+    await market.install('auto-retry')
+
+    expect(installFromRegistry).toHaveBeenCalledTimes(1)
+    const [entry, trusted, options] = installFromRegistry.mock.calls[0] as unknown as [
+      { id: string },
+      string[],
+      { upgrade: boolean }
+    ]
+    expect(entry.id).toBe('auto-retry')
+    expect(trusted).toEqual([PUBLIC_KEY_PEM])
+    expect(options.upgrade).toBe(false)
+  })
+
+  it('已安装旧版本时 upgrade 为 true', async () => {
+    holder.responseBody = JSON.stringify(signedRegistry({ version: 1, plugins: [ENTRY] }))
+    const { market, installFromRegistry } = makeMarketWith({
+      plugins: [{ manifest: { id: 'auto-retry', version: '0.9.0' } }]
+    })
+
+    await market.install('auto-retry')
+
+    const [, , options] = installFromRegistry.mock.calls[0] as unknown as [unknown, unknown, { upgrade: boolean }]
+    expect(options.upgrade).toBe(true)
+  })
+
+  it('已安装同版本时 upgrade 为 false（不重复升级）', async () => {
+    holder.responseBody = JSON.stringify(signedRegistry({ version: 1, plugins: [ENTRY] }))
+    const { market, installFromRegistry } = makeMarketWith({
+      plugins: [{ manifest: { id: 'auto-retry', version: '1.0.0' } }]
+    })
+
+    await market.install('auto-retry')
+
+    const [, , options] = installFromRegistry.mock.calls[0] as unknown as [unknown, unknown, { upgrade: boolean }]
+    expect(options.upgrade).toBe(false)
+  })
+
+  it('安装失败时把 PluginManager 的错误原样带回', async () => {
+    holder.responseBody = JSON.stringify(signedRegistry({ version: 1, plugins: [ENTRY] }))
+    const { market } = makeMarketWith({ installResult: { success: false, error: 'CHECKSUM_MISMATCH' } })
+
+    expect(await market.install('auto-retry')).toEqual({ success: false, error: 'CHECKSUM_MISMATCH' })
+  })
+})
