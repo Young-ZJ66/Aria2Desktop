@@ -152,6 +152,23 @@ describe('Web 控制台页面与 CSP', () => {
       })
   })
 
+  it('队列签名把任务状态也算进去，暂停/恢复后同一批任务仍会刷新面板', () => {
+    // 只按 gid 算签名时，「同一个任务从 active 变成 paused」签名不变，
+    // 面板会一直显示旧的状态徽标，直到 gid 集合本身发生变化。
+    const match = WEB_CONSOLE_HTML.match(/function queueSignature\(data\)\{([\s\S]*?)\}\nfunction queueRow/)
+    expect(match).not.toBeNull()
+    const signature = new Function('data', 'lastStatus', match![1]) as (
+      data: unknown,
+      lastStatus: unknown
+    ) => string
+    const base = [{ gid: 'g1', status: 'active' }, { gid: 'g2', status: 'waiting' }]
+    expect(signature({ waiting: base }, null)).not.toBe(signature({ waiting: [{ gid: 'g1', status: 'paused' }, base[1]] }, null))
+    // 同一批 gid 且状态都没变时签名必须稳定，否则会退化成每次推送都重新拉队列
+    expect(signature({ waiting: base }, null)).toBe(signature({ waiting: [...base] }, null))
+    // 没有 waiting 字段时回落到 lastStatus
+    expect(signature(undefined, { waiting: base })).toBe(signature({ waiting: base }, null))
+  })
+
   it('html lang 跟随实际界面语言，英文界面不再声明 zh-CN', () => {
     expect(WEB_CONSOLE_HTML).toContain('document.documentElement.lang')
   })
