@@ -110,7 +110,7 @@ describe('Web 控制台页面与 CSP', () => {
       'L',
       'qs',
       'state',
-      'var queueSig = state.sig; var queueCache = state.cache;\n' +
+      'var queueSig = state.sig; var queueCache = state.cache; var queueFetchedAt = state.fetchedAt; var QUEUE_MAX_AGE_MS = 30000;\n' +
         'function refreshQueue(force){' + match![1] + '}\n' +
         'return { run: function(f){ refreshQueue(f) }, peek: function(){ return { sig: queueSig, cache: queueCache } } }'
     )
@@ -123,8 +123,9 @@ describe('Web 控制台页面与 CSP', () => {
     }
     const harness = build(queueSignature, () => {}, api, (zh: string) => zh, () => ({ textContent: '', innerHTML: '' }), {
       sig: null,
-      cache: null
-    } as { sig: string | null; cache: unknown }) as {
+      cache: null,
+      fetchedAt: 0
+    } as { sig: string | null; cache: unknown; fetchedAt: number }) as {
       run: (force?: boolean) => void
       peek: () => { sig: string | null; cache: unknown }
     }
@@ -149,6 +150,59 @@ describe('Web 控制台页面与 CSP', () => {
         // 签名一致且已有缓存时才走本地缓存，不再发请求
         harness.run()
         expect(calls).toHaveLength(2)
+      })
+  })
+
+  it('队列设置改了之后即使等待中的任务没变，超过 30 秒也会重新拉取', () => {
+    // 签名只覆盖等待中的任务，桌面端改最大并发/重试策略不会改变签名，
+    // 没有兜底重取的话网页端会一直显示旧设置。
+    const match = WEB_CONSOLE_HTML.match(/function refreshQueue\(force\)\{([\s\S]*?)\}\nfunction renderTasks/)
+    expect(match).not.toBeNull()
+    const build = new Function(
+      'queueSignature',
+      'applyQueue',
+      'api',
+      'L',
+      'qs',
+      'state',
+      'var queueSig = state.sig; var queueCache = state.cache; var queueFetchedAt = state.fetchedAt; var QUEUE_MAX_AGE_MS = 30000;\n' +
+        'function refreshQueue(force){' + match![1] + '}\n' +
+        'return { run: function(f){ refreshQueue(f) }, peek: function(){ return { sig: queueSig, cache: queueCache, fetchedAt: queueFetchedAt } }, expire: function(){ queueFetchedAt = Date.now() - 31000 } }'
+    )
+    let calls = 0
+    const api = (): Promise<unknown> => {
+      calls += 1
+      return Promise.resolve({ settings: { maxConcurrent: 5 }, tasks: [], total: 0 })
+    }
+    const harness = build(
+      () => 'g1',
+      () => {},
+      api,
+      (zh: string) => zh,
+      () => ({ textContent: '', innerHTML: '' }),
+      { sig: null, cache: null, fetchedAt: 0 } as { sig: string | null; cache: unknown; fetchedAt: number }
+    ) as {
+      run: (force?: boolean) => void
+      peek: () => { sig: string | null; cache: unknown; fetchedAt: number }
+      expire: () => void
+    }
+
+    harness.run()
+    return Promise.resolve()
+      .then(() => Promise.resolve())
+      .then(() => {
+        expect(calls).toBe(1)
+        // 刚拉过：同签名直接走缓存
+        harness.run()
+        expect(calls).toBe(1)
+        // 缓存超过 30 秒：即使签名没变也要重新拉
+        harness.expire()
+        harness.run()
+        return Promise.resolve().then(() => Promise.resolve())
+      })
+      .then(() => {
+        expect(calls).toBe(2)
+        expect(Date.now() - harness.peek().fetchedAt).toBeLessThan(30000)
       })
   })
 
