@@ -42,6 +42,8 @@ interface LoadOptions {
   /** false = 模拟旧 preload（无增量 API），服务应退回全量合批路径 */
   incremental?: boolean
   corruptStorage?: string
+  /** 完全自定义 electronAPI（用于模拟某个通道缺失或行为异常） */
+  api?: Record<string, unknown>
 }
 
 async function loadService(options: LoadOptions = {}) {
@@ -57,11 +59,12 @@ async function loadService(options: LoadOptions = {}) {
 
   vi.stubGlobal('localStorage', localStorage)
   vi.stubGlobal('window', {
-    electronAPI: options.withBackend === false
-      ? undefined
-      : options.incremental === false
-        ? { savePersistedTasks, loadPersistedTasks }
-        : { savePersistedTasks, loadPersistedTasks, savePersistedTask, deletePersistedTasks, clearPersistedTasks }
+    electronAPI: options.api
+      ?? (options.withBackend === false
+        ? undefined
+        : options.incremental === false
+          ? { savePersistedTasks, loadPersistedTasks }
+          : { savePersistedTasks, loadPersistedTasks, savePersistedTask, deletePersistedTasks, clearPersistedTasks })
   })
 
   const mod = await import('./taskPersistenceService')
@@ -367,5 +370,164 @@ describe('按天龄清理（显式 API，不再自动挂定时器）', () => {
     expect(service.getPersistedTasks().map(task => task.gid)).toEqual(['fresh'])
     // 没有删任何记录就不该多写一次：清理是"发现过期才落盘"的
     expect(savePersistedTask).not.toHaveBeenCalled()
+  })
+})
+
+describe('后端加载：成功、失败与重试', () => {
+  it('后端返回键值对象时按 gid 建表，且只加载一次', async () => {
+    const { service, loadPersistedTasks } = await loadService({
+      backend: { a: { ...makeTask('a'), persistedAt: 1, completedAt: 1 } }
+    })
+
+    await service.ensureLoaded()
+    await service.ensureLoaded()
+
+    expect(service.getPersistedTasks().map(task => task.gid)).toEqual(['a'])
+    // loaded 置位后不再重复请求：重启应用只读一次
+    expect(loadPersistedTasks).toHaveBeenCalledTimes(1)
+  })
+
+  it('并发调用 ensureLoaded 时共享同一次后端请求', async () => {
+    const { service, loadPersistedTasks } = await loadService()
+
+    await Promise.all([service.ensureLoaded(), service.ensureLoaded(), service.ensureLoaded()])
+
+    expect(loadPersistedTasks).toHaveBeenCalledTimes(1)
+  })
+
+  it('后端读取失败只记错误，下次调用仍会重试', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { service, loadPersistedTasks } = await loadService()
+    loadPersistedTasks.mockRejectedValueOnce(new Error('ipc down'))
+
+    await service.ensureLoaded()
+    expect(error).toHaveBeenCalledWith('Failed to load persisted tasks from backend:', expect.any(Error))
+
+    // 失败不置 loaded：下一次还能再试，避免一次 IPC 抖动就整场会话读不到历史
+    await service.ensureLoaded()
+    expect(loadPersistedTasks).toHaveBeenCalledTimes(2)
+    error.mockRestore()
+  })
+
+  it('localStorage 里是合法对象时启动即恢复', async () => {
+    const { service } = await loadService({
+      withBackend: false,
+      corruptStorage: JSON.stringify({ legacy: { ...makeTask('legacy'), persistedAt: 7, completedAt: 7 } })
+    })
+
+    expect(service.getPersistedTasks().map(task => task.gid)).toEqual(['legacy'])
+    expect(service.getPersistedTask('legacy')?.completedAt).toBe(7)
+  })
+})
+
+describe('落盘失败的原因要能传出去', () => {
+  it('后端拒绝写入时返回 false 并记录原因', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { service, savePersistedTasks } = await loadService({ incremental: false })
+    savePersistedTasks.mockResolvedValue({ success: false, error: '超过 10MB 上限' })
+
+    const ok = await service.flush()
+
+    expect(ok).toBe(false)
+    expect(service.getLastPersistError()).toBe('超过 10MB 上限')
+    expect(error).toHaveBeenCalledWith('Failed to persist tasks to backend:', '超过 10MB 上限')
+    error.mockRestore()
+  })
+
+  it('后端抛错时返回 false 并把异常文案当原因', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { service, savePersistedTasks } = await loadService({ incremental: false })
+    savePersistedTasks.mockRejectedValue(new Error('IPC closed'))
+
+    expect(await service.flush()).toBe(false)
+    expect(service.getLastPersistError()).toBe('IPC closed')
+    error.mockRestore()
+  })
+
+  it('localStorage 写入失败（配额）时返回 false 并记录原因', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { service } = await loadService({ withBackend: false })
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError')
+    })
+
+    expect(await service.flush()).toBe(false)
+    expect(service.getLastPersistError()).toBe('QuotaExceededError')
+    error.mockRestore()
+  })
+})
+
+describe('增量删除通道的异常分支', () => {
+  it('没有增量删除通道时退回全量合批', async () => {
+    // 旧 preload 只有全量通道：删除只能靠"整表重写一次"落地
+    const savePersistedTasks = vi.fn().mockResolvedValue(undefined)
+    const { service } = await loadService({
+      api: { savePersistedTasks, loadPersistedTasks: vi.fn().mockResolvedValue({}) }
+    })
+
+    service.removePersistedTask('a')
+    await vi.advanceTimersByTimeAsync(300)
+
+    expect(savePersistedTasks).toHaveBeenCalledTimes(1)
+  })
+
+  it('增量删除返回失败（非 fallback）时只记录原因，不重写全表', async () => {
+    const { service, deletePersistedTasks, savePersistedTasks } = await loadService()
+    deletePersistedTasks.mockResolvedValue({ success: false, error: 'db locked' })
+
+    service.removePersistedTask('a')
+    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(300)
+
+    expect(service.getLastPersistError()).toBe('db locked')
+    expect(savePersistedTasks).not.toHaveBeenCalled()
+  })
+
+  it('增量删除抛错时记录原因并退回全量合批', async () => {
+    const { service, deletePersistedTasks, savePersistedTasks } = await loadService()
+    deletePersistedTasks.mockRejectedValue(new Error('channel closed'))
+
+    service.removePersistedTask('a')
+    await Promise.resolve()
+
+    // 先看错误原因：随后的全量兜底写成功会把 lastPersistError 清空
+    expect(service.getLastPersistError()).toBe('channel closed')
+
+    await vi.advanceTimersByTimeAsync(300)
+    expect(savePersistedTasks).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('清空历史的三条退路', () => {
+  it('清空通道返回失败时把原因传出去', async () => {
+    const { service, clearPersistedTasks } = await loadService()
+    clearPersistedTasks.mockResolvedValue({ success: false, error: 'db locked' })
+
+    expect(await service.clearAllPersistedTasks()).toBe(false)
+    expect(service.getLastPersistError()).toBe('db locked')
+    expect(service.getPersistedTasks()).toEqual([])
+  })
+
+  it('清空通道抛错时退回全量保存（空表即清空）', async () => {
+    const { service, clearPersistedTasks, savePersistedTasks } = await loadService()
+    clearPersistedTasks.mockRejectedValue(new Error('channel closed'))
+    service.persistCompletedTask(makeTask('a'), 1_000)
+    await Promise.resolve()
+    savePersistedTasks.mockClear()
+
+    expect(await service.clearAllPersistedTasks()).toBe(true)
+    expect(savePersistedTasks).toHaveBeenCalledTimes(1)
+    expect(firstPayload(savePersistedTasks)).toEqual({})
+  })
+
+  it('没有清空通道时同样退回全量保存', async () => {
+    const savePersistedTasks = vi.fn().mockResolvedValue(undefined)
+    const { service } = await loadService({
+      api: { savePersistedTasks, loadPersistedTasks: vi.fn().mockResolvedValue({}) }
+    })
+
+    expect(await service.clearAllPersistedTasks()).toBe(true)
+    expect(savePersistedTasks).toHaveBeenCalledTimes(1)
+    expect(firstPayload(savePersistedTasks)).toEqual({})
   })
 })
