@@ -50,7 +50,12 @@ const h = vi.hoisted(() => {
     extensionDeps: null as Record<string, (...args: never[]) => unknown> | null,
     trayGaveUp: null as number | null,
     trayCleared: 0,
-    appliedConsole: 0
+    appliedConsole: 0,
+    flagWriteThrows: false,
+    rendererContentReady: true,
+    shutdownThrows: false,
+    shutdownQuit: 0,
+    resetQuitOnQuit: false
   }
   const windowStub = {
     webContents: {
@@ -77,6 +82,11 @@ vi.mock('electron', () => ({
     requestSingleInstanceLock: () => h.state.lockGranted,
     quit: () => {
       h.state.quitCalls++
+      h.state.shutdownQuit++
+      if (h.state.resetQuitOnQuit) {
+        // 模拟真实 Electron：quit 再次触发 before-quit 时 hasShutdownStarted() 仍为真
+        h.state.shutdownStarted = true
+      }
     },
     on: (event: string, handler: (...args: never[]) => unknown) => {
       const list = h.state.appHandlers.get(event) ?? []
@@ -118,6 +128,9 @@ vi.mock('fs', () => ({
     h.state.copied.push([fsKey(from), fsKey(to)])
   },
   writeFileSync: (target: string, data: string) => {
+    if (h.state.flagWriteThrows && fsKey(target).endsWith('.legacy-data-migrated')) {
+      throw new Error('disk full')
+    }
     h.state.written.push([fsKey(target), data])
   },
   promises: {
@@ -194,7 +207,7 @@ vi.mock('./controllers/WindowController', () => ({
       h.state.calls.push('showWindow')
     }
     isRendererContentReady() {
-      return true
+      return h.state.rendererContentReady
     }
     setOnRendererReady(callback: () => void) {
       h.state.rendererReadyCb = callback
@@ -258,6 +271,7 @@ vi.mock('./controllers/AppLifecycle', () => ({
     }
     async shutdown() {
       h.state.calls.push('lifecycle:shutdown')
+      if (h.state.shutdownThrows) throw new Error('shutdown boom')
     }
     notifyEngineGaveUp(attempts: number) {
       h.state.calls.push('lifecycle:gaveUp:' + attempts)
@@ -457,6 +471,11 @@ beforeEach(() => {
   state.trayGaveUp = null
   state.trayCleared = 0
   state.appliedConsole = 0
+  state.flagWriteThrows = false
+  state.rendererContentReady = true
+  state.shutdownThrows = false
+  state.shutdownQuit = 0
+  state.resetQuitOnQuit = false
   delete process.env.ARIA2_E2E_USER_DATA
   vi.spyOn(process, 'on').mockImplementation(((event: string, handler: never) => {
     const list = state.processHandlers.get(event) ?? []
@@ -808,3 +827,108 @@ describe('扩展本地接口装配', () => {
     expect(h.state.statusProvider?.()).toEqual({ version: null, lastSeenAt: null })
   })
 })
+
+describe('启动兜底的细节', () => {
+  const legacyRoot = fsKey(process.cwd()) + '/data'
+  const legacyConf = legacyRoot + '/aria2/aria2.conf'
+
+  it('迁移标记写不进去时只记日志，不阻断启动', async () => {
+    h.state.exists.add(legacyRoot)
+    h.state.exists.add(legacyConf)
+    h.state.flagWriteThrows = true
+    await loadMain()
+    expect(h.state.copied).toHaveLength(1)
+    expect(h.state.written).toEqual([])
+    expect(h.state.logs.warn.some((line) => line.includes('写入迁移标记失败'))).toBe(true)
+    expect(h.state.quitCalls).toBe(0)
+  })
+
+  it('扩展接口依赖取的是应用版本与引擎进程信息', async () => {
+    await loadMain()
+    const deps = h.state.extensionDeps as Record<string, () => unknown>
+    expect(deps.getAppVersion()).toBe('1.5.0-beta.4')
+    expect(deps.getEngineProcessInfo()).toEqual({ running: false })
+  })
+
+  it('启动参数里的 .meta4 文件先入队，渲染层就绪后补投', async () => {
+    h.state.stats.set('E:/tmp/x.meta4', { isFile: true, size: 5 })
+    h.state.readFiles.set('E:/tmp/x.meta4', 'hello')
+    await loadMain({ argv: ['electron', 'main.js', 'E:/tmp/x.meta4'] })
+    await flush(2)
+    expect(h.state.sends).toEqual([])
+    h.state.rendererReadyCb?.()
+    expect(h.state.sends).toEqual([
+      ['pending-task-file', { name: 'x.meta4', data: Buffer.from('hello', 'utf-8').toString('base64'), kind: 'metalink' }]
+    ])
+  })
+
+  it('启动参数里的磁力链接先入队，渲染层就绪后补投', async () => {
+    await loadMain({ argv: ['electron', 'main.js', 'magnet:?xt=urn:btih:ddd'] })
+    expect(h.state.sends).toEqual([])
+    h.state.rendererReadyCb?.()
+    expect(h.state.sends).toEqual([['pending-download-url', 'magnet:?xt=urn:btih:ddd']])
+  })
+
+  it('关联文件读不出来时只记日志', async () => {
+    h.state.stats.set('E:/tmp/broken.torrent', { isFile: true, size: 4 })
+    await loadMain()
+    h.state.rendererReadyCb?.()
+    firstAppHandler('open-file')({ preventDefault: () => {} } as never, 'E:/tmp/broken.torrent' as never)
+    await flush(2)
+    expect(h.state.sends).toEqual([])
+    expect(h.state.logs.warn.some((line) => line.includes('读取关联文件失败'))).toBe(true)
+  })
+
+  it('渲染层已就绪但内容未就绪时种子文件仍留在队列里', async () => {
+    h.state.stats.set('E:/tmp/d.torrent', { isFile: true, size: 3 })
+    h.state.readFiles.set('E:/tmp/d.torrent', 'abc')
+    await loadMain()
+    h.state.rendererReadyCb?.()
+    h.state.rendererContentReady = false
+    firstAppHandler('open-file')({ preventDefault: () => {} } as never, 'E:/tmp/d.torrent' as never)
+    await flush(2)
+    expect(h.state.sends).toEqual([])
+  })
+
+  it('second-instance 带种子文件路径时读取并投递给渲染层', async () => {
+    h.state.stats.set('E:/tmp/c.torrent', { isFile: true, size: 3 })
+    h.state.readFiles.set('E:/tmp/c.torrent', 'd4:info')
+    await loadMain()
+    h.state.rendererReadyCb?.()
+    h.state.calls = []
+    firstAppHandler('second-instance')({} as never, ['electron', 'E:/tmp/c.torrent'] as never)
+    await flush(2)
+    expect(h.state.calls).toContain('showWindow')
+    expect(h.state.sends).toEqual([
+      ['pending-task-file', { name: 'c.torrent', data: Buffer.from('d4:info', 'utf-8').toString('base64'), kind: 'torrent' }]
+    ])
+  })
+
+  it('窗口健在时点 Dock 图标只是显示，不重建', async () => {
+    await loadMain()
+    h.state.calls = []
+    firstAppHandler('activate')()
+    expect(h.state.calls).toEqual(['showWindow'])
+  })
+
+  it('优雅关闭出错时记错误日志但仍然退出', async () => {
+    h.state.shutdownThrows = true
+    await loadMain()
+    await (firstAppHandler('before-quit')({ preventDefault: () => {} } as never) as Promise<void>)
+    await flush(2)
+    expect(h.state.logs.error.some((line) => line.includes('优雅关闭出错'))).toBe(true)
+    expect(h.state.quitCalls).toBe(1)
+  })
+
+  it('非 Windows 平台额外接管 SIGHUP', async () => {
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+    try {
+      await loadMain()
+      expect((h.state.processHandlers.get('SIGHUP') ?? [])).toHaveLength(1)
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    }
+  })
+})
+
