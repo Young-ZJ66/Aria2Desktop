@@ -162,6 +162,14 @@ describe('注册表校验 CLI', () => {
     expect(errors.join('\n')).toContain('已发布注册表无法被客户端接受')
   })
 
+  it('--online 拿到非 2xx 响应时按拉取失败处理', async () => {
+    const file = writeRegistry('empty.json', registry())
+    stubFetch(async () => ({ ok: false, status: 500, text: async () => '' }))
+    expect(await main(['--file', file, '--online', '--url', 'https://x/y.json', '--timeout', '10'])).toBe(1)
+    expect(errors.join('\n')).toContain('HTTP 500')
+    expect(errors.join('\n')).toContain('无法拉取已发布注册表')
+  })
+
   it('--online 拉取失败时给出可操作的提示而不是抛异常', async () => {
     const file = writeRegistry('empty.json', registry())
     stubFetch(async () => {

@@ -145,7 +145,10 @@ vi.mock('./UpdateController', () => ({
     restartAndInstall = vi.fn(async () => ({ success: true }))
     startScheduledCheck = vi.fn()
     stopScheduledCheck = vi.fn()
-    constructor() { state.updateController = this }
+    constructor(getWindow?: () => unknown) {
+      if (typeof getWindow === 'function') getWindow()
+      state.updateController = this
+    }
   }
 }))
 

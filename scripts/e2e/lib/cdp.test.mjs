@@ -127,6 +127,14 @@ describe('removeDirWithRetry', () => {
     spy.mockRestore()
     warn.mockRestore()
   })
+
+  // attempts 传 0 时循环一次都不进，函数必须仍然给出布尔结论而不是 undefined
+  it('重试次数为 0 时直接返回 false，且不去动磁盘', async () => {
+    const spy = vi.spyOn(fs, 'rmSync')
+    await expect(removeDirWithRetry(path.join(os.tmpdir(), 'cdp-cleanup-zero'), { attempts: 0 })).resolves.toBe(false)
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
+  })
 })
 
 describe('常量', () => {

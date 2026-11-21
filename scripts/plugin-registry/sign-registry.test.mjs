@@ -94,6 +94,13 @@ describe('签名与校验', () => {
     expect(verifyRegistrySignature(sampleRegistry(), PUBLIC_PEM)).toBe(false)
   })
 
+  it('公钥 PEM 无法解析时按验证失败处理，不抛错', () => {
+    const signed = signRegistry(sampleRegistry(), PRIVATE_PEM)
+    // 让 crypto.createPublicKey 抛错的输入：不是合法 PEM 的随机串
+    expect(verifyRegistrySignature(signed, 'not-a-pem')).toBe(false)
+    expect(verifyRegistrySignature(signed, '')).toBe(false)
+  })
+
   it('非 Ed25519 公钥一律拒绝，不走降级路径', () => {
     const rsa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
     const rsaPublicPem = rsa.publicKey.export({ type: 'spki', format: 'pem' }).toString()
@@ -121,11 +128,15 @@ describe('结构校验', () => {
       { ...base, plugins: [{ ...base.plugins[0], version: '' }] },
       { ...base, plugins: [{ ...base.plugins[0], entryUrl: 'http://example.com/demo.js' }] },
       { ...base, plugins: [{ ...base.plugins[0], sha256: 'xyz' }] },
-      { ...base, plugins: 'nope' }
+      { ...base, plugins: 'nope' },
+      // 条目本身不是对象：客户端拿到这种数据必须整份拒绝，不能只跳过这一条
+      { ...base, plugins: [null] },
+      { ...base, plugins: ['demo-plugin'] }
     ]
     for (const registry of cases) {
       expect(validateRegistry(registry).ok).toBe(false)
     }
+    expect(validateRegistry({ ...base, plugins: [null] })).toEqual({ ok: false, error: 'INVALID_ENTRY' })
   })
 })
 

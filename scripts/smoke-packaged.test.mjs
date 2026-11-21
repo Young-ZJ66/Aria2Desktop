@@ -8,7 +8,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { fileURLToPath } from 'node:url'
 import {
   checkFreshDefaults,
   checkRendererRendered,
@@ -66,6 +67,14 @@ describe('resolveWindowsExecutable', () => {
       path.join(releaseDir, 'win-unpacked', 'Aria2Desktop.exe')
     )
   })
+
+  it('release 目录本身读不了时按空列表处理，只给默认路径', () => {
+    // listDirectories 的 catch：readdirSync 抛 ENOENT 时不能让整个脚本崩掉
+    const missingParent = path.join(releaseDir, 'missing-parent')
+    expect(resolveWindowsExecutable(missingParent)).toBe(
+      path.join(missingParent, 'win-unpacked', 'Aria2Desktop.exe')
+    )
+  })
 })
 
 describe('resolveMacExecutable', () => {
@@ -111,6 +120,15 @@ describe('resolveLinuxExecutable', () => {
   it('目录不存在时给出默认路径', () => {
     expect(resolveLinuxExecutable(releaseDir)).toBe(path.join(releaseDir, 'linux-unpacked', 'aria2-desktop'))
   })
+
+  it('跳过 unpacked 里的子目录，并用真实执行位判定挑主文件', () => {
+    // 子目录不是候选（entry.isFile() 为 false 时 continue）；不传 isExecutable 时走默认的
+    // hasExecutableBit，Windows 上 chmod 不落执行位，所以这里只断言不抛错、给出确定路径
+    fs.mkdirSync(path.join(releaseDir, 'linux-unpacked', 'locales'), { recursive: true })
+    const main = makeExecutable(path.join(releaseDir, 'linux-unpacked', 'aria2-desktop'))
+    const resolved = resolveLinuxExecutable(releaseDir)
+    expect([main, path.join(releaseDir, 'linux-unpacked', 'aria2-desktop')]).toContain(resolved)
+  })
 })
 
 describe('resolveDefaultExe', () => {
@@ -122,6 +140,23 @@ describe('resolveDefaultExe', () => {
     const linux = makeExecutable(path.join(releaseDir, 'linux-unpacked', 'aria2-desktop'))
     const expected = process.platform === 'darwin' ? mac : process.platform === 'linux' ? linux : win
     expect(resolveDefaultExe(releaseDir)).toBe(expected)
+  })
+
+  it('按 platform 分发到 mac / linux 分支，而不是只看当前平台', () => {
+    // 本机是 Windows，darwin/linux 两支平时永远跑不到；这里临时改 platform 把它们钉住
+    const mac = makeExecutable(
+      path.join(releaseDir, 'mac-arm64', 'Aria2Desktop.app', 'Contents', 'MacOS', 'Aria2Desktop')
+    )
+    const linux = makeExecutable(path.join(releaseDir, 'linux-unpacked', 'aria2-desktop'))
+    const original = Object.getOwnPropertyDescriptor(process, 'platform')
+    try {
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+      expect(resolveDefaultExe(releaseDir)).toBe(mac)
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+      expect(resolveDefaultExe(releaseDir)).toBe(linux)
+    } finally {
+      if (original) Object.defineProperty(process, 'platform', original)
+    }
   })
 })
 
@@ -160,6 +195,21 @@ describe('readOptions', () => {
   })
 
   it('非 Windows 上 0644 的产物抛执行权限错误（v1.2.1 build-linux 的回归）', () => {
+    // 本机是 Windows 时 platform 检查会直接跳过这段；临时改成 linux 把它钉住。
+    // Windows 上 Node 报的 mode 是 0o666（没有执行位），正好等价于 0644 的场景。
+    const original = Object.getOwnPropertyDescriptor(process, 'platform')
+    try {
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+      const exe = path.join(releaseDir, 'plain.bin')
+      fs.mkdirSync(path.dirname(exe), { recursive: true })
+      fs.writeFileSync(exe, Buffer.alloc(1024))
+      expect(() => readOptions(['--exe', exe])).toThrow('打包产物没有执行权限')
+    } finally {
+      if (original) Object.defineProperty(process, 'platform', original)
+    }
+  })
+
+  it('非 Windows 上 0644 的产物抛执行权限错误（真实平台分支）', () => {
     if (process.platform === 'win32') {
       // Windows 上 chmod 不跟踪执行位，无法构造 0644 场景；此分支只在 CI 的
       // mac/linux 作业里真实执行（readOptions 对 win32 显式跳过）
@@ -192,6 +242,27 @@ describe('checkFreshDefaults', () => {
     const results = checkFreshDefaults(dir)
     expect(results.map((r) => r.ok)).toEqual([true, true])
     fs.rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+describe('脚本入口', () => {
+  it('被直接执行时挂上 exit 兜底，并把退出码写进 process.exitCode', async () => {
+    // 带查询串重新 import：模块会再执行一次，此时 argv[1] 就是脚本自身，
+    // 末尾的 invokedDirectly 分支才会成立（被测试 import 时它是 false）。
+    const originalArgv = process.argv
+    const originalExitCode = process.exitCode
+    process.argv = ['node', fileURLToPath(new URL('./smoke-packaged.mjs', import.meta.url)), '--exe', 'missing-product.exe']
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await import('./smoke-packaged.mjs?direct-invocation')
+      // 产物不存在 → main 返回 2，入口把结论写进 exitCode 而不是抛错
+      expect(process.exitCode).toBe(2)
+      expect(String(error.mock.calls[0][0])).toContain('找不到打包产物')
+    } finally {
+      process.argv = originalArgv
+      process.exitCode = originalExitCode
+      error.mockRestore()
+    }
   })
 })
 

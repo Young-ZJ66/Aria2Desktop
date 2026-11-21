@@ -12,17 +12,49 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, findFreePort, main, readLog, seedUserData, stopProcess, waitFor } from './smoke-packaged.mjs'
 
-const holder = vi.hoisted(() => ({ spawnCalls: [], spawnSyncCalls: [], platform: process.platform }))
+const holder = vi.hoisted(() => ({
+  spawnCalls: [],
+  spawnSyncCalls: [],
+  platform: process.platform,
+  /** 造完子进程后的钩子：runAttempt 的用例靠它在 spawn 时把日志落到隔离数据里 */
+  onSpawn: null,
+  /** 最近一次 spawn 出来的假子进程：用例要靠它回放 stdout/stderr/exit */
+  lastChild: null
+}))
 
 vi.mock('node:child_process', () => ({
   spawn: (...args) => {
     holder.spawnCalls.push(args)
-    return { pid: 999, exitCode: null }
+    // 只实现 runAttempt 真正用到的表面：两路输出流、exit 监听、exitCode
+    const listeners = new Map()
+    const child = {
+      pid: 999,
+      exitCode: null,
+      stderr: { on: (event, callback) => listeners.set('stderr', callback) },
+      stdout: { on: (event, callback) => listeners.set('stdout', callback) },
+      on: (event, callback) => listeners.set(event, callback),
+      emit: (event, payload) => listeners.get(event)?.(payload)
+    }
+    holder.lastChild = child
+    if (holder.onSpawn) holder.onSpawn(args, child)
+    return child
   },
   spawnSync: (...args) => {
     holder.spawnSyncCalls.push(args)
     return { status: 0 }
   }
+}))
+
+// runAttempt 起完进程后要连调试端口看窗口是否白屏；这里把 CDP 整体换掉，
+// 让 main() 的完整路径能在没有浏览器的测试进程里跑通。
+vi.mock('./e2e/lib/cdp.mjs', () => ({
+  httpJson: async () => [{ type: 'page', webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/1' }],
+  connect: async () => ({ send: async () => ({}), close: () => {} }),
+  evalIn: async () => ({
+    title: 'Aria2 Desktop',
+    text: '正在下载 3 个任务，总速度 1.2 MB/s',
+    url: 'file:///app/index.html'
+  })
 }))
 
 let workDir = ''
@@ -31,6 +63,8 @@ beforeEach(() => {
   workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smoke-helpers-'))
   holder.spawnCalls = []
   holder.spawnSyncCalls = []
+  holder.onSpawn = null
+  holder.lastChild = null
 })
 
 afterEach(() => {
@@ -220,4 +254,185 @@ describe('main 的入口失败路径', () => {
     }
     expect(String(error.mock.calls[0][0])).toContain('找不到打包产物')
   })
+})
+
+/** 把日志与（可选的）默认配置写进 spawn 时拿到的隔离数据目录 */
+function writeAttemptArtifacts(env, logText, { freshDefaults = false } = {}) {
+  const userData = env.ARIA2_E2E_USER_DATA
+  const logFile = path.join(userData, 'logs', 'main.log')
+  fs.mkdirSync(path.dirname(logFile), { recursive: true })
+  fs.writeFileSync(logFile, logText)
+  if (!freshDefaults) return
+  fs.mkdirSync(path.join(userData, 'config'), { recursive: true })
+  fs.mkdirSync(path.join(userData, 'aria2'), { recursive: true })
+  fs.writeFileSync(path.join(userData, 'config', 'aria2-desktop-settings.json'), '{}')
+  fs.writeFileSync(
+    path.join(userData, 'aria2', 'aria2.conf'),
+    'dir=D:/Downloads\nsave-session=D:/x/aria2.session\ninput-file=D:/x/aria2.session\n'
+  )
+}
+
+const READY_LOG = [
+  '[main] Aria2 进程启动成功',
+  '[main] 浏览器扩展本地接口已启动',
+  ''
+].join('\n')
+
+function runMainWith(argv) {
+  const originalArgv = process.argv
+  process.argv = ['node', 'smoke-packaged.mjs', ...argv]
+  const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  return {
+    log,
+    error,
+    async finish() {
+      try {
+        return await main()
+      } finally {
+        process.argv = originalArgv
+      }
+    }
+  }
+}
+
+describe('main 的完整运行路径', () => {
+  it('引擎与扩展接口都起来、窗口也渲染出来时判通过，并按 --keep 保留现场', async () => {
+    const exe = path.join(workDir, 'Aria2Desktop.exe')
+    fs.writeFileSync(exe, 'stub')
+    holder.onSpawn = (args) => writeAttemptArtifacts(args[2].env, READY_LOG)
+    const run = runMainWith(['--exe', exe, '--timeout', '1000', '--retries', '0', '--keep'])
+    const code = await run.finish()
+
+    expect(code).toBe(0)
+    expect(holder.spawnCalls).toHaveLength(1)
+    const [spawnExe, spawnArgs, spawnOptions] = holder.spawnCalls[0]
+    expect(spawnExe).toBe(path.resolve(exe))
+    // 额外开调试端口，并把 ELECTRON_RUN_AS_NODE 从环境里摘掉
+    expect(spawnArgs.some((argument) => argument.startsWith('--remote-debugging-port='))).toBe(true)
+    expect(spawnOptions.env.ELECTRON_RUN_AS_NODE).toBeUndefined()
+    expect(spawnOptions.env.ARIA2_E2E_USER_DATA).toBeTruthy()
+    // --keep：隔离数据留着，并在日志里指出路径
+    expect(fs.existsSync(spawnOptions.env.ARIA2_E2E_USER_DATA)).toBe(true)
+    const printed = run.log.mock.calls.map((call) => String(call[0])).join('\n')
+    expect(printed).toContain('PASS 打包后的应用拉起了内置 aria2')
+    expect(printed).toContain('PASS 窗口渲染出了界面（不是白屏）')
+    expect(printed).toContain('结果：3 项通过，0 项失败')
+  })
+
+  it('--fresh 时额外校验应用自己长出的默认配置', async () => {
+    const exe = path.join(workDir, 'Aria2Desktop.exe')
+    fs.writeFileSync(exe, 'stub')
+    holder.onSpawn = (args) => writeAttemptArtifacts(args[2].env, READY_LOG, { freshDefaults: true })
+    const run = runMainWith(['--exe', exe, '--timeout', '1000', '--retries', '0', '--fresh'])
+    const code = await run.finish()
+
+    expect(code).toBe(0)
+    const printed = run.log.mock.calls.map((call) => String(call[0])).join('\n')
+    expect(printed).toContain('--fresh：数据目录保持空白')
+    expect(printed).toContain('PASS 首次启动写出了默认设置文件')
+    expect(printed).toContain('结果：5 项通过，0 项失败')
+  })
+
+  it('判据没出现时打印失败现场与根因线索，并以退出码 1 结束', async () => {
+    const exe = path.join(workDir, 'Aria2Desktop.exe')
+    fs.writeFileSync(exe, 'stub')
+    // 只留致命行：两条判据都不会命中，diagnoseStartupFailure 能认出根因
+    holder.onSpawn = (args) => writeAttemptArtifacts(args[2].env, '[main] Aria2 initialization failed\n')
+    const run = runMainWith(['--exe', exe, '--timeout', '200', '--retries', '0'])
+    const code = await run.finish()
+
+    expect(code).toBe(1)
+    const printed = run.error.mock.calls.map((call) => String(call[0])).join('\n')
+    expect(printed).toContain('根因线索')
+    expect(printed).toContain('引擎初始化失败')
+    expect(printed).toContain('主进程日志尾部')
+    expect(printed).toContain('诊断已写入 test-results/smoke-packaged.json')
+    // 失败时不留现场（没有 --keep）
+    expect(fs.existsSync(holder.spawnCalls[0][2].env.ARIA2_E2E_USER_DATA)).toBe(false)
+  })
+
+  it('首次失败第二次通过时打 ::warning::，并把额外启动参数与子进程输出带进日志', async () => {
+    const exe = path.join(workDir, 'Aria2Desktop.exe')
+    fs.writeFileSync(exe, 'stub')
+    let attempts = 0
+    holder.onSpawn = (args) => {
+      attempts += 1
+      writeAttemptArtifacts(args[2].env, attempts === 1 ? '' : READY_LOG)
+    }
+    const run = runMainWith([
+      '--exe',
+      exe,
+      '--timeout',
+      '100',
+      '--retries',
+      '1',
+      '--spawn-args=--no-sandbox --disable-gpu'
+    ])
+    const code = await run.finish()
+
+    expect(code).toBe(0)
+    expect(attempts).toBe(2)
+    // 两次尝试之间会睡 5 秒排除环境抖动；重试成功要留下 GitHub warning 而不是静默放过
+    const printed = run.log.mock.calls.map((call) => String(call[0])).join('\n')
+    expect(printed).toContain('启动参数: --no-sandbox --disable-gpu')
+    expect(printed).toContain('第 2/2 次尝试')
+    expect(printed).toContain('第 1 次失败，重试以排除环境抖动')
+    expect(printed).toContain('::warning::打包产物冒烟第 2 次才通过')
+    expect(printed).toContain('结果：3 项通过，0 项失败')
+  }, 30000)
+
+  it('子进程的 stdout/stderr 与退出码都进失败现场，0x80000003 额外给沙箱提示', async () => {
+    const exe = path.join(workDir, 'Aria2Desktop.exe')
+    fs.writeFileSync(exe, 'stub')
+    holder.onSpawn = (args, child) => {
+      writeAttemptArtifacts(args[2].env, '[main] 应用初始化失败\n')
+      // 启动即崩：exitCode 为 0x80000003（Windows 上表现为 2147483651）
+      child.exitCode = 2147483651
+      // runAttempt 在 spawn 返回后才注册监听器，所以回放要排到微任务里
+      queueMicrotask(() => {
+        child.emit('stdout', Buffer.from('stdout 旁证'))
+        child.emit('stderr', Buffer.from('stderr 旁证'))
+        child.emit('exit')
+      })
+    }
+    const original = Object.getOwnPropertyDescriptor(process, 'platform')
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    try {
+      const run = runMainWith(['--exe', exe, '--timeout', '100', '--retries', '0'])
+      const code = await run.finish()
+
+      expect(code).toBe(1)
+      const printed = run.error.mock.calls.map((call) => String(call[0])).join('\n')
+      expect(printed).toContain('标准输出')
+      expect(printed).toContain('stdout 旁证')
+      expect(printed).toContain('标准错误')
+      expect(printed).toContain('stderr 旁证')
+      expect(printed).toContain('应用初始化失败')
+      expect(printed).toContain('0x80000003 多为沙箱/ACL 拒绝执行')
+    } finally {
+      if (original) Object.defineProperty(process, 'platform', original)
+    }
+  })
+
+  it('诊断写盘失败时只打日志，不改变退出码', async () => {
+    const exe = path.join(workDir, 'Aria2Desktop.exe')
+    fs.writeFileSync(exe, 'stub')
+    holder.onSpawn = (args) => writeAttemptArtifacts(args[2].env, '')
+    const realWriteFileSync = fs.writeFileSync
+    const writeFile = vi.spyOn(fs, 'writeFileSync').mockImplementation((target, data, options) => {
+      // 只让诊断报告那一次失败，隔离数据目录里的文件仍要照常写出
+      if (String(target).includes('smoke-packaged.json')) throw new Error('EACCES: test-results')
+      return realWriteFileSync(target, data, options)
+    })
+    try {
+      const run = runMainWith(['--exe', exe, '--timeout', '100', '--retries', '0'])
+      expect(await run.finish()).toBe(1)
+      const printed = run.error.mock.calls.map((call) => String(call[0])).join('\n')
+      expect(printed).toContain('诊断写入失败')
+      expect(printed).toContain('EACCES')
+    } finally {
+      writeFile.mockRestore()
+    }
+  }, 20000)
 })

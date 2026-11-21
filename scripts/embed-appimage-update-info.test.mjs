@@ -247,6 +247,33 @@ describe('脚本入口', () => {
   })
 })
 
+describe('写入后回读的一致性断言', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // 回读断言是这条链路上最后一道防线：写进去的和读出来的不一致，
+  // 发布出去的 AppImage 就会带着一个客户端认不出的 update information。
+  it('回读结果与写入值不一致时直接抛错，而不是静默放过', () => {
+    withTempElf((file) => {
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      const section = readElfSections(file).find((s) => s.name === '.upd_info')
+      const realReadSync = fs.readSync
+      // 只篡改读 .upd_info 那一次：让回读拿到别的字符串，模拟写盘被截断/错位
+      const readSpy = vi.spyOn(fs, 'readSync').mockImplementation((fd, buffer, offset, length, position) => {
+        const read = realReadSync(fd, buffer, offset, length, position)
+        if (position === section.offset) {
+          buffer.fill(0, offset, offset + length)
+          buffer.write('gh-releases-zsync|other|repo|latest|other.AppImage.zsync', offset, 'utf8')
+        }
+        return read
+      })
+      expect(() => main([file, 'Young-ZJ66', 'Aria2Desktop'])).toThrow('写入后回读不一致')
+      readSpy.mockRestore()
+    })
+  })
+})
+
 describe('CLI 入口 main', () => {
   afterEach(() => {
     holder.zsyncThrows = null

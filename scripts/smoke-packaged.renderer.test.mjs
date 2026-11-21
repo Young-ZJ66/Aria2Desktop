@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   listThrows: null,
   snapshot: null,
   evalThrows: null,
+  evalHangs: false,
   connectThrows: null,
   closed: 0
 }))
@@ -30,6 +31,8 @@ vi.mock('./e2e/lib/cdp.mjs', () => ({
   },
   evalIn: async () => {
     if (h.evalThrows) throw h.evalThrows
+    // 连接没断但求值永远不返回：session.send 在真实环境里就是这样挂住的
+    if (h.evalHangs) return new Promise(() => {})
     return h.snapshot
   }
 }))
@@ -41,6 +44,7 @@ function reset() {
   h.listThrows = null
   h.snapshot = null
   h.evalThrows = null
+  h.evalHangs = false
   h.connectThrows = null
   h.closed = 0
 }
@@ -87,6 +91,21 @@ describe('checkRendererRendered', () => {
     const result = await checkRendererRendered(9222, 1000)
     expect(result.ok).toBe(false)
     expect(result.detail).toBe('读取页面内容超时')
+  })
+
+  it('求值一直不返回时由自带的 8 秒兜底判超时', async () => {
+    h.targets = [{ type: 'page', webSocketDebuggerUrl: 'ws://page' }]
+    h.evalHangs = true
+    vi.useFakeTimers()
+    try {
+      const pending = checkRendererRendered(9222, 1000)
+      await vi.advanceTimersByTimeAsync(8000)
+      const result = await pending
+      expect(result.ok).toBe(false)
+      expect(result.detail).toBe('读取页面内容超时')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('连接调试目标失败时把错误带进 detail', async () => {
