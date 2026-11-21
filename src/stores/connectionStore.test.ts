@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 /**
@@ -483,3 +483,149 @@ describe('connectionStore 连通性探测与断开', () => {
     expect(mocks.clearTasks).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('connectionStore 连接收尾与预设落盘的边界', () => {
+  beforeEach(() => {
+    mocks.FakeAria2Service.instances.length = 0
+    mocks.updateSettings.mockClear()
+    mocks.clearTasks.mockClear()
+    mocks.clearCache.mockClear()
+    mocks.settings.connectionProfiles = [
+      { id: 'default', name: '本地引擎', config: { host: 'localhost', port: 6800, protocol: 'http', secret: '', path: '/jsonrpc' } },
+      { id: 'backup', name: '备用实例', config: { host: 'localhost', port: 6812, protocol: 'http', secret: '', path: '/jsonrpc' } }
+    ]
+    mocks.settings.activeProfileId = 'default'
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  async function connectWith(store: Awaited<ReturnType<typeof createStore>>, profileId: string) {
+    const pending = store.connect(undefined, profileId)
+    const service = mocks.FakeAria2Service.instances[mocks.FakeAria2Service.instances.length - 1]!
+    service.connectGate.resolve()
+    await flush()
+    service.versionGate.resolve({ version: '1.37.0' })
+    await pending
+    return service
+  }
+
+  it('删除不存在的预设时即使有多个预设也不写盘', async () => {
+    const store = await createStore()
+    mocks.updateSettings.mockClear()
+
+    await store.deleteProfile('missing')
+
+    expect(store.profiles).toHaveLength(2)
+    expect(mocks.updateSettings).not.toHaveBeenCalled()
+  })
+
+  it('指定预设并带新参数时先合并进该预设再连接', async () => {
+    const store = await createStore()
+    const pending = store.connect({ port: 7001 }, 'backup')
+    const service = mocks.FakeAria2Service.instances[0]!
+
+    // 连接使用的是合并后的参数，而不是预设里的旧端口
+    expect(service.config).toMatchObject({ port: 7001 })
+    expect(store.profiles.find(p => p.id === 'backup')?.config.port).toBe(7001)
+
+    service.connectGate.resolve()
+    await flush()
+    service.versionGate.resolve({ version: '1.37.0' })
+    await expect(pending).resolves.toBe(true)
+    expect(store.activeProfileId).toBe('backup')
+  })
+
+  it('不指定预设但带新参数时只改当前预设的连接参数', async () => {
+    const store = await createStore()
+    const pending = store.connect({ port: 7002 })
+    const service = mocks.FakeAria2Service.instances[0]!
+
+    expect(service.config).toMatchObject({ port: 7002 })
+    expect(store.config.port).toBe(7002)
+
+    service.connectGate.resolve()
+    await flush()
+    service.versionGate.resolve({ version: '1.37.0' })
+    await expect(pending).resolves.toBe(true)
+  })
+
+  it('WebSocket 建连失败时降级走 HTTP 并在控制台留痕', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const store = await createStore()
+    const pending = store.connect(undefined, 'default')
+    const service = mocks.FakeAria2Service.instances[0]!
+
+    service.connectGate.reject(new Error('ws refused'))
+    await flush()
+    expect(warn).toHaveBeenCalledWith('WebSocket connection failed, will use HTTP:', expect.any(Error))
+
+    service.versionGate.resolve({ version: '1.37.0' })
+    await expect(pending).resolves.toBe(true)
+    expect(store.isConnected).toBe(true)
+  })
+
+  it('已接管实例的 connected/disconnected/error 事件会同步界面状态', async () => {
+    const store = await createStore()
+    const service = await connectWith(store, 'default')
+    expect(store.isConnected).toBe(true)
+
+    service.emit('disconnected')
+    expect(store.isConnected).toBe(false)
+
+    service.emit('connected')
+    expect(store.isConnected).toBe(true)
+    expect(store.connectionError).toBeNull()
+
+    service.emit('error', new Error('socket closed'))
+    expect(store.connectionError).toBe('socket closed')
+
+    // 没有 message 的错误也要给出可读文案，而不是空白提示
+    service.emit('error', {})
+    expect(store.connectionError).toBe('Connection error')
+  })
+
+  it('被更新连接取代的失败尝试会自行销毁且不报错', async () => {
+    const store = await createStore()
+
+    const first = store.connect(undefined, 'default')
+    const firstService = mocks.FakeAria2Service.instances[0]!
+    firstService.connectGate.resolve()
+    await flush()
+
+    // 第一次还卡在 getVersion 时又发起了第二次连接并成功
+    const second = store.connect(undefined, 'backup')
+    const secondService = mocks.FakeAria2Service.instances[1]!
+    secondService.connectGate.resolve()
+    await flush()
+    secondService.versionGate.resolve({ version: '1.37.0' })
+    await expect(second).resolves.toBe(true)
+
+    // 第一次随后失败：既不能抛给调用方，也不能改动当前状态
+    firstService.versionGate.reject(new Error('Connection refused'))
+    await expect(first).resolves.toBe(false)
+    expect(firstService.disconnectCalls).toBe(1)
+    expect(store.service).toBe(secondService)
+    expect(store.isConnected).toBe(true)
+    expect(store.activeProfileId).toBe('backup')
+  })
+
+  it('连通性探测超时后返回失败并销毁探测实例', async () => {
+    vi.useFakeTimers()
+    const store = await createStore()
+
+    const pending = store.testConnection({ host: '10.0.0.9', port: 6800, protocol: 'http', secret: '', path: '/jsonrpc' })
+    const probe = mocks.FakeAria2Service.instances[0]!
+
+    // 探测实例一直不回版本号，由 6 秒超时兜底
+    await vi.advanceTimersByTimeAsync(6000)
+    const result = await pending
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Connection timed out')
+    expect(probe.disconnectCalls).toBe(1)
+  })
+})
+

@@ -7,7 +7,7 @@
  * service 实例由调用方注入（页面传 connectionStore.service getter），测试传纯 mock，不触网。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { ref } from 'vue'
+import { createRenderer, defineComponent, ref } from 'vue'
 
 import {
   BT_INSIGHTS_POLL_MS,
@@ -19,6 +19,38 @@ import type { Aria2Task } from '@/types/aria2'
 import type { Aria2Service } from '@/services/aria2Service'
 
 // service 实例由页面从 connectionStore 注入；测试里构造一个纯 mock
+interface HostNode {
+  kind: string
+  text?: string
+  children?: HostNode[]
+}
+
+/** 最小自定义渲染器：只为让 onUnmounted 有真实组件实例可挂（项目未装 @vue/test-utils） */
+function createHostRenderer() {
+  return createRenderer<HostNode, HostNode>({
+    createElement: (type: string) => ({ kind: type, children: [] }),
+    createText: (text: string) => ({ kind: '#text', text }),
+    createComment: (text: string) => ({ kind: '#comment', text }),
+    setText: (node, text) => {
+      node.text = text
+    },
+    setElementText: (node, text) => {
+      node.text = text
+    },
+    insert: () => {
+      // 测试渲染器不维护真实树
+    },
+    remove: () => {
+      // 测试渲染器不维护真实树
+    },
+    parentNode: () => null,
+    nextSibling: () => null,
+    patchProp: () => {
+      // 组件不渲染任何真实属性
+    }
+  })
+}
+
 function makeService(): { service: Aria2Service; tellStatus: ReturnType<typeof vi.fn>; getPeers: ReturnType<typeof vi.fn> } {
   const tellStatus = vi.fn()
   const getPeers = vi.fn()
@@ -164,5 +196,170 @@ describe('useBtInsights', () => {
     gid.value = 'g1'
     await vi.advanceTimersByTimeAsync(0)
     expect(snapshot.value).toBeNull()
+  })
+})
+
+describe('useBtInsights 轮询与卸载的边界', () => {
+  let svc: ReturnType<typeof makeService>
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    svc = makeService()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  function setup(gidValue: string | null, enabledValue: boolean) {
+    const gid = ref<string | null>(gidValue)
+    const enabled = ref(enabledValue)
+    return { gid, enabled, ...useBtInsights(gid, enabled, () => svc.service) }
+  }
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void
+    let reject!: (reason: unknown) => void
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+    return { promise, resolve, reject }
+  }
+
+  it('refreshOnce 在未选任务或未连接时直接返回', async () => {
+    const idleGid = ref<string | null>(null)
+    const enabled = ref(true)
+    const idle = useBtInsights(idleGid, enabled, () => svc.service)
+    await idle.refreshOnce()
+    expect(svc.tellStatus).not.toHaveBeenCalled()
+
+    const offlineGid = ref<string | null>('g1')
+    const offline = useBtInsights(offlineGid, enabled, () => null)
+    await offline.refreshOnce()
+    expect(svc.tellStatus).not.toHaveBeenCalled()
+  })
+
+  it('在途请求返回前切换任务时丢弃旧任务的结果', async () => {
+    const gate = deferred<Aria2Task>()
+    svc.tellStatus.mockImplementation((id: string) =>
+      id === 'g1' ? gate.promise : Promise.resolve(makeTask({ gid: id }))
+    )
+    svc.getPeers.mockResolvedValue([])
+    const { gid, snapshot } = setup(null, true)
+
+    gid.value = 'g1'
+    await vi.advanceTimersByTimeAsync(0)
+    gid.value = 'g2'
+    await vi.advanceTimersByTimeAsync(0)
+    const current = snapshot.value
+    expect(current?.gid).toBe('g2')
+
+    gate.resolve(makeTask({ gid: 'g1', bittorrent: { infoHash: 'stale' } as Aria2Task['bittorrent'] }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(snapshot.value).toBe(current)
+  })
+
+  it('在途请求失败前切换任务时不覆盖新任务的数据', async () => {
+    const gate = deferred<Aria2Task>()
+    svc.tellStatus.mockImplementation((id: string) =>
+      id === 'g1' ? gate.promise : Promise.resolve(makeTask({ gid: id }))
+    )
+    svc.getPeers.mockResolvedValue([])
+    const { gid, snapshot } = setup(null, true)
+
+    gid.value = 'g1'
+    await vi.advanceTimersByTimeAsync(0)
+    gid.value = 'g2'
+    await vi.advanceTimersByTimeAsync(0)
+    const current = snapshot.value
+
+    gate.reject(new Error('旧任务已被删除'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(snapshot.value).toBe(current)
+    expect(snapshot.value?.error).toBeNull()
+  })
+
+  it('上一轮响应未返回时不会叠加新的 RPC 轮询', async () => {
+    const pendingCalls: Array<ReturnType<typeof deferred<Aria2Task>>> = []
+    svc.tellStatus.mockImplementation(() => {
+      const call = deferred<Aria2Task>()
+      pendingCalls.push(call)
+      return call.promise
+    })
+    svc.getPeers.mockResolvedValue([])
+    const { gid } = setup(null, true)
+
+    gid.value = 'g1'
+    await vi.advanceTimersByTimeAsync(0)
+    expect(pendingCalls).toHaveLength(1)
+
+    // 第一轮定时器到点，但请求一直不返回（polling 保持 true）
+    await vi.advanceTimersByTimeAsync(BT_INSIGHTS_POLL_MS)
+    expect(pendingCalls).toHaveLength(2)
+
+    gid.value = 'g2'
+    await vi.advanceTimersByTimeAsync(0)
+    expect(pendingCalls).toHaveLength(3)
+
+    // 上一轮仍在等响应：新定时器只把自己重排，不再发 RPC
+    await vi.advanceTimersByTimeAsync(BT_INSIGHTS_POLL_MS)
+    expect(pendingCalls).toHaveLength(3)
+  })
+
+  it('重新启用轮询后立即恢复拉取', async () => {
+    svc.tellStatus.mockResolvedValue(makeTask({ gid: 'g1' }))
+    svc.getPeers.mockResolvedValue([])
+    const { gid, enabled } = setup(null, true)
+
+    gid.value = 'g1'
+    await vi.advanceTimersByTimeAsync(0)
+    enabled.value = false
+    await vi.advanceTimersByTimeAsync(0)
+    const paused = svc.tellStatus.mock.calls.length
+
+    enabled.value = true
+    await vi.advanceTimersByTimeAsync(0)
+    expect(svc.tellStatus.mock.calls.length).toBeGreaterThan(paused)
+  })
+
+  it('在途请求返回时轮询已被关闭则不再排下一轮', async () => {
+    const gate = deferred<Aria2Task>()
+    svc.tellStatus.mockReturnValueOnce(gate.promise)
+    svc.getPeers.mockResolvedValue([])
+    const { gid, enabled } = setup(null, true)
+
+    gid.value = 'g1'
+    await vi.advanceTimersByTimeAsync(0)
+    enabled.value = false
+    gate.resolve(makeTask({ gid: 'g1' }))
+    await vi.advanceTimersByTimeAsync(0)
+
+    await vi.advanceTimersByTimeAsync(BT_INSIGHTS_POLL_MS * 2)
+    expect(svc.tellStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('组件卸载后停止轮询且不再拉取', async () => {
+    svc.tellStatus.mockResolvedValue(makeTask({ gid: 'g1' }))
+    svc.getPeers.mockResolvedValue([])
+    const gid = ref<string | null>(null)
+    const enabled = ref(true)
+    const renderer = createHostRenderer()
+    const app = renderer.createApp(defineComponent({
+      setup() {
+        useBtInsights(gid, enabled, () => svc.service)
+        return () => null
+      }
+    }))
+    app.mount({ kind: 'root', children: [] })
+
+    gid.value = 'g1'
+    await vi.advanceTimersByTimeAsync(0)
+    expect(svc.tellStatus).toHaveBeenCalledTimes(1)
+
+    app.unmount()
+    await vi.advanceTimersByTimeAsync(BT_INSIGHTS_POLL_MS * 3)
+    expect(svc.tellStatus).toHaveBeenCalledTimes(1)
   })
 })
