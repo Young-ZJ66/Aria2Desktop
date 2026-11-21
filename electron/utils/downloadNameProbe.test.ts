@@ -227,3 +227,31 @@ describe('probeDownloadFileName 网络行为', () => {
     vi.useRealTimers()
   })
 })
+
+describe('probeDownloadFileName 的地址解析兜底', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('Location 头无法解析成 URL 时放弃探测（不抛错、不再跟跳）', async () => {
+    const fetchMock = vi.fn(async () => fakeResponse(302, { location: 'http://[' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await probeDownloadFileName('https://pan.example.com/file/abc123')).toBe('')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('resolveConflictingFileName 的序号耗尽', () => {
+  it('(1) 到 (999) 全被占用时退回原名且不标记冲突（避免无限循环）', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aria2-conflict-full-'))
+    try {
+      fs.writeFileSync(path.join(dir, 'a.rar'), 'x')
+      for (let i = 1; i < 1000; i += 1) fs.writeFileSync(path.join(dir, `a (${i}).rar`), 'x')
+
+      expect(resolveConflictingFileName(dir, 'a.rar')).toEqual({ fileName: 'a.rar', conflict: false })
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  }, 30_000)
+})

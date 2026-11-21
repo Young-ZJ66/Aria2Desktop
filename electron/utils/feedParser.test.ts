@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { parseFeed } from './feedParser'
 
 /**
@@ -144,5 +144,24 @@ describe('parseFeed', () => {
     const feed = parseFeed(xml)
     expect(feed.items[0].enclosureUrl).toBe('https://e.com/f.torrent')
     expect(feed.items[0].enclosureType).toBe('application/x-bittorrent')
+  })
+})
+
+describe('parseFeed 的实体与异常兜底', () => {
+  it('apos 命名实体解码为单引号', () => {
+    const xml = '<rss><channel><item><title>Tom&apos;s Show</title><link>https://e.com/1</link></item></channel></rss>'
+    const feed = parseFeed(xml)
+    expect(feed.items[0].title).toBe("Tom's Show")
+  })
+
+  it('内部处理抛异常时退化成空条目列表，不向调用方冒泡', () => {
+    const replaceSpy = vi.spyOn(String.prototype, 'replace').mockImplementationOnce(() => {
+      throw new Error('regex engine failure')
+    })
+    try {
+      expect(parseFeed('<rss><channel><title>x</title></channel></rss>')).toEqual({ items: [] })
+    } finally {
+      replaceSpy.mockRestore()
+    }
   })
 })

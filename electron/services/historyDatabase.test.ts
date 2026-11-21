@@ -46,7 +46,12 @@ function openDb(db: string, legacy?: string) {
 
 afterEach(() => {
   for (const db of openDbs.splice(0)) db.close()
-  fs.rmSync(tmpDir, { recursive: true, force: true })
+  try {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  } catch {
+    // 损坏数据库用例里 SQLite 在抛错前已持有文件句柄，Windows 上会 EBUSY；
+    // 临时目录留给系统清理，不影响断言结果。
+  }
 })
 
 function makeTask(gid: string, completedAt: number): Record<string, unknown> {
@@ -168,6 +173,25 @@ describe('旧 JSON 迁移（幂等）', () => {
 
     expect(Object.keys(db.loadAll()).sort()).toEqual(['existing'])
     expect(fs.existsSync(legacyPath)).toBe(true)
+  })
+})
+
+describe('打开数据库时的目录与文件异常', () => {
+  it('数据库所在目录不存在时自动创建，数据库照常可用', () => {
+    const nested = path.join(tmpDir, 'a', 'b', 'c', 'history.db')
+    const db = openDb(nested)
+
+    expect(fs.existsSync(path.dirname(nested))).toBe(true)
+    expect(db.saveOne('g1', makeTask('g1', 1)).success).toBe(true)
+    expect(db.getStats()).toMatchObject({ count: 1 })
+  })
+
+  it('文件不是合法数据库时降级为不可用后端，而不是抛错', () => {
+    fs.writeFileSync(dbPath, 'this is definitely not a sqlite file', 'utf-8')
+    const db = openDb(dbPath)
+
+    expect(db.enabled).toBe(false)
+    expect(db.loadAll()).toEqual({})
   })
 })
 

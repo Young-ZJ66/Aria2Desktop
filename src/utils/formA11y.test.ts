@@ -293,4 +293,15 @@ describe('动态渲染兜底', () => {
     const textNode = { nodeType: 3 }
     expect(() => FakeObserver.instances[0].callback([{ addedNodes: [textNode] }])).not.toThrow()
   })
+
+  it('元素节点但不是 HTMLElement 时跳过（SVG/自定义对象不参与命名）', async () => {
+    const { installFormA11y } = await loadFormA11y()
+    installFormA11y()
+    const foreign = {
+      nodeType: 1,
+      matches: (selector: string) => selector === '.n-form-item',
+      querySelectorAll: () => [] as unknown[]
+    }
+    expect(() => FakeObserver.instances[0].callback([{ addedNodes: [foreign] }])).not.toThrow()
+  })
 })

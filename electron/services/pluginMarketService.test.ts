@@ -374,3 +374,29 @@ describe('PluginMarketService 安装入口', () => {
     expect(await market.install('auto-retry')).toEqual({ success: false, error: 'CHECKSUM_MISMATCH' })
   })
 })
+
+describe('PluginMarketService 的注册表条目与请求超时', () => {
+  it('非对象条目被丢弃，其余条目照常返回', async () => {
+    holder.responseBody = JSON.stringify(signedRegistry({ version: 1, plugins: [null, 42, 'oops', ENTRY] }))
+    const result = await makeMarket().list()
+
+    expect(result.success).toBe(true)
+    expect(result.plugins.map(plugin => plugin.id)).toEqual(['auto-retry'])
+  })
+
+  it('请求挂住时 15 秒后中止并回报网络错误', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal('fetch', vi.fn((_url: string, init: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => reject(new Error('The operation was aborted')))
+      })))
+
+      const pending = makeMarket().list()
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      await expect(pending).resolves.toEqual({ success: false, plugins: [], error: 'NETWORK_ERROR' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
