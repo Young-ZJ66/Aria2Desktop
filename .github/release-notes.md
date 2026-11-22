@@ -1,15 +1,15 @@
-# v1.5.0-beta.12 更新日志
+# v1.5.0-beta.13 更新日志
 
-> 这是 1.5.0 的第十二个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第十三个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.12 相对 beta.11 的变化
+## 📌 beta.13 相对 beta.12 的变化
 
-beta.11 发布后在真机 GUI 测试里又发现并修掉三处问题（主进程文案语言、Web 控制台并发重启、英文表头折行），并把单测从 3996 项补到 4003 项。
+beta.12 发布后继续在真机 GUI 测试里核对界面文案，发现设置页与各列表页仍有大量重复说明和问号提示。本版只做减法：不改功能、不改布局结构，只把不需要的说明文字去掉，让界面靠标签、分组和默认值自解释。
 
-- **主进程通知 / 托盘 / 对话框跟随应用语言设置**：此前只读 Windows 系统语言，应用切成 English 后下载完成通知仍是中文「下载完成」，托盘菜单也仍是中文。现在统一取应用设置里的语言（未设置时回退系统语言），通知、托盘、引擎失败 / 更新 / 插件 / Web 控制台等文案都跟随应用语言。
-- **Web 控制台保存设置不再撞端口**：设置页保存会同时触发两条重启路径，两个 apply() 交错 stop/listen 时一个失败并清空服务器引用，页面显示 Stopped 但端口仍在服务、用户也关不掉。现在 apply() 串行化，并发重启依次执行，状态与实际监听一致。
-- **英文界面细节**：Downloads / Completed 的「Download Speed」「Remaining Time」「Completed Time」列宽加宽，不再被折成两行；队列的「max attempts」「retry delay (seconds)」改为首字母大写。
-- **单测补到 4003 项**：本版新增 7 项（主进程语言 provider 5 项、Web 控制台并发重启 2 项），语句覆盖率 99.74%、分支 91.33%。
+- **设置页只留标签与控件**：每个设置页标题下的说明段全部移除；每个设置项右侧的「?」问号图标全部移除（字段名本身已经说明用途），重启提示改为悬停字段名时在原生提示里显示。
+- **页面标题与空态不再重复解释**：下载 / 完成 / 队列 / 状态 / BT 洞察 / 自动化 / 工作流等页面标题下不再挂说明；空态只保留标题与主操作，不再附一段解释。
+- **实例页移除多实例说明条**：顶部「多实例」提示条及「不再显示」开关一并移除，页面直接进入卡片网格。
+- **净减约 170 行**：27 个文件，+28 / -200，全部为模板与样式；单测仍为 4003 项。
 
 ## 🎯 主题：可信接管
 
@@ -39,6 +39,7 @@ beta.11 发布后在真机 GUI 测试里又发现并修掉三处问题（主进�
 - 多 URL 新建下载按行创建独立任务（此前被当成 aria2 镜像合并）；镜像下载仅作为显式高级选项。
 - 种子 / Metalink 上传大小上限跟随引擎的 `rpc-max-request-size` 折算，不再写死 1MB。
 - 主进程文案本地化：引擎启动失败、更新校验、组件安装、订阅 / 监听目录校验、Web 控制台 TLS 与 UPnP 映射失败等错误和对话框，按应用设置的语言输出中英双语（未设置时跟随系统语言；此前英文界面会看到中文报错）。
+- 界面文案精简：设置页不再显示说明段与问号提示，页面标题、空态与面板不再重复说明，实例页移除多实例提示条；界面靠标签、分组与默认值自解释。
 - README 与安装说明改为跨平台表述，补充 macOS / Linux 的未签名安装提示与配置目录位置。
 
 ## 🔒 安全
@@ -92,22 +93,22 @@ beta.11 发布后在真机 GUI 测试里又发现并修掉三处问题（主进�
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.12
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.13
 
 ---
 
-# v1.5.0-beta.12 Release Notes
+# v1.5.0-beta.13 Release Notes
 
-> This is the twelfth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the thirteenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.11
+## 📌 What changed since beta.12
 
-After beta.11, real-device GUI testing found and fixed three more problems (main-process message language, concurrent web console restarts, wrapped English table headers) and raised the unit-test suite from 3996 to 4003 tests.
+After beta.12, further GUI checks of the interface copy found too much repeated explanatory text and question-mark hints across Settings and list pages. This release only subtracts: no functional or layout changes, just removal of unnecessary descriptions so labels, groups and defaults can speak for themselves.
 
-- **Main-process notifications / tray / dialogs follow the app language**: they previously read only the Windows system language, so an English UI still showed the Chinese "下载完成" notification and a Chinese tray menu. They now use the language selected in Settings (falling back to the system language when unset), covering notifications, tray, engine failure / update / plugin / web console messages.
-- **Saving web console settings no longer collides on the port**: saving fired two restart paths at once; interleaved `apply()` calls could make one fail and clear the live server reference, leaving the page showing Stopped while the port was still serving. `apply()` is now serialized, so concurrent restarts run one after another and the status matches the actual listener.
-- **English UI polish**: the Download Speed / Remaining Time / Completed Time columns on Downloads and Completed are wide enough not to wrap; Queue labels "max attempts" and "retry delay (seconds)" are now capitalized.
-- **7 new unit tests**: the suite now has 4003 tests (5 for the main-process locale provider, 2 for concurrent web console restarts); statement coverage 99.74%, branch coverage 91.33%.
+- **Settings show labels and controls only**: the description under each settings page title is gone; the "?" icon beside every setting is gone (the label already explains the field), and restart hints now appear in the native tooltip when hovering the label.
+- **Page headers and empty states no longer repeat explanations**: Downloads / Completed / Queue / Status / BT Insights / Automation / Workflow page headers no longer carry descriptions; empty states keep only a title and the primary action.
+- **Instances drops the multi-instance banner**: the top explanatory banner and its "don't show again" control are removed.
+- **About 170 lines removed net**: 27 files, +28 / -200, all template and style changes; the unit suite remains at 4003 tests.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -136,6 +137,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 - Multiple URLs create one task per line (they used to be merged as aria2 mirrors); mirroring is now an explicit advanced option.
 - The torrent / Metalink upload limit follows the engine's `rpc-max-request-size` instead of a hard-coded 1MB.
 - Main-process messages are localized: engine startup failures, update verification, component installs, subscription / watch-folder validation, web console TLS and UPnP mapping errors follow the language selected in the app (falling back to the system language when unset; they used to be Chinese-only).
+- Interface copy is trimmed: settings pages no longer show description paragraphs or question-mark hints, page headers / empty states / panels no longer repeat explanations, and the Instances page drops its banner; labels, groups and defaults now carry the UI.
 - README and install docs are cross-platform, covering unsigned installs on macOS / Linux and their config directories.
 
 ## 🔒 Security
@@ -187,4 +189,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.12
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.13
