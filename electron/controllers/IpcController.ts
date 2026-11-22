@@ -186,7 +186,7 @@ export class IpcController {
     // Headless Web 控制台状态（设置页展示地址/令牌/审计记录）
     registerSecureHandler('web-console-status', () => webConsoleServer.getStatus(), {
       getMainWindow: this.windowRef,
-      failureValue: { running: false, port: 0, url: '', tls: false, token: '', tokensCount: 0, error: 'Unauthorized', audit: [] }
+      failureValue: { running: false, port: 0, url: '', tls: false, token: '', tokensCount: 0, pairing: { code: '', expiresAt: 0 }, error: 'Unauthorized', audit: [] }
     })
     registerSecureHandler('lookup-peer-locations', async (_event, ips: unknown) => {
       if (!Array.isArray(ips) || ips.length > 100) return {}
@@ -198,6 +198,12 @@ export class IpcController {
       const result = await webConsoleServer.apply()
       return { ...webConsoleServer.getStatus(), ...result }
     }, { getMainWindow: this.windowRef })
+
+    // 首次配对一次性码（D-14）：设置页生成后展示给用户，在另一台设备上换会话
+    registerSecureHandler('web-console-pairing-code', () => webConsoleServer.createPairingCode(), {
+      getMainWindow: this.windowRef,
+      failureValue: { code: '', expiresAt: 0 }
+    })
 
     // 设置导出：默认脱敏（可贴给他人排查），includeSecrets 时带真实密钥（等同凭据，渲染层需提示）
     registerSecureHandler('settings-export', (_event, options?: { includeSecrets?: boolean }) => {

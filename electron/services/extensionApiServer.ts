@@ -817,6 +817,19 @@ export class ExtensionApiServer {
           return buildToolTextResult(`Download added. gid=${String(gid)}`)
         }
 
+        case 'resolve_and_download': {
+          const url = optString(args, 'url')
+          if (url === undefined) return buildToolErrorResult('url is required')
+          if (url === null) return buildToolErrorResult('url must be a string')
+          const fileName = optString(args, 'fileName')
+          if (fileName === null) return buildToolErrorResult('fileName must be a string')
+          const result = await this.buildAdd(url, fileName, undefined)
+          if (result.status !== 200) {
+            return buildToolErrorResult(String(result.payload.error ?? 'Failed to add download'))
+          }
+          return buildToolTextResult(JSON.stringify(result.payload, null, 2))
+        }
+
         case 'list_tasks': {
           // 注意顺序：先判 null（类型非法）再回落默认值，否则 '?? default' 会把类型错误吞掉
           const rawStatus = optString(args, 'status')
@@ -858,6 +871,44 @@ export class ExtensionApiServer {
           return buildToolTextResult(JSON.stringify({ count: tasks.length, tasks }, null, 2))
         }
 
+        case 'get_download_overview': {
+          const keys = ['gid', 'status', 'totalLength', 'completedLength', 'downloadSpeed', 'files', 'errorCode', 'errorMessage', 'bittorrent']
+          const [stat, active, waiting, stopped] = (await Promise.all([
+            rpc('aria2.getGlobalStat'),
+            rpc('aria2.tellActive', [keys]),
+            rpc('aria2.tellWaiting', [0, 20, keys]),
+            rpc('aria2.tellStopped', [0, 20, keys])
+          ])) as [
+            Record<string, unknown>,
+            Array<Record<string, unknown>>,
+            Array<Record<string, unknown>>,
+            Array<Record<string, unknown>>
+          ]
+          const summarize = (rows: Array<Record<string, unknown>>): Array<Record<string, unknown>> =>
+            (Array.isArray(rows) ? rows : []).slice(0, 20).map(task => ({
+              gid: task.gid,
+              status: task.status,
+              name: pickTaskName(task as Parameters<typeof pickTaskName>[0]),
+              size: task.totalLength,
+              completed: task.completedLength,
+              speed: task.downloadSpeed,
+              errorCode: task.errorCode,
+              errorMessage: task.errorMessage
+            }))
+          return buildToolTextResult(JSON.stringify({
+            global: {
+              downloadSpeed: stat.downloadSpeed,
+              uploadSpeed: stat.uploadSpeed,
+              numActive: stat.numActive,
+              numWaiting: stat.numWaiting,
+              numStopped: stat.numStopped
+            },
+            active: summarize(active),
+            waiting: summarize(waiting),
+            stopped: summarize(stopped)
+          }, null, 2))
+        }
+
         case 'get_download_status': {
           const gid = optString(args, 'gid')
           if (gid === null) return buildToolErrorResult('gid must be a string')
@@ -889,6 +940,70 @@ export class ExtensionApiServer {
             'connections', 'numSeeders', 'dir', 'files', 'errorCode', 'errorMessage', 'bittorrent'
           ]])) as Record<string, unknown>
           return buildToolTextResult(JSON.stringify(task, null, 2))
+        }
+
+        case 'diagnose_task': {
+          const gid = optString(args, 'gid')
+          if (gid === undefined) return buildToolErrorResult('gid is required')
+          if (gid === null) return buildToolErrorResult('gid must be a string')
+          const [statusResult, serversResult, peersResult] = await Promise.allSettled([
+            rpc('aria2.tellStatus', [gid, [
+              'gid', 'status', 'totalLength', 'completedLength', 'downloadSpeed', 'uploadSpeed',
+              'connections', 'numSeeders', 'dir', 'files', 'errorCode', 'errorMessage', 'bittorrent'
+            ]]),
+            rpc('aria2.getServers', [gid]),
+            rpc('aria2.getPeers', [gid])
+          ])
+          if (statusResult.status === 'rejected') throw statusResult.reason
+          const task = statusResult.value as Record<string, unknown>
+          const servers = serversResult.status === 'fulfilled' && Array.isArray(serversResult.value)
+            ? serversResult.value as Array<Record<string, unknown>>
+            : []
+          const peers = peersResult.status === 'fulfilled' && Array.isArray(peersResult.value)
+            ? peersResult.value as Array<Record<string, unknown>>
+            : []
+          const total = Number(task.totalLength ?? 0)
+          const completed = Number(task.completedLength ?? 0)
+          const progress = total > 0 ? Math.round((completed / total) * 100) : null
+          const status = String(task.status ?? '')
+          const speed = Number(task.downloadSpeed ?? 0)
+          const connections = Number(task.connections ?? 0)
+          const suggestions: string[] = []
+          if (status === 'error') {
+            suggestions.push(`Download failed with errorCode=${String(task.errorCode)}: ${String(task.errorMessage ?? 'unknown error')}`)
+            suggestions.push('Check the source URL and retry; aria2 can usually resume a partially downloaded file.')
+          } else if (status === 'complete') {
+            suggestions.push('Download completed; no action needed.')
+          } else if (status === 'paused') {
+            suggestions.push('Task is paused; call resume_task to continue.')
+          } else if (status === 'waiting') {
+            suggestions.push('Task is queued; it starts when a concurrency slot is free.')
+          } else if (status === 'active') {
+            if (speed === 0 && connections === 0) suggestions.push('No data is flowing: check the URL or wait for peers/servers.')
+            else if (speed === 0) suggestions.push('Connections exist but speed is 0: the server may be throttling or not sending data.')
+            else suggestions.push('Download is progressing normally.')
+          }
+          if (servers.length === 0 && status !== 'complete') {
+            suggestions.push('No file servers are reported; this is normal for BitTorrent tasks but suspicious for HTTP downloads.')
+          }
+          return buildToolTextResult(JSON.stringify({
+            gid,
+            status,
+            name: pickTaskName(task as Parameters<typeof pickTaskName>[0]),
+            progress,
+            errorCode: task.errorCode,
+            errorMessage: task.errorMessage,
+            downloadSpeed: task.downloadSpeed,
+            totalLength: task.totalLength,
+            completedLength: task.completedLength,
+            connections: task.connections,
+            numSeeders: task.numSeeders,
+            serversCount: servers.length,
+            servers: servers.slice(0, 10),
+            peersCount: peers.length,
+            peers: peers.slice(0, 20),
+            suggestions
+          }, null, 2))
         }
 
         case 'pause_task':

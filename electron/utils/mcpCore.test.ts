@@ -55,9 +55,12 @@ describe('buildToolsListResult', () => {
     const r = buildToolsListResult() as { tools: Array<{ name: string; inputSchema: { type: string } }> }
     expect(r.tools.map(t => t.name)).toEqual([
       'add_download',
+      'resolve_and_download',
       'list_tasks',
+      'get_download_overview',
       'get_download_status',
       'get_task_status',
+      'diagnose_task',
       'pause_task',
       'resume_task',
       'remove_task',
@@ -215,7 +218,7 @@ describe('pickTaskName', () => {
 })
 
 describe('MCP 工具标注与权限', () => {
-  it('22 个工具全部带 annotations', () => {
+  it('25 个工具全部带 annotations', () => {
     for (const tool of MCP_TOOLS) {
       expect(tool.annotations, `${tool.name} 缺少 annotations`).toBeTruthy()
     }

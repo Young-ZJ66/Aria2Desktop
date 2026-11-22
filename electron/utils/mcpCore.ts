@@ -61,6 +61,20 @@ export const MCP_TOOLS: McpToolDefinition[] = [
     }
   },
   {
+    name: 'resolve_and_download',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    description:
+      'One-step download using the app resolution pipeline: detects the real file name, applies the configured category folder, and renames duplicates. Use this instead of add_download for normal downloads; it returns gid, directory and final file name.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'The http/https/ftp URL or magnet link to download' },
+        fileName: { type: 'string', description: 'Optional explicit file name; the app still sanitizes it' }
+      },
+      required: ['url']
+    }
+  },
+  {
     name: 'list_tasks',
     annotations: { readOnlyHint: true, openWorldHint: true },
     description:
@@ -78,6 +92,13 @@ export const MCP_TOOLS: McpToolDefinition[] = [
     }
   },
   {
+    name: 'get_download_overview',
+    annotations: { readOnlyHint: true, openWorldHint: true },
+    description:
+      'Get one consolidated overview of the download engine: global speeds and counts plus concise active, waiting and stopped task lists. Use this first instead of calling get_global_stats and list_tasks separately.',
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
     name: 'get_download_status',
     annotations: { readOnlyHint: true, openWorldHint: true },
     description:
@@ -93,6 +114,17 @@ export const MCP_TOOLS: McpToolDefinition[] = [
     name: 'get_task_status',
     annotations: { readOnlyHint: true, openWorldHint: true },
     description: 'Get detailed status of one download task by gid (progress, speed, files, error).',
+    inputSchema: {
+      type: 'object',
+      properties: { gid: { type: 'string', description: 'Task gid shown by list_tasks' } },
+      required: ['gid']
+    }
+  },
+  {
+    name: 'diagnose_task',
+    annotations: { readOnlyHint: true, openWorldHint: true },
+    description:
+      'Diagnose one download in a single call: status, error details, servers, peers, progress and likely causes with suggested next steps. Requires a gid from list_tasks.',
     inputSchema: {
       type: 'object',
       properties: { gid: { type: 'string', description: 'Task gid shown by list_tasks' } },
@@ -297,9 +329,12 @@ export const MCP_TOOLS: McpToolDefinition[] = [
  */
 export const MCP_TOOL_SCOPES: Record<string, 'download:add' | 'tasks:read' | 'tasks:control'> = {
   add_download: 'download:add',
+  resolve_and_download: 'download:add',
   list_tasks: 'tasks:read',
+  get_download_overview: 'tasks:read',
   get_download_status: 'tasks:read',
   get_task_status: 'tasks:read',
+  diagnose_task: 'tasks:read',
   pause_task: 'tasks:control',
   resume_task: 'tasks:control',
   remove_task: 'tasks:control',

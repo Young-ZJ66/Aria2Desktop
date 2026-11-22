@@ -31,7 +31,12 @@ import {
   buildClearSessionCookie,
   buildSessionCookie,
   createSessionSecret,
+  generatePairingCode,
   isPublicPath,
+  PAIRING_CODE_MAX_ATTEMPTS,
+  PAIRING_CODE_TTL_MS,
+  pairingCodeExpired,
+  pairingCodeMatches,
   readSessionCookie,
   resolveAuthFromSettings,
   routeScope,
@@ -158,6 +163,10 @@ export class WebConsoleServer {
   private readonly sessionSecret: Buffer = createSessionSecret()
   /** 当前会话 Cookie 对应的令牌（用于 SSE 复检；只有一条活动会话，够用） */
   private sessionToken = ''
+  /** 首次配对一次性码（D-14）：设置页生成，5 分钟有效、用后即焚、输错 5 次作废 */
+  private pairingCode = ''
+  private pairingExpiresAt = 0
+  private pairingFailures = 0
   /**
    * apply() 的串行队列。
    *
@@ -257,6 +266,7 @@ export class WebConsoleServer {
   }
 
   async stop(): Promise<void> {
+    this.clearPairingCode()
     this.closeEventStreams()
     this.flushAuditSync()
     const server = this.server
@@ -290,6 +300,8 @@ export class WebConsoleServer {
       token: this.token || String(config.token || ''),
       /** 细粒度令牌数量（不含主令牌） */
       tokensCount: tokens.length,
+      /** 当前有效的首次配对一次性码（未生成或已过期时为空） */
+      pairing: this.pairingCodeActive() ? { code: this.pairingCode, expiresAt: this.pairingExpiresAt } : { code: '', expiresAt: 0 },
       error: this.lastError,
       audit: this.auditLog.slice(-100)
     }
@@ -620,6 +632,46 @@ export class WebConsoleServer {
   }
 
   /**
+   * 生成首次配对一次性码（D-14）。
+   *
+   * 设置页把码显示给用户，用户在另一台设备（手机）的 Web 控制台登录页输入即可换到
+   * 会话 Cookie，不必把主令牌抄到手机上。码只存在内存里：重启即失效，用后即焚。
+   */
+  createPairingCode(): { code: string; expiresAt: number } {
+    this.pairingCode = generatePairingCode()
+    this.pairingExpiresAt = Date.now() + PAIRING_CODE_TTL_MS
+    this.pairingFailures = 0
+    return { code: this.pairingCode, expiresAt: this.pairingExpiresAt }
+  }
+
+  /** 当前是否有可用的配对码（未生成或过期都返回 false） */
+  private pairingCodeActive(now: number = Date.now()): boolean {
+    return Boolean(this.pairingCode) && !pairingCodeExpired(this.pairingExpiresAt, now)
+  }
+
+  /** 清掉配对码与失败计数 */
+  private clearPairingCode(): void {
+    this.pairingCode = ''
+    this.pairingExpiresAt = 0
+    this.pairingFailures = 0
+  }
+
+  /** 校验并消费配对码：成功即焚；失败累计，达到上限也焚掉 */
+  private consumePairingCode(presented: string): boolean {
+    if (!this.pairingCodeActive()) {
+      this.clearPairingCode()
+      return false
+    }
+    if (pairingCodeMatches(this.pairingCode, presented)) {
+      this.clearPairingCode()
+      return true
+    }
+    this.pairingFailures += 1
+    if (this.pairingFailures >= PAIRING_CODE_MAX_ATTEMPTS) this.clearPairingCode()
+    return false
+  }
+
+  /**
    * 取请求携带的令牌：优先 Authorization: Bearer，其次会话 Cookie。
    *
    * Bearer 是给扩展、MCP、脚本与第三方客户端用的（它们没有浏览器 Cookie 罐）；
@@ -662,6 +714,25 @@ export class WebConsoleServer {
       return true
     }
     const presented = typeof body.token === 'string' ? body.token.trim() : ''
+    const pairingInput = typeof body.pairingCode === 'string' ? body.pairingCode.trim() : ''
+    // 首次配对：没有令牌时用一次性码换会话（D-14）。配对码只授予 admin 的会话，
+    // 但本身不落盘、不可复用，泄露窗口只有 5 分钟且用一次就失效。
+    if (!presented && pairingInput) {
+      if (!this.token || !this.consumePairingCode(pairingInput)) {
+        this.record(ip, 'pair', '/api/session', false)
+        this.sendJson(res, 401, { ok: false, error: 'Unauthorized' })
+        return true
+      }
+      this.sessionToken = this.token
+      this.sendJson(
+        res,
+        200,
+        { ok: true, scopes: ['admin'] },
+        { 'Set-Cookie': buildSessionCookie(signSessionToken(this.sessionSecret, this.token), { secure: this.sessionCookieSecure() }) }
+      )
+      this.record(ip, 'pair', '/api/session', true)
+      return true
+    }
     const auth = resolveAuthFromSettings(getSettingsFresh(), presented)
     if (!auth) {
       this.record(ip, 'auth', '/api/session', false)

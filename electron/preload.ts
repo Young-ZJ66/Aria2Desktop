@@ -14,6 +14,7 @@ const electronAPI = {
   webConsoleStatus: () => ipcRenderer.invoke('web-console-status'),
   lookupPeerLocations: (ips: string[]) => ipcRenderer.invoke('lookup-peer-locations', ips),
   webConsoleRestart: () => ipcRenderer.invoke('web-console-restart'),
+  webConsoleCreatePairingCode: () => ipcRenderer.invoke('web-console-pairing-code'),
   // 应用默认下载目录（Windows 系统"下载"文件夹）
   getDefaultDownloadDir: () => ipcRenderer.invoke('get-default-download-dir'),
 

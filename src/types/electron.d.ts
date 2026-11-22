@@ -74,11 +74,18 @@ export interface ElectronAPI {
     running: boolean
     port: number
     url: string
+    /** 是否以 HTTPS 监听（局域网访问必须为 true） */
+    tls?: boolean
     token: string
+    /** 细粒度令牌数量（不含主令牌） */
+    tokensCount?: number
+    /** 首次配对一次性码（未生成或已过期时 code 为空） */
+    pairing?: { code: string; expiresAt: number }
     error?: string
     audit?: { time: string; ip: string; action: string; detail: string; success: boolean }[]
   }>
   webConsoleRestart: () => Promise<{ running: boolean; port: number; token: string; error?: string }>
+  webConsoleCreatePairingCode: () => Promise<{ code: string; expiresAt: number }>
 
   // 应用默认下载目录（Windows 系统"下载"文件夹）
   getDefaultDownloadDir: () => Promise<{ success: boolean; path?: string; error?: string }>

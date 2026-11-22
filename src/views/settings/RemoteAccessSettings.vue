@@ -80,6 +80,21 @@
         <n-form-item v-if="webConsoleStatus?.token" :label="t('settings.webConsole.activeToken')">
           <code class="runtime-token">{{ webConsoleStatus.token }}</code>
         </n-form-item>
+        <n-form-item>
+          <template #label>
+            <TipLabel
+              :label="t('settings.webConsole.pairingCode')"
+              :tip="t('settings.webConsole.pairingCodeHint')"
+            />
+          </template>
+          <n-space align="center" :size="8">
+            <code v-if="pairingCode" class="runtime-token">{{ pairingCode }}</code>
+            <n-tag v-else size="small" type="default">{{ t('settings.webConsole.pairingCodeEmpty') }}</n-tag>
+            <n-button size="small" :loading="pairingGenerating" @click="generatePairingCode">
+              {{ t('settings.webConsole.pairingCodeGenerate') }}
+            </n-button>
+          </n-space>
+        </n-form-item>
         <n-form-item v-if="webConsoleStatus?.error" :label="t('settings.webConsole.error')">
           <n-tag type="error" size="small">{{ webConsoleStatus.error }}</n-tag>
         </n-form-item>
@@ -253,6 +268,8 @@ interface WebConsoleStatus {
   /** 是否以 HTTPS 监听（局域网访问必须为 true） */
   tls?: boolean
   token: string
+  /** 首次配对一次性码（未生成或已过期时 code 为空） */
+  pairing?: { code: string; expiresAt: number }
   error?: string
   audit?: WebConsoleAuditEntry[]
 }
@@ -268,6 +285,8 @@ const webConsole = reactive({
 const webConsoleStatus = ref<WebConsoleStatus | null>(null)
 const webConsoleLoading = ref(false)
 const webConsoleSaving = ref(false)
+const pairingGenerating = ref(false)
+const pairingCode = computed(() => webConsoleStatus.value?.pairing?.code || '')
 
 // 细粒度令牌：与主令牌同存于 settings.webConsole.tokens
 const webConsoleTokens = ref<WebConsoleToken[]>([])
@@ -435,6 +454,24 @@ async function refreshWebConsole(): Promise<void> {
     console.error('[RemoteAccessSettings] 读取 Web 控制台状态失败:', error)
   } finally {
     webConsoleLoading.value = false
+  }
+}
+
+async function generatePairingCode(): Promise<void> {
+  pairingGenerating.value = true
+  try {
+    const result = await window.electronAPI?.webConsoleCreatePairingCode?.()
+    if (!result?.code) {
+      message.error(t('settings.webConsole.pairingCodeFailed'))
+      return
+    }
+    await refreshWebConsole()
+    message.success(t('settings.webConsole.pairingCodeReady'))
+  } catch (error) {
+    console.error('[RemoteAccessSettings] 生成配对码失败:', error)
+    message.error(t('settings.webConsole.pairingCodeFailed'))
+  } finally {
+    pairingGenerating.value = false
   }
 }
 

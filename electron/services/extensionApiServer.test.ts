@@ -1403,6 +1403,68 @@ describe('MCP 工具：参数校验与 RPC 映射', () => {
     expect(h.state.rpcCalls.map((row) => row.method)).toEqual(['aria2.removeDownloadResult'])
   })
 
+  it('resolve_and_download 走分类规则并把 gid 与最终路径带回', async () => {
+    h.state.rpcPlan = { 'aria2.addUri': 'gid-r1' }
+    await makeServer()
+    const result = await callTool('resolve_and_download', { url: 'http://example.com/movie.mp4', fileName: '../../escape.mp4' })
+    expect(result.isError).toBe(false)
+    const parsed = JSON.parse(result.text) as Record<string, unknown>
+    expect(parsed).toMatchObject({ ok: true, gid: 'gid-r1', dir: 'C:/Downloads/Video', fileName: 'escape.mp4', category: 'video' })
+    const options = (lastRpc().params as unknown[])[1] as Record<string, unknown>
+    expect(options.out).toBe('escape.mp4')
+    expect(options.dir).toBe('C:/Downloads/Video')
+  })
+
+  it('resolve_and_download 缺 url 与非法协议都直接报错', async () => {
+    await makeServer()
+    expect((await callTool('resolve_and_download')).text).toBe('url is required')
+    const bad = await callTool('resolve_and_download', { url: 'file:///etc/passwd' })
+    expect(bad.isError).toBe(true)
+    expect(bad.text).toBe('Unsupported url')
+    expect(h.state.rpcCalls).toHaveLength(0)
+  })
+
+  it('get_download_overview 一次并发聚合全局统计与三类任务', async () => {
+    h.state.rpcPlan = {
+      'aria2.getGlobalStat': { downloadSpeed: '9', uploadSpeed: '1', numActive: '1', numWaiting: '1', numStopped: '1' },
+      'aria2.tellActive': [{ gid: 'a1', status: 'active', totalLength: '100', completedLength: '40', downloadSpeed: '9', files: [{ path: '/d/a.bin' }] }],
+      'aria2.tellWaiting': [{ gid: 'w1', status: 'waiting' }],
+      'aria2.tellStopped': [{ gid: 's1', status: 'error', errorCode: '2', errorMessage: 'No URI available.' }]
+    }
+    await makeServer()
+    const result = await callTool('get_download_overview')
+    const parsed = JSON.parse(result.text) as { global: Record<string, unknown>; active: Array<Record<string, unknown>>; waiting: Array<Record<string, unknown>>; stopped: Array<Record<string, unknown>> }
+    expect(parsed.global).toEqual({ downloadSpeed: '9', uploadSpeed: '1', numActive: '1', numWaiting: '1', numStopped: '1' })
+    expect(parsed.active[0]).toMatchObject({ gid: 'a1', name: 'a.bin', size: '100', completed: '40', speed: '9' })
+    expect(parsed.waiting[0]?.gid).toBe('w1')
+    expect(parsed.stopped[0]).toMatchObject({ gid: 's1', errorCode: '2', errorMessage: 'No URI available.' })
+    expect(h.state.rpcCalls.map((row) => row.method)).toEqual(['aria2.getGlobalStat', 'aria2.tellActive', 'aria2.tellWaiting', 'aria2.tellStopped'])
+  })
+
+  it('diagnose_task 汇总状态、服务器与 peer，并对错误给出建议', async () => {
+    h.state.rpcPlan = {
+      'aria2.tellStatus': { gid: 'g1', status: 'error', totalLength: '1000', completedLength: '500', downloadSpeed: '0', connections: '0', errorCode: '2', errorMessage: 'No URI available.', files: [{ path: '/d/x.bin' }] },
+      'aria2.getServers': [],
+      'aria2.getPeers': new Error('not a torrent')
+    }
+    await makeServer()
+    const result = await callTool('diagnose_task', { gid: 'g1' })
+    expect(result.isError).toBe(false)
+    const parsed = JSON.parse(result.text) as { status: string; progress: number; name: string; serversCount: number; peersCount: number; suggestions: string[] }
+    expect(parsed).toMatchObject({ status: 'error', progress: 50, name: 'x.bin', serversCount: 0, peersCount: 0 })
+    expect(parsed.suggestions[0]).toContain('errorCode=2')
+    expect(parsed.suggestions[1]).toContain('retry')
+  })
+
+  it('diagnose_task 缺 gid 时报错，状态查询失败时把原因带回', async () => {
+    await makeServer()
+    expect((await callTool('diagnose_task')).text).toBe('gid is required')
+    h.state.rpcPlan = { 'aria2.tellStatus': new Error('gid not found') }
+    const failed = await callTool('diagnose_task', { gid: 'missing' })
+    expect(failed.isError).toBe(true)
+    expect(failed.text).toBe('gid not found')
+  })
+
   it('save_session 落盘会话', async () => {
     h.state.rpcPlan = { 'aria2.saveSession': 'OK' }
     await makeServer()

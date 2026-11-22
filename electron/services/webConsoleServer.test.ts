@@ -594,6 +594,63 @@ describe('WebConsoleServer 会话 Cookie', () => {
     expect(wrongType.out.status).toBe(401)
   })
 
+  it('一次性配对码可免令牌登录，第二次使用即失效', async () => {
+    rpcMock.mockImplementation(async (options: { method: string }) => {
+      if (options.method === 'aria2.getGlobalStat') return { downloadSpeed: '0', uploadSpeed: '0', numActive: '0', numWaiting: '0', numStopped: '0' }
+      return []
+    })
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const pairingServer = server as unknown as { createPairingCode: () => { code: string; expiresAt: number } }
+    const pairing = pairingServer.createPairingCode()
+    expect(pairing.code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/)
+    expect(pairing.expiresAt).toBeGreaterThan(Date.now())
+
+    const login = makeRes()
+    await server.handle(makeReq('POST', '/api/session', {}, JSON.stringify({ pairingCode: pairing.code.toLowerCase() })), login.res, [])
+    expect(login.out.status).toBe(200)
+    expect(JSON.parse(login.out.body || '{}')).toEqual({ ok: true, scopes: ['admin'] })
+    expect(String((login.out.headers || {})['Set-Cookie'] || '')).toContain('HttpOnly')
+
+    const again = makeRes()
+    await server.handle(makeReq('POST', '/api/session', {}, JSON.stringify({ pairingCode: pairing.code })), again.res, [])
+    expect(again.out.status).toBe(401)
+  })
+
+  it('连续输错 5 次后配对码作废', async () => {
+    const server = makeServer({ webConsole: { token: MASTER } })
+    const pairingServer = server as unknown as { createPairingCode: () => { code: string; expiresAt: number } }
+    const { code } = pairingServer.createPairingCode()
+    for (let i = 0; i < 5; i++) {
+      const wrong = makeRes()
+      await server.handle(makeReq('POST', '/api/session', {}, JSON.stringify({ pairingCode: 'ZZZZ-ZZZZ' })), wrong.res, [])
+      expect(wrong.out.status).toBe(401)
+    }
+    const correct = makeRes()
+    await server.handle(makeReq('POST', '/api/session', {}, JSON.stringify({ pairingCode: code })), correct.res, [])
+    expect(correct.out.status).toBe(401)
+  })
+
+  it('配对码过期后登录失败，getStatus 不再暴露它', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      const server = makeServer({ webConsole: { token: MASTER } })
+      const pairingServer = server as unknown as {
+        createPairingCode: () => { code: string; expiresAt: number }
+        getStatus: () => { pairing?: { code: string; expiresAt: number } }
+      }
+      const { code } = pairingServer.createPairingCode()
+      expect(pairingServer.getStatus().pairing?.code).toBe(code)
+      vi.setSystemTime(new Date(Date.now() + 5 * 60 * 1000 + 1))
+      expect(pairingServer.getStatus().pairing?.code).toBe('')
+      const expired = makeRes()
+      await server.handle(makeReq('POST', '/api/session', {}, JSON.stringify({ pairingCode: code })), expired.res, [])
+      expect(expired.out.status).toBe(401)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('只读令牌换到的会话也只有只读权限', async () => {
     const server = makeServer({
       webConsole: { token: MASTER, tokens: [{ id: 'ro', name: '只读', token: 'readonly-token-abcdef', scopes: ['tasks:read'] }] }

@@ -238,6 +238,18 @@ describe('Web 控制台页面与 CSP', () => {
     expect(WEB_CONSOLE_HTML).not.toMatch(/Authorization/ )
   })
 
+  it('登录表单支持一次性配对码，并把 token/pairingCode 二选一提交（D-14）', () => {
+    expect(WEB_CONSOLE_HTML).toContain('pairingCode')
+    expect(WEB_CONSOLE_HTML).toContain('one-time-code')
+    const start = WEB_CONSOLE_HTML.indexOf('function login(){')
+    const end = WEB_CONSOLE_HTML.indexOf('function logout')
+    expect(start).toBeGreaterThan(0)
+    expect(end).toBeGreaterThan(start)
+    const login = WEB_CONSOLE_HTML.slice(start, end)
+    expect(login).toContain('pairingCode:pair')
+    expect(login).toContain('token:token')
+  })
+
   it('退出登录会调用 DELETE /api/session 让服务端清掉会话', () => {
     const logout = WEB_CONSOLE_HTML.match(/function logout\(\)\{([\s\S]*?)\n/)
     expect(logout).not.toBeNull()

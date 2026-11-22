@@ -154,3 +154,40 @@ export function buildSessionCookie(value: string, options: { secure: boolean; ma
 export function buildClearSessionCookie(options: { secure: boolean }): string {
   return buildSessionCookie('', { secure: options.secure, maxAgeSeconds: 0 })
 }
+
+/* ------------------------------------------------------------------ */
+/* 首次配对一次性码（D-14）                                            */
+/* ------------------------------------------------------------------ */
+
+/** 配对码有效期：5 分钟，够用户走到另一台设备上输入，又不至于长期有效 */
+export const PAIRING_CODE_TTL_MS = 5 * 60 * 1000
+
+/** 连续输错多少次后作废配对码（防止 8 位码被在线暴力枚举） */
+export const PAIRING_CODE_MAX_ATTEMPTS = 5
+
+/**
+ * 生成 8 位配对码（形如 ABCD-EFGH）。
+ *
+ * 去掉了 0/O/1/I 等易混字符：配对码要在手机上手动输入，
+ * 用户分不清 0 和 O 时会反复失败；剩余 32 个字符的 8 位空间约 1.1 万亿种。
+ */
+export function generatePairingCode(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = crypto.randomBytes(8)
+  let out = ''
+  for (let i = 0; i < bytes.length; i++) out += alphabet[bytes[i] % alphabet.length]
+  return out.slice(0, 4) + '-' + out.slice(4, 8)
+}
+
+/** 比对配对码：忽略大小写与首尾空白，但保持恒定时间比较 */
+export function pairingCodeMatches(expected: string, presented: string): boolean {
+  const left = String(expected || '').trim().toUpperCase()
+  const right = String(presented || '').trim().toUpperCase()
+  if (!left || !right) return false
+  return safeEqual(left, right)
+}
+
+/** 配对码是否已过期（expiresAt 为 0 视为不存在） */
+export function pairingCodeExpired(expiresAt: number, now: number = Date.now()): boolean {
+  return !Number.isFinite(expiresAt) || expiresAt <= 0 || now >= expiresAt
+}

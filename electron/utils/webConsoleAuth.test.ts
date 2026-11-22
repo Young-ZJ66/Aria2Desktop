@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   ALL_WEB_CONSOLE_SCOPES,
   MIN_TOKEN_LENGTH,
+  PAIRING_CODE_TTL_MS,
   SESSION_MAX_AGE_SECONDS,
   WEB_CONSOLE_SESSION_COOKIE,
   buildClearSessionCookie,
   buildSessionCookie,
   createSessionSecret,
+  generatePairingCode,
+  pairingCodeExpired,
+  pairingCodeMatches,
   isPublicPath,
   readSessionCookie,
   resolveAuthFromSettings,
@@ -247,5 +251,32 @@ describe('会话 Cookie', () => {
     expect(cookie.startsWith(WEB_CONSOLE_SESSION_COOKIE + '=')).toBe(true)
     expect(cookie).toContain('Max-Age=0')
     expect(readSessionCookie(cookie.split(';')[0])).toBe('')
+  })
+
+  it('生成的配对码是可读的 8 位分组格式且每次不同', () => {
+    const a = generatePairingCode()
+    const b = generatePairingCode()
+    expect(a).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/)
+    expect(a).not.toBe(b)
+  })
+
+  it('配对码比较忽略大小写与首尾空白，空值一律不匹配', () => {
+    const code = 'ABCD-EFGH'
+    expect(pairingCodeMatches(code, 'abcd-efgh')).toBe(true)
+    expect(pairingCodeMatches(code, '  ABCD-EFGH  ')).toBe(true)
+    expect(pairingCodeMatches(code, 'ABCD-EFGX')).toBe(false)
+    expect(pairingCodeMatches(code, 'ABCDEFGH')).toBe(false)
+    expect(pairingCodeMatches('', '')).toBe(false)
+    expect(pairingCodeMatches(code, '')).toBe(false)
+  })
+
+  it('配对码 5 分钟有效，边界时刻起失效', () => {
+    const now = 1700000000000
+    expect(PAIRING_CODE_TTL_MS).toBe(5 * 60 * 1000)
+    const expiresAt = now + PAIRING_CODE_TTL_MS
+    expect(pairingCodeExpired(expiresAt, expiresAt - 1)).toBe(false)
+    expect(pairingCodeExpired(expiresAt, expiresAt)).toBe(true)
+    expect(pairingCodeExpired(expiresAt, expiresAt + 1)).toBe(true)
+    expect(pairingCodeExpired(0, now)).toBe(true)
   })
 })

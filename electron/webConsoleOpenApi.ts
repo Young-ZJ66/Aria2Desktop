@@ -99,8 +99,8 @@ export function buildOpenApiDocument(appVersion: string): Record<string, unknown
     paths: {
       '/api/session': {
         post: {
-          summary: '用令牌换取 HttpOnly 会话 Cookie（Web 控制台页面登录用）',
-          description: '令牌放在请求体而不是请求头，因此本接口本身不需要 Authorization。成功后响应带 Set-Cookie（HttpOnly、SameSite=Strict，HTTPS 监听时另加 Secure），后续请求由浏览器自动携带。',
+          summary: '用令牌或一次性配对码换取 HttpOnly 会话 Cookie（Web 控制台页面登录用）',
+          description: '凭据放在请求体而不是请求头，因此本接口本身不需要 Authorization。token 传主令牌或细粒度令牌；首次配对时改传 pairingCode（设置页生成的 8 位一次性码，5 分钟有效、用后即焚）。成功后响应带 Set-Cookie（HttpOnly、SameSite=Strict，HTTPS 监听时另加 Secure），后续请求由浏览器自动携带。',
           tags: ['会话'],
           security: [],
           requestBody: {
@@ -109,8 +109,10 @@ export function buildOpenApiDocument(appVersion: string): Record<string, unknown
               'application/json': {
                 schema: {
                   type: 'object',
-                  required: ['token'],
-                  properties: { token: { type: 'string', description: '主令牌或细粒度令牌原文' } }
+                  properties: {
+                    token: { type: 'string', description: '主令牌或细粒度令牌原文（与 pairingCode 二选一）' },
+                    pairingCode: { type: 'string', description: '首次配对一次性码（与 token 二选一）' }
+                  }
                 }
               }
             }
