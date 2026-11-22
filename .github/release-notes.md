@@ -1,14 +1,13 @@
-# v1.5.0-beta.18 更新日志
+# v1.5.0-beta.19 更新日志
 
-> 这是 1.5.0 的第十八个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第十九个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.18 相对 beta.17 的变化
+## 📌 beta.19 相对 beta.18 的变化
 
-这一版补上 D-14 首次配对与 MCP 复合工具：Web 控制台现在可以用一次性配对码在另一台设备登录，MCP 则把常用的多步操作合并为三个场景化工具，减少模型来回调用。其余行为不变。
+这一版只调整队列页的列表布局：等待列表始终占满剩余高度，空队列也保留完整的面板高度，不再按内容收缩。其余行为不变。
 
-- **Web 控制台一次性配对码**：设置 → 远程访问可生成 5 分钟有效、最多尝试 5 次的 `ABCD-EFGH` 配对码；在登录页输入配对码即可获得管理员会话，登录成功或过期后立即作废。访问令牌方式保持可用。
-- **MCP 复合工具**：新增 `resolve_and_download`（一次完成分类目录解析、文件名探测与添加下载）、`get_download_overview`（汇总全局状态与活动/等待/停止任务）、`diagnose_task`（汇总状态、错误、服务器与连接并给出排查建议）；原有 22 个细粒度工具不变，总计 25 个。
-- **测试**：新增 12 项单测，覆盖配对码生成/比较/过期/用后即焚与三个复合工具的成功、参数错误和 RPC 失败路径；全量 4015 项通过（1 项引擎重启压力测试默认跳过）。
+- **队列列表固定高度**：队列页的等待列表无论有 0 条还是多条任务，都占满设置面板以下的剩余空间；任务多时在列表内部滚动，空列表时在同样高度内居中展示空态，页面不再随队列条数跳动。
+- **测试**：仅调整布局与样式，未改业务逻辑；全量 4015 项单测通过（1 项引擎重启压力测试默认跳过）。
 
 ## 🎯 主题：可信接管
 
@@ -33,6 +32,7 @@
 
 - 设置弹窗左侧导航按功能顺序排列（应用与引擎 → 下载与网络 → 组件与连接 → 维护与安全），设置项搜索按页签分组展示。
 - 队列页的"最大并发下载数"改为只读展示 + 跳转设置，消除与设置页的重复入口。
+- 队列页的等待列表始终占满剩余高度，空队列也保留完整面板高度，不再随任务条数收缩。
 - 流媒体任务纳入统一体验：页脚速度 / 活动数、托盘提示、完成规则（移动 / 重命名 / 打开 / 通知 / Webhook）、下载历史统计；并发上限 3 条，超限时给出明确提示。
 - 剪贴板监控改为默认关闭，需在「常规设置」显式开启。
 - 多 URL 新建下载按行创建独立任务（此前被当成 aria2 镜像合并）；镜像下载仅作为显式高级选项。
@@ -93,21 +93,20 @@
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.18
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.19
 
 ---
 
-# v1.5.0-beta.18 Release Notes
+# v1.5.0-beta.19 Release Notes
 
-> This is the eighteenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the nineteenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.17
+## 📌 What changed since beta.18
 
-This release adds the D-14 first-time pairing flow and MCP composite tools: the web console can now be signed in from another device with a one-time pairing code, and MCP collapses common multi-step operations into three scenario tools so models need fewer round trips. Nothing else changes behaviour.
+This release only adjusts the Queue page list layout: the waiting list always fills the remaining height, and an empty queue keeps the full panel height instead of collapsing to its content. Nothing else changes behaviour.
 
-- **One-time pairing code for the web console**: Settings → Remote Access generates a five-minute `ABCD-EFGH` code with at most five attempts; entering it on the sign-in page grants an admin session and the code is consumed on first success or when it expires. The access-token flow remains available.
-- **MCP composite tools**: `resolve_and_download` (resolves the category folder and file name, then adds the download in one call), `get_download_overview` (global stats plus active / waiting / stopped task summaries), and `diagnose_task` (status, error, servers and peers with troubleshooting suggestions). The original 22 fine-grained tools are unchanged, for 25 total.
-- **Tests**: 12 new unit tests cover pairing-code generation / matching / expiry / single use, plus the success, invalid-argument and RPC-failure paths of the three tools; the full suite passes 4015 tests (one engine-restart stress test skipped by default).
+- **Fixed-height queue list**: whether the queue has zero or many tasks, the waiting list occupies the space below the settings panel; many tasks scroll inside the list, while an empty queue centers its empty state in the same height, so the page no longer jumps as tasks are added or removed.
+- **Tests**: layout and styles only, no behaviour change; the full suite passes 4015 tests (one engine-restart stress test skipped by default).
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -131,6 +130,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 - Settings navigation is a single list ordered by function (app & engine → download & network → components & connections → maintenance & security), and settings search results are grouped by tab.
 - "Max concurrent downloads" on the Queue page is read-only and links to Settings, removing the duplicate control.
+- The Queue page waiting list always fills the remaining height, so an empty queue keeps the full panel height instead of shrinking with its row count.
 - Stream tasks join the rest of the app: footer speed / active counts, tray tooltip, completion rules (move / rename / open / notify / webhook) and download history, with a concurrency cap of 3 and a clear message when exceeded.
 - Clipboard monitoring is off by default and must be enabled in General settings.
 - Multiple URLs create one task per line (they used to be merged as aria2 mirrors); mirroring is now an explicit advanced option.
@@ -189,4 +189,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.18
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.19
