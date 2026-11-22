@@ -18,6 +18,7 @@ import { ExtensionApiServer } from './services/extensionApiServer'
 import { webConsoleServer } from './services/webConsoleServer'
 import { appState } from './utils/appState'
 import { bindSettingsStore, getSettings } from './utils/settingsAccessor'
+import { setRuntimeLocaleProvider } from './utils/mainLocaleRuntime'
 import { setupLogging, createLogger } from './utils/logger'
 import { isPackagedApp } from './utils/appEnv'
 import type { StoreData } from './types/store'
@@ -173,6 +174,8 @@ const store = new Store<StoreData>({
 // 绑定 settings 访问器：此后主进程统一经 utils/settingsAccessor 读/写 settings
 //（缓存与失效语义见该模块注释）。必须早于控制器实例化——未绑定即调用会直接抛错。
 bindSettingsStore(store)
+// 主进程通知/托盘/对话框的语言跟随应用设置，而不是仅跟随系统语言（见 mainLocaleRuntime）。
+setRuntimeLocaleProvider(() => getSettings().language)
 
 // ==========================================
 // 控制器初始化

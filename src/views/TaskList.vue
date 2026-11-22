@@ -744,7 +744,8 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
       {
         key: 'downloadSpeed',
         title: t('task.downloadSpeed'),
-        width: 96,
+        // 英文 "Download Speed" 在 96px 下会被浏览器断成 "Downloa d Speed"，给足表头宽度
+        width: 140,
         align: 'right',
         sorter: (a: Aria2Task, b: Aria2Task) => (a.status === 'paused' ? 0 : parseInt(a.downloadSpeed, 10) || 0) - (b.status === 'paused' ? 0 : parseInt(b.downloadSpeed, 10) || 0),
         // aria2 暂停后仍会把最后一刻的 downloadSpeed 留在快照里，直接展示会像「暂停了还在下载」
@@ -755,7 +756,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     ? {
       key: 'completeTime',
       title: t('task.completeTime'),
-      width: 128,
+      width: 150,
       align: 'right',
       sorter: (a: Aria2Task, b: Aria2Task) => (taskTimeService.getCompleteTime(a.gid) || 0) - (taskTimeService.getCompleteTime(b.gid) || 0),
       render: (row: Aria2Task) => h('span', { class: 'ds-tnum cell-num' }, formatCompleteTimeLabel(row))
@@ -763,7 +764,7 @@ const columns = computed<DataTableColumns<Aria2Task>>(() => [
     : {
       key: 'remainingTime',
       title: t('task.remainingTime'),
-      width: 104,
+      width: 140,
       align: 'right',
       sorter: (a: Aria2Task, b: Aria2Task) => {
         const aSpeed = parseInt(a.downloadSpeed, 10) || 0

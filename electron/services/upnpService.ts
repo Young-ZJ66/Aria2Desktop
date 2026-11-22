@@ -13,9 +13,8 @@
 
 import dgram from 'dgram'
 import http from 'http'
-import { app } from 'electron'
 import { createLogger } from '../utils/logger'
-import { mainLocaleFrom } from '../utils/mainLocale'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import { upnpFailureMessage } from '../utils/mainProcessCopy'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { activeRpcOptions, getActiveRpcConfig } from '../utils/activeRpcConfig'
@@ -177,7 +176,7 @@ export class UpnpService {
 
   private async mapAll(): Promise<{ ok: boolean; externalIp?: string; ports?: number[]; message?: string }> {
     // 失败原因文案按主进程语言生成（这些字符串会直接显示在 BT 设置页/诊断页）
-    const locale = mainLocaleFrom(() => app.getLocale())
+    const locale = runtimeMainLocale()
     // 1) SSDP 发现网关
     const location = await discoverGateway().catch(() => null)
     if (!location || !isValidDeviceLocation(location)) {

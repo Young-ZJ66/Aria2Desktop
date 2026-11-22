@@ -2,7 +2,6 @@ import * as http from 'http'
 import * as path from 'path'
 import { app, dialog } from 'electron'
 import { createLogger } from '../utils/logger'
-import { mainLocaleFrom } from '../utils/mainLocale'
 import { mainError } from '../utils/mainErrorCopy'
 import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import { defaultExtensionName, extensionPairingCopy } from '../utils/mainProcessCopy'
@@ -1103,7 +1102,7 @@ export class ExtensionApiServer {
     // 头值类型是 string | string[] | undefined（重复头会变数组），版本号只认单值
     const versionHeader = req.headers['x-extension-version']
     const info: ExtensionPairingInfo = {
-      name: requestedName || defaultExtensionName(mainLocaleFrom(() => app.getLocale())),
+      name: requestedName || defaultExtensionName(runtimeMainLocale()),
       extensionId: extensionIdFromOrigin(origin),
       origin,
       version: normalizeExtensionVersionHeader(typeof versionHeader === 'string' ? versionHeader : undefined)
@@ -1169,7 +1168,7 @@ export class ExtensionApiServer {
    * 展示净化后的扩展名称/ID/来源，让用户能判断"是不是我刚装的那个扩展"。
    */
   private async showPairingDialog(info: ExtensionPairingInfo): Promise<boolean> {
-    const copy = extensionPairingCopy(mainLocaleFrom(() => app.getLocale()))
+    const copy = extensionPairingCopy(runtimeMainLocale())
     const detail = [
       `${copy.labelName}：${info.name}`,
       `${copy.labelExtensionId}：${info.extensionId || copy.unknown}`,

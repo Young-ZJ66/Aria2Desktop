@@ -5,14 +5,14 @@
  * 再按用户配置的条件（分类/扩展名/状态）执行移动、重命名、打开、通知、
  * Webhook 或解压。规则按顺序执行，单个规则失败只记录日志，不影响后续规则。
  */
-import { app, Notification, shell } from 'electron'
+import { Notification, shell } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { callAria2Rpc } from '../utils/aria2Rpc'
 import { activeRpcOptions } from '../utils/activeRpcConfig'
 import { getSettingsFresh } from '../utils/settingsAccessor'
 import { createLogger } from '../utils/logger'
-import { mainLocaleFrom } from '../utils/mainLocale'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import { downloadNotificationTitle } from '../utils/mainProcessCopy'
 import { extractArchive } from './archiveService'
 import { getWebhookDispatchService } from './webhookDispatchService'
@@ -131,7 +131,7 @@ async function executeAction(action: CompletionRuleAction, status: Aria2TaskStat
   if (action.type === 'notify') {
     if (!Notification.isSupported()) return
     new Notification({
-      title: String(action.title || downloadNotificationTitle(mainLocaleFrom(() => app.getLocale()), succeeded)).slice(0, 120),
+      title: String(action.title || downloadNotificationTitle(runtimeMainLocale(), succeeded)).slice(0, 120),
       body: String(action.body || status.bittorrent?.name || status.files?.[0]?.path || '').slice(0, 500)
     }).show()
     return

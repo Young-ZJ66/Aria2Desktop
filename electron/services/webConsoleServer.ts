@@ -39,7 +39,7 @@ import {
   signSessionToken,
   verifySessionToken
 } from '../utils/webConsoleAuth'
-import { mainLocaleFrom } from '../utils/mainLocale'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import { webConsoleTlsError } from '../utils/mainProcessCopy'
 import type { WebConsoleSettings } from '../../src/shared/appSettings'
 import logger from 'electron-log'
@@ -158,9 +158,32 @@ export class WebConsoleServer {
   private readonly sessionSecret: Buffer = createSessionSecret()
   /** 当前会话 Cookie 对应的令牌（用于 SSE 复检；只有一条活动会话，够用） */
   private sessionToken = ''
+  /**
+   * apply() 的串行队列。
+   *
+   * 设置页保存时会同时触发两条重启路径：主进程 store.onDidChange('settings.webConsole')
+   * 的监听，以及渲染层显式调用的 web-console-restart IPC；令牌为空时 apply() 自己还会
+   * 写回自动生成的令牌，再触发一次监听。这些路径并发跑 apply() 时都会先 stop() 再
+   * listen，交错执行会让后一次 listen 撞上 EADDRINUSE，并把 this.server 清空——真正
+   * 在监听的服务器失去引用，页面上显示「已停止」，端口却仍在服务，用户关也关不掉。
+   * 排队执行保证任意时刻只有一次 apply() 在跑。
+   */
+  private applyChain: Promise<unknown> = Promise.resolve()
 
-  /** 启动/重启（设置变更时调用；未启用则停止） */
+  /** 启动/重启（设置变更时调用；未启用则停止）。并发调用会排队，避免抢同一端口。 */
   async apply(): Promise<{ running: boolean; port: number; token: string; error?: string }> {
+    const run = this.applyChain.then(
+      () => this.applyOnce(),
+      () => this.applyOnce()
+    )
+    this.applyChain = run.then(
+      () => undefined,
+      () => undefined
+    )
+    return run
+  }
+
+  private async applyOnce(): Promise<{ running: boolean; port: number; token: string; error?: string }> {
     await this.stop()
     const settings = getSettingsFresh()
     const config = settings.webConsole ?? {}
@@ -201,7 +224,7 @@ export class WebConsoleServer {
     }
     if (!loopbackOnly && !tls.options) {
       this.lastError =
-        webConsoleTlsError(mainLocaleFrom(() => app.getLocale()), 'lan-requires-tls')
+        webConsoleTlsError(runtimeMainLocale(), 'lan-requires-tls')
       this.bindHost = '127.0.0.1'
       return { running: false, port: 0, token: '', error: this.lastError }
     }
@@ -279,7 +302,7 @@ export class WebConsoleServer {
    */
   private loadTlsCredentials(config: WebConsoleSettings): { options?: https.ServerOptions; error?: string } {
     // 错误文案会原样显示在设置页，按主进程语言生成
-    const locale = mainLocaleFrom(() => app.getLocale())
+    const locale = runtimeMainLocale()
     const certPath = String(config.tlsCertPath || '').trim()
     const keyPath = String(config.tlsKeyPath || '').trim()
     if (!certPath && !keyPath) return {}

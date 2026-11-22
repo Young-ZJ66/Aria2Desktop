@@ -9,7 +9,7 @@ import { DEV_ALLOWED_ORIGINS, normalizeFileUrl } from '../utils/ipcSecurityCore'
 import { resolveAppIconPath, resolveRendererIndexPath } from '../utils/resolvePaths'
 import { createLogger } from '../utils/logger'
 import { isPlausibleBounds, pickStoredBounds } from '../utils/windowBoundsCore'
-import { mainLocaleFrom } from '../utils/mainLocale'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import { rendererCrashCopy } from '../utils/mainProcessCopy'
 import type { StoreData, WindowState } from '../types/store'
 
@@ -330,7 +330,7 @@ export class WindowController {
           if (this.mainWindow && !this.mainWindow.isDestroyed()) this.mainWindow.reload()
         }, 1000)
       } else {
-        const copy = rendererCrashCopy(mainLocaleFrom(() => app.getLocale()))
+        const copy = rendererCrashCopy(runtimeMainLocale())
         void dialog.showMessageBox(this.mainWindow, {
           type: 'error',
           title: copy.title,

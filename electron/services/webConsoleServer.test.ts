@@ -42,7 +42,7 @@ type AnyServer = {
   servePublic: (pathname: string, res: ServerResponse) => boolean
   apply: () => Promise<{ running: boolean; port: number; token: string; error?: string }>
   stop: () => Promise<void>
-  getStatus: () => { running: boolean; url: string; tls?: boolean }
+  getStatus: () => { running: boolean; url: string; tls?: boolean; error?: string }
   token: string
   bindHost: string
 }
@@ -676,6 +676,44 @@ describe('WebConsoleServer.stop 与 keep-alive 连接', () => {
     }
   })
 })
+describe('WebConsoleServer.apply 并发重启', () => {
+  it('并发调用 apply 会排队执行，不会撞端口也不会丢掉监听中的服务器', async () => {
+    rpcMock.mockImplementation(async (options: { method: string }) => {
+      if (options.method === 'aria2.getGlobalStat') return { downloadSpeed: '0', uploadSpeed: '0', numActive: '0', numWaiting: '0', numStopped: '0' }
+      return []
+    })
+    const port = 39738
+    const server = makeServer({ webConsole: { enabled: true, port, token: MASTER, allowedIps: [] } })
+    // 设置页保存会同时走 store 监听与 IPC 重启两条路径，曾经并发 listen 撞出 EADDRINUSE，
+    // 把真正在监听的服务器引用清空，页面显示已停止但端口仍在服务。
+    const results = await Promise.all([server.apply(), server.apply(), server.apply()])
+    for (const result of results) {
+      expect(result.running).toBe(true)
+      expect(result.error).toBeUndefined()
+    }
+    expect(server.getStatus().running).toBe(true)
+    expect(server.getStatus().error).toBe('')
+    const base = 'http://127.0.0.1:' + String(port)
+    try {
+      const res = await fetch(base + '/api/status', { headers: { authorization: 'Bearer ' + MASTER } })
+      expect(res.status).toBe(200)
+    } finally {
+      await server.stop()
+    }
+    await expect(fetch(base + '/api/status', { headers: { authorization: 'Bearer ' + MASTER } })).rejects.toThrow()
+  })
+
+  it('关闭开关后再次 apply 会真正停掉正在监听的端口', async () => {
+    const port = 39739
+    const server = makeServer({ webConsole: { enabled: true, port, token: MASTER, allowedIps: [] } })
+    expect((await server.apply()).running).toBe(true)
+    settingsRef.current = { webConsole: { enabled: false, port, token: MASTER, allowedIps: [] } }
+    expect((await server.apply()).running).toBe(false)
+    expect(server.getStatus().running).toBe(false)
+    await expect(fetch('http://127.0.0.1:' + String(port) + '/api/status')).rejects.toThrow()
+  })
+})
+
 describe('WebConsoleServer.apply LAN 加密约束', () => {
   it('允许局域网但未配置 TLS 时拒绝启动（避免明文 HTTP 泄露令牌）', async () => {
     const server = makeServer({

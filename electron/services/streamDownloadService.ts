@@ -17,14 +17,14 @@ import { getYtdlpExecutablePath } from './ytdlpService'
 import { checkFfmpegAvailable, getFfmpegLocation } from './ffmpegService'
 import { createLogger } from '../utils/logger'
 import { isSafeHttpUrl } from '../utils/ipcInputValidation'
-import { mainLocaleFrom } from '../utils/mainLocale'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import { downloadNotificationTitle, streamDownloadError } from '../utils/mainProcessCopy'
 import { readGlobalSpeedLimitBytes } from './globalSpeedLimit'
 import type { MainLocale } from '../utils/mainLocale'
 
 /** 流媒体下载的失败文案语言（与主进程其它对话框口径一致） */
 function streamLocale(): MainLocale {
-  return mainLocaleFrom(() => app.getLocale())
+  return runtimeMainLocale()
 }
 import { applyCompletionRulesForTask } from './completionRuleService'
 
@@ -987,7 +987,7 @@ function notifyCompleted(filePath: string): void {
   try {
     if (!Notification.isSupported()) return
     new Notification({
-      title: downloadNotificationTitle(mainLocaleFrom(() => app.getLocale()), true),
+      title: downloadNotificationTitle(runtimeMainLocale(), true),
       body: path.basename(filePath)
     }).show()
   } catch {

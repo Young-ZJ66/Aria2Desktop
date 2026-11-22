@@ -1,4 +1,4 @@
-import { app, dialog, Notification, shell } from 'electron'
+import { dialog, Notification, shell } from 'electron'
 import Store from 'electron-store'
 import { WindowController } from './WindowController'
 import { TrayController } from './TrayController'
@@ -10,7 +10,7 @@ import { createLogger, getLogFilePaths } from '../utils/logger'
 // 启动失败分类是纯函数（不依赖 electron），便于单测；见 utils/engineStartupFailureCore
 import { buildEngineStartupFailureInfo, engineStartupActionLabels } from '../utils/engineStartupFailureCore'
 import type { EngineStartupAction, EngineStartupFailureInfo } from '../utils/engineStartupFailureCore'
-import { mainLocaleFrom } from '../utils/mainLocale'
+import { runtimeMainLocale } from '../utils/mainLocaleRuntime'
 import type { MainLocale } from '../utils/mainLocale'
 import { mainError } from '../utils/mainErrorCopy'
 import type { StoreData } from '../types/store'
@@ -194,7 +194,7 @@ export class AppLifecycle {
    * 这里复用同一口径，避免"托盘英文、失败对话框中文"的割裂。
    */
   private mainLocale(): MainLocale {
-    return mainLocaleFrom(() => app.getLocale())
+    return runtimeMainLocale()
   }
 
   /** 读取设置里的 RPC 端口（仅用于失败提示文案；设置不可读时返回 null） */
