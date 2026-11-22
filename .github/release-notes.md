@@ -1,13 +1,14 @@
-# v1.5.0-beta.17 更新日志
+# v1.5.0-beta.18 更新日志
 
-> 这是 1.5.0 的第十七个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第十八个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.17 相对 beta.16 的变化
+## 📌 beta.18 相对 beta.17 的变化
 
-beta.16 修好了设置导航四个分组标题的样式，但标题仍然是一行文字，和设置项排在一起容易被当成一个可点击的设置页。本版按反馈直接移除这四个分组小标题，左侧导航恢复为单一列表，其余不变。
+这一版补上 D-14 首次配对与 MCP 复合工具：Web 控制台现在可以用一次性配对码在另一台设备登录，MCP 则把常用的多步操作合并为三个场景化工具，减少模型来回调用。其余行为不变。
 
-- **设置导航移除分组小标题**：删除应用与引擎 / 下载与网络 / 组件与连接 / 维护与安全四个标题及其间距、分隔线样式，导航只保留 10 个设置项，层级更干净。
-- **无功能变更**：只改 `SettingsDialog.vue` 的导航模板与样式；单测仍为 4003 项。
+- **Web 控制台一次性配对码**：设置 → 远程访问可生成 5 分钟有效、最多尝试 5 次的 `ABCD-EFGH` 配对码；在登录页输入配对码即可获得管理员会话，登录成功或过期后立即作废。访问令牌方式保持可用。
+- **MCP 复合工具**：新增 `resolve_and_download`（一次完成分类目录解析、文件名探测与添加下载）、`get_download_overview`（汇总全局状态与活动/等待/停止任务）、`diagnose_task`（汇总状态、错误、服务器与连接并给出排查建议）；原有 22 个细粒度工具不变，总计 25 个。
+- **测试**：新增 12 项单测，覆盖配对码生成/比较/过期/用后即焚与三个复合工具的成功、参数错误和 RPC 失败路径；全量 4015 项通过（1 项引擎重启压力测试默认跳过）。
 
 ## 🎯 主题：可信接管
 
@@ -21,7 +22,7 @@ beta.16 修好了设置导航四个分组标题的样式，但标题仍然是一
 - **失败可见性**：下载任务页新增"仅看失败"筛选与批量重试；批量操作结果面板统一展示成功 / 失败 / 跳过数量与逐项失败原因，失败项保留选中状态。
 - **状态页趋势图**：新增 7 天 / 30 天下载趋势（复用本地 90 天历史数据）。
 - **Web 控制台**：中英双语界面、明暗主题跟随系统、"暂停全部 / 继续全部"；新增只读队列视图（队列设置 + 等待中的任务，配套 `GET /api/queue` 与 OpenAPI 文档）；支持 HTTPS 监听，局域网访问强制加密；新增细粒度 API 令牌与更细的作用域校验。
-- **MCP**：22 个工具补齐只读 / 破坏性标注，按工具粒度校验权限，破坏性工具要求 `confirm: true`。
+- **MCP**：25 个工具补齐只读 / 破坏性标注，按工具粒度校验权限，破坏性工具要求 `confirm: true`；新增 `resolve_and_download` / `get_download_overview` / `diagnose_task` 三个复合工具。
 - **插件市场**：注册表强制 Ed25519 签名校验，新装插件默认禁用，安装前展示发布者、来源、SHA-256 与权限清单。
 - **流媒体任务持久化**：重启后保留完成 / 失败记录，中断任务标记为可重试；播放列表多文件完整记录。
 - **引擎启动失败分类提示**：区分端口占用 / 遗留进程 / 可执行文件缺失 / 配置错误，并提供更换端口、重试、查看日志等操作；引擎放弃重启时通过系统通知 + 托盘异常态 + 应用内提示三通道告知。
@@ -50,6 +51,7 @@ beta.16 修好了设置导航四个分组标题的样式，但标题仍然是一
 - Web 控制台新建任务校验下载协议白名单，保存目录限制在下载根目录内；流媒体保存目录按真实路径（含符号链接）限制在下载根目录内。
 - Web 控制台的操作审计日志持久化到用户数据目录，重启后仍在（保留最近 500 条）。
 - **Web 控制台改用 HttpOnly 会话 Cookie**：令牌不再以明文停留在页面存储里，改用 HMAC 签名的会话 Cookie（HttpOnly、SameSite=Strict，HTTPS 监听时加 Secure），进程重启后旧 Cookie 自动失效；新增 `POST /api/session` 登录与 `DELETE /api/session` 退出，两者都写审计。
+- **Web 控制台一次性配对码**：设置页生成 5 分钟有效、最多尝试 5 次的 `ABCD-EFGH` 配对码，免令牌登录成功即作废，适合首次在另一台设备建立会话。
 
 ## 🛠 修复
 
@@ -82,7 +84,7 @@ beta.16 修好了设置导航四个分组标题的样式，但标题仍然是一
 
 ## ✅ 验证
 
-- typecheck（主进程 + 测试代码 + 渲染层）通过；232 个测试文件 / 4003 项单测通过（引擎重启压力测试默认跳过）。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；232 个测试文件 / 4015 项单测通过（引擎重启压力测试默认跳过）。
 - Web 控制台页面内联脚本/样式的 CSP 哈希由单测逐字节校验，改了内联脚本却忘同步哈希会直接失败（否则浏览器会静默拒绝执行脚本，页面白屏）。
 - `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
 - 应用 E2E 214 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局，以及真实 Chrome 里的扩展 16 项与配对回归 6 项）；其中 18 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、队列视图只读、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
@@ -91,20 +93,21 @@ beta.16 修好了设置导航四个分组标题的样式，但标题仍然是一
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.17
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.18
 
 ---
 
-# v1.5.0-beta.17 Release Notes
+# v1.5.0-beta.18 Release Notes
 
-> This is the seventeenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the eighteenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.16
+## 📌 What changed since beta.17
 
-beta.16 fixed the styling of the four settings-nav group titles, but each title was still a line of text sitting among the settings items and could easily be mistaken for a clickable settings page. This release removes those four group titles as requested; the left navigation is a single list again. Nothing else changes.
+This release adds the D-14 first-time pairing flow and MCP composite tools: the web console can now be signed in from another device with a one-time pairing code, and MCP collapses common multi-step operations into three scenario tools so models need fewer round trips. Nothing else changes behaviour.
 
-- **Settings-nav group titles removed**: the App & Engine / Download & Network / Components & Connections / Maintenance & Security captions, their spacing and divider rules are gone; the navigation keeps only its 10 settings items and reads as a single clean list.
-- **No functional changes**: only the navigation template and styles in `SettingsDialog.vue`; the unit suite remains at 4003 tests.
+- **One-time pairing code for the web console**: Settings → Remote Access generates a five-minute `ABCD-EFGH` code with at most five attempts; entering it on the sign-in page grants an admin session and the code is consumed on first success or when it expires. The access-token flow remains available.
+- **MCP composite tools**: `resolve_and_download` (resolves the category folder and file name, then adds the download in one call), `get_download_overview` (global stats plus active / waiting / stopped task summaries), and `diagnose_task` (status, error, servers and peers with troubleshooting suggestions). The original 22 fine-grained tools are unchanged, for 25 total.
+- **Tests**: 12 new unit tests cover pairing-code generation / matching / expiry / single use, plus the success, invalid-argument and RPC-failure paths of the three tools; the full suite passes 4015 tests (one engine-restart stress test skipped by default).
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -117,7 +120,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 - **Failure visibility**: a "failed only" filter and batch retry on the downloads page; a batch result panel reports succeeded / failed / skipped counts with per-item reasons and keeps failed items selected.
 - **Status trends**: 7-day and 30-day download trends on the Status page, reusing the local 90-day history.
 - **Web console**: bilingual UI, light / dark theme following the system, "pause all / resume all"; a read-only queue view (queue settings plus waiting tasks, backed by `GET /api/queue` and documented in the OpenAPI spec); HTTPS listening with mandatory encryption for LAN access; fine-grained API tokens with tighter scope checks.
-- **MCP**: all 22 tools now declare read-only / destructive annotations, permissions are checked per tool, and destructive tools require `confirm: true`.
+- **MCP**: all 25 tools now declare read-only / destructive annotations, permissions are checked per tool, and destructive tools require `confirm: true`; three composite tools (`resolve_and_download`, `get_download_overview`, `diagnose_task`) are new.
 - **Plugin market**: the registry must be Ed25519-signed, newly installed plugins start disabled, and the install dialog shows publisher, source, SHA-256 and permissions.
 - **Stream task persistence**: completed / failed stream tasks survive a restart, interrupted ones are marked retryable, and playlists record every file.
 - **Engine startup failures** are classified (port in use / leftover engine / missing executable / config error) with actions to change the port, retry or open logs; when the engine gives up, the app notifies through a system notification, the tray and an in-app toast.
@@ -146,6 +149,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 - Web console task creation validates the URI scheme whitelist and confines the save directory to the download root; stream save directories are confined by real path (symlinks resolved).
 - Web console audit logs persist in the user data directory across restarts (last 500 entries kept).
 - **The web console authenticates with an HttpOnly session cookie**: the token no longer sits in plain-text page storage. It is exchanged for an HMAC-signed session cookie (HttpOnly, SameSite=Strict, plus Secure when listening over HTTPS) that expires automatically when the process restarts. New `POST /api/session` sign-in and `DELETE /api/session` sign-out endpoints are both audited.
+- **One-time pairing code for the web console**: Settings generates a five-minute `ABCD-EFGH` code with at most five attempts; signing in consumes it immediately, making first-time sign-in from another device convenient without exposing the long-lived token.
 
 ## 🛠 Fixes
 
@@ -177,7 +181,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ## ✅ Verification
 
-- Typecheck (main process, tests, renderer) passes; 232 test files / 4003 unit tests pass (the engine-restart stress test is skipped by default).
+- Typecheck (main process, tests, renderer) passes; 232 test files / 4015 unit tests pass (the engine-restart stress test is skipped by default).
 - `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
 - All 214 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring, plus 16 extension checks and 6 pairing regression checks in a real Chrome), of which 18 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, the read-only queue view, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.
@@ -185,4 +189,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.17
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.18
