@@ -97,14 +97,14 @@ beta.16 修好了设置导航四个分组标题的样式，但标题仍然是一
 
 # v1.5.0-beta.17 Release Notes
 
-> This is the sixteenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the seventeenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.15
+## 📌 What changed since beta.16
 
-beta.15 moved the long HTTPS status explanation into the question-mark bubble, but only the first of the four settings-nav group titles was styled correctly; the other three looked like ordinary menu items, with mismatched font and indentation. This release fixes that styling only.
+beta.16 fixed the styling of the four settings-nav group titles, but each title was still a line of text sitting among the settings items and could easily be mistaken for a clickable settings page. This release removes those four group titles as requested; the left navigation is a single list again. Nothing else changes.
 
-- **Settings nav group titles restyled consistently**: App & Engine / Download & Network / Components & Connections / Maintenance & Security now share the same small muted caption style and align with the menu labels; the built CSS had dropped the style rules for the last three groups.
-- **No functional changes**: only the group-title styles in `SettingsDialog.vue`; the unit suite remains at 4003 tests.
+- **Settings-nav group titles removed**: the App & Engine / Download & Network / Components & Connections / Maintenance & Security captions, their spacing and divider rules are gone; the navigation keeps only its 10 settings items and reads as a single clean list.
+- **No functional changes**: only the navigation template and styles in `SettingsDialog.vue`; the unit suite remains at 4003 tests.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -126,7 +126,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ## 🎨 Changes
 
-- Settings navigation is grouped into Application & engine / Download & network / Components & connections / Maintenance & security, and settings search results are grouped by tab.
+- Settings navigation is a single list ordered by function (app & engine → download & network → components & connections → maintenance & security), and settings search results are grouped by tab.
 - "Max concurrent downloads" on the Queue page is read-only and links to Settings, removing the duplicate control.
 - Stream tasks join the rest of the app: footer speed / active counts, tray tooltip, completion rules (move / rename / open / notify / webhook) and download history, with a concurrency cap of 3 and a clear message when exceeded.
 - Clipboard monitoring is off by default and must be enabled in General settings.
