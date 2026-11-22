@@ -1,15 +1,15 @@
-# v1.5.0-beta.11 更新日志
+# v1.5.0-beta.12 更新日志
 
-> 这是 1.5.0 的第十一个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第十二个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.11 相对 beta.10 的变化
+## 📌 beta.12 相对 beta.11 的变化
 
-beta.10 发布后又把计划里遗留的三处功能缺口补齐（嗅探分片、流媒体限速、Web 控制台令牌存储），并把单测从 3960 项补到 3996 项。
+beta.11 发布后在真机 GUI 测试里又发现并修掉三处问题（主进程文案语言、Web 控制台并发重启、英文表头折行），并把单测从 3996 项补到 4003 项。
 
-- **HLS 的 .ts 分片不再被当成普通视频**：嗅探只把 `.m4s` 认作分片，HLS 的 `.ts` 既不是播放列表也不是分片，于是被当成普通视频列出来，一次播放就能刷满 200 条嗅探缓冲并被批量直下（下到的是没有 init 段的碎片）。现在 `.ts` 与 `.m4s` 一样只计数量、不进资源列表，`.m3u8` / `.mpd` 仍作为播放列表交给流媒体解析。
-- **流媒体任务也吃全局限速**：yt-dlp 任务不进 aria2 队列、拿不到 `max-overall-download-limit`，设成 1 MB/s 对流媒体下载完全无效。现在启动与继续前都会读一次全局限速并转成 `--limit-rate`；暂停期间改了限速，继续时按新值生效。
-- **Web 控制台的令牌不再落进 localStorage**：页面此前把访问令牌明文存在 localStorage，任何 XSS 都能读走并长期复用。现在改为「用令牌换 HttpOnly + SameSite=Strict 会话 Cookie」，页面脚本读不到令牌原文，浏览器自动携带；退出登录会通知服务端立刻作废会话。`Authorization: Bearer` 通道保留，扩展、MCP 与脚本客户端不受影响。
-- **单测补到 3996 项**：本版新增 36 项单测（含扩展嗅探与批量下载的首个行为测试），语句覆盖率 99.78%、分支 91.34%。
+- **主进程通知 / 托盘 / 对话框跟随应用语言设置**：此前只读 Windows 系统语言，应用切成 English 后下载完成通知仍是中文「下载完成」，托盘菜单也仍是中文。现在统一取应用设置里的语言（未设置时回退系统语言），通知、托盘、引擎失败 / 更新 / 插件 / Web 控制台等文案都跟随应用语言。
+- **Web 控制台保存设置不再撞端口**：设置页保存会同时触发两条重启路径，两个 apply() 交错 stop/listen 时一个失败并清空服务器引用，页面显示 Stopped 但端口仍在服务、用户也关不掉。现在 apply() 串行化，并发重启依次执行，状态与实际监听一致。
+- **英文界面细节**：Downloads / Completed 的「Download Speed」「Remaining Time」「Completed Time」列宽加宽，不再被折成两行；队列的「max attempts」「retry delay (seconds)」改为首字母大写。
+- **单测补到 4003 项**：本版新增 7 项（主进程语言 provider 5 项、Web 控制台并发重启 2 项），语句覆盖率 99.74%、分支 91.33%。
 
 ## 🎯 主题：可信接管
 
@@ -38,7 +38,7 @@ beta.10 发布后又把计划里遗留的三处功能缺口补齐（嗅探分片
 - 剪贴板监控改为默认关闭，需在「常规设置」显式开启。
 - 多 URL 新建下载按行创建独立任务（此前被当成 aria2 镜像合并）；镜像下载仅作为显式高级选项。
 - 种子 / Metalink 上传大小上限跟随引擎的 `rpc-max-request-size` 折算，不再写死 1MB。
-- 主进程文案本地化：引擎启动失败、更新校验、组件安装、订阅 / 监听目录校验、Web 控制台 TLS 与 UPnP 映射失败等错误和对话框，按系统语言输出中英双语（此前英文界面会看到中文报错）。
+- 主进程文案本地化：引擎启动失败、更新校验、组件安装、订阅 / 监听目录校验、Web 控制台 TLS 与 UPnP 映射失败等错误和对话框，按应用设置的语言输出中英双语（未设置时跟随系统语言；此前英文界面会看到中文报错）。
 - README 与安装说明改为跨平台表述，补充 macOS / Linux 的未签名安装提示与配置目录位置。
 
 ## 🔒 安全
@@ -77,10 +77,13 @@ beta.10 发布后又把计划里遗留的三处功能缺口补齐（嗅探分片
 - **停用插件时钩子抛错不再冒到界面**：插件 `onDeactivate` 同步抛错会让界面提示「停用插件失败」，但插件状态其实已经改了。现在钩子异常只记日志，停用照常成功。
 - **HLS 的 .ts 分片不再被当成普通视频**：嗅探此前只把 `.m4s` 认作分片，HLS 的 `.ts` 既不是播放列表也不是分片，会被当成普通视频列出来，一次播放就能把 200 条嗅探缓冲刷满分片、还能批量勾选直下（下到的都是缺 init 段的碎片）。现在 `.ts` 与 `.m4s` 一样只计数量、不进资源列表，`.m3u8`/`.mpd` 仍识别为播放列表走「交给流媒体」。
 - **流媒体任务也吃全局限速**：yt-dlp 任务不进 aria2 队列，拿不到 `max-overall-download-limit`，「限速 1MB/s」对流媒体下载完全无效。现在启动（含暂停后继续）前会读一次全局限速并转成 yt-dlp 的 `--limit-rate`，暂停期间改了限速，继续时按新值下发。
+- **主进程通知 / 托盘 / 对话框不再固定系统语言**：此前只读 Windows 系统语言，应用切成 English 后完成通知仍是中文「下载完成」、托盘菜单仍是中文；现在统一跟随设置里的语言（未设置时回退系统语言）。
+- **Web 控制台保存设置不再因并发重启撞端口**：设置页保存会同时触发两条重启路径，交错 stop/listen 会导致 `EADDRINUSE` 并把 `this.server` 清空（页面显示 Stopped、端口仍在服务、用户关不掉）；apply() 现已串行化。
+- **英文界面表头不再拆词**：Downloads / Completed 的 Download Speed、Remaining Time、Completed Time 列宽不足会在英文下折成两行，现已加宽；Queue 的 max attempts / retry delay 改为首字母大写。
 
 ## ✅ 验证
 
-- typecheck（主进程 + 测试代码 + 渲染层）通过；232 个测试文件 / 3996 项单测通过（引擎重启压力测试默认跳过）。
+- typecheck（主进程 + 测试代码 + 渲染层）通过；232 个测试文件 / 4003 项单测通过（引擎重启压力测试默认跳过）。
 - Web 控制台页面内联脚本/样式的 CSP 哈希由单测逐字节校验，改了内联脚本却忘同步哈希会直接失败（否则浏览器会静默拒绝执行脚本，页面白屏）。
 - `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
 - 应用 E2E 214 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局，以及真实 Chrome 里的扩展 16 项与配对回归 6 项）；其中 18 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、队列视图只读、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
@@ -89,22 +92,22 @@ beta.10 发布后又把计划里遗留的三处功能缺口补齐（嗅探分片
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.11
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.12
 
 ---
 
-# v1.5.0-beta.11 Release Notes
+# v1.5.0-beta.12 Release Notes
 
-> This is the eleventh pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the twelfth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.10
+## 📌 What changed since beta.11
 
-After beta.10 this release closes the last three functional gaps left in the plan (sniffer segments, streaming speed limit, web console token storage) and raises the unit-test suite from 3960 to 3996 tests.
+After beta.11, real-device GUI testing found and fixed three more problems (main-process message language, concurrent web console restarts, wrapped English table headers) and raised the unit-test suite from 3996 to 4003 tests.
 
-- **HLS `.ts` segments are no longer treated as ordinary videos**: the sniffer only recognised `.m4s` as a segment, so HLS `.ts` files were neither playlists nor segments and showed up as regular videos — a single playback could fill the 200-entry sniffer buffer with segments that could then be batch-selected and downloaded (yielding fragments without an init section). `.ts` is now counted like `.m4s` and kept out of the resource list, while `.m3u8`/`.mpd` still resolve as playlists for "hand to streaming".
-- **Streaming downloads now obey the global speed limit**: yt-dlp tasks never enter the aria2 queue, so they could not see `max-overall-download-limit` and a "1 MB/s" limit had no effect on them. The limit is now read before launch (including resume after pause) and passed to yt-dlp as `--limit-rate`; changing the limit while paused applies the new value on resume.
-- **The web console no longer keeps its token in localStorage**: the page used to store the access token in plain text there, so any XSS could read it and reuse it indefinitely. It now exchanges the token for an HttpOnly, SameSite=Strict session cookie: page scripts cannot read the token itself and the browser attaches the cookie automatically, while signing out invalidates the session server-side. The `Authorization: Bearer` channel is unchanged for extensions, MCP and scripted clients.
-- **36 new unit tests**: the suite now has 3996 tests, including the first behaviour tests for the extension sniffer and batch downloader; statement coverage 99.78%, branch coverage 91.34%.
+- **Main-process notifications / tray / dialogs follow the app language**: they previously read only the Windows system language, so an English UI still showed the Chinese "下载完成" notification and a Chinese tray menu. They now use the language selected in Settings (falling back to the system language when unset), covering notifications, tray, engine failure / update / plugin / web console messages.
+- **Saving web console settings no longer collides on the port**: saving fired two restart paths at once; interleaved `apply()` calls could make one fail and clear the live server reference, leaving the page showing Stopped while the port was still serving. `apply()` is now serialized, so concurrent restarts run one after another and the status matches the actual listener.
+- **English UI polish**: the Download Speed / Remaining Time / Completed Time columns on Downloads and Completed are wide enough not to wrap; Queue labels "max attempts" and "retry delay (seconds)" are now capitalized.
+- **7 new unit tests**: the suite now has 4003 tests (5 for the main-process locale provider, 2 for concurrent web console restarts); statement coverage 99.74%, branch coverage 91.33%.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -132,7 +135,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 - Clipboard monitoring is off by default and must be enabled in General settings.
 - Multiple URLs create one task per line (they used to be merged as aria2 mirrors); mirroring is now an explicit advanced option.
 - The torrent / Metalink upload limit follows the engine's `rpc-max-request-size` instead of a hard-coded 1MB.
-- Main-process messages are localized: engine startup failures, update verification, component installs, subscription / watch-folder validation, web console TLS and UPnP mapping errors are shown in English on English systems (they used to be Chinese-only).
+- Main-process messages are localized: engine startup failures, update verification, component installs, subscription / watch-folder validation, web console TLS and UPnP mapping errors follow the language selected in the app (falling back to the system language when unset; they used to be Chinese-only).
 - README and install docs are cross-platform, covering unsigned installs on macOS / Linux and their config directories.
 
 ## 🔒 Security
@@ -170,10 +173,13 @@ This release makes the "can it really take over browser downloads, will upgradin
 - **A throwing deactivate hook no longer reaches the UI**: a synchronous throw from a plugin `onDeactivate` made the UI report "failed to disable plugin" even though the state had already changed. Hook errors are now logged and the disable succeeds.
 - **HLS `.ts` segments are no longer treated as ordinary videos**: the sniffer only recognised `.m4s` as a segment, so HLS `.ts` files were neither playlists nor segments and showed up as regular videos — a single playback could fill the 200-entry sniffer buffer with segments that could then be batch-selected and downloaded (yielding fragments without an init section). `.ts` is now counted like `.m4s` and kept out of the resource list, while `.m3u8`/`.mpd` still resolve as playlists for "hand to streaming".
 - **Streaming downloads now obey the global speed limit**: yt-dlp tasks never enter the aria2 queue, so they could not see `max-overall-download-limit` and a "1 MB/s" limit had no effect on them. The limit is now read before launch (including resume after pause) and passed to yt-dlp as `--limit-rate`; changing the limit while paused applies the new value on resume.
+- **Main-process notifications / tray / dialogs no longer stick to the system language**: an English UI used to show the Chinese "下载完成" notification and a Chinese tray menu because only the Windows locale was read; they now follow the language selected in Settings (falling back to the system locale when unset).
+- **Saving web console settings no longer hits EADDRINUSE from concurrent restarts**: saving fired two restart paths at once, so interleaved stop/listen calls could leave `this.server` null while the port was still bound (page showed Stopped, port kept serving, and the user could not stop it). `apply()` is now serialized.
+- **English table headers no longer wrap mid-word**: Download Speed, Remaining Time and Completed Time were too narrow and broke across two lines; the columns are wider now, and the Queue labels "max attempts" / "retry delay" are capitalized.
 
 ## ✅ Verification
 
-- Typecheck (main process, tests, renderer) passes; 232 test files / 3996 unit tests pass (the engine-restart stress test is skipped by default).
+- Typecheck (main process, tests, renderer) passes; 232 test files / 4003 unit tests pass (the engine-restart stress test is skipped by default).
 - `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
 - All 214 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring, plus 16 extension checks and 6 pairing regression checks in a real Chrome), of which 18 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, the read-only queue view, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
 - All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.
@@ -181,4 +187,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.11
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.12
