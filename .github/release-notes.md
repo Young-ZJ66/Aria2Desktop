@@ -1,7 +1,5 @@
 # v1.5.0 更新日志
 
-> 这是 1.5.0 的正式版本。相比上一个稳定版 1.4.0 的全部改动见下方。
-
 ## 📌 1.5.0 相对 1.4.0 的变化
 
 1.5.0 的重点是让浏览器下载接管、升级与配置迁移这条链路可信，并补齐任务编辑、失败可见性、首次使用引导等主路径体验；发布前的真机 GUI 测试进一步精简了界面说明文字，把 HTTPS 状态等解释性长文收进设置项右侧的问号气泡，并按反馈把设置导航恢复为单一列表。
@@ -83,15 +81,6 @@
 - **Web 控制台保存设置不再因并发重启撞端口**：设置页保存会同时触发两条重启路径，交错 stop/listen 会导致 `EADDRINUSE` 并把 `this.server` 清空（页面显示 Stopped、端口仍在服务、用户关不掉）；apply() 现已串行化。
 - **英文界面表头不再拆词**：Downloads / Completed 的 Download Speed、Remaining Time、Completed Time 列宽不足会在英文下折成两行，现已加宽；Queue 的 max attempts / retry delay 改为首字母大写。
 
-## ✅ 验证
-
-- typecheck（主进程 + 测试代码 + 渲染层）通过；232 个测试文件 / 4015 项单测通过（引擎重启压力测试默认跳过）。
-- Web 控制台页面内联脚本/样式的 CSP 哈希由单测逐字节校验，改了内联脚本却忘同步哈希会直接失败（否则浏览器会静默拒绝执行脚本，页面白屏）。
-- `npm audit --omit=dev` 为 0；`npm audit` 从 34 个漏洞降到 6 个 moderate（仅 electron-builder 打包工具链，构建期依赖）。
-- 应用 E2E 214 项全部通过（含首次启动向导、设置页、新建任务、真实下载、插件、状态筛选、任务设置面板、下载趋势、阿拉伯语 RTL 镜像布局，以及真实 Chrome 里的扩展 16 项与配对回归 6 项）；其中 18 项是 Web 控制台的 HTTP 级断言（登录页安全头、PWA 资源、OpenAPI、无令牌/错令牌 401、队列视图只读、非法 URI 400、SSE 首帧、审计留痕并落盘），此前该模块端到端零覆盖。
-- 扩展静态校验 21 项通过；扩展多浏览器 smoke 50 项通过（Chrome for Testing / Chromium / Edge，Firefox 走 MV3 变体静态校验）；21 种语言文案 key 与占位符保持一致，1.5.0 新增文案已全部翻译。
-- 引擎更新重启压力测试 50 轮通过（无残留端口、无孤儿进程）。
-
 ---
 
 **完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0
@@ -99,8 +88,6 @@
 ---
 
 # v1.5.0 Release Notes
-
-> This is the stable 1.5.0 release. Every change since the previous stable release, 1.4.0, is listed below.
 
 ## 📌 What changed since 1.4.0
 
@@ -180,14 +167,6 @@ This release makes the "can it really take over browser downloads, will upgradin
 - **Main-process notifications / tray / dialogs no longer stick to the system language**: an English UI used to show the Chinese "下载完成" notification and a Chinese tray menu because only the Windows locale was read; they now follow the language selected in Settings (falling back to the system locale when unset).
 - **Saving web console settings no longer hits EADDRINUSE from concurrent restarts**: saving fired two restart paths at once, so interleaved stop/listen calls could leave `this.server` null while the port was still bound (page showed Stopped, port kept serving, and the user could not stop it). `apply()` is now serialized.
 - **English table headers no longer wrap mid-word**: Download Speed, Remaining Time and Completed Time were too narrow and broke across two lines; the columns are wider now, and the Queue labels "max attempts" / "retry delay" are capitalized.
-
-## ✅ Verification
-
-- Typecheck (main process, tests, renderer) passes; 232 test files / 4015 unit tests pass (the engine-restart stress test is skipped by default).
-- `npm audit --omit=dev` reports zero; `npm audit` drops from 34 advisories to 6 moderate ones (electron-builder packaging toolchain only, build-time dependencies).
-- All 214 application E2E checks pass (first-run wizard, settings, new task, real download, plugins, status filter, per-task settings, download trend, Arabic RTL mirroring, plus 16 extension checks and 6 pairing regression checks in a real Chrome), of which 18 are HTTP-level web console checks (security headers, PWA assets, OpenAPI, 401 without/with a wrong token, the read-only queue view, 400 on an invalid URI, first SSE frame, audit trail written to disk); that module previously had no end-to-end coverage at all.
-- All 21 extension static checks pass; the multi-browser extension smoke passes 50 checks (Chrome for Testing / Chromium / Edge; Firefox is covered by the MV3 variant static checks); all 21 locales keep matching keys and placeholders, and every 1.5.0 string is translated.
-- The 50-round engine restart stress test passes with no leftover ports or orphan processes.
 
 ---
 
