@@ -1,13 +1,13 @@
-# v1.5.0-beta.15 更新日志
+# v1.5.0-beta.16 更新日志
 
-> 这是 1.5.0 的第十五个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第十六个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.15 相对 beta.14 的变化
+## 📌 beta.16 相对 beta.15 的变化
 
-beta.14 恢复了设置项的问号提示，但「设置 → 远程访问」的 HTTPS 状态把整句说明铺在状态标签后面，换行后像正文，抢走了状态的焦点。本版只调整这一行，其余不变。
+beta.15 把 HTTPS 状态的解释性长文收进了问号气泡，但设置弹窗左侧导航的四个分组标题只有第一个样式正确，后三个看起来和普通菜单项一样，字体与缩进都不一致。本版修正这一处样式，其余不变。
 
-- **HTTPS 状态提示收进问号气泡**：状态标签单独成行，「允许局域网访问时必须配置证书与私钥，否则只能监听 127.0.0.1 并由反向代理终止 TLS」的说明移入标签右侧的「?」，悬停或键盘聚焦时显示。
-- **无功能变更**：只改 `RemoteAccessSettings.vue` 的一个模板片段；单测仍为 4003 项。
+- **设置导航分组标题样式统一**：应用与引擎 / 下载与网络 / 组件与连接 / 维护与安全四个标题统一为小号灰色标题样式，并与菜单文字左对齐；此前构建后的 CSS 丢失了后三个标题的样式规则，只有第一个正常。
+- **无功能变更**：只改 `SettingsDialog.vue` 的分组标题样式；单测仍为 4003 项。
 
 ## 🎯 主题：可信接管
 
@@ -91,20 +91,20 @@ beta.14 恢复了设置项的问号提示，但「设置 → 远程访问」的 
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.15
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.16
 
 ---
 
-# v1.5.0-beta.15 Release Notes
+# v1.5.0-beta.16 Release Notes
 
-> This is the fifteenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the sixteenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.14
+## 📌 What changed since beta.15
 
-beta.14 restored the question-mark hints, but Settings → Remote Access showed the whole HTTPS explanation inline after the status tag; wrapped onto a second line it read like body copy and stole focus from the status. This release only adjusts that row.
+beta.15 moved the long HTTPS status explanation into the question-mark bubble, but only the first of the four settings-nav group titles was styled correctly; the other three looked like ordinary menu items, with mismatched font and indentation. This release fixes that styling only.
 
-- **HTTPS status hint moves into the "?" bubble**: the status tag now stands alone, and the explanation that LAN access requires a certificate and key is shown on hover or keyboard focus.
-- **No functional changes**: one template fragment in `RemoteAccessSettings.vue`; the unit suite remains at 4003 tests.
+- **Settings nav group titles restyled consistently**: App & Engine / Download & Network / Components & Connections / Maintenance & Security now share the same small muted caption style and align with the menu labels; the built CSS had dropped the style rules for the last three groups.
+- **No functional changes**: only the group-title styles in `SettingsDialog.vue`; the unit suite remains at 4003 tests.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -185,4 +185,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.15
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.16
