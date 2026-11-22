@@ -65,11 +65,16 @@
             :placeholder="t('settings.webConsole.tlsPathPlaceholder')"
           />
         </n-form-item>
-        <n-form-item :label="t('settings.webConsole.tlsStatus')">
+        <n-form-item>
+          <template #label>
+            <TipLabel
+              :label="t('settings.webConsole.tlsStatus')"
+              :tip="t('settings.webConsole.tlsHint')"
+            />
+          </template>
           <n-tag :type="webConsoleStatus?.tls ? 'success' : 'warning'" size="small">
             {{ webConsoleStatus?.tls ? t('settings.webConsole.tlsEnabled') : t('settings.webConsole.tlsDisabled') }}
           </n-tag>
-          <span class="runtime-url">{{ t('settings.webConsole.tlsHint') }}</span>
         </n-form-item>
 
         <n-form-item v-if="webConsoleStatus?.token" :label="t('settings.webConsole.activeToken')">
