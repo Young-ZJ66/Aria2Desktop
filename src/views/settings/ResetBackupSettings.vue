@@ -1,7 +1,6 @@
 <template>
   <SettingsPage
     :title="t('nav.resetBackup')"
-    :description="t('settings.resetBackup.description')"
     :show-actions="false"
   >
     <!-- 重置：把全部设置恢复为出厂默认值 -->

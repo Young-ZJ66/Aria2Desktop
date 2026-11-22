@@ -1,7 +1,6 @@
 <template>
   <SettingsPage
     :title="t('nav.protocolSettings')"
-    :description="t('settings.protocol.description')"
     :show-connect-alert="true"
     :connected="connectionStore.isConnected"
     :show-actions="true"

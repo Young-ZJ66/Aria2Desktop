@@ -1,7 +1,6 @@
 <template>
   <SettingsPage
     :title="t('nav.remoteAccess')"
-    :description="t('settings.remoteAccess.description')"
     :show-actions="false"
   >
     <!-- 与其他设置页保持一致：左对齐标签、固定标签列宽、无校验反馈占位 -->

@@ -1,6 +1,6 @@
 <template>
   <div class="queue-view">
-    <PageHeader class="page-head" :title="t('queue.title')" :description="t('queue.description')">
+    <PageHeader class="page-head" :title="t('queue.title')">
       <template #actions>
         <n-button size="small" :loading="refreshing" @click="refresh">
           {{ t('queue.refresh') }}
@@ -145,7 +145,7 @@
       </div>
 
       <!-- 断连时队列同样被清空，空态要说明是「未连接」而不是「队列为空」 -->
-      <UiEmpty v-else :icon="ListOutline" :title="emptyTitle" :description="emptyHint">
+      <UiEmpty v-else :icon="ListOutline" :title="emptyTitle">
         <template #actions>
           <n-button v-if="isDisconnected" type="primary" size="small" @click="openConnectionDialog">
             {{ t('connection.connect') }}
@@ -195,9 +195,6 @@ const uiStore = useUiStore()
 const isDisconnected = computed(() => !connectionStore.isConnected)
 const emptyTitle = computed(() =>
   isDisconnected.value ? t('settings.notConnectedTitle') : t('queue.empty')
-)
-const emptyHint = computed(() =>
-  isDisconnected.value ? t('queue.disconnectedHint') : t('queue.emptyHint')
 )
 
 function openConnectionDialog(): void {

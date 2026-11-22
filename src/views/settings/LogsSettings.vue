@@ -1,7 +1,6 @@
 <template>
   <SettingsPage
     :title="t('nav.logs')"
-    :description="t('settings.logs.description')"
     :show-actions="false"
   >
     <n-card class="setting-group log-card">

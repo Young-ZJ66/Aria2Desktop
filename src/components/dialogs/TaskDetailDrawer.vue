@@ -83,7 +83,6 @@
         <div v-else class="drawer-empty">
           <UiEmpty
             :title="t('task.taskNotExist')"
-            :description="t('task.emptyHint')"
             :icon="DocumentOutline"
             size="sm"
           />

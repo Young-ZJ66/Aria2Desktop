@@ -1,6 +1,6 @@
 <template>
   <div class="automation-view">
-    <PageHeader :title="t('automation.title')" :description="t('automation.description')">
+    <PageHeader :title="t('automation.title')">
       <template #actions>
         <n-button size="small" :loading="autoImportStore.loading" @click="handleRefresh">
           {{ t('automation.refresh') }}
@@ -46,7 +46,6 @@
         >
           <UiEmpty
             :title="t('automation.rssEmpty')"
-            :description="t('automation.rssDescription')"
             :icon="RadioOutline"
           >
             <template #actions>
@@ -56,7 +55,7 @@
             </template>
           </UiEmpty>
         </UiPanel>
-        <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('automation.rssDescription')">
+        <UiPanel v-else flush class="section-panel section-panel--fill">
           <template #actions>
             <n-button size="small" type="primary" @click="openRssForm()">
               {{ t('automation.rssAdd') }}
@@ -92,7 +91,6 @@
         >
           <UiEmpty
             :title="t('automation.watchEmpty')"
-            :description="t('automation.watchDescription')"
             :icon="FolderOpenOutline"
           >
             <template #actions>
@@ -102,7 +100,7 @@
             </template>
           </UiEmpty>
         </UiPanel>
-        <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('automation.watchDescription')">
+        <UiPanel v-else flush class="section-panel section-panel--fill">
           <template #actions>
             <n-button size="small" type="primary" @click="openWatchForm()">
               {{ t('automation.watchAdd') }}
@@ -138,11 +136,10 @@
         >
           <UiEmpty
             :title="t('automation.logEmpty')"
-            :description="t('automation.logDescription')"
             :icon="ReceiptOutline"
           />
         </UiPanel>
-        <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('automation.logDescription')">
+        <UiPanel v-else flush class="section-panel section-panel--fill">
           <n-data-table
             :columns="logColumns"
             :data="autoImportStore.logEntries"

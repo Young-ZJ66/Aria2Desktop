@@ -1,7 +1,6 @@
 <template>
   <SettingsPage
     :title="t('generalSettings.title')"
-    :description="t('generalSettings.description')"
   >
     <!-- 通用设置 -->
     <n-card :title="t('generalSettings.groupGeneral')" class="setting-group">

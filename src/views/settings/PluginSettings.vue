@@ -1,7 +1,6 @@
 <template>
   <SettingsPage
     :title="t('nav.pluginSettings')"
-    :description="t('settings.plugins.description')"
     :show-connect-alert="false"
     :connected="true"
     :show-actions="false"

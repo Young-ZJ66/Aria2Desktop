@@ -1,7 +1,6 @@
 <template>
   <SettingsPage
     :title="t('nav.componentSettings')"
-    :description="t('settings.components.description')"
   >
     <!-- 外部下载组件：安装入口集中在这里，流媒体页只做状态提示 -->
     <n-card :title="t('settings.components.groupTools')" class="setting-group">

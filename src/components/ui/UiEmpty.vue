@@ -4,7 +4,6 @@
       <n-icon :size="size === 'sm' ? 20 : 24"><component :is="icon" /></n-icon>
     </div>
     <p class="ui-empty__title">{{ title }}</p>
-    <p v-if="description" class="ui-empty__desc">{{ description }}</p>
     <div v-if="$slots.actions" class="ui-empty__actions">
       <slot name="actions" />
     </div>
@@ -22,7 +21,6 @@ import type { Component } from 'vue'
 withDefaults(
   defineProps<{
     title: string
-    description?: string
     icon?: Component
     size?: 'sm' | 'md'
   }>(),
@@ -68,14 +66,6 @@ withDefaults(
   font-size: var(--ds-text-body-size);
   font-weight: 500;
   color: var(--ds-text-base);
-}
-
-.ui-empty__desc {
-  margin: 0;
-  max-width: 42ch;
-  font-size: var(--ds-text-small-size);
-  line-height: var(--ds-text-small-leading);
-  color: var(--ds-text-muted);
 }
 
 .ui-empty__actions {

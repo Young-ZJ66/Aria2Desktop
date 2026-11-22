@@ -1,6 +1,6 @@
 <template>
   <div class="instances-view">
-    <PageHeader class="page-head" :title="t('instances.title')" :description="t('instances.description')">
+    <PageHeader class="page-head" :title="t('instances.title')">
       <template #actions>
         <n-button size="small" :loading="testingAll" @click="testAll">{{ t('instances.testAll') }}</n-button>
         <n-button size="small" @click="openConnectionDialog">{{ t('instances.manage') }}</n-button>
@@ -13,23 +13,10 @@
       </template>
     </PageHeader>
 
-    <!-- 多实例说明：自绘提示条（v2 表面 + 左侧 2px accent 边），保留「关闭」与「不再显示」两级持久化。
-         放在卡片网格之前：它是「为什么会有多张卡」的解释，压在页面底部时用户根本看不到。 -->
-    <div v-if="noteVisible" class="instance-note" role="note">
-      <p class="instance-note__text">{{ t('instances.multiInstanceNote') }}</p>
-      <div class="instance-note__actions">
-        <n-button text size="tiny" class="instance-note__forever" @click="hideNoteForever">
-          {{ t('common.dontShowAgain') }}
-        </n-button>
-        <UiIconButton :icon="CloseOutline" :label="t('common.close')" size="sm" @click="closeNoteForSession" />
-      </div>
-    </div>
-
-    <!-- 空态：标题 + 一句解释 + 主操作（v2 空态写法），外面套一层表面避免浮在 app 背景上 -->
+    <!-- 空态：标题 + 主操作（v2 空态写法），外面套一层表面避免浮在 app 背景上 -->
     <div v-if="connectionStore.profiles.length === 0" class="instances-empty">
       <UiEmpty
         :title="t('instances.empty')"
-        :description="t('instances.multiInstanceNote')"
         :icon="ServerOutline"
       >
         <template #actions>
@@ -124,8 +111,8 @@
 import { onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NIcon, NTag } from 'naive-ui'
-import { AddOutline, CloseOutline, ServerOutline } from '@vicons/ionicons5'
-import { UiEmpty, UiIconButton } from '@/components/ui'
+import { AddOutline, ServerOutline } from '@vicons/ionicons5'
+import { UiEmpty } from '@/components/ui'
 import { useConnectionStore } from '@/stores/connectionStore'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import { withMinimumDuration } from '@/composables/useMinimumLoading'
@@ -335,41 +322,6 @@ async function addInstance() {
   }
 }
 
-// ── 多实例说明提示条：与 DismissibleAlert 保持同一套 storageKey 约定（.session / .forever）──
-const NOTE_STORAGE_KEY = 'instances.note'
-const noteSessionKey = `${NOTE_STORAGE_KEY}.session`
-const noteForeverKey = `${NOTE_STORAGE_KEY}.forever`
-
-/** 存储不可用（隐私模式等）时按未关闭处理，不影响页面功能 */
-function readFlag(storage: Storage, key: string): boolean {
-  try {
-    return storage.getItem(key) === '1'
-  } catch {
-    return false
-  }
-}
-
-function writeFlag(storage: Storage, key: string): void {
-  try {
-    storage.setItem(key, '1')
-  } catch {
-    /* 存储不可用时仅本次页面实例生效 */
-  }
-}
-
-const noteVisible = ref(!readFlag(sessionStorage, noteSessionKey) && !readFlag(localStorage, noteForeverKey))
-
-/** 关闭：仅本次会话不再显示 */
-function closeNoteForSession(): void {
-  noteVisible.value = false
-  writeFlag(sessionStorage, noteSessionKey)
-}
-
-/** 不再显示：永久关闭 */
-function hideNoteForever(): void {
-  noteVisible.value = false
-  writeFlag(localStorage, noteForeverKey)
-}
 </script>
 
 <style scoped>

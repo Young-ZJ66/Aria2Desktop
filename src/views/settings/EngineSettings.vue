@@ -1,7 +1,6 @@
 <template>
   <SettingsPage
     :title="t('nav.engineSettings')"
-    :description="t('localService.description')"
   >
     <!-- 服务状态 -->
     <n-card :title="t('localService.serviceStatus')" class="setting-group">

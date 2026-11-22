@@ -2,7 +2,6 @@
   <div class="settings-page" :class="{ 'settings-page--with-actions': showActions }">
     <div class="settings-header">
       <h2>{{ title }}</h2>
-      <p v-if="description" class="settings-description">{{ description }}</p>
     </div>
 
     <DismissibleAlert
@@ -46,7 +45,6 @@ import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
 
 defineProps<{
   title: string
-  description?: string
   showConnectAlert?: boolean
   connected?: boolean
   showActions?: boolean
@@ -92,14 +90,6 @@ const { t } = useI18n()
   font-weight: 600;
   letter-spacing: 0;
   color: var(--ds-text-strong);
-}
-
-.settings-description {
-  margin: var(--ds-space-6) 0 0;
-  color: var(--ds-text-muted);
-  font-size: var(--ds-text-small-size);
-  line-height: var(--ds-text-small-leading);
-  max-width: 68ch;
 }
 
 .connect-alert {

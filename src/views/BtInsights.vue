@@ -1,6 +1,6 @@
 <template>
   <div class="bt-insights-view">
-    <PageHeader class="page-head" :title="t('btInsights.title')" :description="t('btInsights.description')">
+    <PageHeader class="page-head" :title="t('btInsights.title')">
       <template #actions>
         <n-select
           v-model:value="selectedGid"
@@ -93,7 +93,7 @@
 
       <!-- 无 BT 任务 / 未选中任务 / 未连接：稳定的空态，图标在容器内垂直居中 -->
       <div v-else class="bt-empty">
-        <UiEmpty :title="emptyState.title" :description="emptyState.description" :icon="AnalyticsOutline">
+        <UiEmpty :title="emptyState.title" :icon="AnalyticsOutline">
           <template #actions>
             <n-button v-if="isDisconnected" size="small" type="primary" @click="openConnectionDialog">
               {{ t('connection.connect') }}

@@ -1,7 +1,6 @@
 <template>
   <SettingsPage
     :title="t('nav.rpcSecuritySettings')"
-    :description="t('settings.rpc.description')"
     :show-connect-alert="true"
     :connected="connectionStore.isConnected"
     :show-actions="true"

@@ -1,6 +1,6 @@
 <template>
   <div class="status-page">
-    <PageHeader class="page-head" :title="t('statusPage.title')" :description="t('statusPage.subtitle')" />
+    <PageHeader class="page-head" :title="t('statusPage.title')" />
 
     <!--
       服务信息：三项都是「引擎现在是什么状态」的只读事实，排成一条元信息带。

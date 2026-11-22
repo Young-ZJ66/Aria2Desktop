@@ -2,7 +2,6 @@
   <header class="page-header">
     <div class="page-header__text">
       <h1 class="page-header__title">{{ title }}</h1>
-      <p v-if="description" class="page-header__desc">{{ description }}</p>
     </div>
     <div v-if="$slots.actions" class="page-header__actions">
       <slot name="actions" />
@@ -13,7 +12,6 @@
 <script setup lang="ts">
 defineProps<{
   title: string
-  description?: string
 }>()
 </script>
 
@@ -39,13 +37,6 @@ defineProps<{
   font-weight: 600;
   letter-spacing: -0.015em;
   color: var(--ds-text-strong);
-}
-
-.page-header__desc {
-  margin: var(--ds-space-4) 0 0;
-  font-size: var(--ds-text-body-size);
-  line-height: var(--ds-text-body-leading);
-  color: var(--ds-text-muted);
 }
 
 .page-header__actions {

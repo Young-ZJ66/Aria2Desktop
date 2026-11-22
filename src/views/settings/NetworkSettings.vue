@@ -1,7 +1,6 @@
 <template>
   <SettingsPage
     :title="t('nav.networkSettings')"
-    :description="t('settings.network.description')"
     :show-connect-alert="true"
     :connected="connectionStore.isConnected"
     :show-actions="true"

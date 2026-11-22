@@ -3,7 +3,6 @@
     <div class="diagnostics-header">
       <div>
         <h3 class="diagnostics-title">{{ t('settings.diagnostics.title') }}</h3>
-        <p class="diagnostics-desc">{{ t('settings.diagnostics.description') }}</p>
         <p v-if="lastRun" class="diagnostics-time">{{ t('settings.diagnostics.generatedAt', { time: lastRun }) }}</p>
       </div>
       <div class="diagnostics-actions">
@@ -356,11 +355,6 @@ onMounted(runDiagnostics)
   margin: 0 0 var(--ds-space-4);
   font-size: var(--ds-text-title-size);
   font-weight: 600;
-}
-.diagnostics-desc {
-  margin: 0;
-  color: var(--ds-text-faint);
-  font-size: var(--ds-text-body-size);
 }
 .diagnostics-actions {
   display: flex;

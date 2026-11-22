@@ -1,7 +1,6 @@
 <template>
   <SettingsPage
     :title="t('nav.downloadSettings')"
-    :description="t('settings.download.description')"
     :show-connect-alert="true"
     :connected="connectionStore.isConnected"
     :show-actions="true"

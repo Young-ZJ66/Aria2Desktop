@@ -1,6 +1,6 @@
 <template>
   <div class="task-list">
-    <PageHeader :title="title" :description="pageDescription">
+    <PageHeader :title="title">
       <template #actions>
         <!-- 摘要只用文字与一个 pill：v1 这里是「文字 + 文字 + 主色 tag」三种权重混排，
              而这一屏真正需要抢眼的只有总速度这一个实时数字。 -->
@@ -106,7 +106,6 @@
         <div v-if="!filteredTasks.length && !loading" class="task-empty">
           <UiEmpty
             :title="emptyDescription"
-            :description="emptyHintText"
             :icon="DocumentOutline"
           >
             <template #actions>
@@ -138,7 +137,6 @@
             <transition name="fade-in">
               <UiEmpty
                 :title="emptyDescription"
-                :description="emptyHintText"
                 :icon="DocumentOutline"
               >
                 <template #actions>
@@ -287,10 +285,6 @@ const emptyDescription = computed(() => {
   if (isDisconnected.value) return t('settings.notConnectedTitle')
   return isFiltering.value ? t('task.noTasks') : t('task.emptyList')
 })
-const emptyHintText = computed(() => {
-  if (isDisconnected.value) return undefined
-  return isFiltering.value ? t('task.emptyFilterHint') : t('task.emptyHint')
-})
 function openConnectionDialog(): void {
   connectionStore.showConnectionDialog = true
 }
@@ -409,10 +403,6 @@ const title = computed(() => {
     default: return t('task.activeAndWaiting')
   }
 })
-
-const pageDescription = computed(() =>
-  props.taskType === 'stopped' ? t('task.pageCompleted') : t('task.pageDownloading')
-)
 
 const allTasks = computed(() => {
   let tasks: Aria2Task[] = []

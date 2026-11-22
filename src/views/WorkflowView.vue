@@ -1,6 +1,6 @@
 <template>
   <div class="workflow-view">
-    <PageHeader :title="t('nav.workflowSettings')" :description="t('workflow.pageDescription')" />
+    <PageHeader :title="t('nav.workflowSettings')" />
     <!-- tab 已经说明「这是哪一页」，面板里不再重复标题：左说明、右主操作、下面内容 -->
     <n-tabs v-model:value="activeSection" type="line" animated class="workflow-tabs">
       <n-tab-pane name="templates">
@@ -18,7 +18,6 @@
         >
           <UiEmpty
             :title="t('workflow.noTemplates')"
-            :description="t('workflow.templatesDesc')"
             :icon="AlbumsOutline"
           >
             <template #actions>
@@ -28,7 +27,7 @@
             </template>
           </UiEmpty>
         </UiPanel>
-        <UiPanel v-else class="section-panel section-panel--fill" :hint="t('workflow.templatesDesc')">
+        <UiPanel v-else class="section-panel section-panel--fill">
           <template #actions>
             <n-button size="small" type="primary" @click="addTemplate">
               {{ t('workflow.addTemplate') }}
@@ -101,7 +100,6 @@
         >
           <UiEmpty
             :title="t('workflow.noRules')"
-            :description="t('workflow.rulesDesc')"
             :icon="GitBranchOutline"
           >
             <template #actions>
@@ -111,7 +109,7 @@
             </template>
           </UiEmpty>
         </UiPanel>
-        <UiPanel v-else class="section-panel section-panel--fill" :hint="t('workflow.rulesDesc')">
+        <UiPanel v-else class="section-panel section-panel--fill">
           <template #actions>
             <n-button size="small" type="primary" @click="addRule">
               {{ t('workflow.addRule') }}
@@ -227,7 +225,6 @@
         >
           <UiEmpty
             :title="t('settings.webhookQueue.empty')"
-            :description="t('settings.webhookQueue.description')"
             :icon="CloudUploadOutline"
           >
             <template #actions>
@@ -237,7 +234,7 @@
             </template>
           </UiEmpty>
         </UiPanel>
-        <UiPanel v-else flush class="section-panel section-panel--fill" :hint="t('settings.webhookQueue.description')">
+        <UiPanel v-else flush class="section-panel section-panel--fill">
           <template #actions>
             <n-space>
               <n-button size="small" :loading="queueLoading" @click="refreshQueue()">
