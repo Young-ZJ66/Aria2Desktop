@@ -946,11 +946,20 @@ watch(visible, (show) => {
 /* 10 项导航的语义分组：应用与引擎 / 下载与网络 / 组件与连接 / 维护与安全。
    标题文本由 navGroupStyle 注入 CSS 变量（先中英 fallback，避免新增 21 份 locale key）；
    :has() 不受支持时只丢标题，不影响布局。 */
+/* 每个分组标题单独成一条规则：:deep() 的选择器列表里带 ::before 时，
+   构建后的 CSS 只会保留第一条，后三个分组会退化成普通菜单项样式。 */
 .settings-dialog-body
   :deep(
     .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='general'])::before
   ) {
   content: var(--settings-group-app-label, 'App & Engine');
+  display: block;
+  padding: 0 var(--ds-space-12) 4px;
+  font-size: var(--ds-text-micro-size);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ds-text-faint);
+  letter-spacing: 0.02em;
 }
 
 .settings-dialog-body
@@ -958,6 +967,13 @@ watch(visible, (show) => {
     .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='download'])::before
   ) {
   content: var(--settings-group-download-label, 'Download & Network');
+  display: block;
+  padding: 0 var(--ds-space-12) 4px;
+  font-size: var(--ds-text-micro-size);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ds-text-faint);
+  letter-spacing: 0.02em;
 }
 
 .settings-dialog-body
@@ -965,6 +981,13 @@ watch(visible, (show) => {
     .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='components'])::before
   ) {
   content: var(--settings-group-components-label, 'Components & Connections');
+  display: block;
+  padding: 0 var(--ds-space-12) 4px;
+  font-size: var(--ds-text-micro-size);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ds-text-faint);
+  letter-spacing: 0.02em;
 }
 
 .settings-dialog-body
@@ -972,15 +995,6 @@ watch(visible, (show) => {
     .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='logs'])::before
   ) {
   content: var(--settings-group-logs-label, 'Maintenance & Security');
-}
-
-.settings-dialog-body
-  :deep(
-    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='general'])::before,
-    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='download'])::before,
-    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='components'])::before,
-    .settings-main-tabs > .n-tabs-nav .n-tabs-tab-wrapper:has(> .n-tabs-tab[data-name='logs'])::before
-  ) {
   display: block;
   padding: 0 var(--ds-space-12) 4px;
   font-size: var(--ds-text-micro-size);
