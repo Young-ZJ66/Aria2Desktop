@@ -1,13 +1,14 @@
-# v1.5.0-beta.19 更新日志
+# v1.5.0 更新日志
 
-> 这是 1.5.0 的第十九个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的正式版本。相比上一个稳定版 1.4.0 的全部改动见下方。
 
-## 📌 beta.19 相对 beta.18 的变化
+## 📌 1.5.0 相对 1.4.0 的变化
 
-这一版只调整队列页的列表布局：等待列表始终占满剩余高度，空队列也保留完整的面板高度，不再按内容收缩。其余行为不变。
+1.5.0 的重点是让浏览器下载接管、升级与配置迁移这条链路可信，并补齐任务编辑、失败可见性、首次使用引导等主路径体验；发布前的真机 GUI 测试进一步精简了界面说明文字，把 HTTPS 状态等解释性长文收进设置项右侧的问号气泡，并按反馈把设置导航恢复为单一列表。
 
-- **队列列表固定高度**：队列页的等待列表无论有 0 条还是多条任务，都占满设置面板以下的剩余空间；任务多时在列表内部滚动，空列表时在同样高度内居中展示空态，页面不再随队列条数跳动。
-- **测试**：仅调整布局与样式，未改业务逻辑；全量 4015 项单测通过（1 项引擎重启压力测试默认跳过）。
+- **可信接管**：下载接管、升级与配置迁移链路修复，补齐任务编辑、失败可见性、首次使用引导等主路径体验。
+- **Web 控制台与 MCP**：Web 控制台支持双语、明暗跟随、暂停全部/继续全部、只读队列视图、HTTPS 与 HttpOnly 会话 Cookie，并新增一次性配对码登录；MCP 提供 25 个带作用域和破坏性标注的工具，其中包含三个复合工具。
+- **界面文案与布局**：设置页不再显示说明段，页面标题、空态与面板不再重复说明，实例页移除多实例提示条；设置项右侧问号提示保留，HTTPS 状态等解释性长文收进气泡；设置弹窗左侧导航按功能顺序排列为单一列表；队列等待列表始终占满剩余高度，空队列不再收缩。
 
 ## 🎯 主题：可信接管
 
@@ -93,20 +94,21 @@
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.19
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0
 
 ---
 
-# v1.5.0-beta.19 Release Notes
+# v1.5.0 Release Notes
 
-> This is the nineteenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the stable 1.5.0 release. Every change since the previous stable release, 1.4.0, is listed below.
 
-## 📌 What changed since beta.18
+## 📌 What changed since 1.4.0
 
-This release only adjusts the Queue page list layout: the waiting list always fills the remaining height, and an empty queue keeps the full panel height instead of collapsing to its content. Nothing else changes behaviour.
+1.5.0 focuses on making browser download takeover, upgrades and config migration trustworthy, and fills in task editing, failure visibility and first-run guidance; the final GUI pass also trimmed interface copy, moved long explanations such as the HTTPS status note into the question-mark bubble, and restored the settings navigation to a single list as requested.
 
-- **Fixed-height queue list**: whether the queue has zero or many tasks, the waiting list occupies the space below the settings panel; many tasks scroll inside the list, while an empty queue centers its empty state in the same height, so the page no longer jumps as tasks are added or removed.
-- **Tests**: layout and styles only, no behaviour change; the full suite passes 4015 tests (one engine-restart stress test skipped by default).
+- **Trustworthy takeover**: download takeover, upgrade and config migration paths were fixed, with task editing, failure visibility and first-run guidance filled in.
+- **Web console and MCP**: the web console gains bilingual UI, light/dark following, pause-all/resume-all, a read-only queue view, HTTPS and HttpOnly session cookies, plus one-time pairing-code sign-in; MCP exposes 25 tools with scopes and destructive annotations, including three composite tools.
+- **Copy and layout**: settings pages no longer show description paragraphs, page headers / empty states / panels no longer repeat explanations, and the Instances page drops its banner; the question-mark hints stay, with long explanations such as the HTTPS status note moved into their bubbles; the settings navigation is a single list ordered by function; the Queue page waiting list always fills the remaining height so an empty queue no longer shrinks.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -189,4 +191,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.19
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0
