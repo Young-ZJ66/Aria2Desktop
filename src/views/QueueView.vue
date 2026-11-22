@@ -81,10 +81,10 @@
     </UiPanel>
 
     <!--
-      队列表：占满剩余高度，任务多时在面板内部滚动，不再随行数把卡片缩成一条。
-      空态仍按内容高度收起，留给「为什么是空的 + 现在能做什么」。
+      队列表：始终占满剩余高度，任务多时在面板内部滚动，不再随行数把卡片缩成一条。
+      空态也在同一块固定高度里居中，不随行数收缩。
     -->
-    <UiPanel flush :class="{ 'queue-table-panel': taskStore.waitingTasks.length > 0 }">
+    <UiPanel flush class="queue-table-panel">
       <div v-if="taskStore.waitingTasks.length > 0" class="queue-table-scroll">
         <n-table :bordered="false" class="queue-table">
           <thead>
@@ -329,8 +329,18 @@ onBeforeUnmount(() => {
 }
 
 .queue-table-panel {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+}
+
+.queue-table-panel :deep(.ui-panel__body) {
+  display: flex;
+  flex-direction: column;
+}
+
+.queue-table-panel :deep(.ui-empty) {
+  flex: 1;
+  min-height: 320px;
 }
 
 .metric-band {
@@ -391,7 +401,8 @@ onBeforeUnmount(() => {
 }
 
 .queue-table-scroll {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 
