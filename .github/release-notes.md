@@ -1,14 +1,13 @@
-# v1.5.0-beta.14 更新日志
+# v1.5.0-beta.15 更新日志
 
-> 这是 1.5.0 的第十四个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
+> 这是 1.5.0 的第十五个预发布版本，供验证使用。稳定版 1.5.0 将在验证通过后发布。
 
-## 📌 beta.14 相对 beta.13 的变化
+## 📌 beta.15 相对 beta.14 的变化
 
-beta.13 精简界面文字时把设置项右侧的问号提示一起删掉了。问号是操作提示而不是重复说明，用户需要它来查看字段含义与「需重启 Aria2 生效」。本版只恢复问号提示，其余精简保持不动。
+beta.14 恢复了设置项的问号提示，但「设置 → 远程访问」的 HTTPS 状态把整句说明铺在状态标签后面，换行后像正文，抢走了状态的焦点。本版只调整这一行，其余不变。
 
-- **恢复设置项问号提示**：设置项右侧的「?」图标重新显示；悬停或键盘聚焦时展示字段说明，需要重启 Aria2 的选项会追加重启提示，读屏仍可通过 aria-label 获取。
-- **其余文字精简保持不变**：设置页标题下的说明段、页面标题与空态说明、实例页多实例说明条继续移除，界面仍以标签、分组与默认值为主。
-- **无功能变更**：只改 TipLabel 一个组件；单测仍为 4003 项。
+- **HTTPS 状态提示收进问号气泡**：状态标签单独成行，「允许局域网访问时必须配置证书与私钥，否则只能监听 127.0.0.1 并由反向代理终止 TLS」的说明移入标签右侧的「?」，悬停或键盘聚焦时显示。
+- **无功能变更**：只改 `RemoteAccessSettings.vue` 的一个模板片段；单测仍为 4003 项。
 
 ## 🎯 主题：可信接管
 
@@ -38,7 +37,7 @@ beta.13 精简界面文字时把设置项右侧的问号提示一起删掉了。
 - 多 URL 新建下载按行创建独立任务（此前被当成 aria2 镜像合并）；镜像下载仅作为显式高级选项。
 - 种子 / Metalink 上传大小上限跟随引擎的 `rpc-max-request-size` 折算，不再写死 1MB。
 - 主进程文案本地化：引擎启动失败、更新校验、组件安装、订阅 / 监听目录校验、Web 控制台 TLS 与 UPnP 映射失败等错误和对话框，按应用设置的语言输出中英双语（未设置时跟随系统语言；此前英文界面会看到中文报错）。
-- 界面文案精简：设置页不再显示说明段，页面标题、空态与面板不再重复说明，实例页移除多实例提示条；设置项右侧问号提示保留，界面靠标签、分组与默认值自解释。
+- 界面文案精简：设置页不再显示说明段，页面标题、空态与面板不再重复说明，实例页移除多实例提示条；设置项右侧问号提示保留，HTTPS 状态等解释性长文也收进气泡，界面靠标签、分组与默认值自解释。
 - README 与安装说明改为跨平台表述，补充 macOS / Linux 的未签名安装提示与配置目录位置。
 
 ## 🔒 安全
@@ -92,21 +91,20 @@ beta.13 精简界面文字时把设置项右侧的问号提示一起删掉了。
 
 ---
 
-**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.14
+**完整变更对比**：https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.15
 
 ---
 
-# v1.5.0-beta.14 Release Notes
+# v1.5.0-beta.15 Release Notes
 
-> This is the fourteenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
+> This is the fifteenth pre-release of 1.5.0 for validation. The stable 1.5.0 will follow once it is verified.
 
-## 📌 What changed since beta.13
+## 📌 What changed since beta.14
 
-beta.13 trimmed interface copy too aggressively and removed the question-mark hints beside settings. Those hints are operational help, not duplicate descriptions: they explain a field and warn when a restart is required. This release restores the hints and keeps the rest of the copy cleanup.
+beta.14 restored the question-mark hints, but Settings → Remote Access showed the whole HTTPS explanation inline after the status tag; wrapped onto a second line it read like body copy and stole focus from the status. This release only adjusts that row.
 
-- **Question-mark hints are back**: the "?" icon beside a setting is shown again; hover or keyboard focus reveals the field description, appends a restart notice for options that need it, and the aria-label keeps screen-reader access.
-- **The rest of the copy cleanup stays**: settings page descriptions, page-header / empty-state explanations and the Instances banner remain removed; labels, groups and defaults still carry the UI.
-- **No functional changes**: only the TipLabel component changed; the unit suite remains at 4003 tests.
+- **HTTPS status hint moves into the "?" bubble**: the status tag now stands alone, and the explanation that LAN access requires a certificate and key is shown on hover or keyboard focus.
+- **No functional changes**: one template fragment in `RemoteAccessSettings.vue`; the unit suite remains at 4003 tests.
 
 ## 🎯 Theme: taking over, verifiably
 
@@ -135,7 +133,7 @@ This release makes the "can it really take over browser downloads, will upgradin
 - Multiple URLs create one task per line (they used to be merged as aria2 mirrors); mirroring is now an explicit advanced option.
 - The torrent / Metalink upload limit follows the engine's `rpc-max-request-size` instead of a hard-coded 1MB.
 - Main-process messages are localized: engine startup failures, update verification, component installs, subscription / watch-folder validation, web console TLS and UPnP mapping errors follow the language selected in the app (falling back to the system language when unset; they used to be Chinese-only).
-- Interface copy is trimmed: settings pages no longer show description paragraphs, page headers / empty states / panels no longer repeat explanations, and the Instances page drops its banner; the question-mark hints beside settings stay, and labels, groups and defaults carry the UI.
+- Interface copy is trimmed: settings pages no longer show description paragraphs, page headers / empty states / panels no longer repeat explanations, and the Instances page drops its banner; the question-mark hints beside settings stay, long explanations such as the HTTPS status note move into those bubbles, and labels, groups and defaults carry the UI.
 - README and install docs are cross-platform, covering unsigned installs on macOS / Linux and their config directories.
 
 ## 🔒 Security
@@ -187,4 +185,4 @@ This release makes the "can it really take over browser downloads, will upgradin
 
 ---
 
-**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.14
+**Full changelog**: https://github.com/Young-ZJ66/Aria2Desktop/compare/v1.4.0...v1.5.0-beta.15
