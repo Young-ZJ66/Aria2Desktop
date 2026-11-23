@@ -52,9 +52,12 @@
       </div>
       <p v-if="trendHasNoData" class="trend-empty">{{ t('statusPage.noTrendData') }}</p>
       <div v-else class="trend-axis">
-        <span>{{ trendAxisLabels[0] }}</span>
-        <span>{{ trendAxisLabels[1] }}</span>
-        <span>{{ trendAxisLabels[2] }}</span>
+        <span
+          v-for="(point, index) in trendPoints"
+          :key="point.dateKey"
+          class="trend-axis-label"
+          :title="point.dateKey"
+        >{{ formatTrendAxisLabel(point.dateKey, index, trendDays) }}</span>
       </div>
     </UiPanel>
 
@@ -114,6 +117,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useStatsStore } from '@/stores/statsStore'
 import { buildDailySeries, useDownloadHistoryStore } from '@/stores/downloadHistoryStore'
 import { formatSpeed, formatSize } from '@/utils/taskFormatters'
+import { formatTrendAxisLabel } from '@/utils/statusTrend'
 import { getTaskStats } from '@/utils/taskUtils'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import { UiPanel, UiStat } from '@/components/ui'
@@ -185,16 +189,6 @@ const trendDays = ref(7)
 const trendPoints = computed(() => buildDailySeries(downloadHistoryStore.history.daily, trendDays.value))
 const trendHasNoData = computed(() => trendPoints.value.every(point => point.bytes === 0))
 const trendMaxBytes = computed(() => Math.max(1, ...trendPoints.value.map(point => point.bytes)))
-const trendAxisLabels = computed(() => {
-  const points = trendPoints.value
-  if (points.length === 0) return ['', '', '']
-  const label = (key: string) => key.slice(5).replace('-', '/')
-  return [
-    label(points[0]?.dateKey ?? ''),
-    label(points[Math.floor(points.length / 2)]?.dateKey ?? ''),
-    label(points[points.length - 1]?.dateKey ?? '')
-  ]
-})
 function trendBarHeight(bytes: number): string {
   if (bytes <= 0) return '0%'
   // 极小值也保留 4% 高度，让用户能看到「这一天有下载」而不是空柱
@@ -728,10 +722,19 @@ function updateTrafficChart() {
 
 .trend-axis {
   display: flex;
-  justify-content: space-between;
+  gap: 3px;
+  padding: 0 var(--ds-space-4);
   margin-top: var(--ds-space-6);
   font-size: var(--ds-text-small-size);
   color: var(--ds-text-muted);
+}
+
+.trend-axis-label {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── 图表 ── */

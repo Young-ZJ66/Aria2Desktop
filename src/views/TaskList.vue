@@ -32,14 +32,12 @@
             :has-selection="hasSelection"
             :can-batch-start="canBatchStart"
             :can-batch-pause="canBatchPause"
-            :can-batch-open="props.taskType === 'stopped' && selectedTasks.some(task => task.files?.some(file => file.path))"
-            :operating="batchOperating || batchOpening"
+            :operating="batchOperating"
             :deleting="batchDeleting"
             :failed-count="failedTaskCount"
             :retrying-failed="retryingFailed"
             @batch-start="batchStart"
             @batch-pause="batchPause"
-            @batch-open="batchOpen"
             @batch-delete="batchDelete"
             @retry-failed="retryAllFailed"
           />
@@ -300,8 +298,6 @@ const streamTaskToDelete = ref<Aria2Task | null>(null)
 const streamDeleting = ref(false)
 // 批量开始/暂停执行中（禁用批量操作按钮，防止重复触发）
 const batchOperating = ref(false)
-// 批量打开文件中
-const batchOpening = ref(false)
 // 「重试全部失败」执行中（D-24）
 const retryingFailed = ref(false)
 // 最近一次批量操作的结果（D-39/D-51）：成功/失败/跳过 + 失败详情，由统一面板渲染
@@ -1274,40 +1270,6 @@ async function exportTaskTorrent(gid: string) {
   } catch (error) {
     console.error('Failed to export torrent:', error)
     message.error(t('task.saveTorrentFailed', { error: getUserFriendlyError(error) }))
-  }
-}
-
-// 批量打开所选任务的文件（仅完成页可触发）
-async function batchOpen() {
-  if (batchOpening.value) return
-  if (!window.electronAPI?.openFile) {
-    message.warning(t('task.desktopOnly'))
-    return
-  }
-  const openable = selectedTasks.value.filter(task => task.files?.some(file => file.path))
-  if (openable.length === 0) {
-    message.warning(t('task.noFileInfo'))
-    return
-  }
-  // 打开文件很快，补齐最短时长让按钮的加载动画可见
-  const startedAt = Date.now()
-  batchOpening.value = true
-  let opened = 0
-  try {
-    for (const task of openable) {
-      const firstFile = task.files?.find(file => file.path)
-      if (!firstFile?.path) continue
-      const result = await window.electronAPI.openFile(firstFile.path, task.dir)
-      if (result?.success) opened += 1
-    }
-    if (opened > 0) message.success(t('task.batchOpenSuccess', { count: opened }))
-    else message.warning(t('task.batchOpenFailed'))
-  } catch (error) {
-    console.error('Failed to batch open files:', error)
-    message.error(t('task.batchOpenFailed'))
-  } finally {
-    await ensureMinimumDuration(startedAt)
-    batchOpening.value = false
   }
 }
 

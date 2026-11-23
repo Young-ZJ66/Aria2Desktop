@@ -778,7 +778,6 @@ onMounted(() => {
 
 .plugin-hint-main .mono {
   font-family: 'Monaco', 'Menlo', monospace;
-  user-select: all;
   word-break: break-all;
 }
 

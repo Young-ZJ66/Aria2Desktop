@@ -5,7 +5,7 @@
     :width="720"
     :on-update:show="handleShowChange"
   >
-    <n-drawer-content :title="t('task.taskDetail')" closable>
+    <n-drawer-content class="task-detail-drawer" :title="t('task.taskDetail')" closable>
       <!--
         注：n-drawer-content **没有 header-extra 插槽**（只支持 default/header/footer），
         此前误用该插槽名，刷新按钮实际上从未渲染出来。改用 #header，

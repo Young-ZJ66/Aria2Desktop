@@ -618,7 +618,6 @@ async function restartAndInstall() {
 .current-version {
   font-size: var(--ds-text-small-size);
   color: var(--ds-text-muted);
-  user-select: text;
 }
 
 </style>

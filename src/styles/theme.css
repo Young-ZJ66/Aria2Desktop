@@ -91,6 +91,29 @@ body {
   overflow: hidden;
 }
 
+/* 桌面端默认禁止选中文本：避免拖拽/误选。
+   仅任务详情抽屉与可编辑控件保留文本选择能力。 */
+html,
+body,
+#app {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable='true'] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.task-detail-drawer,
+.task-detail-drawer * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 h1,
 h2,
 h3,

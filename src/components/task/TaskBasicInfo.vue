@@ -4,14 +4,7 @@
     <n-card class="info-card" size="small" :bordered="false">
       <n-descriptions :column="2" label-placement="left" class="task-descriptions">
         <n-descriptions-item :label="t('task.gid')">
-          <div class="field-with-action">
-            <span class="gid-text">{{ task.gid }}</span>
-            <n-button size="tiny" quaternary circle :title="t('taskDetail.copyGid')" :aria-label="t('taskDetail.copyGid')" @click="copyGid">
-              <template #icon>
-                <n-icon><CopyOutline /></n-icon>
-              </template>
-            </n-button>
-          </div>
+          <span class="gid-text">{{ task.gid }}</span>
         </n-descriptions-item>
 
         <n-descriptions-item v-if="displayFilePaths.length" :label="t('task.fileName')">
@@ -67,12 +60,12 @@
                   size="tiny"
                   quaternary
                   circle
-                  :title="t('task.openLocation')"
-                  :aria-label="t('task.openLocation')"
-                  @click="openFileInFolder(path)"
+                  :title="t('task.openFile')"
+                  :aria-label="t('task.openFile')"
+                  @click="openFile(path)"
                 >
                   <template #icon>
-                    <n-icon><FolderOpenOutline /></n-icon>
+                    <n-icon><DocumentOutline /></n-icon>
                   </template>
                 </n-button>
                 <n-button
@@ -80,12 +73,12 @@
                   size="tiny"
                   quaternary
                   circle
-                  :title="t('task.openFile')"
-                  :aria-label="t('task.openFile')"
-                  @click="openFile(path)"
+                  :title="t('task.openLocation')"
+                  :aria-label="t('task.openLocation')"
+                  @click="openFileInFolder(path)"
                 >
                   <template #icon>
-                    <n-icon><OpenOutline /></n-icon>
+                    <n-icon><FolderOpenOutline /></n-icon>
                   </template>
                 </n-button>
               </div>
@@ -98,12 +91,12 @@
               size="tiny"
               quaternary
               circle
-              :title="t('task.openLocation')"
-              :aria-label="t('task.openLocation')"
-              @click="openFileInFolder(firstFilePath)"
+              :title="t('task.openFile')"
+              :aria-label="t('task.openFile')"
+              @click="openFile(firstFilePath)"
             >
               <template #icon>
-                <n-icon><FolderOpenOutline /></n-icon>
+                <n-icon><DocumentOutline /></n-icon>
               </template>
             </n-button>
             <n-button
@@ -111,12 +104,12 @@
               size="tiny"
               quaternary
               circle
-              :title="t('task.openFile')"
-              :aria-label="t('task.openFile')"
-              @click="openFile(firstFilePath)"
+              :title="t('task.openLocation')"
+              :aria-label="t('task.openLocation')"
+              @click="openFileInFolder(firstFilePath)"
             >
               <template #icon>
-                <n-icon><OpenOutline /></n-icon>
+                <n-icon><FolderOpenOutline /></n-icon>
               </template>
             </n-button>
           </div>
@@ -141,22 +134,9 @@
         </n-descriptions-item>
       </n-descriptions>
 
-      <!-- 文件操作按钮 -->
-      <div v-if="displayFilePaths.length" class="file-actions">
-        <n-button v-if="isElectron && task.status === 'complete'" size="small" type="primary" ghost @click="openFileInFolder(firstFilePath)">
-          <template #icon>
-            <n-icon><FolderOpenOutline /></n-icon>
-          </template>
-          {{ t('task.openLocation') }}
-        </n-button>
-        <n-button v-if="isElectron && task.status === 'complete'" size="small" ghost @click="openFile(firstFilePath)">
-          <template #icon>
-            <n-icon><OpenOutline /></n-icon>
-          </template>
-          {{ t('task.openFile') }}
-        </n-button>
-        <!-- 失败任务：带着原链接打开新建弹窗，先改参数再重试 -->
-        <n-button v-if="task.status === 'error' && firstUri" size="small" @click="retryWithOptions">
+      <!-- 失败任务操作：已完成文件统一走上方路径行的图标按钮 -->
+      <div v-if="displayFilePaths.length && task.status === 'error' && firstUri" class="file-actions">
+        <n-button size="small" @click="retryWithOptions">
           {{ t('taskDetail.retryWithOptions') }}
         </n-button>
       </div>
@@ -222,7 +202,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { classifyAria2Error } from '@/shared/aria2Error'
-import { CopyOutline, FolderOpenOutline, OpenOutline } from '@vicons/ionicons5'
+import { CopyOutline, DocumentOutline, FolderOpenOutline } from '@vicons/ionicons5'
 import { message } from '@/utils/feedback'
 import { useUiStore } from '@/stores/uiStore'
 import DismissibleAlert from '@/components/common/DismissibleAlert.vue'
@@ -393,16 +373,6 @@ const magnetUri = computed(() => {
 async function copyMagnet() {
   if (!magnetUri.value) return
   const ok = await copyText(magnetUri.value)
-  if (ok) {
-    message.success(t('common.copied'))
-  } else {
-    message.error(t('common.copyFailed'))
-  }
-}
-
-async function copyGid() {
-  if (!props.task?.gid) return
-  const ok = await copyText(props.task.gid)
   if (ok) {
     message.success(t('common.copied'))
   } else {

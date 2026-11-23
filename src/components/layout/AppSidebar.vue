@@ -21,8 +21,10 @@
           <router-link
             :to="item.path"
             class="nav-item"
+            draggable="false"
             :class="{ 'is-active': isActive(item.path) }"
             :aria-current="isActive(item.path) ? 'page' : undefined"
+            @dragstart.prevent
           >
             <n-icon :size="18" class="nav-item__icon"><component :is="item.icon" /></n-icon>
             <template v-if="!collapsed">
@@ -339,6 +341,8 @@ async function toggleTheme() {
   font-size: var(--ds-text-body-size);
   font-weight: 450;
   white-space: nowrap;
+  -webkit-user-drag: none;
+  user-select: none;
   transition:
     background-color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out),
     color var(--ds-motion-dur-2) var(--ds-motion-ease-in-out);
