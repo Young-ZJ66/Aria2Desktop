@@ -2221,7 +2221,7 @@ export async function runAppUi({ session, reporter, outDir, expectedVersion, plu
   )
   reporter.check(
     '下载趋势给出时间轴标签',
-    !!trendInitial && Array.isArray(trendInitial.axis) && trendInitial.axis.length === 3 && trendInitial.axis.every((label) => label.length > 0),
+    !!trendInitial && Array.isArray(trendInitial.axis) && trendInitial.axis.length === 7 && trendInitial.axis.every((label) => label.length > 0),
     JSON.stringify(trendInitial && trendInitial.axis)
   )
   const trendSwitched = await evalIn(
